@@ -298,7 +298,7 @@ AudioSource:
   m_Enabled: 1
   serializedVersion: 4
   OutputAudioMixerGroup: {fileID: 0}
-  m_audioClip: {fileID: 8300000, guid: f81fcd9edaa84754869e9e9acb3aece4, type: 3}
+  m_audioClip: {fileID: 0}
   m_Resource: {fileID: 8300000, guid: f81fcd9edaa84754869e9e9acb3aece4, type: 3}
   m_PlayOnAwake: 0
   m_Volume: 1
@@ -523,6 +523,7 @@ MonoBehaviour:
   m_VerticalAlignment: 512
   m_textAlignment: 65535
   m_characterSpacing: 0
+  m_characterHorizontalScale: 1
   m_wordSpacing: 0
   m_lineSpacing: 0
   m_lineSpacingMax: 0
@@ -1557,6 +1558,7 @@ MonoBehaviour:
   m_VerticalAlignment: 512
   m_textAlignment: 65535
   m_characterSpacing: 0
+  m_characterHorizontalScale: 1
   m_wordSpacing: 0
   m_lineSpacing: 0
   m_lineSpacingMax: 0
@@ -1923,7 +1925,6 @@ GameObject:
   m_Component:
   - component: {fileID: 7979916830513711551}
   - component: {fileID: 7979916830513711548}
-  - component: {fileID: 7979916830513711549}
   - component: {fileID: 5254837789969241977}
   m_Layer: 0
   m_Name: XRI Keyboard
@@ -1968,6 +1969,9 @@ MonoBehaviour:
   m_OnTextUpdated:
     m_PersistentCalls:
       m_Calls: []
+  onUpdateText:
+    m_PersistentCalls:
+      m_Calls: []
   m_OnKeyPressed:
     m_PersistentCalls:
       m_Calls: []
@@ -1997,39 +2001,6 @@ MonoBehaviour:
     m_LayoutRoot: {fileID: 7979916829122939685}
     m_ToggleOnConfig: {fileID: 11400000, guid: 846fe994ca156db429b72643cdf7c042, type: 2}
     m_ToggleOffConfig: {fileID: 11400000, guid: 2580319e56ac659458811dcad1c26d69, type: 2}
---- !u!114 &7979916830513711549
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7979916830513711522}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: a2317ceab4d3d38419fe16eebc1c0cd3, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  m_InputField: {fileID: 7979916829536416321}
-  m_Keyboard: {fileID: 7979916830513711548}
-  m_UseSceneKeyboard: 1
-  m_UpdateOnKeyPress: 1
-  m_AlwaysObserveKeyboard: 1
-  m_MonitorInputFieldCharacterLimit: 0
-  m_ClearTextOnSubmit: 0
-  m_ClearTextOnOpen: 0
-  m_HideKeyboardOnDisable: 0
-  m_OnTextSubmitted:
-    m_PersistentCalls:
-      m_Calls: []
-  m_OnKeyboardOpened:
-    m_PersistentCalls:
-      m_Calls: []
-  m_OnKeyboardClosed:
-    m_PersistentCalls:
-      m_Calls: []
-  m_OnKeyboardFocusChanged:
-    m_PersistentCalls:
-      m_Calls: []
 --- !u!114 &5254837789969241977
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2043,7 +2014,6 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   m_OptimizeOnStart: 1
-  m_Canvas: {fileID: 7979916828988463974}
   m_BatchGroupParentTransform: {fileID: 234637812713154626}
   m_ButtonParentTransform: {fileID: 4863097412243294290}
   m_ImageParentTransform: {fileID: 2176062184860990979}

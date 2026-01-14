@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using TMPro;
+using UnityEngine.Events;
 using UnityEngine.Pool;
 
 namespace UnityEngine.XR.Interaction.Toolkit.Samples.SpatialKeyboard
@@ -132,6 +133,10 @@ namespace UnityEngine.XR.Interaction.Toolkit.Samples.SpatialKeyboard
 
         [SerializeField]
         KeyboardTextEvent m_OnTextUpdated = new KeyboardTextEvent();
+
+        /// <summary>Called before updating the text.</summary>
+        /// <remarks>This is used to update the caret position before updating the text.</remarks>
+        public UnityEvent onPreUpdateText;
 
         /// <summary>
         /// Event invoked when keyboard text is updated.
@@ -289,7 +294,7 @@ namespace UnityEngine.XR.Interaction.Toolkit.Samples.SpatialKeyboard
         public int caretPosition
         {
             get => m_CaretPosition;
-            protected set => m_CaretPosition = value;
+            set => m_CaretPosition = value;
         }
 
         bool m_Shifted;
@@ -503,6 +508,9 @@ namespace UnityEngine.XR.Interaction.Toolkit.Samples.SpatialKeyboard
         /// the text does not exceed the <see cref="TMP_InputField.characterLimit"/>.</remarks>
         public virtual void UpdateText(string newText)
         {
+            // Call the "pre update" event.
+            onPreUpdateText?.Invoke();
+            
             // Attempt to add key press to current text
             var updatedText = text;
 
@@ -690,7 +698,7 @@ namespace UnityEngine.XR.Interaction.Toolkit.Samples.SpatialKeyboard
                 }
             }
 
-            caretPosition = newText.Length;
+//            caretPosition = newText.Length;
             text = newText;
             gameObject.SetActive(true);
             m_IsOpen = true;
@@ -787,7 +795,7 @@ namespace UnityEngine.XR.Interaction.Toolkit.Samples.SpatialKeyboard
         /// <param name="updatedText">The text of the input field.</param>
         protected virtual void OnInputFieldValueChange(string updatedText)
         {
-            caretPosition = updatedText.Length;
+//            caretPosition = updatedText.Length;
             text = updatedText;
         }
 
