@@ -125,9 +125,6 @@ namespace UnityEngine.XR.Interaction.Toolkit.Samples.SpatialKeyboard
         [SerializeField, Tooltip("If true, this display will close the keyboard it is observing when this GameObject is disabled.")]
         public bool m_HideKeyboardOnDisable = true;
         
-        [SerializeField]
-        private bool forceCaretUpdate = false;
-
         /// <summary>
         /// If true, this display will close the keyboard it is observing when this GameObject is disabled.
         /// </summary>
@@ -191,6 +188,8 @@ namespace UnityEngine.XR.Interaction.Toolkit.Samples.SpatialKeyboard
         XRKeyboard m_ActiveKeyboard;
 
         bool m_IsActivelyObservingKeyboard;
+
+        private Color inputFieldSelectionColor;
 
         
         /// <summary>The current </summary>
@@ -263,6 +262,8 @@ namespace UnityEngine.XR.Interaction.Toolkit.Samples.SpatialKeyboard
             var observeOnStart = m_AlwaysObserveKeyboard && m_ActiveKeyboard != null & !m_IsActivelyObservingKeyboard;
             if (observeOnStart)
                 StartObservingKeyboard(m_ActiveKeyboard);
+
+            inputFieldSelectionColor = m_InputField.selectionColor;
         }
 
         void SetKeyboard(XRKeyboard updateKeyboard, bool observeKeyboard = true)
@@ -392,19 +393,23 @@ namespace UnityEngine.XR.Interaction.Toolkit.Samples.SpatialKeyboard
             // Update input field caret position with keyboard caret position
             if (m_InputField.stringPosition != m_ActiveKeyboard.caretPosition)
                 m_InputField.stringPosition = m_ActiveKeyboard.caretPosition;
-
-
-            if (forceCaretUpdate)
-            {
-                m_InputField.ActivateInputField();
-                StartCoroutine(UpdateCaretPositionDelayed());
-            }
+            
+            // Re-activate the input field, hide the selection that occurs, and schedule updating after the input field has been re-selected.
+            m_InputField.ActivateInputField();
+            m_InputField.selectionColor = Color.clear;
+            StartCoroutine(UpdateTextDelayed());
         }
 
-        IEnumerator UpdateCaretPositionDelayed()
+        
+        /// <summary>
+        /// Finishes updating after an input field has been re-selected after input.
+        /// </summary>
+        /// <returns></returns>
+        IEnumerator UpdateTextDelayed()
         {
             yield return new  WaitForEndOfFrame();
             m_InputField.caretPosition = m_ActiveKeyboard.caretPosition;
+            m_InputField.selectionColor = inputFieldSelectionColor;
         }
 
         void KeyboardOpening(KeyboardTextEventArgs args)
