@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using TMPro;
+using UnityEngine.Events;
 using UnityEngine.Pool;
 
 namespace UnityEngine.XR.Interaction.Toolkit.Samples.SpatialKeyboard
@@ -130,7 +131,7 @@ namespace UnityEngine.XR.Interaction.Toolkit.Samples.SpatialKeyboard
             get => m_OnTextSubmitted;
             set => m_OnTextSubmitted = value;
         }
-
+        
         [SerializeField]
         KeyboardTextEvent m_OnTextUpdated = new KeyboardTextEvent();
 
@@ -142,6 +143,12 @@ namespace UnityEngine.XR.Interaction.Toolkit.Samples.SpatialKeyboard
             get => m_OnTextUpdated;
             set => m_OnTextUpdated = value;
         }
+        
+        /// <summary>
+        /// Event invoked before updating text. This is used by XRKeyboardDisplay to update the caret position before updating the text.
+        /// </summary>
+        public UnityEvent onPreUpdateText;
+
 
         [SerializeField]
         KeyboardKeyEvent m_OnKeyPressed = new KeyboardKeyEvent();
@@ -506,6 +513,8 @@ namespace UnityEngine.XR.Interaction.Toolkit.Samples.SpatialKeyboard
         /// the text does not exceed the <see cref="TMP_InputField.characterLimit"/>.</remarks>
         public virtual void UpdateText(string newText)
         {
+            onPreUpdateText?.Invoke();
+            
             // Get the XRKeyboardDisplay for the current input field, and update the caret position for the keyboard.
             var keyboardDisplay = XRKeyboardDisplay.CurrentInputField.GetComponent<XRKeyboardDisplay>();
             if (keyboardDisplay != null)
