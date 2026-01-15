@@ -124,6 +124,9 @@ namespace UnityEngine.XR.Interaction.Toolkit.Samples.SpatialKeyboard
 
         [SerializeField, Tooltip("If true, this display will close the keyboard it is observing when this GameObject is disabled.")]
         public bool m_HideKeyboardOnDisable = true;
+        
+        [SerializeField]
+        private bool forceCaretUpdate = false;
 
         /// <summary>
         /// If true, this display will close the keyboard it is observing when this GameObject is disabled.
@@ -173,6 +176,7 @@ namespace UnityEngine.XR.Interaction.Toolkit.Samples.SpatialKeyboard
 
         [SerializeField, Tooltip("The event that is called when the keyboard changes focus and this display is not focused.")]
         UnityEvent m_OnKeyboardFocusChanged = new UnityEvent();
+
 
         /// <summary>
         /// The event that is called when the keyboard changes focus and this display is not focused.
@@ -388,24 +392,21 @@ namespace UnityEngine.XR.Interaction.Toolkit.Samples.SpatialKeyboard
             // Update input field caret position with keyboard caret position
             if (m_InputField.stringPosition != m_ActiveKeyboard.caretPosition)
                 m_InputField.stringPosition = m_ActiveKeyboard.caretPosition;
-            
-/*            
-            // XXX working on making the caret visible.
-            // This kind of works, but does a text selection.
-            EventSystem.current.SetSelectedGameObject(m_InputField.gameObject);
-            m_InputField.keepTextSelectionVisible = false;
-            m_InputField.caretPosition = m_ActiveKeyboard.caretPosition;
-//            StartCoroutine(UpdateCaretPositionDelayed());
-*/
+
+
+            if (forceCaretUpdate)
+            {
+                m_InputField.ActivateInputField();
+                StartCoroutine(UpdateCaretPositionDelayed());
+            }
         }
 
-/*        
         IEnumerator UpdateCaretPositionDelayed()
         {
             yield return new  WaitForEndOfFrame();
             m_InputField.caretPosition = m_ActiveKeyboard.caretPosition;
         }
-*/
+
         void KeyboardOpening(KeyboardTextEventArgs args)
         {
             Debug.Assert(args.keyboard == m_ActiveKeyboard);
