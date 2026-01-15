@@ -356,7 +356,7 @@ namespace UnityEngine.XR.Interaction.Toolkit.Samples.SpatialKeyboard
 
         void OnTextSubmit(KeyboardTextEventArgs args)
         {
-            UpdateText(args.keyboardText);
+//            UpdateText(args.keyboardText);
             m_OnTextSubmitted?.Invoke(args.keyboardText);
             if (m_ClearTextOnSubmit)
             {
