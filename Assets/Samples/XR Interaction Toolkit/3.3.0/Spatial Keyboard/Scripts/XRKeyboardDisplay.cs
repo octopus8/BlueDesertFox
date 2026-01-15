@@ -1,5 +1,7 @@
+using System.Collections;
 using TMPro;
 using UnityEngine.Events;
+using UnityEngine.EventSystems;
 
 namespace UnityEngine.XR.Interaction.Toolkit.Samples.SpatialKeyboard
 {
@@ -186,6 +188,12 @@ namespace UnityEngine.XR.Interaction.Toolkit.Samples.SpatialKeyboard
 
         bool m_IsActivelyObservingKeyboard;
 
+        
+        /// <summary>The current </summary>
+        /// <remarks>This class is the only </remarks>
+        static public TMP_InputField CurrentInputField { get; private set; }
+        
+
         /// <summary>
         /// See <see cref="MonoBehaviour"/>.
         /// </summary>
@@ -300,6 +308,8 @@ namespace UnityEngine.XR.Interaction.Toolkit.Samples.SpatialKeyboard
 
         void OnInputFieldGainedFocus(string text)
         {
+            CurrentInputField = m_InputField;
+            
             // If this display is already observing keyboard, sync, attempt to reposition, and early out
             // Displays that are always observing keyboards call open to ensure they sync with the keyboard
             if (m_IsActivelyObservingKeyboard && !alwaysObserveKeyboard)
@@ -368,6 +378,15 @@ namespace UnityEngine.XR.Interaction.Toolkit.Samples.SpatialKeyboard
             // Update input field caret position with keyboard caret position
             if (m_InputField.stringPosition != m_ActiveKeyboard.caretPosition)
                 m_InputField.stringPosition = m_ActiveKeyboard.caretPosition;
+            
+//            EventSystem.current.SetSelectedGameObject(m_InputField.gameObject);
+//            StartCoroutine(UpdateCaretPositionDelayed());
+        }
+
+        IEnumerator UpdateCaretPositionDelayed()
+        {
+            yield return new  WaitForEndOfFrame();
+            m_InputField.caretPosition = 0;
         }
 
         void KeyboardOpening(KeyboardTextEventArgs args)

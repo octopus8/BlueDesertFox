@@ -85,6 +85,7 @@ namespace UnityEngine.XR.Interaction.Toolkit.Samples.SpatialKeyboard
                     {
                         args.keyboard = this;
                         args.keyboardText = text;
+                        inputDisplay.text = text;
                         onTextUpdated?.Invoke(args);
                     }
                 }
@@ -226,6 +227,8 @@ namespace UnityEngine.XR.Interaction.Toolkit.Samples.SpatialKeyboard
             set => m_OnCharacterLimitReached = value;
         }
 
+        [SerializeField] private TMP_InputField inputDisplay;
+
         [SerializeField]
         bool m_SubmitOnEnter = true;
 
@@ -289,7 +292,7 @@ namespace UnityEngine.XR.Interaction.Toolkit.Samples.SpatialKeyboard
         public int caretPosition
         {
             get => m_CaretPosition;
-            protected set => m_CaretPosition = value;
+            set => m_CaretPosition = value;
         }
 
         bool m_Shifted;
@@ -503,6 +506,13 @@ namespace UnityEngine.XR.Interaction.Toolkit.Samples.SpatialKeyboard
         /// the text does not exceed the <see cref="TMP_InputField.characterLimit"/>.</remarks>
         public virtual void UpdateText(string newText)
         {
+            // Get the XRKeyboardDisplay for the current input field, and update the caret position for the keyboard.
+            var keyboardDisplay = XRKeyboardDisplay.CurrentInputField.GetComponent<XRKeyboardDisplay>();
+            if (keyboardDisplay != null)
+            {
+                keyboardDisplay.keyboard.caretPosition = keyboardDisplay.inputField.caretPosition;
+            }
+
             // Attempt to add key press to current text
             var updatedText = text;
 
@@ -690,7 +700,7 @@ namespace UnityEngine.XR.Interaction.Toolkit.Samples.SpatialKeyboard
                 }
             }
 
-            caretPosition = newText.Length;
+//            caretPosition = newText.Length;
             text = newText;
             gameObject.SetActive(true);
             m_IsOpen = true;
@@ -787,7 +797,7 @@ namespace UnityEngine.XR.Interaction.Toolkit.Samples.SpatialKeyboard
         /// <param name="updatedText">The text of the input field.</param>
         protected virtual void OnInputFieldValueChange(string updatedText)
         {
-            caretPosition = updatedText.Length;
+//            caretPosition = updatedText.Length;
             text = updatedText;
         }
 
