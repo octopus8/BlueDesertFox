@@ -283,6 +283,7 @@ namespace UnityEngine.XR.Interaction.Toolkit.Samples.SpatialKeyboard
             if (activeKeyboard == null || m_IsActivelyObservingKeyboard)
                 return;
 
+            activeKeyboard.onPreUpdateText.AddListener(OnPreUpdateText);
             activeKeyboard.onTextUpdated.AddListener(OnTextUpdate);
             activeKeyboard.onTextSubmitted.AddListener(OnTextSubmit);
             activeKeyboard.onClosed.AddListener(KeyboardClosing);
@@ -297,6 +298,7 @@ namespace UnityEngine.XR.Interaction.Toolkit.Samples.SpatialKeyboard
             if (activeKeyboard == null)
                 return;
 
+            activeKeyboard.onPreUpdateText.RemoveListener(OnPreUpdateText);
             activeKeyboard.onTextUpdated.RemoveListener(OnTextUpdate);
             activeKeyboard.onTextSubmitted.RemoveListener(OnTextSubmit);
             activeKeyboard.onClosed.RemoveListener(KeyboardClosing);
@@ -355,6 +357,14 @@ namespace UnityEngine.XR.Interaction.Toolkit.Samples.SpatialKeyboard
             {
                 inputField.text = string.Empty;
             }
+        }
+
+        /// <summary>
+        /// Callback called on pre-update; updates the keyboard caret position to match the input field caret position.
+        /// </summary>
+        void OnPreUpdateText()
+        {
+            keyboard.caretPosition = inputField.caretPosition;
         }
 
         void OnTextUpdate(KeyboardTextEventArgs args)

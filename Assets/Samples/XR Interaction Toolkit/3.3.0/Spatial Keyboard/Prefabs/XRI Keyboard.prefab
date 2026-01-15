@@ -1970,6 +1970,9 @@ MonoBehaviour:
   m_OnTextUpdated:
     m_PersistentCalls:
       m_Calls: []
+  onUpdateText:
+    m_PersistentCalls:
+      m_Calls: []
   m_OnKeyPressed:
     m_PersistentCalls:
       m_Calls: []
