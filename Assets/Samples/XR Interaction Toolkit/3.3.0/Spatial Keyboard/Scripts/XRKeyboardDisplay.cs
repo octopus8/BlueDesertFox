@@ -389,17 +389,23 @@ namespace UnityEngine.XR.Interaction.Toolkit.Samples.SpatialKeyboard
             if (m_InputField.stringPosition != m_ActiveKeyboard.caretPosition)
                 m_InputField.stringPosition = m_ActiveKeyboard.caretPosition;
             
+/*            
             // XXX working on making the caret visible.
-//            EventSystem.current.SetSelectedGameObject(m_InputField.gameObject);
+            // This kind of works, but does a text selection.
+            EventSystem.current.SetSelectedGameObject(m_InputField.gameObject);
+            m_InputField.keepTextSelectionVisible = false;
+            m_InputField.caretPosition = m_ActiveKeyboard.caretPosition;
 //            StartCoroutine(UpdateCaretPositionDelayed());
+*/
         }
 
+/*        
         IEnumerator UpdateCaretPositionDelayed()
         {
             yield return new  WaitForEndOfFrame();
-            m_InputField.caretPosition = 0;
+            m_InputField.caretPosition = m_ActiveKeyboard.caretPosition;
         }
-
+*/
         void KeyboardOpening(KeyboardTextEventArgs args)
         {
             Debug.Assert(args.keyboard == m_ActiveKeyboard);
