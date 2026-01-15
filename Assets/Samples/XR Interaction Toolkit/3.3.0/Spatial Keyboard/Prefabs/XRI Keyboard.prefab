@@ -1926,7 +1926,6 @@ GameObject:
   - component: {fileID: 7979916830513711551}
   - component: {fileID: 7979916830513711548}
   - component: {fileID: 5254837789969241977}
-  - component: {fileID: 3457258703314717632}
   m_Layer: 0
   m_Name: XRI Keyboard
   m_TagString: Untagged
@@ -1970,7 +1969,7 @@ MonoBehaviour:
   m_OnTextUpdated:
     m_PersistentCalls:
       m_Calls: []
-  onUpdateText:
+  onPreUpdateText:
     m_PersistentCalls:
       m_Calls: []
   m_OnKeyPressed:
@@ -2022,18 +2021,6 @@ MonoBehaviour:
   m_TextParentTransform: {fileID: 8527880552230238915}
   m_IconParentTransform: {fileID: 8181306104150534524}
   m_HighlightParentTransform: {fileID: 387959769103194418}
---- !u!114 &3457258703314717632
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7979916830513711522}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: ea6b11ab9aaced54d91bf276925d7dad, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::ForceDisableOnAwake
 --- !u!1 &7979916830553172895
 GameObject:
   m_ObjectHideFlags: 0
