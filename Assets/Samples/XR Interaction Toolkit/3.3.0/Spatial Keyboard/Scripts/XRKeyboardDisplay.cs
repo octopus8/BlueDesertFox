@@ -382,6 +382,11 @@ namespace UnityEngine.XR.Interaction.Toolkit.Samples.SpatialKeyboard
 
         void UpdateText(string text)
         {
+            if (CurrentInputField != m_InputField)
+            {
+                return;
+            }
+            
             var updatedText = text;
 
             // Clip updated text to substring
