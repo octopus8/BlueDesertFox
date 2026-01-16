@@ -274,14 +274,22 @@ namespace UnityEngine.XR.Interaction.Toolkit.Samples.SpatialKeyboard
         /// <inheritdoc />
         public override void OnPointerDown(PointerEventData eventData)
         {
+            Debug.Log("OnPointerDown");
             base.OnPointerDown(eventData);
             if (m_UpdateOnKeyDown && interactable)
                 KeyClick();
         }
 
+        public override void OnPointerUp(PointerEventData eventData)
+        {
+            Debug.Log("OnPointerUp");
+            base.OnPointerUp(eventData);
+        }
+
         /// <inheritdoc />
         public override void OnPointerClick(PointerEventData eventData)
         {
+            Debug.Log("OnPointerClick");
             base.OnPointerClick(eventData);
             if (!m_UpdateOnKeyDown)
                 KeyClick();
@@ -289,6 +297,7 @@ namespace UnityEngine.XR.Interaction.Toolkit.Samples.SpatialKeyboard
 
         protected virtual void KeyClick()
         {
+            Debug.Log("KeyClick");
             // Local function of things to do to the key when pressed (Audio, etc.)
             KeyPressed();
 

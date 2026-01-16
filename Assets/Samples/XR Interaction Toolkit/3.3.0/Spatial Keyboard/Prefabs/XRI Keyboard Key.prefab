@@ -101,7 +101,7 @@ MonoBehaviour:
   m_ShiftCharacter: 
   m_ShiftDisplayCharacter: 
   m_ShiftDisplayIcon: {fileID: 0}
-  m_UpdateOnKeyDown: 1
+  m_UpdateOnKeyDown: 0
   m_TextComponent: {fileID: 1230688967838103642}
   m_IconComponent: {fileID: 434614208518678406}
   m_HighlightComponent: {fileID: 1500099412274214952}
@@ -350,6 +350,7 @@ MonoBehaviour:
   m_VerticalAlignment: 512
   m_textAlignment: 65535
   m_characterSpacing: 0
+  m_characterHorizontalScale: 1
   m_wordSpacing: 0
   m_lineSpacing: 0
   m_lineSpacingMax: 0
