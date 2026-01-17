@@ -71,7 +71,7 @@ namespace LiquidForce {
             cameraFaderOffset.transform.parent = cameraFaderRoot.transform;
             cameraFaderOffset.transform.localPosition = new Vector3(0, 0, zOffset);
             cameraFaderOffset.transform.rotation = Quaternion.Euler(-90f, 0, 0);
-            cameraFaderOffset.transform.localScale *= 5;
+            cameraFaderOffset.transform.localScale *= 10;
             cameraFaderOffset.layer = LayerMask.NameToLayer("UI");
             fadeMaterial = new Material(Shader.Find("LiquidForce/CameraFader"));
             cameraFaderOffset.GetComponent<MeshRenderer>().material = fadeMaterial;
