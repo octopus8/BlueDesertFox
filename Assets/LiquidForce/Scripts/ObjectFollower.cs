@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using DG.Tweening;
 using UnityEngine;
 using UnityEngine.Rendering;
 
@@ -151,47 +152,49 @@ namespace LiquidForce
             {
                 if (target == null)
                 {
-                    Debug.Log("XXX target is null");
+                    Debug.Log("ObjectFollower: target is null.");
                     return;
                 }
                 Vector3 targetPosition = target.position;
                 Vector3 targetRotation = target.rotation.eulerAngles;
 
+                float positionSpeed = 0.1f;
                 if (Mathf.Abs(targetPosition.x - source.position.x) > maxPositionOffset.x)
                 {
-                    targetPosition.x = source.position.x;
+                    targetPosition.x = Mathf.Lerp(targetPosition.x, source.position.x, positionSpeed * Time.deltaTime);
                 }
 
                 if (Mathf.Abs(targetPosition.y - source.position.y) > maxPositionOffset.y)
                 {
-                    targetPosition.y = source.position.y;
+                    targetPosition.y = Mathf.Lerp(targetPosition.y, source.position.y, positionSpeed * Time.deltaTime);
                 }
 
                 if (Mathf.Abs(targetPosition.z - source.position.z) > maxPositionOffset.z)
                 {
-                    targetPosition.z = source.position.z;
+                    targetPosition.z = Mathf.Lerp(targetPosition.z, source.position.z, positionSpeed * Time.deltaTime);
                 }
 
 
+                float rotationSpeed = 0.1f;
                 if (updateRotationX)
                 {
                     if (Mathf.Abs(targetRotation.x - source.rotation.eulerAngles.x) > maxRotationOffsetDegrees.x)
                     {
-                        targetRotation.x = source.rotation.eulerAngles.x;
+                        targetRotation.x = Mathf.Lerp(targetRotation.x, source.rotation.eulerAngles.x, rotationSpeed * Time.deltaTime);
                     }
                 }
                 if (updateRotationY)
                 {
                     if (Mathf.Abs(targetRotation.y - source.rotation.eulerAngles.y) > maxRotationOffsetDegrees.y)
                     {
-                        targetRotation.y = source.rotation.eulerAngles.y;
+                        targetRotation.y = Mathf.Lerp(targetRotation.y, source.rotation.eulerAngles.y, rotationSpeed * Time.deltaTime);
                     }
                 }
                 if (updateRotationZ)
                 {
                     if (Mathf.Abs(targetRotation.z - source.rotation.eulerAngles.z) > maxRotationOffsetDegrees.z)
                     {
-                        targetRotation.z = source.rotation.eulerAngles.z;
+                        targetRotation.z = Mathf.Lerp(targetRotation.z, source.rotation.eulerAngles.z, rotationSpeed * Time.deltaTime);
                     }
                 }
                 
