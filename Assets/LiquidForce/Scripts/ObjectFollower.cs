@@ -262,7 +262,13 @@ namespace LiquidForce
                 }
                 if (updateRotationY)
                 {
-                    dif = Mathf.Abs(targetRotation.y - source.rotation.eulerAngles.y);
+                    var targetRot = targetRotation.y;
+                    dif = Mathf.Abs(targetRot - source.rotation.eulerAngles.y);
+                    if (dif > 180.0f)
+                    {
+                        targetRot += 360.0f;
+                        dif = Mathf.Abs(targetRot - source.rotation.eulerAngles.y);
+                    }
                     if (dif < rotationReachedTollerance)
                     {
                         isSettingRotationY = false;
@@ -270,7 +276,7 @@ namespace LiquidForce
                     if (dif > maxRotationOffsetDegrees.y || isSettingRotationY)
                     {
                         isSettingRotationY = true;
-                        targetRotation.y = Mathf.Lerp(targetRotation.y, source.rotation.eulerAngles.y, rotationSpeed * Time.deltaTime);
+                        targetRotation.y = Mathf.Lerp(targetRot, source.rotation.eulerAngles.y, rotationSpeed * Time.deltaTime);
                     }
                 }
                 if (updateRotationZ)
