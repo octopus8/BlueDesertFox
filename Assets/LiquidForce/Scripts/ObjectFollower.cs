@@ -34,10 +34,10 @@ namespace LiquidForce
         [SerializeField] private Vector3 maxPositionOffset;
 
         [SerializeField]
-        float positionSpeed = 1f;
+        float positionSpeed = 20f;
         
         [SerializeField]
-        float rotationSpeed = 0.1f;
+        float rotationSpeed = 10f;
 
 
         [Header("Update")]
@@ -151,7 +151,7 @@ namespace LiquidForce
         
         private void UpdateTransform()
         {
-            float positionReachedTollerance = 0.1f;
+            float positionReachedTolerance = 0.1f;
             float rotationReachedTollerance = 1.0f;
             
             // If no targets have been set, then do nothing.
@@ -192,56 +192,97 @@ namespace LiquidForce
                 }
                 Vector3 targetPosition = target.position;
                 Vector3 targetRotation = target.rotation.eulerAngles;
+                if (targetRotation.x > 180)
+                {
+                    targetRotation.x -= 360;
+                }
 
+                if (targetRotation.y > 180)
+                {
+                    targetRotation.y -= 360;
+                }
+
+                if (targetRotation.z > 180)
+                {
+                    targetRotation.z -= 360;
+                }
+
+                // If the offset is within tolerance, then consider position set.
                 float dif =  Mathf.Abs(targetPosition.x - source.position.x);
-                if (dif < positionReachedTollerance)
+                if (dif < positionReachedTolerance)
                 {
                     isSettingPositionX = false;
                 }
+                // If beyond the max offset or setting the position, then start/continue setting the position.
                 if (dif > maxPositionOffset.x || isSettingPositionX)
                 {
+                    isSettingPositionX = true;
                     targetPosition.x = Mathf.Lerp(targetPosition.x, source.position.x, positionSpeed * Time.deltaTime);
                 }
 
+                // If the offset is within tolerance, then consider position set.
                 dif =  Mathf.Abs(targetPosition.y - source.position.y);
-                if (dif < positionReachedTollerance)
+                if (dif < positionReachedTolerance)
                 {
                     isSettingPositionY = false;
                 }
+                // If beyond the max offset or setting the position, then start/continue setting the position.
                 if (dif > maxPositionOffset.y || isSettingPositionY)
                 {
+                    isSettingPositionY = true;
                     targetPosition.y = Mathf.Lerp(targetPosition.y, source.position.y, positionSpeed * Time.deltaTime);
                 }
 
+                // If the offset is within tolerance, then consider position set.
                 dif =  Mathf.Abs(targetPosition.z - source.position.z);
-                if (dif < positionReachedTollerance)
+                if (dif < positionReachedTolerance)
                 {
                     isSettingPositionZ = false;
                 }
+                // If beyond the max offset or setting the position, then start/continue setting the position.
                 if (dif > maxPositionOffset.z || isSettingPositionZ)
                 {
+                    isSettingPositionZ = true;
                     targetPosition.z = Mathf.Lerp(targetPosition.z, source.position.z, positionSpeed * Time.deltaTime);
                 }
 
 
                 if (updateRotationX)
                 {
-                    if (Mathf.Abs(targetRotation.x - source.rotation.eulerAngles.x) > maxRotationOffsetDegrees.x)
+                    dif = Mathf.Abs(targetRotation.x - source.rotation.eulerAngles.x);
+                    if (dif < rotationReachedTollerance)
                     {
+                        isSettingRotationX = false;
+                    }
+                    if (dif > maxRotationOffsetDegrees.x || isSettingRotationX)
+                    {
+                        isSettingRotationX = true;
                         targetRotation.x = Mathf.Lerp(targetRotation.x, source.rotation.eulerAngles.x, rotationSpeed * Time.deltaTime);
                     }
                 }
                 if (updateRotationY)
                 {
-                    if (Mathf.Abs(targetRotation.y - source.rotation.eulerAngles.y) > maxRotationOffsetDegrees.y)
+                    dif = Mathf.Abs(targetRotation.y - source.rotation.eulerAngles.y);
+                    if (dif < rotationReachedTollerance)
                     {
+                        isSettingRotationY = false;
+                    }
+                    if (dif > maxRotationOffsetDegrees.y || isSettingRotationY)
+                    {
+                        isSettingRotationY = true;
                         targetRotation.y = Mathf.Lerp(targetRotation.y, source.rotation.eulerAngles.y, rotationSpeed * Time.deltaTime);
                     }
                 }
                 if (updateRotationZ)
                 {
-                    if (Mathf.Abs(targetRotation.z - source.rotation.eulerAngles.z) > maxRotationOffsetDegrees.z)
+                    dif = Mathf.Abs(targetRotation.z - source.rotation.eulerAngles.z);
+                    if (dif < rotationReachedTollerance)
                     {
+                        isSettingRotationZ = false;
+                    }
+                    if (dif > maxRotationOffsetDegrees.z || isSettingRotationZ)
+                    {
+                        isSettingRotationZ = true;
                         targetRotation.z = Mathf.Lerp(targetRotation.z, source.rotation.eulerAngles.z, rotationSpeed * Time.deltaTime);
                     }
                 }
