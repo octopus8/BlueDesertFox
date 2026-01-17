@@ -19,7 +19,7 @@ namespace LiquidForce
             OnPreCull
         }
 
-        private bool oneTimeUpdate;
+        private bool snapTo;
 
         
         [field: SerializeField] public Transform source { private get; set; }
@@ -48,6 +48,12 @@ namespace LiquidForce
 
         
         
+        private bool isSettingPositionX;
+        private bool isSettingPositionY;
+        private bool isSettingPositionZ;
+        private bool isSettingRotationX;
+        private bool isSettingRotationY;
+        private bool isSettingRotationZ;
         
         
         
@@ -67,7 +73,7 @@ namespace LiquidForce
 
         public void OnEnable()
         {
-            oneTimeUpdate = true;
+            snapTo = true;
         }
 
         public void AddTarget(Transform target)
@@ -142,17 +148,39 @@ namespace LiquidForce
             
         }
 
+        
         private void UpdateTransform()
         {
+            float positionReachedTollerance = 0.1f;
+            float rotationReachedTollerance = 1.0f;
+            
             // If no targets have been set, then do nothing.
             if (targets == null)
             {
                 return;
             }
 
+            // If no source has been set, then set it to the component's GameObject.
             if (null == source)
             {
                 source = gameObject.transform;
+            }
+
+            // If "snap to", then snap to.
+            if (snapTo)
+            {
+                snapTo = false;
+                foreach (var target in targets)
+                {
+                    if (target == null)
+                    {
+                        Debug.Log("ObjectFollower: target is null.");
+                        return;
+                    }
+                    target.SetPositionAndRotation(source.position, source.rotation);
+                }
+
+                return;
             }
 
             foreach (var target in targets)
@@ -165,17 +193,32 @@ namespace LiquidForce
                 Vector3 targetPosition = target.position;
                 Vector3 targetRotation = target.rotation.eulerAngles;
 
-                if (Mathf.Abs(targetPosition.x - source.position.x) > maxPositionOffset.x)
+                float dif =  Mathf.Abs(targetPosition.x - source.position.x);
+                if (dif < positionReachedTollerance)
+                {
+                    isSettingPositionX = false;
+                }
+                if (dif > maxPositionOffset.x || isSettingPositionX)
                 {
                     targetPosition.x = Mathf.Lerp(targetPosition.x, source.position.x, positionSpeed * Time.deltaTime);
                 }
 
-                if (Mathf.Abs(targetPosition.y - source.position.y) > maxPositionOffset.y)
+                dif =  Mathf.Abs(targetPosition.y - source.position.y);
+                if (dif < positionReachedTollerance)
+                {
+                    isSettingPositionY = false;
+                }
+                if (dif > maxPositionOffset.y || isSettingPositionY)
                 {
                     targetPosition.y = Mathf.Lerp(targetPosition.y, source.position.y, positionSpeed * Time.deltaTime);
                 }
 
-                if (Mathf.Abs(targetPosition.z - source.position.z) > maxPositionOffset.z)
+                dif =  Mathf.Abs(targetPosition.z - source.position.z);
+                if (dif < positionReachedTollerance)
+                {
+                    isSettingPositionZ = false;
+                }
+                if (dif > maxPositionOffset.z || isSettingPositionZ)
                 {
                     targetPosition.z = Mathf.Lerp(targetPosition.z, source.position.z, positionSpeed * Time.deltaTime);
                 }
@@ -206,16 +249,9 @@ namespace LiquidForce
                 
                 target.SetPositionAndRotation(targetPosition, Quaternion.Euler(targetRotation));
             }
-            oneTimeUpdate = false;
         }
 
 
-        private bool isSettingPositionX;
-        private bool isSettingPositionY;
-        private bool isSettingPositionZ;
-        private bool isSettingRotationX;
-        private bool isSettingRotationY;
-        private bool isSettingRotationZ;
         
         private void UpdateTransformNew()
         {
@@ -309,7 +345,6 @@ namespace LiquidForce
                 
                 target.SetPositionAndRotation(targetPosition, Quaternion.Euler(targetRotation));
             }
-            oneTimeUpdate = false;
         }
         
         
