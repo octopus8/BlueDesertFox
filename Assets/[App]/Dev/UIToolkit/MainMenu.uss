@@ -1,0 +1,18 @@
+:root {
+}
+
+.panel {
+    background-color: rgba(7, 168, 145, 0.57);
+}
+
+.hide {
+    display: none;
+}
+
+.menu {
+    width: 437px;
+    max-height: 553px;
+    background-color: rgba(0, 0, 0, 0.57);
+    min-width: auto;
+    align-self: center;
+}

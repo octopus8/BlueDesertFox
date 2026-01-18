@@ -1,0 +1,6 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" xmlns:uie="UnityEditor.UIElements" editor-extension-mode="False">
+    <Style src="project://database/Assets/[App]/Dev/UIToolkit/MainMenu.uss?fileID=7433441132597879392&amp;guid=24ee56e158697af4fa994d729c3a32ef&amp;type=3#MainMenu"/>
+    <ui:VisualElement name="Panel" class="panel" style="flex-grow: 1; justify-content: center;">
+        <ui:VisualElement name="Container" class="menu" style="flex-grow: 1;"/>
+    </ui:VisualElement>
+</ui:UXML>
