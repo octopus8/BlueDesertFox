@@ -29,6 +29,10 @@
     margin-left: 13px;
 }
 
+.unity-button:hover {
+    background-color: rgb(171, 168, 0);
+}
+
 .unity-text-element {
     -unity-font-definition: resource("Righteous-Regular");
     font-size: 36px;
