@@ -31,6 +31,9 @@
 
 .unity-button:hover {
     background-color: rgb(171, 168, 0);
+    scale: 1.1 1.1 1.1;
+    transition-property: scale;
+    transition-duration: 0.25s;
 }
 
 .unity-text-element {

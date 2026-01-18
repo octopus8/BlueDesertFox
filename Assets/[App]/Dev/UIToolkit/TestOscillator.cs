@@ -14,6 +14,6 @@ public class TestOscillator : MonoBehaviour
     void Update()
     {
         testval = (Mathf.Sin(Time.time) + 1.0f) * 0.5f;
-        Debug.Log(testval);
+//        Debug.Log(testval);
     }
 }
