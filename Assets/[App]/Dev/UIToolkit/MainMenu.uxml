@@ -2,9 +2,21 @@
     <Style src="project://database/Assets/[App]/Dev/UIToolkit/MainMenu.uss?fileID=7433441132597879392&amp;guid=24ee56e158697af4fa994d729c3a32ef&amp;type=3#MainMenu"/>
     <ui:VisualElement name="Panel" class="panel" style="flex-grow: 1; justify-content: center;">
         <ui:VisualElement name="Container" class="menu" style="flex-grow: 1;">
-            <ui:Button text="Test Button 1" name="TestButton1"/>
-            <ui:Button text="Test Button 2" name="TestButton2"/>
-            <ui:Button text="Test Button 3" name="TestButton3"/>
+            <ui:Button text="Test Button 1" name="TestButton1">
+                <Bindings>
+                    <UnityEngine.Localization.LocalizedString property="text" table="GUID:8579717e622dd444b8d03877bd9204cc" entry="Id(336507146240)"/>
+                </Bindings>
+            </ui:Button>
+            <ui:Button text="Test Button 2" name="TestButton2">
+                <Bindings>
+                    <UnityEngine.Localization.LocalizedString property="text" table="GUID:8579717e622dd444b8d03877bd9204cc" entry="Id(374511734784)"/>
+                </Bindings>
+            </ui:Button>
+            <ui:Button text="Test Button 3" name="TestButton3">
+                <Bindings>
+                    <UnityEngine.Localization.LocalizedString property="text" table="GUID:8579717e622dd444b8d03877bd9204cc" entry="Id(404362596352)"/>
+                </Bindings>
+            </ui:Button>
         </ui:VisualElement>
     </ui:VisualElement>
 </ui:UXML>
