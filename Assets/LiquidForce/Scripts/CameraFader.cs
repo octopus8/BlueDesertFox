@@ -67,7 +67,7 @@ namespace LiquidForce {
             cameraFaderRoot = new GameObject("CameraFader");
             GameObject cameraFaderOffset = GameObject.CreatePrimitive(PrimitiveType.Sphere);
             InvertMeshNormals(cameraFaderOffset.GetComponent<MeshFilter>().mesh);
-            Destroy(cameraFaderOffset.GetComponent<Collider>());
+            DestroyImmediate(cameraFaderOffset.GetComponent<Collider>());
             cameraFaderOffset.transform.parent = cameraFaderRoot.transform;
             cameraFaderOffset.transform.localPosition = new Vector3(0, 0, zOffset);
             cameraFaderOffset.transform.rotation = Quaternion.Euler(-90f, 0, 0);
