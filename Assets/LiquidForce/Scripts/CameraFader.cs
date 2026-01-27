@@ -155,7 +155,12 @@ namespace LiquidForce {
             await DoFade(durationSeconds, false);
         }
         
+        public bool IsCameraFadedOut()
+        {
+            return !(fadeMaterial.color.a < 1.0f);
+        }
 
+        
         /// <summary>
         /// Called by public fade methods to actually perform the fade.
         /// </summary>
