@@ -29,7 +29,7 @@ namespace App.StartScene
             {
                 ui.Show();
             } else {
-                ui.Hide();
+                ui?.Hide();
             }
 
         }

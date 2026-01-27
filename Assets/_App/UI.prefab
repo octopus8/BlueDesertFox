@@ -1686,6 +1686,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::App.StartScene.UI
   uiContainer: {fileID: 2333212971302181579}
   displaySpeed: 0.5
+  sceneList: {fileID: 11400000, guid: 210814e98b7db604b9b36e89b63c61c7, type: 2}
 --- !u!1 &8789477943003682061
 GameObject:
   m_ObjectHideFlags: 0

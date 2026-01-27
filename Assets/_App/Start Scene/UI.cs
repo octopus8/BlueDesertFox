@@ -7,6 +7,7 @@ using UnityEngine.AddressableAssets;
 using UnityEngine.ResourceManagement.AsyncOperations;
 using UnityEngine.ResourceManagement.ResourceProviders;
 using UnityEngine.SceneManagement;
+using UnityEngine.UIElements;
 
 
 namespace App.StartScene
@@ -18,12 +19,38 @@ namespace App.StartScene
 
         [SerializeField] private float displaySpeed = 0.5f;
         
+        [SerializeField] private SceneListSO sceneList;
+
+        [SerializeField] private GameObject sceneListContainer;
+        
+        [SerializeField] private SceneListButton prototypeButton;
+
+
+        void Start()
+        {
+            foreach (SceneListSO.SceneListScene scene in sceneList.scenes)
+            {
+                SceneListButton sceneListButton = Instantiate(prototypeButton.gameObject, sceneListContainer.transform)
+                    .GetComponent<SceneListButton>();
+                sceneListButton.Init(scene.sceneName, scene.scene);
+            }
+            prototypeButton.gameObject.SetActive(false);
+        }
+        
         private void Update()
         {
             if (Input.GetKeyDown(KeyCode.Space))
             {
                 LoadAutoHandDemoScene();
             }
+        }
+
+        public void LoadScene(SceneListButton button)
+        {
+            Hide();
+            CameraFader.Instance.FadeCameraOut(1);
+            AsyncOperationHandle<SceneInstance> loadSceneHandle = Addressables.LoadSceneAsync( button.GetAssetReference(), LoadSceneMode.Single, false);
+            StartCoroutine(LoadSceneAsync(loadSceneHandle));
         }
 
 

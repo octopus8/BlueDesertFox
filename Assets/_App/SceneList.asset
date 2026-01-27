@@ -1,0 +1,29 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ea6207a0b7e522a41bf23692c5b7a2a3, type: 3}
+  m_Name: SceneList
+  m_EditorClassIdentifier: Assembly-CSharp::SceneListSO
+  scenes:
+  - sceneName: AutoHand Demo
+    scene:
+      m_AssetGUID: c8c7e9452f8c702479dda69a148e809f
+      m_SubObjectName: 
+      m_SubObjectType: 
+      m_SubObjectGUID: 
+      m_EditorAssetChanged: 0
+  - sceneName: DOTS Scene
+    scene:
+      m_AssetGUID: 04b4cf1a04dc7534da4baf23c2a413e4
+      m_SubObjectName: 
+      m_SubObjectType: 
+      m_SubObjectGUID: 
+      m_EditorAssetChanged: 0

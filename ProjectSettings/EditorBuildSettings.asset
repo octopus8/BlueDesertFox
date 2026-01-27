@@ -5,8 +5,8 @@ EditorBuildSettings:
   m_ObjectHideFlags: 0
   serializedVersion: 2
   m_Scenes:
-  - enabled: 1
-    path: Assets/_App/Start Scene/StartScene.unity
+  - enabled: 0
+    path: Assets/_App/DOTS Scene/DOTS Scene.unity
     guid: 04b4cf1a04dc7534da4baf23c2a413e4
   m_configObjects:
     Unity.XR.Oculus.Settings: {fileID: 11400000, guid: bfa1182bd221b4ca89619141f66f1260, type: 2}

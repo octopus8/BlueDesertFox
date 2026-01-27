@@ -15,6 +15,11 @@ MonoBehaviour:
   m_GroupName: Default Local Group
   m_GUID: eb7813d9870615248b5d455529a46a0b
   m_SerializeEntries:
+  - m_GUID: 04b4cf1a04dc7534da4baf23c2a413e4
+    m_Address: Assets/_App/DOTS Scene/DOTS Scene.unity
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: c8c7e9452f8c702479dda69a148e809f
     m_Address: Assets/_App/StartScene/AutoHand Demo.unity
     m_ReadOnly: 0
