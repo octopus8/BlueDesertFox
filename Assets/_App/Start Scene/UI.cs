@@ -1,4 +1,3 @@
-using System;
 using System.Collections;
 using System.Threading;
 using Cysharp.Threading.Tasks;
@@ -10,7 +9,6 @@ using UnityEngine.InputSystem;
 using UnityEngine.ResourceManagement.AsyncOperations;
 using UnityEngine.ResourceManagement.ResourceProviders;
 using UnityEngine.SceneManagement;
-using UnityEngine.UIElements;
 
 
 namespace App.StartScene
@@ -49,9 +47,23 @@ namespace App.StartScene
         private InputAction testAction;
         
         /// <summary>Token that allows for the fade animation to be canceled.</summary>
-        protected CancellationTokenSource[] animCancelTokens = new CancellationTokenSource[System.Enum.GetValues(typeof(AnimCancelToken)).Length];
+        private CancellationTokenSource[] animCancelTokens = new CancellationTokenSource[System.Enum.GetValues(typeof(AnimCancelToken)).Length];
+
+        private AnimState currentAnimState = AnimState.off;
         
         private bool testActionBool = false;
+
+
+        /// <summary>
+        /// Animation states.
+        /// </summary>
+        enum AnimState
+        {
+            off,
+            turningOn,
+            on,
+            turningOff
+        }
 
         
         /// <summary>Async animations</summary>
@@ -87,6 +99,10 @@ namespace App.StartScene
             {
                 SetHiddenImmediate();
             }
+            else
+            {
+                currentAnimState = AnimState.on;
+            }
         }
 
 
@@ -101,26 +117,19 @@ namespace App.StartScene
                 if (testActionBool)
                 {
                     testActionBool = false;
-                    CameraFader.Instance.FadeCameraIn(10);
+                    _ = CameraFader.Instance.FadeCameraIn(10);
                 }
                 else
                 {
                     testActionBool = true;
-                    CameraFader.Instance.FadeCameraOut(10);
+                    _ = CameraFader.Instance.FadeCameraOut(10);
                 }
             }
             
             // Handle menu toggle action.
             if (menuToggleAction.WasPressedThisFrame())
             {
-                if (uiContainer.gameObject.activeInHierarchy)
-                {
-                    Hide();
-                }
-                else
-                {
-                    Show();
-                }
+                ToggleVisibility();
             }            
         }
         
@@ -131,9 +140,14 @@ namespace App.StartScene
         public void Show()
         {
             CancelAnimations();
+            currentAnimState = AnimState.turningOn;
             uiContainer.gameObject.SetActive(true);
             uiContainer.DOFade(1, displaySpeed).WithCancellation(animCancelTokens[(int)AnimCancelToken.fade].Token);
-            uiContainer.transform.DOScale(new Vector3(1, 1, 1), displaySpeed).WithCancellation(animCancelTokens[(int)AnimCancelToken.scale].Token);
+            uiContainer.transform.DOScale(new Vector3(1, 1, 1), displaySpeed)
+                .WithCancellation(animCancelTokens[(int)AnimCancelToken.scale].Token).ContinueWith(() =>
+                {
+                    currentAnimState =  AnimState.on;
+                });
         }
 
         
@@ -143,11 +157,13 @@ namespace App.StartScene
         public void Hide()
         {
             CancelAnimations();
+            currentAnimState = AnimState.turningOff;
             uiContainer.DOFade(0, displaySpeed).WithCancellation(animCancelTokens[(int)AnimCancelToken.fade].Token);
             uiContainer.transform.DOScale(new Vector3(0, 0, 1), displaySpeed)
                 .WithCancellation(animCancelTokens[(int)AnimCancelToken.scale].Token).ContinueWith(() =>
                 {
                     uiContainer.gameObject.SetActive(false);
+                    currentAnimState =  AnimState.off;
                 });
         }
 
@@ -159,9 +175,25 @@ namespace App.StartScene
         public void LoadScene(SceneListButton button)
         {
             Hide();
-            CameraFader.Instance.FadeCameraOut(1);
+            _ = CameraFader.Instance.FadeCameraOut(1);
             AsyncOperationHandle<SceneInstance> loadSceneHandle = Addressables.LoadSceneAsync( button.GetAssetReference(), LoadSceneMode.Single, false);
             StartCoroutine(ActivateLoadedSceneOnLoad(loadSceneHandle));
+        }
+
+
+        /// <summary>
+        /// Toggles visibility.
+        /// </summary>
+        private void ToggleVisibility()
+        {
+            if (currentAnimState is AnimState.on or AnimState.turningOn)
+            {
+                Hide();
+            }
+            else
+            {
+                Show();
+            }
         }
 
         
@@ -221,6 +253,7 @@ namespace App.StartScene
             uiContainer.transform.localScale = new Vector3(0, 0, 1);
             uiContainer.alpha = 0;
             uiContainer.gameObject.SetActive(false);
+            currentAnimState = AnimState.off;
         }
     }
 }
