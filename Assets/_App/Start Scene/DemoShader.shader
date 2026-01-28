@@ -107,7 +107,13 @@ Shader "Custom/DemoShader"
                 return finalColor;                
             }
 
-            half4 Other2(Varyings IN)
+            float3 palette(float t, float3 a, float3 b, float3 c, float3 d)
+            {
+//                return float3(1, 0, 0);
+                return a + b*cos(PI * 2*(c*t+d));
+            }
+
+            half4 Pattern0(Varyings IN)
             {
                 // Center the UVs (0 to 1 becomes -1 to 1)
                 float2 centeredUV = (IN.uv - 0.5) * 2.0;
@@ -118,23 +124,141 @@ Shader "Custom/DemoShader"
                 // Apply aspect ratio correction to prevent stretching
                 // This makes circles stay circular regardless of screen aspect ratio
                 centeredUV.x *= aspectRatio;
-                
-                float d = length(centeredUV);
 
-                d -= 0.5;
+                float3 finalColor = float3(0, 0, 0);
                 
-                d = abs(d);
+                float2 centeredUV2 = centeredUV;
 
-//                d = step(0.1, d);
-                d = smoothstep(0, 0.1, d);
+                float3 a = float3(0.5, 0.5, 0.5);
+                float3 b = float3(0.5, 0.5, 0.5);
+                float3 c = float3(1.0, 1.0, 1.0);
+                float3 d = float3(0.263, 0.416, 0.557);
                 
-                return half4(d, d, d, 1);
+                for (float i=0; i<2; ++i)
+                {
+                    centeredUV = frac(centeredUV * 1.5) - 0.5;
+                    
+                    float dist = length(centeredUV) * exp(-length(centeredUV2));
+                    dist = sin(dist * 8 + _Time.y) / 8;
+                    dist = abs(dist);
+                    dist = pow(0.01 / dist, 1.2);
+                    float3 color = palette(length(centeredUV2) + i*0.4 + _Time.y * 0.4, a, b, c, d);
+                    finalColor += color * dist;
+                }
+                return half4(finalColor, 1.0);
             }
+
+            half4 Pattern1(Varyings IN)
+            {
+                // Center the UVs (0 to 1 becomes -1 to 1)
+                float2 centeredUV = (IN.uv - 0.5) * 2.0;
+
+               // Calculate aspect ratio using _ScaledScreenParams
+                float aspectRatio = _ScaledScreenParams.x / _ScaledScreenParams.y;
+                
+                // Apply aspect ratio correction to prevent stretching
+                // This makes circles stay circular regardless of screen aspect ratio
+                centeredUV.x *= aspectRatio;
+
+                float dist = length(centeredUV);
+//                dist -= 0.5;
+                dist = abs(dist);
+                float circleWidth = 0.2;
+//                dist = step(circleWidth, dist);
+                return half4(dist, dist, dist, 1.0);
+                
+            }
+
+            half4 FadeFromCenter(Varyings IN)
+            {
+                // Center the UVs (0 to 1 becomes -1 to 1)
+                float2 centeredUV = (IN.uv - 0.5) * 2.0;
+
+               // Calculate aspect ratio using _ScaledScreenParams
+                float aspectRatio = _ScaledScreenParams.x / _ScaledScreenParams.y;
+                
+                // Apply aspect ratio correction to prevent stretching
+                // This makes circles stay circular regardless of screen aspect ratio
+                centeredUV.x *= aspectRatio;
+
+                float dist = length(centeredUV);
+                return half4(dist, dist, dist, 1.0);
+            }
+
+            half4 Circle(Varyings IN)
+            {
+                // Center the UVs (0 to 1 becomes -1 to 1)
+                float2 centeredUV = (IN.uv - 0.5) * 2.0;
+
+               // Calculate aspect ratio using _ScaledScreenParams
+                float aspectRatio = _ScaledScreenParams.x / _ScaledScreenParams.y;
+                
+                // Apply aspect ratio correction to prevent stretching
+                // This makes circles stay circular regardless of screen aspect ratio
+                centeredUV.x *= aspectRatio;
+
+                // Get the distance of the pixel from the center.
+                float dist = length(centeredUV);
+
+                // Subtract the radius.
+                float radius = 0.5;
+                dist -= radius;
+
+                // Use the absolute value of the distance.
+                dist = abs(dist);
+
+                // Convert the dist value to 0 or 1 using the circle width.
+                float circleWidth = 0.1;
+                float circleFadeWidth = 0;
+                dist = smoothstep(circleWidth - circleFadeWidth, circleWidth, dist);
+//                dist = step(circleWidth, dist);  // This is like smoothstep but with fade width of zero.
+
+                // Return the color.
+                return half4(dist, dist, dist, 1.0);
+            }
+
+
+
+            half4 Rings(Varyings IN)
+            {
+                // Center the UVs (0 to 1 becomes -1 to 1)
+                float2 centeredUV = (IN.uv - 0.5) * 2.0;
+
+               // Calculate aspect ratio using _ScaledScreenParams
+                float aspectRatio = _ScaledScreenParams.x / _ScaledScreenParams.y;
+                
+                // Apply aspect ratio correction to prevent stretching
+                // This makes circles stay circular regardless of screen aspect ratio
+                centeredUV.x *= aspectRatio;
+
+                // Get the distance of the pixel from the center.
+                float dist = length(centeredUV);
+                
+                // Subtract the radius.
+                float radius = 0.5;
+                dist -= radius;
+
+                // Create rings.
+                int ringCount = 1;
+                float v = PI * ringCount;
+                dist = sin(dist*v)/v;
+                
+                // Use the absolute value of the distance.
+                dist = abs(dist);
+
+                // Convert the dist value to 0 or 1 using the circle width.
+                float circleWidth = 0.01;
+                dist = step(circleWidth, dist);  // This is like smoothstep but with fade width of zero.
+
+                // Return the color.
+                return half4(dist, dist, dist, 1.0);
+            }
+
             
 
             half4 frag(Varyings IN) : SV_Target
             {
-                return Other2(IN);
+                return Rings(IN);
                 return GridPattern(IN);
                 return TextureColor(IN);
 //                return UVGradient(IN);
