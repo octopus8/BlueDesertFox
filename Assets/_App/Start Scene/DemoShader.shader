@@ -254,11 +254,53 @@ Shader "Custom/DemoShader"
                 return half4(dist, dist, dist, 1.0);
             }
 
+
+            half4 NeonCircle(Varyings IN)
+            {
+                // Center the UVs (0 to 1 becomes -1 to 1)
+                float2 centeredUV = (IN.uv - 0.5) * 2.0;
+
+               // Calculate aspect ratio using _ScaledScreenParams
+                float aspectRatio = _ScaledScreenParams.x / _ScaledScreenParams.y;
+                
+                // Apply aspect ratio correction to prevent stretching
+                // This makes circles stay circular regardless of screen aspect ratio
+                centeredUV.x *= aspectRatio;
+
+                // Get the distance of the pixel from the center.
+                float dist = length(centeredUV);
+
+                // Subtract the radius.
+                float radius = 0.5;
+                dist -= radius;
+
+                // Use the absolute value of the distance.
+                dist = abs(dist);
+
+                // Convert the dist value to 0 or 1 using the circle width.
+                float circleWidth = 0.1;
+                float circleFadePercent = 0.99;
+                float circleFadeWidth = circleFadePercent * circleWidth;
+                dist = smoothstep(circleWidth - circleFadeWidth, circleWidth, dist);
+
+                // Apply neon glow to fade.
+                float v = circleFadeWidth;
+                dist = v / dist - v;
+
+                // Apply color.
+                float3 color = float3(0.01, 0.2, 0.3) * 5.0;
+                color *= dist;
+
+                // Return the color.
+                return half4(color, 1.0);
+            }
+            
+
             
 
             half4 frag(Varyings IN) : SV_Target
             {
-                return Rings(IN);
+                return NeonCircle(IN);
                 return GridPattern(IN);
                 return TextureColor(IN);
 //                return UVGradient(IN);
