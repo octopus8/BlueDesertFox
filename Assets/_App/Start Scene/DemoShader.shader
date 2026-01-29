@@ -91,7 +91,7 @@ Shader "Custom/DemoShader"
                     float dist = length(centeredUV) * exp(-length(centeredUV2));
                     dist = sin(dist * 8 + _Time.y) / 8;
                     dist = abs(dist);
-                    dist = pow(0.01 / dist, 1.2);
+                    dist = pow(0.01 / dist, 1.2) - 0.01;
                     float3 color = palette(length(centeredUV2) + i*0.4 + _Time.y * 0.4, a, b, c, d);
                     finalColor += color * dist;
                 }
@@ -262,6 +262,7 @@ Shader "Custom/DemoShader"
 
             half4 frag(Varyings IN) : SV_Target
             {
+                return ComplexPattern0(IN);
                 return GridPattern(IN);
                 return NeonCircle(IN);
                 return Rings(IN);
