@@ -55,65 +55,15 @@ Shader "Custom/DemoShader"
                 return OUT;
             }
 
-            half4 UVGradient(Varyings IN)
-            {
-                  return half4(IN.uv, 0, 1);
-            }
-
-            half4 TextureColor(Varyings IN)
-            {
-                half4 color = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, IN.uv) * _BaseColor;
-                return color;
-            }
-
-
-            half4 GridPattern(Varyings IN)
-            {
-                // Get screen position
-                float2 screenPos = IN.positionHCS.xy;
-                
-                // Calculate grid size (10 pixels per cell)
-                float gridSize = 10.0;
-                
-                // Create grid pattern
-                float2 grid = frac(screenPos / gridSize);
-                float gridLine = step(0.95, max(grid.x, grid.y));
-                
-                return half4(gridLine.xxx, 1.0);                
-            }
-
-
-            half4 Other(Varyings IN)
-            {
-               // Calculate aspect ratio using _ScaledScreenParams
-                float aspectRatio = _ScaledScreenParams.x / _ScaledScreenParams.y;
-                
-                // Center the UVs (0 to 1 becomes -0.5 to 0.5)
-                float2 centeredUV = IN.uv - 0.5;
-                
-                // Apply aspect ratio correction to prevent stretching
-                // This makes circles stay circular regardless of screen aspect ratio
-                centeredUV.x *= aspectRatio;
-                
-                // Calculate distance from center
-                float dist = length(centeredUV);
-                
-                // Create smooth circle
-                float circle = 1.0 - smoothstep(_Radius - _EdgeSoftness, _Radius + _EdgeSoftness, dist);
-                
-                // Mix colors
-                half4 finalColor = lerp(_BackgroundColor, _Color, circle);
-                
-                return finalColor;                
-            }
-
+/**********************************************************************************************/            
+            
             float3 palette(float t, float3 a, float3 b, float3 c, float3 d)
             {
-//                return float3(1, 0, 0);
                 return a + b*cos(PI * 2*(c*t+d));
             }
 
-            half4 Pattern0(Varyings IN)
+            
+            half4 ComplexPattern0(Varyings IN)
             {
                 // Center the UVs (0 to 1 becomes -1 to 1)
                 float2 centeredUV = (IN.uv - 0.5) * 2.0;
@@ -148,44 +98,24 @@ Shader "Custom/DemoShader"
                 return half4(finalColor, 1.0);
             }
 
-            half4 Pattern1(Varyings IN)
+            
+            half4 GridPattern(Varyings IN)
             {
-                // Center the UVs (0 to 1 becomes -1 to 1)
-                float2 centeredUV = (IN.uv - 0.5) * 2.0;
-
-               // Calculate aspect ratio using _ScaledScreenParams
-                float aspectRatio = _ScaledScreenParams.x / _ScaledScreenParams.y;
+                // Get screen position
+                float2 screenPos = IN.positionHCS.xy;
                 
-                // Apply aspect ratio correction to prevent stretching
-                // This makes circles stay circular regardless of screen aspect ratio
-                centeredUV.x *= aspectRatio;
-
-                float dist = length(centeredUV);
-//                dist -= 0.5;
-                dist = abs(dist);
-                float circleWidth = 0.2;
-//                dist = step(circleWidth, dist);
-                return half4(dist, dist, dist, 1.0);
+                // Calculate grid size (10 pixels per cell)
+                float gridSize = 10.0;
                 
+                // Create grid pattern
+                float2 grid = frac(screenPos / gridSize);
+                float gridLine = step(0.95, max(grid.x, grid.y));
+                
+                return half4(gridLine.xxx, 1.0);                
             }
 
-            half4 FadeFromCenter(Varyings IN)
-            {
-                // Center the UVs (0 to 1 becomes -1 to 1)
-                float2 centeredUV = (IN.uv - 0.5) * 2.0;
-
-               // Calculate aspect ratio using _ScaledScreenParams
-                float aspectRatio = _ScaledScreenParams.x / _ScaledScreenParams.y;
-                
-                // Apply aspect ratio correction to prevent stretching
-                // This makes circles stay circular regardless of screen aspect ratio
-                centeredUV.x *= aspectRatio;
-
-                float dist = length(centeredUV);
-                return half4(dist, dist, dist, 1.0);
-            }
-
-            half4 Circle(Varyings IN)
+            
+            half4 NeonCircle(Varyings IN)
             {
                 // Center the UVs (0 to 1 becomes -1 to 1)
                 float2 centeredUV = (IN.uv - 0.5) * 2.0;
@@ -209,15 +139,25 @@ Shader "Custom/DemoShader"
 
                 // Convert the dist value to 0 or 1 using the circle width.
                 float circleWidth = 0.1;
-                float circleFadeWidth = 0;
+                float circleFadePercent = 0.99;
+                float circleFadeWidth = circleFadePercent * circleWidth;
                 dist = smoothstep(circleWidth - circleFadeWidth, circleWidth, dist);
-//                dist = step(circleWidth, dist);  // This is like smoothstep but with fade width of zero.
+                
+                // Apply neon glow to fade.
+                float v = circleFadeWidth;
+                dist = v / dist - v;
+
+                // Increase contrast.
+                dist = pow(dist, 1.2);
+                
+                // Apply color.
+                float3 color = float3(0.01, 0.2, 0.3) * 5.0;
+                color *= dist;
 
                 // Return the color.
-                return half4(dist, dist, dist, 1.0);
+                return half4(color, dist);
             }
-
-
+            
 
             half4 Rings(Varyings IN)
             {
@@ -254,8 +194,8 @@ Shader "Custom/DemoShader"
                 return half4(dist, dist, dist, 1.0);
             }
 
-
-            half4 NeonCircle(Varyings IN)
+            
+            half4 Circle(Varyings IN)
             {
                 // Center the UVs (0 to 1 becomes -1 to 1)
                 float2 centeredUV = (IN.uv - 0.5) * 2.0;
@@ -279,31 +219,56 @@ Shader "Custom/DemoShader"
 
                 // Convert the dist value to 0 or 1 using the circle width.
                 float circleWidth = 0.1;
-                float circleFadePercent = 0.99;
-                float circleFadeWidth = circleFadePercent * circleWidth;
+                float circleFadeWidth = 0;
                 dist = smoothstep(circleWidth - circleFadeWidth, circleWidth, dist);
-
-                // Apply neon glow to fade.
-                float v = circleFadeWidth;
-                dist = v / dist - v;
-
-                // Apply color.
-                float3 color = float3(0.01, 0.2, 0.3) * 5.0;
-                color *= dist;
+//                dist = step(circleWidth, dist);  // This is like smoothstep but with fade width of zero.
 
                 // Return the color.
-                return half4(color, 1.0);
+                return half4(dist, dist, dist, 1.0);
+            }
+
+            
+            half4 FadeFromCenter(Varyings IN)
+            {
+                // Center the UVs (0 to 1 becomes -1 to 1)
+                float2 centeredUV = (IN.uv - 0.5) * 2.0;
+
+               // Calculate aspect ratio using _ScaledScreenParams
+                float aspectRatio = _ScaledScreenParams.x / _ScaledScreenParams.y;
+                
+                // Apply aspect ratio correction to prevent stretching
+                // This makes circles stay circular regardless of screen aspect ratio
+                centeredUV.x *= aspectRatio;
+
+                float dist = length(centeredUV);
+                return half4(dist, dist, dist, 1.0);
+            }
+
+
+            half4 TextureColor(Varyings IN)
+            {
+                half4 color = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, IN.uv) * _BaseColor;
+                return color;
+            }
+
+
+            half4 UVGradient(Varyings IN)
+            {
+                  return half4(IN.uv, 0, 1);
             }
             
-
+/**********************************************************************************************/            
             
 
             half4 frag(Varyings IN) : SV_Target
             {
-                return NeonCircle(IN);
                 return GridPattern(IN);
+                return NeonCircle(IN);
+                return Rings(IN);
+                return Circle(IN);
+                return FadeFromCenter(IN);
                 return TextureColor(IN);
-//                return UVGradient(IN);
+                return UVGradient(IN);
             }
 
             

@@ -230,7 +230,7 @@ Camera:
     height: 1
   near clip plane: 0.01
   far clip plane: 1000
-  field of view: 60
+  field of view: 90
   orthographic: 0
   orthographic size: 5
   m_Depth: 0
@@ -24871,9 +24871,9 @@ PrefabInstance:
       value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 7294222010315962993, guid: bd54b2210eccc8d40b0faa6b80d82560, type: 3}
-      propertyPath: displaySpeed
-      value: 0.5
-      objectReference: {fileID: 0}
+      propertyPath: uiCamera
+      value: 
+      objectReference: {fileID: 51468773}
     - target: {fileID: 7294222010315962993, guid: bd54b2210eccc8d40b0faa6b80d82560, type: 3}
       propertyPath: displayOnStart
       value: 1

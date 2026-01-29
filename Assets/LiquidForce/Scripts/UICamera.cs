@@ -16,15 +16,6 @@ namespace LiquidForce
         {
             int uiLayerMask = LayerMask.GetMask("UI", "Hand");
             
-            if (uiCamera.gameObject.activeInHierarchy)
-            {
-                visible = false;
-            }
-            else
-            {
-                visible = true;
-            }
-            
             if (visible)
             {
                 mainCamera.cullingMask &= ~uiLayerMask;
