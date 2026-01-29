@@ -14,7 +14,15 @@ using UnityEngine.SceneManagement;
 
 namespace App.StartScene
 {
-    
+ 
+    /// <summary>
+    /// 
+    /// </summary>
+    /// <remarks>
+    /// - This component is part of a prefab that has an ObjectFollower to follow the head. This component could add
+    /// an ObjectFollower component and set it up. This would remove the need to set the source of the ObjectFollower
+    /// when the prefab is added to a scene.
+    /// </remarks>
     public class UI : MonoBehaviour
     {
         /// <summary>Flag indicating whether or not to display the UI on start.</summary>
