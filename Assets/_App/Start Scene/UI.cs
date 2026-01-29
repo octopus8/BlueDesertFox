@@ -21,6 +21,10 @@ namespace App.StartScene
         [Tooltip("Flag indicating whether or not to display the UI on start.")]
         [SerializeField] private bool displayOnStart = false;
 
+        /// <summary>Set to disable closing UI.</summary>
+        [Tooltip("Set to disable closing UI.")]
+        [SerializeField] private bool disableClose = false;
+
         /// <summary>"Fade in/out duration in seconds."</summary>
         [Tooltip("Fade in/out duration in seconds.")]
         [SerializeField] private float displaySpeed = 0.5f;
@@ -141,7 +145,11 @@ namespace App.StartScene
             // Handle menu toggle action.
             if (menuToggleAction.WasPressedThisFrame())
             {
-                ToggleVisibility();
+                // If close disable is not set, then toggle visibility.
+                if (!disableClose)
+                {
+                    ToggleVisibility();
+                }
             }            
         }
         
