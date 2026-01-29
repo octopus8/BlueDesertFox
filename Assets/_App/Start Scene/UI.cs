@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using System.Threading;
 using Cysharp.Threading.Tasks;
@@ -16,6 +17,14 @@ namespace App.StartScene
     
     public class UI : MonoBehaviour
     {
+        /// <summary>Flag indicating whether or not to display the UI on start.</summary>
+        [Tooltip("Flag indicating whether or not to display the UI on start.")]
+        [SerializeField] private bool displayOnStart = false;
+
+        /// <summary>Set to disable closing UI.</summary>
+        [Tooltip("Set to disable closing UI.")]
+        [SerializeField] private bool disableClose = false;
+
         /// <summary>"Fade in/out duration in seconds."</summary>
         [Tooltip("Fade in/out duration in seconds.")]
         [SerializeField] private float displaySpeed = 0.5f;
@@ -36,9 +45,9 @@ namespace App.StartScene
         [Tooltip("Prototype scene list button.")]
         [SerializeField] private SceneListButton prototypeButton;
 
-        /// <summary>Flag indicating whether or not to display the UI on start.</summary>
-        [Tooltip("Flag indicating whether or not to display the UI on start.")]
-        [SerializeField] private bool displayOnStart = false;
+
+        /// <summary>UI Camera</summary>
+        private UICamera uiCamera;
 
         /// <summary>Menu toggle action.</summary>
         private InputAction menuToggleAction;
@@ -73,7 +82,14 @@ namespace App.StartScene
             scale
         }
 
-        
+
+        private void Awake()
+        {
+            // Initialize references.
+            uiCamera = FindAnyObjectByType(typeof(UICamera), FindObjectsInactive.Include) as UICamera;
+        }
+
+
         /// <summary>
         /// Initializes the UI.
         /// </summary>
@@ -101,7 +117,7 @@ namespace App.StartScene
             }
             else
             {
-                currentAnimState = AnimState.on;
+                Show();
             }
         }
 
@@ -129,7 +145,11 @@ namespace App.StartScene
             // Handle menu toggle action.
             if (menuToggleAction.WasPressedThisFrame())
             {
-                ToggleVisibility();
+                // If close disable is not set, then toggle visibility.
+                if (!disableClose)
+                {
+                    ToggleVisibility();
+                }
             }            
         }
         
@@ -141,6 +161,7 @@ namespace App.StartScene
         {
             CancelAnimations();
             currentAnimState = AnimState.turningOn;
+            uiCamera.OnUIVisible(true);
             uiContainer.gameObject.SetActive(true);
             uiContainer.DOFade(1, displaySpeed).WithCancellation(animCancelTokens[(int)AnimCancelToken.fade].Token);
             uiContainer.transform.DOScale(new Vector3(1, 1, 1), displaySpeed)
@@ -157,6 +178,7 @@ namespace App.StartScene
         public void Hide()
         {
             CancelAnimations();
+            uiCamera.OnUIVisible(false);
             currentAnimState = AnimState.turningOff;
             uiContainer.DOFade(0, displaySpeed).WithCancellation(animCancelTokens[(int)AnimCancelToken.fade].Token);
             uiContainer.transform.DOScale(new Vector3(0, 0, 1), displaySpeed)
