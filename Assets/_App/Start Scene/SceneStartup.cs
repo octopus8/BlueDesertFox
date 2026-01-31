@@ -1,6 +1,7 @@
 using System.Collections;
 using Autohand;
 using LiquidForce;
+using Unity.Scenes;
 using UnityEngine;
 
 
@@ -19,6 +20,8 @@ namespace App.StartScene
         [SerializeField] private UI ui;
         
         [SerializeField] private bool showUIOnStart = false;
+        
+        [SerializeField] private SubScene subScene;
 
         void Start()
         {
@@ -32,6 +35,10 @@ namespace App.StartScene
                 ui?.Hide();
             }
 
+            if (subScene != null)
+            {
+                SceneLoader.Instance.LoadScene(subScene.SceneGUID);
+            }
         }
 
 

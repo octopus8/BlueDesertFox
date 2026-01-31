@@ -12,6 +12,7 @@ public class SceneListSO : ScriptableObject
     {
         public string sceneName;
         public AssetReference scene;
+        public bool isAddressable;
     }
     
     public  List<SceneListScene> scenes;

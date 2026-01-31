@@ -138,6 +138,14 @@ namespace App.StartScene
             // Handle test action.
             if (testAction.WasPressedThisFrame())
             {
+                Hide();
+                _ = CameraFader.Instance.FadeCameraOut(1);
+  
+                var loadSceneAsync = SceneManager.LoadSceneAsync("DOTS Scene Not Addressable");
+                loadSceneAsync.allowSceneActivation = false;
+                StartCoroutine(TestOp(loadSceneAsync));
+
+/*
                 if (testActionBool)
                 {
                     testActionBool = false;
@@ -148,6 +156,7 @@ namespace App.StartScene
                     testActionBool = true;
                     _ = CameraFader.Instance.FadeCameraOut(10);
                 }
+*/
             }
             
             // Handle menu toggle action.
@@ -160,7 +169,32 @@ namespace App.StartScene
                 }
             }            
         }
-        
+
+        IEnumerator TestOp(AsyncOperation asyncOperation)
+        {
+            // Wait until done and collect progress as we go.
+            while( !asyncOperation.isDone )
+            {
+                float loadProgress = asyncOperation.progress;
+				
+                if( loadProgress >= 0.9f )
+                {
+                    // Almost done.
+                    break;
+                }
+
+                yield return null;
+            }
+
+            while (!CameraFader.Instance.IsCameraFadedOut())
+            {
+                yield return null;
+            }
+            
+            // Allow new scene to start.
+            asyncOperation.allowSceneActivation = true;            
+            
+        }
         
         /// <summary>
         /// Shows the UI.
@@ -206,8 +240,11 @@ namespace App.StartScene
         {
             Hide();
             _ = CameraFader.Instance.FadeCameraOut(1);
-            AsyncOperationHandle<SceneInstance> loadSceneHandle = Addressables.LoadSceneAsync( button.GetAssetReference(), LoadSceneMode.Single, false);
-            StartCoroutine(ActivateLoadedSceneOnLoad(loadSceneHandle));
+  
+            SceneManager.LoadScene("DOTS Scene Not Addressable");
+            
+//            AsyncOperationHandle<SceneInstance> loadSceneHandle = Addressables.LoadSceneAsync( button.GetAssetReference(), LoadSceneMode.Single, false);
+//            StartCoroutine(ActivateLoadedSceneOnLoad(loadSceneHandle));
         }
 
 
