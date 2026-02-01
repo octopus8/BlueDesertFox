@@ -21,6 +21,8 @@ public class SceneSelectUIState : UIState {
     /// <summary>Prototype scene list button.</summary>
     [Tooltip("Prototype scene list button.")]
     [SerializeField] private SceneListButton prototypeButton;
+
+    [SerializeField] private SceneLoader sceneLoader;
     
     /// <summary>Test action.</summary>
     private InputAction testAction;
