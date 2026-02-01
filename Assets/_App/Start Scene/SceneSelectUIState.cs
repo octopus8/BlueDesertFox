@@ -52,40 +52,11 @@ public class SceneSelectUIState : UIState {
             uiManager.Hide();
             _ = CameraFader.Instance.FadeCameraOut(1);
 
-            var loadSceneAsync = SceneManager.LoadSceneAsync("DOTS Scene");
-            loadSceneAsync.allowSceneActivation = false;
-            StartCoroutine(TestOp(loadSceneAsync));
+            sceneLoader.LoadScene("DOTS Scene", true);
         }
 
     }
         
-        
-    IEnumerator TestOp(AsyncOperation asyncOperation)
-    {
-        // Wait until done and collect progress as we go.
-        while( !asyncOperation.isDone )
-        {
-            float loadProgress = asyncOperation.progress;
-				
-            if( loadProgress >= 0.9f )
-            {
-                // Almost done.
-                break;
-            }
-
-            yield return null;
-        }
-
-        
-        while (!CameraFader.Instance.IsCameraFadedOut())
-        {
-            yield return null;
-        }
-            
-        // Allow new scene to start.
-        asyncOperation.allowSceneActivation = true;            
-            
-    }
 
     
     
