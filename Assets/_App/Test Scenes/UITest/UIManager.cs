@@ -163,7 +163,8 @@ namespace App.StartScene
             {
                 names.Add(state.stateName);
             }
-            
+
+            names.Reverse();
             return names.ToArray();
         }
         

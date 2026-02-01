@@ -1,7 +1,8 @@
-using System;
 using App.StartScene;
 using TMPro;
 using UnityEngine;
+
+
 
 public class BreadcrumbUI : MonoBehaviour
 {
