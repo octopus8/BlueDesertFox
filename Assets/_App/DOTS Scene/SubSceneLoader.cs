@@ -1,8 +1,8 @@
 using Unity.Entities;
 
-public partial class SceneLoader : SystemBase
+public partial class SubSceneLoader : SystemBase
 {
-    public static SceneLoader Instance;
+    public static SubSceneLoader Instance;
     
     private Entity loadedSubSceneEntity;
     

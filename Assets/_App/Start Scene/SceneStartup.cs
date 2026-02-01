@@ -21,7 +21,7 @@ namespace App.StartScene
         
         [SerializeField] private bool showUIOnStart = false;
         
-        [SerializeField] private SubScene subScene;
+        [SerializeField] private SubScene[] subScenes;
 
         void Start()
         {
@@ -35,9 +35,12 @@ namespace App.StartScene
                 ui?.Hide();
             }
 
-            if (subScene != null)
+            foreach (SubScene subScene in subScenes)
             {
-                SceneLoader.Instance.LoadScene(subScene.SceneGUID);
+                if (subScene != null)
+                {
+                    SubSceneLoader.Instance.LoadScene(subScene.SceneGUID);
+                }
             }
         }
 
