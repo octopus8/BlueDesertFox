@@ -51,9 +51,6 @@ namespace App.StartScene
 
         /// <summary>Menu toggle action.</summary>
         private InputAction menuToggleAction;
-
-        /// <summary>Test action.</summary>
-        private InputAction testAction;
         
         /// <summary>Token that allows for the fade animation to be canceled.</summary>
         private CancellationTokenSource[] animCancelTokens = new CancellationTokenSource[System.Enum.GetValues(typeof(AnimCancelToken)).Length];
@@ -101,8 +98,6 @@ namespace App.StartScene
             // Enable actions.
             menuToggleAction = InputSystem.actions.FindAction("ToggleMenu"); 
             menuToggleAction.Enable(); // Actions must be enabled to receive input            
-            testAction = InputSystem.actions.FindAction("TestAction");
-            testAction.Enable();
             
             // Push the start state.
             PushState(startState);
@@ -175,30 +170,6 @@ namespace App.StartScene
         /// </summary>
         private void Update()
         {
-            // Handle test action.
-            if (testAction.WasPressedThisFrame())
-            {
-                Hide();
-                _ = CameraFader.Instance.FadeCameraOut(1);
-  
-                var loadSceneAsync = SceneManager.LoadSceneAsync("DOTS Scene Not Addressable");
-                loadSceneAsync.allowSceneActivation = false;
-                StartCoroutine(TestOp(loadSceneAsync));
-
-/*
-                if (testActionBool)
-                {
-                    testActionBool = false;
-                    _ = CameraFader.Instance.FadeCameraIn(10);
-                }
-                else
-                {
-                    testActionBool = true;
-                    _ = CameraFader.Instance.FadeCameraOut(10);
-                }
-*/
-            }
-            
             // Handle menu toggle action.
             if (menuToggleAction.WasPressedThisFrame())
             {
@@ -210,31 +181,6 @@ namespace App.StartScene
             }            
         }
 
-        IEnumerator TestOp(AsyncOperation asyncOperation)
-        {
-            // Wait until done and collect progress as we go.
-            while( !asyncOperation.isDone )
-            {
-                float loadProgress = asyncOperation.progress;
-				
-                if( loadProgress >= 0.9f )
-                {
-                    // Almost done.
-                    break;
-                }
-
-                yield return null;
-            }
-
-            while (!CameraFader.Instance.IsCameraFadedOut())
-            {
-                yield return null;
-            }
-            
-            // Allow new scene to start.
-            asyncOperation.allowSceneActivation = true;            
-            
-        }
         
         /// <summary>
         /// Shows the UI.
@@ -295,7 +241,7 @@ namespace App.StartScene
         /// </summary>
         private void CancelAnimations()
         {
-            for (var i=0; i < animCancelTokens.Length; ++ i)
+            for (var i=0; i < animCancelTokens?.Length; ++ i)
             {
                 var token = animCancelTokens[i];
                 if (token != null)

@@ -2,6 +2,7 @@ using System.Collections;
 using App.StartScene;
 using LiquidForce;
 using UnityEngine;
+using UnityEngine.InputSystem;
 using UnityEngine.ResourceManagement.AsyncOperations;
 using UnityEngine.ResourceManagement.ResourceProviders;
 using UnityEngine.SceneManagement;
@@ -20,6 +21,10 @@ public class SceneSelectUIState : UIState {
     /// <summary>Prototype scene list button.</summary>
     [Tooltip("Prototype scene list button.")]
     [SerializeField] private SceneListButton prototypeButton;
+    
+    /// <summary>Test action.</summary>
+    private InputAction testAction;
+    
 
     void Start()
     {
@@ -32,7 +37,54 @@ public class SceneSelectUIState : UIState {
         }
 
         prototypeButton.gameObject.SetActive(false);
+        
+        testAction = InputSystem.actions.FindAction("TestAction");
+        testAction.Enable();
+        
     }
+
+    void Update()
+    {
+        if (testAction.WasPressedThisFrame())
+        {
+            uiManager.Hide();
+            _ = CameraFader.Instance.FadeCameraOut(1);
+
+            var loadSceneAsync = SceneManager.LoadSceneAsync("DOTS Scene");
+            loadSceneAsync.allowSceneActivation = false;
+            StartCoroutine(TestOp(loadSceneAsync));
+        }
+
+    }
+        
+        
+    IEnumerator TestOp(AsyncOperation asyncOperation)
+    {
+        // Wait until done and collect progress as we go.
+        while( !asyncOperation.isDone )
+        {
+            float loadProgress = asyncOperation.progress;
+				
+            if( loadProgress >= 0.9f )
+            {
+                // Almost done.
+                break;
+            }
+
+            yield return null;
+        }
+
+        
+        while (!CameraFader.Instance.IsCameraFadedOut())
+        {
+            yield return null;
+        }
+            
+        // Allow new scene to start.
+        asyncOperation.allowSceneActivation = true;            
+            
+    }
+
     
     
     /// <summary>
