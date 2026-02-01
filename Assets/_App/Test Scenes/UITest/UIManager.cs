@@ -154,6 +154,18 @@ namespace App.StartScene
                 stateStack.Peek().OnPopped();
             }
         }
+
+
+        public string[] GetStackNames()
+        {
+            List<string> names = new List<string>();
+            foreach (UIState state in stateStack)
+            {
+                names.Add(state.stateName);
+            }
+            
+            return names.ToArray();
+        }
         
 
 

@@ -77,6 +77,11 @@ public class SceneSelectUIState : UIState {
         }
     }
 
+    
+    public void OnBackButton()
+    {
+        uiManager.PopState();
+    }
 
 
     
