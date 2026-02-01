@@ -42,6 +42,8 @@ namespace App.StartScene
         [Tooltip("UI container, used to animate the UI.")]
         [SerializeField] private CanvasGroup uiContainer;
 
+        [SerializeField] private UIState startState;
+
 
 
         /// <summary>UI Camera</summary>
@@ -101,6 +103,9 @@ namespace App.StartScene
             menuToggleAction.Enable(); // Actions must be enabled to receive input            
             testAction = InputSystem.actions.FindAction("TestAction");
             testAction.Enable();
+            
+            // Push the start state.
+            PushState(startState);
 
             // Display on start if indicated.
             if (!displayOnStart)
@@ -116,10 +121,28 @@ namespace App.StartScene
         // Push a new state: Pause current, add new to top
         public void PushState(IUIState newState) {
             if (stateStack.Count > 0) {
-                stateStack.Peek().OnExit();
+                stateStack.Peek().OnPushed();
             }
             stateStack.Push(newState);
             newState.OnEnter();
+        }
+
+        public void PushModal(IUIState newState) {
+            if (stateStack.Count > 0) {
+                stateStack.Peek().OnModalPushed();
+            }
+            stateStack.Push(newState);
+            newState.OnEnter();
+        }
+        
+        public void PopModalPush(IUIState newState) {
+            if (stateStack.Count > 0) {
+                stateStack.Pop().OnExit();
+            }
+            if (stateStack.Count > 0) {
+                stateStack.Peek().OnPushed();
+                PushState(newState);
+            }
         }
 
         // Pop state: Remove current, resume previous
@@ -128,7 +151,7 @@ namespace App.StartScene
                 stateStack.Pop().OnExit();
             }
             if (stateStack.Count > 0) {
-                stateStack.Peek().OnResume();
+                stateStack.Peek().OnPopped();
             }
         }
         

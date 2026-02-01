@@ -6,7 +6,7 @@ using UnityEngine.ResourceManagement.AsyncOperations;
 using UnityEngine.ResourceManagement.ResourceProviders;
 using UnityEngine.SceneManagement;
 
-public class SceneSelectUIState : MonoBehaviour, IUIState {
+public class SceneSelectUIState : UIState {
 
 
     /// <summary>Scene list.</summary>
@@ -20,9 +20,6 @@ public class SceneSelectUIState : MonoBehaviour, IUIState {
     /// <summary>Prototype scene list button.</summary>
     [Tooltip("Prototype scene list button.")]
     [SerializeField] private SceneListButton prototypeButton;
-    
-    [SerializeField] private UIManager uiManager;
-
 
     void Start()
     {
@@ -81,9 +78,7 @@ public class SceneSelectUIState : MonoBehaviour, IUIState {
     }
 
 
-    public void OnEnter() => gameObject.SetActive(true);
-    public void OnExit() => gameObject.SetActive(false);
-    public void OnResume() => gameObject.SetActive(true);
+
     
 }
 

@@ -2,18 +2,7 @@ using UnityEngine;
 
 namespace App.StartScene
 {
-    public class StartSceneUI : MonoBehaviour, IUIState
+    public class StartSceneUI : UIState
     {
-        public void OnEnter()
-        {
-        }
-
-        public void OnExit()
-        {
-        }
-
-        public void OnResume()
-        {
-        }
     }
 }
