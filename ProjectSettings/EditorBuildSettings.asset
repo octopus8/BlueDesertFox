@@ -8,8 +8,8 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/_App/Start Scene/Start Scene.unity
     guid: 0d253d200cf3ec1458baadc45d4c57b1
-  - enabled: 1
-    path: Assets/_App/DOTS Scene/DOTS Scene Not Addressable.unity
+  - enabled: 0
+    path: Assets/_App/DOTS Scene/DOTS Scene.unity
     guid: d1471856b33a54649ac18da6f1de4392
   m_configObjects:
     Unity.XR.Oculus.Settings: {fileID: 11400000, guid: bfa1182bd221b4ca89619141f66f1260, type: 2}

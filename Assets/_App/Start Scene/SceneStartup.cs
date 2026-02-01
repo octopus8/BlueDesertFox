@@ -17,7 +17,7 @@ namespace App.StartScene
 
         [SerializeField] private float fadeInDurationSeconds = 1f;
 
-        [SerializeField] private UI ui;
+        [SerializeField] private UIManager ui;
         
         [SerializeField] private bool showUIOnStart = false;
         

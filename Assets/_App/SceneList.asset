@@ -21,7 +21,7 @@ MonoBehaviour:
       m_SubObjectGUID: 
       m_EditorAssetChanged: 0
     isAddressable: 1
-  - sceneName: DOTS Scene Not Addressable
+  - sceneName: DOTS Scene
     scene:
       m_AssetGUID: d1471856b33a54649ac18da6f1de4392
       m_SubObjectName: 

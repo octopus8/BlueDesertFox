@@ -578,6 +578,7 @@ MonoBehaviour:
   fadeInDurationSeconds: 1
   ui: {fileID: 0}
   showUIOnStart: 0
+  subScene: {fileID: 1793381936}
 --- !u!4 &391244924
 Transform:
   m_ObjectHideFlags: 0
@@ -1465,7 +1466,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Unity.Scenes::Unity.Scenes.SubScene
   _SceneAsset: {fileID: 102900000, guid: 933f5b960d9be82409f26f02469dff38, type: 3}
   _HierarchyColor: {r: 0.5, g: 0.5, b: 0.5, a: 1}
-  AutoLoadScene: 1
+  AutoLoadScene: 0
   _SceneGUID:
     Value:
       x: 1773531961
