@@ -2,25 +2,46 @@ using System;
 using TMPro;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
+using UnityEngine.UI;
 
 namespace App.StartScene
 {
+    
+    [RequireComponent(typeof(Button))]
     public class SceneListButton : MonoBehaviour
     {
         [SerializeField] private TextMeshProUGUI buttonText;
         
-        private AssetReference assetReference;
         
-        public void Init(string title, AssetReference assetReference)
+        private AssetReference assetReference;
+        private bool isAddressable = false;
+
+        private SceneSelectUIState sceneSelectUIState;
+        
+        private SceneListSO.SceneListScene  scene;
+        
+        private Button button;
+        
+        
+        public void Init(SceneListSO.SceneListScene buttonScene, SceneSelectUIState sceneSelectUIState)
         {
-            buttonText.text = title;
-            this.assetReference = assetReference;
+            button = GetComponent<Button>();
+            scene = buttonScene;
+            this.sceneSelectUIState = sceneSelectUIState;
+            buttonText.text = buttonScene.sceneDisplayName;
+            button.onClick.AddListener(LoadScene);
+        }
+
+        private void LoadScene()
+        {
+            sceneSelectUIState.LoadScene(scene);
         }
 
         public AssetReference GetAssetReference()
         {
             return assetReference;
         }
+        
     }
     
 }

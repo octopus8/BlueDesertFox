@@ -10,9 +10,10 @@ public class SceneListSO : ScriptableObject
     [Serializable]
     public class SceneListScene
     {
-        public string sceneName;
-        public AssetReference scene;
+        public string sceneDisplayName;
         public bool isAddressable;
+        public AssetReference scene;
+        public string scenePath;
     }
     
     public  List<SceneListScene> scenes;
