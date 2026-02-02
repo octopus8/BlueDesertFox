@@ -13,15 +13,6 @@ MonoBehaviour:
   m_Name: SceneList
   m_EditorClassIdentifier: Assembly-CSharp::SceneListSO
   scenes:
-  - sceneDisplayName: AutoHand Demo
-    isAddressable: 1
-    scene:
-      m_AssetGUID: c8c7e9452f8c702479dda69a148e809f
-      m_SubObjectName: 
-      m_SubObjectType: 
-      m_SubObjectGUID: 
-      m_EditorAssetChanged: 0
-    scenePath: 
   - sceneDisplayName: DOTS Scene
     isAddressable: 0
     scene:
@@ -31,3 +22,12 @@ MonoBehaviour:
       m_SubObjectGUID: 
       m_EditorAssetChanged: 0
     scenePath: DOTS Scene
+  - sceneDisplayName: AutoHand Demo
+    isAddressable: 1
+    scene:
+      m_AssetGUID: c8c7e9452f8c702479dda69a148e809f
+      m_SubObjectName: 
+      m_SubObjectType: 
+      m_SubObjectGUID: 
+      m_EditorAssetChanged: 0
+    scenePath: 

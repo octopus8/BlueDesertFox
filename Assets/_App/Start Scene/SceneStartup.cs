@@ -49,7 +49,7 @@ namespace App.StartScene
         {
             yield return new WaitForSeconds(delayBeforeFadeInSeconds);
             yield return CameraFader.Instance.FadeCameraIn(fadeInDurationSeconds);
-            Destroy(this);
+            Destroy(gameObject);
         }
 
 
