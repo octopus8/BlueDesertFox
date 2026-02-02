@@ -9,7 +9,7 @@ namespace App.StartScene
 {
     
     [RequireComponent(typeof(Button))]
-    public class SceneListButton : MonoBehaviour
+    public class SceneSelectButton : MonoBehaviour
     {
         [SerializeField] private TextMeshProUGUI buttonText;
         

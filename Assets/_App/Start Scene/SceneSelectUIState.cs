@@ -21,7 +21,7 @@ public class SceneSelectUIState : UIState {
 
     /// <summary>Prototype scene list button.</summary>
     [Tooltip("Prototype scene list button.")]
-    [SerializeField] private SceneListButton prototypeButton;
+    [SerializeField] private SceneSelectButton prototypeButton;
 
     [SerializeField] private SceneLoader sceneLoader;
     
@@ -34,9 +34,9 @@ public class SceneSelectUIState : UIState {
         // Create and initialize scene list buttons.
         foreach (SceneListSO.SceneListScene scene in sceneList.scenes)
         {
-            SceneListButton sceneListButton = Instantiate(prototypeButton.gameObject, sceneListContainer.transform)
-                .GetComponent<SceneListButton>();
-            sceneListButton.Init(scene, this);
+            SceneSelectButton sceneSelectButton = Instantiate(prototypeButton.gameObject, sceneListContainer.transform)
+                .GetComponent<SceneSelectButton>();
+            sceneSelectButton.Init(scene, this);
         }
 
         prototypeButton.gameObject.SetActive(false);
