@@ -20,11 +20,6 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: d1471856b33a54649ac18da6f1de4392
-    m_Address: Assets/_App/DOTS Scene/DOTS Scene.unity
-    m_ReadOnly: 0
-    m_SerializedLabels: []
-    FlaggedDuringContentUpdateRestriction: 0
   m_ReadOnly: 0
   m_Settings: {fileID: 11400000, guid: b42bc3570bf3e5f46beeb743ed526b95, type: 2}
   m_SchemaSet:

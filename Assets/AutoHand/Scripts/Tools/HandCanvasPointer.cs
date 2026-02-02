@@ -65,7 +65,7 @@ namespace Autohand
                 {
                     cam = new GameObject("Camera Canvas Pointer (I AM CREATED AT RUNTIME FOR UI CANVAS INTERACTION, I AM NOT RENDERING ANYTHING, I AM NOT CREATING ADDITIONAL OVERHEAD)").AddComponent<Camera>();
                     cam.clearFlags = CameraClearFlags.Nothing;
-                    cam.stereoTargetEye = StereoTargetEyeMask.None;
+//                    cam.stereoTargetEye = StereoTargetEyeMask.None;
                     cam.orthographic = true;
                     cam.orthographicSize = 0.001f;
                     cam.cullingMask = 0;
