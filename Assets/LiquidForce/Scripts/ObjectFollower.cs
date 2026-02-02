@@ -1,15 +1,19 @@
-using System;
 using System.Collections.Generic;
-using DG.Tweening;
 using UnityEngine;
 using UnityEngine.Rendering;
 
 namespace LiquidForce
 {
-    
-//    [DefaultExecutionOrder(32000)]
+
+    /// <summary>
+    /// This component is used to make one object follow another.
+    /// </summary>
+    /// <remarks>
+    /// - If following a RigidBody, this calculation seems to be a frame off.
+    /// </remarks>
     public class ObjectFollower : MonoBehaviour
     {
+        /// <summary>The moment to update the target transform.</summary>
         public enum Moment
         {
             OnFixedUpdate,
@@ -18,36 +22,42 @@ namespace LiquidForce
             OnPreRender,
             OnPreCull
         }
-
-        private bool snapTo;
-
         
+        /// <summary>The transform the target transforms are set to.</summary>
         [field: SerializeField] public Transform source { private get; set; }
+
         
+        /// <summary>The transforms that are set to the source transform.</summary>
         [SerializeField] private List<Transform> targets;
-        
+
+        /// <summary>The moment to update the transform.</summary>
         [field: SerializeField] public Moment moment { private get; set; } = Moment.OnUpdate;
         
-
+        /// <summary>Allowable rotation offset before lerping.</summary>
         [SerializeField] private Vector3 maxRotationOffsetDegrees;
 
+        /// <summary>Allowable position offset before lerping.</summary>
         [SerializeField] private Vector3 maxPositionOffset;
 
-        [SerializeField]
-        float positionSpeed = 20f;
+        /// <summary>The position lerp speed.</summary>
+        [SerializeField] private float positionSpeed = 20f;
         
-        [SerializeField]
-        float rotationSpeed = 10f;
+        /// <summary>The rotation lerp speed.</summary>
+        [SerializeField] private float rotationSpeed = 10f;
 
 
         [Header("Update")]
+        /// <summary>Flag indicating update X rotation.</summary>
         [SerializeField] private bool updateRotationX = true;
+        /// <summary>Flag indicating update X rotation.</summary>
         [SerializeField] private bool updateRotationY = true;
+        /// <summary>Flag indicating update X rotation.</summary>
         [SerializeField] private bool updateRotationZ = true;
 
-
         
-        
+        /// Flags indicating a position/rotation is being set.
+        /// This flag is set upon the value being beyond allowable offsets, and cleared upon lerping within a tollerance.
+        /// This allows the tollerance to be lower than the allowable offset.
         private bool isSettingPositionX;
         private bool isSettingPositionY;
         private bool isSettingPositionZ;
@@ -56,26 +66,43 @@ namespace LiquidForce
         private bool isSettingRotationZ;
         
         
+        /// <summary>Flag indicating to snap the target to the source transform instead of lerping.</summary>
+        private bool snapTo;
         
         
 
+        /// <summary>
+        /// Initializes the component.
+        /// </summary>
         private void Awake()
         {
             // Subscribe to begin camera rendering event to handle "on pre render" moments.
             RenderPipelineManager.beginCameraRendering += RenderPipelineManager_beginCameraRendering;
         }
 
+        /// <summary>
+        /// Uninitializes the component.
+        /// </summary>
         private void OnDestroy()
         {
             // Unsubscribe to events.
             RenderPipelineManager.beginCameraRendering -= RenderPipelineManager_beginCameraRendering;
         }
 
+        
+        /// <summary>
+        /// Performs enable initialization.
+        /// </summary>
         public void OnEnable()
         {
             snapTo = true;
         }
 
+        
+        /// <summary>
+        /// Adds a following target.
+        /// </summary>
+        /// <param name="target"></param>
         public void AddTarget(Transform target)
         {
             if (targets == null)
@@ -85,44 +112,65 @@ namespace LiquidForce
             targets.Add(target);
         }
 
+        
+        /// <summary>
+        /// Clears the set of targets.
+        /// </summary>
         public void ClearTargets()
         {
             targets.Clear();
         }
 
+        
+        /// <summary>
+        /// Updates the targets if appropriate.
+        /// </summary>
         private void FixedUpdate()
         {
             if (moment == Moment.OnFixedUpdate)
             {
-                UpdateTransform();    
+                UpdateTargetTransforms();    
             }
             
         }
 
+        
+        /// <summary>
+        /// Updates the targets if appropriate.
+        /// </summary>
         private void Update()
         {
             if (moment == Moment.OnUpdate)
             {
-                UpdateTransform();    
+                UpdateTargetTransforms();    
             }
         }
 
+        
+        /// <summary>
+        /// Updates the targets if appropriate.
+        /// </summary>
         private void LateUpdate()
         {
             if (moment == Moment.OnLateUpdate)
             {
-                UpdateTransform();    
+                UpdateTargetTransforms();    
             }
         }
 
+        
+        /// <summary>
+        /// Updates the targets if appropriate.
+        /// </summary>
         private void OnPreRender()
         {
             if (moment == Moment.OnPreRender)
             {
-                UpdateTransform();    
+                UpdateTargetTransforms();    
             }
         }
 
+        
         /// <summary>
         /// Callback called upon pre-render, updates the transform if the moment is "OnPreRender".
         /// </summary>
@@ -135,21 +183,25 @@ namespace LiquidForce
         {
             if (moment == Moment.OnPreRender)
             {
-                UpdateTransform();    
+                UpdateTargetTransforms();    
             }
         }
 
+        
+        /// <summary>
+        /// Updates the targets if appropriate.
+        /// </summary>
         private void OnPreCull()
         {
             if (moment == Moment.OnPreCull)
             {
-                UpdateTransform();    
+                UpdateTargetTransforms();    
             }
             
         }
 
         
-        private void UpdateTransform()
+        private void UpdateTargetTransforms()
         {
             float positionReachedTolerance = 0.1f;
             float rotationReachedTollerance = 1.0f;
@@ -297,104 +349,6 @@ namespace LiquidForce
                 target.SetPositionAndRotation(targetPosition, Quaternion.Euler(targetRotation));
             }
         }
-
-
-        
-        private void UpdateTransformNew()
-        {
-            // If no targets have been set, then do nothing.
-            if (targets == null)
-            {
-                return;
-            }
-
-            if (null == source)
-            {
-                source = gameObject.transform;
-            }
-
-            foreach (var target in targets)
-            {
-                if (target == null)
-                {
-                    Debug.Log("ObjectFollower: target is null.");
-                    return;
-                }
-                Vector3 targetPosition = target.position;
-                Vector3 targetRotation = target.rotation.eulerAngles;
-                
-                float positionSetMargin = 0.01f;
-                float rotationSetMargin = 1.0f;
-                float abs = Mathf.Abs(targetPosition.x - source.position.x);
-                if (abs < positionSetMargin)
-                {
-                    isSettingPositionX = false;
-                }
-                if (abs > maxPositionOffset.x || isSettingPositionX)
-                {
-                    targetPosition.x = Mathf.Lerp(targetPosition.x, source.position.x, positionSpeed * Time.deltaTime);
-                }
-                
-                abs = Mathf.Abs(targetPosition.y - source.position.y);
-                if (abs < positionSetMargin)
-                {
-                    isSettingPositionY = false;
-                }
-
-                if (abs > maxPositionOffset.y || isSettingPositionY)
-                {
-                    targetPosition.y = Mathf.Lerp(targetPosition.y, source.position.y, positionSpeed * Time.deltaTime);
-                }
-                
-                abs = Mathf.Abs(targetPosition.z - source.position.z);
-                if (abs < positionSetMargin)
-                {
-                    isSettingPositionZ = false;
-                }
-
-                if (abs > maxPositionOffset.z || isSettingPositionZ)
-                {
-                    targetPosition.z = Mathf.Lerp(targetPosition.z, source.position.z, rotationSpeed * Time.deltaTime);
-                }
-                
-                abs = Mathf.Abs(targetRotation.x - source.rotation.eulerAngles.x);
-                if (abs < rotationSetMargin)
-                {
-                    isSettingRotationX = false;
-                }
-
-                if (abs > maxRotationOffsetDegrees.x || isSettingRotationX)
-                {
-                    targetRotation.x = Mathf.Lerp(targetRotation.x, source.rotation.x, rotationSpeed * Time.deltaTime);
-                }
-                
-                abs = Mathf.Abs(targetRotation.y - source.rotation.y);
-                if (abs < rotationSetMargin)
-                {
-                    isSettingRotationY = false;
-                }
-
-                if (abs > maxRotationOffsetDegrees.y || isSettingRotationY)
-                {
-                    targetRotation.y = Mathf.Lerp(targetRotation.y, source.rotation.y, rotationSpeed * Time.deltaTime);
-                }
-                
-                abs = Mathf.Abs(targetRotation.z - source.rotation.z);
-                if (abs < rotationSetMargin)
-                {
-                    isSettingRotationZ = false;
-                }
-
-                if (abs > maxRotationOffsetDegrees.z || isSettingRotationZ)
-                {
-                    targetRotation.z = Mathf.Lerp(targetRotation.z, source.rotation.z, rotationSpeed * Time.deltaTime);
-                }
-                
-                target.SetPositionAndRotation(targetPosition, Quaternion.Euler(targetRotation));
-            }
-        }
-        
-        
     }        
 }
     
