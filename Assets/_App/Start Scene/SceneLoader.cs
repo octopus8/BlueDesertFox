@@ -6,6 +6,15 @@ using UnityEngine.ResourceManagement.AsyncOperations;
 using UnityEngine.ResourceManagement.ResourceProviders;
 using UnityEngine.SceneManagement;
 
+
+
+
+/// <summary>
+/// This component is used to load scenes, both addressable and not.
+/// </summary>
+/// <remarks>
+/// - This class is a MonoBehaviour so it can execute coroutines and easily interact with other coroutines.
+/// </remarks>
 public class SceneLoader : MonoBehaviour
 {
     public void LoadScene(SceneListSO.SceneListScene scene, bool waitForFadeOut = false)
@@ -68,11 +77,10 @@ public class SceneLoader : MonoBehaviour
                 // Almost done.
                 break;
             }
-
             yield return null;
         }
 
-        
+        // Wait until the camera has fully faded out.
         while (!CameraFader.Instance.IsCameraFadedOut())
         {
             yield return null;
@@ -80,9 +88,5 @@ public class SceneLoader : MonoBehaviour
             
         // Allow new scene to start.
         asyncOperation.allowSceneActivation = true;            
-            
     }
-    
-    
-    
 }

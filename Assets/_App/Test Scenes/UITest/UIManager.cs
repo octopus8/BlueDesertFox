@@ -100,7 +100,14 @@ namespace App.StartScene
             menuToggleAction.Enable(); // Actions must be enabled to receive input            
             
             // Push the start state.
-            PushState(startState);
+            if (startState != null)
+            {
+                PushState(startState);
+            }
+            else
+            {
+                Debug.LogError("No start state set for UI.");
+            }
 
             // Display on start if indicated.
             if (!displayOnStart)
