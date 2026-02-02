@@ -26,10 +26,6 @@ namespace App.StartScene
     /// </remarks>
     public class UIManager : MonoBehaviour
     {
-        /// <summary>Flag indicating whether or not to display the UI on start.</summary>
-        [Tooltip("Flag indicating whether or not to display the UI on start.")]
-        [SerializeField] private bool displayOnStart = false;
-
         /// <summary>Set to disable closing UI.</summary>
         [Tooltip("Set to disable closing UI.")]
         [SerializeField] private bool disableClose = false;
@@ -87,6 +83,8 @@ namespace App.StartScene
         {
             // Initialize references.
             uiCamera = FindAnyObjectByType(typeof(UICamera), FindObjectsInactive.Include) as UICamera;
+            
+            SetHiddenImmediate();
         }
 
 
@@ -107,16 +105,6 @@ namespace App.StartScene
             else
             {
                 Debug.LogError("No start state set for UI.");
-            }
-
-            // Display on start if indicated.
-            if (!displayOnStart)
-            {
-                SetHiddenImmediate();
-            }
-            else
-            {
-                Show();
             }
         }
         

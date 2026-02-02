@@ -44,6 +44,10 @@ public class SceneSelectUIState : UIState {
         testAction = InputSystem.actions.FindAction("TestAction");
         testAction.Enable();
         
+        if (sceneLoader == null) 
+        {
+            Debug.LogError("SceneLoader is null");
+        }
     }
 
     void Update()

@@ -3344,7 +3344,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: caa0257286d75ee44beae689ca6ff89f, type: 3}
   m_Name: 
   m_EditorClassIdentifier: LiquidForce::UICamera
-  mainCamera: {fileID: 0}
+  mainCamera: {fileID: 3996535380932382377}
   uiCamera: {fileID: 5159372776056187826}
 --- !u!1 &3221167538365819967
 GameObject:
@@ -5772,7 +5772,8 @@ MonoBehaviour:
   m_RequiresDepthTextureOption: 2
   m_RequiresOpaqueTextureOption: 2
   m_CameraType: 0
-  m_Cameras: []
+  m_Cameras:
+  - {fileID: 5159372776056187826}
   m_RendererIndex: -1
   m_VolumeLayerMask:
     serializedVersion: 2

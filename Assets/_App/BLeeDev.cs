@@ -42,5 +42,10 @@ public class BLeeDev : MonoBehaviour
         yield return new WaitForSeconds(1);
         TestObject.SetActive(true);
     }
-    
+
+
+    public void OnDisable()
+    {
+        Debug.Log("OnDisable");
+    }
 }

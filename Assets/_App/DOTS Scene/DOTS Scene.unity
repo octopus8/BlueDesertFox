@@ -181,7 +181,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 2591731369234495529, guid: 0f9784479579e73438a60e9f742085d6, type: 3}
       propertyPath: displayOnStart
-      value: 0
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 3062676461178599477, guid: 0f9784479579e73438a60e9f742085d6, type: 3}
       propertyPath: m_LocalPosition.x
@@ -449,7 +449,7 @@ MonoBehaviour:
   delayBeforeFadeInSeconds: 0
   fadeInDurationSeconds: 1
   ui: {fileID: 234951897}
-  showUIOnStart: 0
+  showUIOnStart: 1
   subScenes:
   - {fileID: 1793381936}
 --- !u!4 &391244924
