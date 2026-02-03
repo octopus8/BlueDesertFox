@@ -229,7 +229,37 @@ namespace LiquidForce
                         Debug.Log("ObjectFollower: target is null.");
                         return;
                     }
-                    target.SetPositionAndRotation(source.position, source.rotation);
+                    Vector3 sourcePosition = target.position;
+                    Vector3 sourceRotation = target.rotation.eulerAngles;
+                    if (isSettingPositionX)
+                    {
+                        sourcePosition.x = source.position.x;
+                    }
+                    if (isSettingPositionY)
+                    {
+                        sourcePosition.y = source.position.y;
+                    }
+
+                    if (isSettingPositionZ)
+                    {
+                        sourcePosition.z = source.position.z;
+                    }
+
+                    if (isSettingRotationX)
+                    {
+                        sourceRotation.x = source.rotation.eulerAngles.x;
+                    }
+
+                    if (isSettingRotationY)
+                    {
+                        sourceRotation.y = source.rotation.eulerAngles.y;
+                    }
+
+                    if (isSettingRotationZ)
+                    {
+                        sourceRotation.z = source.rotation.eulerAngles.z;
+                    }
+                    target.SetPositionAndRotation(sourcePosition, Quaternion.Euler(sourceRotation));
                 }
 
                 return;
