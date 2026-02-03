@@ -14,6 +14,7 @@ using UnityEngine.InputSystem;
 /// an ObjectFollower component and set it up. This would remove the need to set the source of the ObjectFollower
 /// when the prefab is added to a scene.
 /// </remarks>
+[RequireComponent(typeof(ObjectFollower))]
 public class UIManager : MonoBehaviour
 {
     /// <summary>Set to disable closing UI.</summary>
@@ -46,6 +47,8 @@ public class UIManager : MonoBehaviour
     private bool testActionBool = false;
     
     private Stack<IUIState> stateStack = new Stack<IUIState>();
+
+    private ObjectFollower objectFollower;
     
 
 
@@ -73,6 +76,7 @@ public class UIManager : MonoBehaviour
     {
         // Initialize references.
         uiCamera = FindAnyObjectByType(typeof(UICamera), FindObjectsInactive.Include) as UICamera;
+        objectFollower = GetComponent<ObjectFollower>();
         
         SetHiddenImmediate();
     }
@@ -182,6 +186,7 @@ public class UIManager : MonoBehaviour
             {
                 currentAnimState =  AnimState.on;
             });
+        objectFollower.UpdateImmediate();
     }
 
     
