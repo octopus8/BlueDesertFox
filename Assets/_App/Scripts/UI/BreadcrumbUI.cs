@@ -1,4 +1,3 @@
-using App.StartScene;
 using TMPro;
 using UnityEngine;
 

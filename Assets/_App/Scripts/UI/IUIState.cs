@@ -1,10 +1,3 @@
-
-
-
-
-using App.StartScene;
-using UnityEngine;
-
 public interface IUIState
 {
     void OnEnter();

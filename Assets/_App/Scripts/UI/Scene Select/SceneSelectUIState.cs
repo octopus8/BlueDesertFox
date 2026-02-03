@@ -1,12 +1,5 @@
-using System.Collections;
-using App.StartScene;
 using LiquidForce;
 using UnityEngine;
-using UnityEngine.AddressableAssets;
-using UnityEngine.InputSystem;
-using UnityEngine.ResourceManagement.AsyncOperations;
-using UnityEngine.ResourceManagement.ResourceProviders;
-using UnityEngine.SceneManagement;
 
 public class SceneSelectUIState : UIState {
 
@@ -25,8 +18,6 @@ public class SceneSelectUIState : UIState {
 
     [SerializeField] private SceneLoader sceneLoader;
     
-    /// <summary>Test action.</summary>
-    private InputAction testAction;
     
 
     void Start()
@@ -41,25 +32,12 @@ public class SceneSelectUIState : UIState {
 
         prototypeButton.gameObject.SetActive(false);
         
-        testAction = InputSystem.actions.FindAction("TestAction");
-        testAction.Enable();
         
         if (sceneLoader == null) 
         {
             Debug.LogError("SceneLoader is null");
         }
     }
-
-    void Update()
-    {
-        if (testAction.WasPressedThisFrame())
-        {
-            LoadScene(sceneList.scenes[0]);
-        }
-
-    }
-        
-
     
     
     /// <summary>

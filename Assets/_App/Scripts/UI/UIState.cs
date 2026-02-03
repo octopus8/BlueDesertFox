@@ -1,5 +1,3 @@
-using System;
-using App.StartScene;
 using UnityEngine;
 
 public class UIState : MonoBehaviour, IUIState

@@ -1,4 +1,3 @@
-using App.StartScene;
 using UnityEngine;
 
 public class MainMenuUIState : UIState {

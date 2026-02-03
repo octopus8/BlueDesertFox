@@ -13466,6 +13466,17 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 0f9784479579e73438a60e9f742085d6, type: 3}
+--- !u!114 &752238513 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 2591731369234495529, guid: 0f9784479579e73438a60e9f742085d6, type: 3}
+  m_PrefabInstance: {fileID: 752238512}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2dc83644099ea0a4f89d15ed3b1c6e30, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::App.StartScene.UI
 --- !u!1 &763383989
 GameObject:
   m_ObjectHideFlags: 0
@@ -217772,6 +217783,66 @@ MeshRenderer:
   m_SortingOrder: 0
   m_MaskInteraction: 0
   m_AdditionalVertexStreams: {fileID: 0}
+--- !u!1 &2116436013
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 2116436015}
+  - component: {fileID: 2116436014}
+  m_Layer: 0
+  m_Name: Test Action
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &2116436014
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2116436013}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8679f56c38bed5641852c2dfdb2d2df4, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::TestAction
+  sceneList: {fileID: 11400000, guid: 210814e98b7db604b9b36e89b63c61c7, type: 2}
+  actions:
+    m_PersistentCalls:
+      m_Calls:
+      - m_Target: {fileID: 752238513}
+        m_TargetAssemblyTypeName: UIManager, Assembly-CSharp
+        m_MethodName: ToggleVisibility
+        m_Mode: 1
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
+--- !u!4 &2116436015
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2116436013}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &2123523348 stripped
 MonoBehaviour:
   m_CorrespondingSourceObject: {fileID: 2973397087361362328, guid: 19c45aa24630ffb4b8216afc7fcdeadd, type: 3}
@@ -217997,3 +218068,4 @@ SceneRoots:
   - {fileID: 1996734800}
   - {fileID: 391244924}
   - {fileID: 752238512}
+  - {fileID: 2116436015}
