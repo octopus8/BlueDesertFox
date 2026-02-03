@@ -449,7 +449,7 @@ MonoBehaviour:
   delayBeforeFadeInSeconds: 0
   fadeInDurationSeconds: 1
   ui: {fileID: 234951897}
-  showUIOnStart: 1
+  showUIOnStart: 0
   subScenes:
   - {fileID: 1793381936}
 --- !u!4 &391244924
