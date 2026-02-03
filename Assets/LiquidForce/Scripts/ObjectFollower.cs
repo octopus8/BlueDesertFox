@@ -122,6 +122,14 @@ namespace LiquidForce
         }
 
         
+        public void UpdateImmediate()
+        {
+            snapTo = true;
+            isSettingPositionX = isSettingPositionY = isSettingPositionZ = isSettingRotationX = isSettingRotationY = isSettingRotationZ = true;
+            UpdateTargetTransforms();    
+        }
+        
+        
         /// <summary>
         /// Updates the targets if appropriate.
         /// </summary>

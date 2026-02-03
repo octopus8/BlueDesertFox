@@ -49,8 +49,6 @@ namespace LiquidForce
                 return;
             }
             headObjectFollower.source = head;
-            
-            
         }
         
 
@@ -61,6 +59,11 @@ namespace LiquidForce
         public void AddHeadFollower(Transform target)
         {
             headObjectFollower.AddTarget(target);
+        }
+
+        public void UpdateImmediate()
+        {
+            headObjectFollower.UpdateImmediate();
         }
     }
 }
