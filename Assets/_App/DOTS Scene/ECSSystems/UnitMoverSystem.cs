@@ -23,7 +23,7 @@ partial struct UnitMoverSystem : ISystem
                      RefRO<MoveSpeed>
                  >())
         {
-            localTransform.ValueRW.Position = localTransform.ValueRO.Position + new float3(0, 0, -1) * SystemAPI.Time.DeltaTime;
+            localTransform.ValueRW.Position = localTransform.ValueRO.Position + new float3(0, 0, -moveSpeed.ValueRO.value) * SystemAPI.Time.DeltaTime;
         }
     }
 

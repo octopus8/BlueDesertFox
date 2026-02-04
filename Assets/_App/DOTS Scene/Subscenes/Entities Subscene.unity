@@ -221,7 +221,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 38bcb2efbf8fce44d9989436a6304faf, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::MoveSpeedAuthoring
-  value: 50
+  value: 1
 --- !u!4 &1908333107 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 4657636852582608, guid: ebd0e90cdd8572142b5395fd3ad58a26, type: 3}
