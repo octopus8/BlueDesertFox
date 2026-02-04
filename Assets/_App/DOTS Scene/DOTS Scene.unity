@@ -447,7 +447,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::SceneStartup
   startTransform: {fileID: 201260497}
   delayBeforeFadeInSeconds: 0
-  fadeInDurationSeconds: 1
+  fadeInDurationSeconds: 0
   ui: {fileID: 234951897}
   showUIOnStart: 0
   subScenes:
