@@ -7,7 +7,9 @@ public class SplineFollower : MonoBehaviour
     [SerializeField] private Rigidbody rb;
     
     // The speed at which the object moves along the spline
-    public float speed = 5f;
+    [SerializeField] private float speed = 5f;
+
+    [SerializeField] private GameObject splineLocation;
 
     // A value from 0 to 1 representing the object's position along the spline
     private float distanceRatio = 0f;    
@@ -29,10 +31,21 @@ public class SplineFollower : MonoBehaviour
         // Get the position and tangent (forward direction) at the current point on the spline
         Vector3 position = splineContainer.EvaluatePosition(distanceRatio);
         Vector3 tangent = splineContainer.EvaluateTangent(distanceRatio);
+        Vector3 upVector = splineContainer.EvaluateUpVector(distanceRatio);
+        
+        splineLocation.transform.position = position;
 
         // Calculate rotation to align the object with the spline's direction
         // The second argument, Vector3.up, helps define the 'up' direction
-        Quaternion rotation = Quaternion.LookRotation(tangent, Vector3.up);
+        Quaternion rotation = Quaternion.LookRotation(tangent, upVector);
+        
+        Vector3 moveDirection = position - transform.position;
+        moveDirection = Vector3.Normalize(moveDirection);
+//        rb.rotation = Quaternion.LookRotation(moveDirection, Vector3.up);
+//        rb.linearVelocity = moveDirection * speed;
+//        rb.angularVelocity = Vector3.zero;
+        
+        
 
         // Apply the position and rotation using Rigidbody's MovePosition/MoveRotation
         // This is crucial for physics interactions
