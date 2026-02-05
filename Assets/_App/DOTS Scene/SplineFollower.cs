@@ -28,17 +28,21 @@ public class SplineFollower : MonoBehaviour
             // distanceRatio = 1f; enabled = false; 
         }
 
-        // Get the position and tangent (forward direction) at the current point on the spline
+        // Compute spline values for the distance value.
         Vector3 position = splineContainer.EvaluatePosition(distanceRatio);
         Vector3 tangent = splineContainer.EvaluateTangent(distanceRatio);
         Vector3 upVector = splineContainer.EvaluateUpVector(distanceRatio);
-        
+        Quaternion rotation = Quaternion.LookRotation(tangent, upVector);
+
+        // Set the position of the test spline location object.
         splineLocation.transform.position = position;
 
-        // Calculate rotation to align the object with the spline's direction
-        // The second argument, Vector3.up, helps define the 'up' direction
-        Quaternion rotation = Quaternion.LookRotation(tangent, upVector);
         
+        rb.gameObject.transform.position = position;
+        rb.gameObject.transform.rotation = rotation;
+        
+        
+/*        
         Vector3 moveDirection = position - transform.position;
         moveDirection = Vector3.Normalize(moveDirection);
 //        rb.rotation = Quaternion.LookRotation(moveDirection, Vector3.up);
@@ -49,9 +53,8 @@ public class SplineFollower : MonoBehaviour
 
         // Apply the position and rotation using Rigidbody's MovePosition/MoveRotation
         // This is crucial for physics interactions
-        rb.gameObject.transform.position = position;
-        rb.gameObject.transform.rotation = rotation;
 //        rb.MovePosition(position);
 //        rb.MoveRotation(rotation);
+*/
     }    
 }
