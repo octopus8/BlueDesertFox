@@ -14,6 +14,8 @@ public class SplineFollower : MonoBehaviour
     // A value from 0 to 1 representing the object's position along the spline
     private float distanceRatio = 0f;    
 
+    private bool hasSetInitialVelocity = false;
+    
     
     void FixedUpdate()
     {
@@ -32,29 +34,19 @@ public class SplineFollower : MonoBehaviour
         Vector3 position = splineContainer.EvaluatePosition(distanceRatio);
         Vector3 tangent = splineContainer.EvaluateTangent(distanceRatio);
         Vector3 upVector = splineContainer.EvaluateUpVector(distanceRatio);
-        Quaternion rotation = Quaternion.LookRotation(tangent, upVector);
 
         // Set the position of the test spline location object.
-        splineLocation.transform.position = position;
+        if (splineLocation != null)
+        {
+            splineLocation.transform.position = position;
+        }
+        
+        // Rotate the linear velocity towards the target.
+        Vector3 targetDirection = position - rb.transform.position;
+        rb.linearVelocity = Vector3.RotateTowards(rb.linearVelocity, targetDirection, Time.deltaTime * 10f, 0);
 
-        
-        rb.gameObject.transform.position = position;
-        rb.gameObject.transform.rotation = rotation;
-        
-        
-/*        
-        Vector3 moveDirection = position - transform.position;
-        moveDirection = Vector3.Normalize(moveDirection);
-//        rb.rotation = Quaternion.LookRotation(moveDirection, Vector3.up);
-//        rb.linearVelocity = moveDirection * speed;
-//        rb.angularVelocity = Vector3.zero;
-        
-        
-
-        // Apply the position and rotation using Rigidbody's MovePosition/MoveRotation
-        // This is crucial for physics interactions
-//        rb.MovePosition(position);
-//        rb.MoveRotation(rotation);
-*/
+        // Rotate the GameObject towards the linear velocity.
+        Vector3 pos = rb.transform.position + rb.linearVelocity;
+        rb.transform.LookAt(pos, upVector);
     }    
 }
