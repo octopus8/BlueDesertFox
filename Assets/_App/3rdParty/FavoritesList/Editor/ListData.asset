@@ -49,3 +49,15 @@ MonoBehaviour:
     - SceneAsset
     sceneGUID: 
     localIdentifier: 0
+  - type: 1
+    actualReference: {fileID: 102900000, guid: 64a1d945d8bd26e459559c8584bf5a6e, type: 3}
+    cachedDrawData:
+      Name: PhysicsTest
+      Icon: {fileID: 985423054452513129, guid: 0000000000000000d000000000000000, type: 0}
+      SceneData:
+        IsScene: 1
+        Scene: {fileID: 102900000, guid: 64a1d945d8bd26e459559c8584bf5a6e, type: 3}
+    cachedTypes:
+    - SceneAsset
+    sceneGUID: 
+    localIdentifier: 0
