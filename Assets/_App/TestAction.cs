@@ -34,7 +34,7 @@ public class TestAction : MonoBehaviour
     public void LoadScene()
     {
         
-        SceneSelectUIState sceneSelectUIState = FindObjectOfType<SceneSelectUIState>();
+        SceneSelectUIState sceneSelectUIState = FindFirstObjectByType<SceneSelectUIState>();
         sceneSelectUIState.LoadScene(sceneList.scenes[0]);
     }
     

@@ -7,12 +7,6 @@ using Unity.Transforms;
 partial struct UnitMoverSystem : ISystem
 {
     [BurstCompile]
-    public void OnCreate(ref SystemState state)
-    {
-        
-    }
-
-    [BurstCompile]
     public void OnUpdate(ref SystemState state)
     {
         foreach (var (
@@ -33,11 +27,5 @@ partial struct UnitMoverSystem : ISystem
             physicsVelocity.ValueRW.Linear = moveDirection * moveSpeed.ValueRO.value;
             physicsVelocity.ValueRW.Angular = float3.zero;
         }
-    }
-
-    [BurstCompile]
-    public void OnDestroy(ref SystemState state)
-    {
-        
     }
 }
