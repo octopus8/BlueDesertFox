@@ -563,6 +563,7 @@ GameObject:
   - component: {fileID: 1179098101095210909}
   - component: {fileID: 3091543977451332164}
   - component: {fileID: 5813222315561953690}
+  - component: {fileID: -7364260412794751848}
   m_Layer: 0
   m_Name: Zero
   m_TagString: Untagged
@@ -622,11 +623,24 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 4484288786283341609}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 06e091fe44c310b47908805632481fe5, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::TestZero
+--- !u!114 &-7364260412794751848
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4484288786283341609}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 38bcb2efbf8fce44d9989436a6304faf, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::MoveSpeedAuthoring
+  value: 5
 --- !u!1 &8406496163657999403
 GameObject:
   m_ObjectHideFlags: 0
