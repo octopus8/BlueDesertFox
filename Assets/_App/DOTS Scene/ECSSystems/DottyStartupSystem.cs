@@ -16,6 +16,7 @@ partial struct DottyStartupSystem : ISystem
     [BurstCompile]
     public void OnUpdate(ref SystemState state)
     {
+/*        
         if (!testval)
         {
             testval = true;
@@ -23,6 +24,7 @@ partial struct DottyStartupSystem : ISystem
 
             state.EntityManager.Instantiate(prefabEntitiesReferences.prefabEntity);
         }
+*/        
     }
 }
 

@@ -3,21 +3,21 @@ using UnityEngine;
 
 public class MoveSpeedAuthoring : MonoBehaviour
 {
-    public float value;
+    public float moveSpeed;
 
     public class Baker : Baker<MoveSpeedAuthoring>
     {
         public override void Bake(MoveSpeedAuthoring authoring)
         {
             Entity entity = GetEntity(TransformUsageFlags.Dynamic);
-            AddComponent(entity, new MoveSpeed { value = authoring.value });
+            AddComponent(entity, new UnitMover { moveSpeed = authoring.moveSpeed });
         }
     }
 }
 
 
 
-public struct MoveSpeed : IComponentData
+public struct UnitMover : IComponentData
 {
-    public float value;
+    public float moveSpeed;
 }
