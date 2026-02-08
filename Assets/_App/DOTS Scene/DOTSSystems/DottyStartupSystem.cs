@@ -2,13 +2,17 @@
 using Unity.Burst;
 using Unity.Entities;
 
+
+/// <summary>
+/// THIS SYSTEM HAS BEEN COMMENTED OUT AND SHOULD BE REMOVED. THIS WAS A TEST.
+/// </summary>
 partial struct DottyStartupSystem : ISystem
 { 
     [BurstCompile]
     public void OnCreate(ref SystemState state)
     {
-        state.RequireForUpdate<PrefabEntitiesReferences>();
-        testval = false;
+//        state.RequireForUpdate<PrefabEntitiesReferences>();
+//        testval = false;
     }
 
     private bool testval;
@@ -16,6 +20,8 @@ partial struct DottyStartupSystem : ISystem
     [BurstCompile]
     public void OnUpdate(ref SystemState state)
     {
+        
+/*        
         if (!testval)
         {
             testval = true;
@@ -23,6 +29,7 @@ partial struct DottyStartupSystem : ISystem
 
             state.EntityManager.Instantiate(prefabEntitiesReferences.prefabEntity);
         }
+*/        
     }
 }
 

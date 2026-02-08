@@ -1,4 +1,6 @@
 using System.Collections;
+using Unity.Collections;
+using Unity.Entities;
 using UnityEngine;
 
 public class DottyApp : MonoBehaviour
@@ -18,6 +20,16 @@ public class DottyApp : MonoBehaviour
 
     private void DoTestSpawn()
     {
-        
+        EntityManager entityManager = World.DefaultGameObjectInjectionWorld.EntityManager;
+        EntityQuery entityQuery = new EntityQueryBuilder(Allocator.Temp).WithAll<EnemySpawner>().Build(entityManager);
+        NativeArray<EnemySpawner> enemySpawners = entityQuery.ToComponentDataArray<EnemySpawner>(Allocator.Temp);
+        for (int i = 0; i < enemySpawners.Length; i++)
+        {
+            EnemySpawner enemySpawner = enemySpawners[i];
+            enemySpawner.testval = 1;
+            enemySpawners[i] = enemySpawner;
+        }
+
+        entityQuery.CopyFromComponentDataArray(enemySpawners);
     }
 }
