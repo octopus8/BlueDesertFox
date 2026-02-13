@@ -7,10 +7,12 @@ using UnityEngine;
 
 partial struct UnitMoverSystem : ISystem
 {
+    private const bool useJobs = true;
+    
     [BurstCompile]
     public void OnUpdate(ref SystemState state)
     {
-        if (true)
+        if (useJobs)
         {
             UnitMoverJob unitMoverJob = new UnitMoverJob
             {

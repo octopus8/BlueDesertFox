@@ -26,7 +26,7 @@ public class DottyApp : MonoBehaviour
         for (int i = 0; i < enemySpawners.Length; i++)
         {
             EnemySpawner enemySpawner = enemySpawners[i];
-            enemySpawner.testval = 1;
+            enemySpawner.doSpawn = true;
             enemySpawners[i] = enemySpawner;
         }
 

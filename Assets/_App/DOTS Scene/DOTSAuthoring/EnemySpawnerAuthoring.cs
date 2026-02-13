@@ -10,7 +10,7 @@ public class EnemySpawnerAuthoring : MonoBehaviour
             Entity entity = GetEntity(TransformUsageFlags.Dynamic);
             AddComponent(entity, new EnemySpawner
             {
-                testval = 0.0f
+                doSpawn = false
             });
         }
     }
@@ -18,5 +18,5 @@ public class EnemySpawnerAuthoring : MonoBehaviour
 
 public struct EnemySpawner : IComponentData
 {
-    public float testval;
+    public bool doSpawn;
 }
