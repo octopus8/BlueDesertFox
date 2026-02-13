@@ -640,7 +640,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 38bcb2efbf8fce44d9989436a6304faf, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::MoveSpeedAuthoring
-  moveSpeed: 500
+  moveSpeed: 2000
 --- !u!1 &8406496163657999403
 GameObject:
   m_ObjectHideFlags: 0
