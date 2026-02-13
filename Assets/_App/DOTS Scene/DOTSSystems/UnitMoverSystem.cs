@@ -7,7 +7,7 @@ using UnityEngine;
 
 partial struct UnitMoverSystem : ISystem
 {
-    private const bool useJobs = true;
+    private const bool useJobs = false;
     
     [BurstCompile]
     public void OnUpdate(ref SystemState state)
@@ -20,6 +20,8 @@ partial struct UnitMoverSystem : ISystem
             };
             unitMoverJob.ScheduleParallel();
         }
+        
+        // Not using jobs for better debugging experience, as the system is not performance critical and we want to be able to easily inspect the values of the components in the editor.
         else
         {
             foreach (var (

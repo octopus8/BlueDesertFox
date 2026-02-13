@@ -20,8 +20,12 @@ partial struct EnemySpawnerSystem : ISystem
                 Debug.Log("SPAWN!!");
                 enemySpawner.ValueRW.doSpawn = false;
                 PrefabEntitiesReferences prefabEntitiesReferences = SystemAPI.GetSingleton<PrefabEntitiesReferences>();
-                state.EntityManager.Instantiate(prefabEntitiesReferences.prefabEntity);
+                Entity entity = state.EntityManager.Instantiate(prefabEntitiesReferences.prefabEntity);
                 
+                // Set the spline value on the UnitMover component
+                UnitMover unitMover = state.EntityManager.GetComponentData<UnitMover>(entity);
+                unitMover.spline = enemySpawner.ValueRO.spline;
+                state.EntityManager.SetComponentData(entity, unitMover);
                 
             }
         }
