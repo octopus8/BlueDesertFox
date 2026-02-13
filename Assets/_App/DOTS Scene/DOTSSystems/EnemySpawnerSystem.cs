@@ -22,6 +22,7 @@ partial struct EnemySpawnerSystem : ISystem
                 PrefabEntitiesReferences prefabEntitiesReferences = SystemAPI.GetSingleton<PrefabEntitiesReferences>();
                 state.EntityManager.Instantiate(prefabEntitiesReferences.prefabEntity);
                 
+                
             }
         }
         
