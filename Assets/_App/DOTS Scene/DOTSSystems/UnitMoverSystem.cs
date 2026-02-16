@@ -69,8 +69,16 @@ partial struct UnitMoverSystem : ISystem
                 // Set the linear velocity towards the target position
                 physicsVelocity.ValueRW.Linear = math.normalize(targetDirection) * unitMover.ValueRO.moveSpeed;
                 
-                // Rotate the entity to face along the tangent direction
-                localTransform.ValueRW.Rotation = quaternion.LookRotation(tangent, upVector);
+                // Normalize the tangent to ensure it's a proper direction vector
+                float3 normalizedTangent = math.normalize(tangent);
+                
+                // Calculate target rotation from the tangent direction
+                quaternion targetRotation = quaternion.LookRotation(normalizedTangent, upVector);
+                
+                // Smoothly interpolate rotation using slerp with a rotation speed factor
+                // Adjust the rotation speed (0.1f) to control how fast the entity rotates
+                float rotationSpeed = 5f; // Higher values = faster rotation
+                localTransform.ValueRW.Rotation = math.slerp(localTransform.ValueRO.Rotation, targetRotation, Time.deltaTime * rotationSpeed);
                 
                 // Keep angular velocity at zero to prevent unwanted rotation
                 physicsVelocity.ValueRW.Angular = float3.zero;
@@ -121,8 +129,15 @@ public partial struct UnitMoverJob : IJobEntity
         // Set the linear velocity towards the target position
         physicsVelocity.Linear = math.normalize(targetDirection) * unitMover.moveSpeed;
         
-        // Rotate the entity to face along the tangent direction
-        localTransform.Rotation = quaternion.LookRotation(tangent, upVector);
+        // Normalize the tangent to ensure it's a proper direction vector
+        float3 normalizedTangent = math.normalize(tangent);
+        
+        // Calculate target rotation from the tangent direction
+        quaternion targetRotation = quaternion.LookRotation(normalizedTangent, upVector);
+        
+        // Smoothly interpolate rotation using slerp with a rotation speed factor
+        float rotationSpeed = 5f; // Higher values = faster rotation
+        localTransform.Rotation = math.slerp(localTransform.Rotation, targetRotation, deltaTime * rotationSpeed);
         
         // Keep angular velocity at zero to prevent unwanted rotation
         physicsVelocity.Angular = float3.zero;
