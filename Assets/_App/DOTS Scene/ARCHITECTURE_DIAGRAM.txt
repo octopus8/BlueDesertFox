@@ -1,0 +1,150 @@
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║                    SPLINE SYSTEM ARCHITECTURE                                 ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                          BAKING TIME (Editor Only)                          │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  ┌──────────────────┐
+  │ Unity Spline     │  (SplineContainer in scene)
+  │ (Managed Object) │
+  └────────┬─────────┘
+           │
+           ▼
+  ┌──────────────────┐
+  │ SplineComponent  │  Reads spline during baking
+  │ Authoring        │  sampleCount = 100 (configurable)
+  └────────┬─────────┘
+           │
+           ▼
+  ┌──────────────────┐
+  │ NativeSpline     │  Temporary, created & disposed in baking
+  │ (Temp Allocator) │  Used ONLY to sample the spline
+  └────────┬─────────┘
+           │
+           │ Sample at regular intervals
+           ▼
+  ┌──────────────────────────────────────┐
+  │ SplineDataBlob (Blob Asset)          │
+  │ ┌──────────────────────────────────┐ │
+  │ │ samples: BlobArray<SplineSample> │ │  100 samples by default
+  │ │   [0]: position, tangent, up     │ │  Each sample = 36 bytes
+  │ │   [1]: position, tangent, up     │ │  
+  │ │   [2]: position, tangent, up     │ │  ✅ Burst-compatible
+  │ │   ...                            │ │  ✅ Cache-friendly
+  │ │   [99]: position, tangent, up    │ │  ✅ No allocations
+  │ ├──────────────────────────────────┤ │
+  │ │ totalLength: float               │ │
+  │ │ isClosed: bool                   │ │
+  │ └──────────────────────────────────┘ │
+  └────────┬─────────────────────────────┘
+           │
+           ▼
+  ┌──────────────────┐
+  │ SplineData       │  Added to entity
+  │ Component        │  BlobAssetReference
+  └──────────────────┘
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           RUNTIME (Game Loop)                               │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  ┌──────────────────┐
+  │ Entity           │
+  │ ┌──────────────┐ │
+  │ │ UnitMover    │ │  moveSpeed: 5.0
+  │ │              │ │  distanceRatio: 0.0 → 1.0
+  │ ├──────────────┤ │
+  │ │ SplineData   │ │  Reference to blob
+  │ │ Component    │ │
+  │ ├──────────────┤ │
+  │ │ Physics      │ │  PhysicsVelocity
+  │ │ Velocity     │ │
+  │ ├──────────────┤ │
+  │ │ Local        │ │  Position & Rotation
+  │ │ Transform    │ │
+  │ └──────────────┘ │
+  └────────┬─────────┘
+           │
+           ▼
+  ┌──────────────────────────────────────┐
+  │ UnitMoverSystem (Every Frame)        │
+  │                                      │
+  │ 1. Calculate new distanceRatio       │
+  │    ratio += (speed * dt) / length    │
+  │                                      │
+  │ 2. Evaluate spline at ratio          │
+  │    sample = blob.Evaluate(ratio)     │
+  │    ↓                                 │
+  │    Linear interpolation between      │
+  │    samples (fast!)                   │
+  │                                      │
+  │ 3. Set physics velocity              │
+  │    velocity = direction * speed      │
+  │                                      │
+  │ 4. Update rotation                   │
+  │    rotation = slerp(current,         │
+  │                     tangent, dt*5)   │
+  │                                      │
+  │ ✅ Burst compiled                    │
+  │ ✅ Job system ready                  │
+  │ ✅ No allocations                    │
+  └──────────────────────────────────────┘
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         SPAWNING SYSTEM                                     │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  ┌──────────────────┐
+  │ EnemySpawner     │  Holds reference to SplineDataComponent
+  │ (Component)      │  doSpawn = true/false
+  └────────┬─────────┘
+           │
+           ▼
+  ┌──────────────────────────────────────┐
+  │ EnemySpawnerSystem                   │
+  │                                      │
+  │ 1. Check if doSpawn == true          │
+  │                                      │
+  │ 2. Instantiate prefab entity         │
+  │                                      │
+  │ 3. Add SplineDataComponent           │
+  │    to spawned entity                 │
+  │                                      │
+  │ 4. Set doSpawn = false               │
+  └──────────────────────────────────────┘
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         DATA FLOW DIAGRAM                                   │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+ BEFORE (❌ ERROR):
+ 
+  Runtime → Create NativeSpline → Use KnotsReadonlyCollection → ❌ BURST ERROR
+            (every frame!)         (IReadOnlyList = managed)
+ 
+ 
+ AFTER (✅ FIXED):
+ 
+  Baking → Sample Spline → Store in Blob → Runtime: Interpolate → ✅ WORKS!
+           (once)           (unmanaged)      (fast & safe)
+
+
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║                             KEY ADVANTAGES                                    ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+
+✅ NO Burst compilation errors
+✅ NO runtime allocations  
+✅ NO CreateNativeSpline() calls every frame
+✅ Burst-compiled job system compatible
+✅ Cache-friendly blob asset storage
+✅ Physics-based smooth movement
+✅ Configurable accuracy (sampleCount)
+✅ Supports open and closed splines
+✅ Automatic rotation along tangent
+

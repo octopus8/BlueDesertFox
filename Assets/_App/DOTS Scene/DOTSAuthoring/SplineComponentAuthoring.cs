@@ -1,5 +1,3 @@
-using System.Collections;
-using System.Collections.Generic;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
@@ -10,6 +8,9 @@ using UnityEngine.Splines;
 [RequireComponent(typeof(SplineContainer))]
 public class SplineComponentAuthoring : MonoBehaviour
 {
+    [Tooltip("Number of samples to pre-calculate along the spline. Higher values = more accuracy but more memory.")]
+    public int sampleCount = 100;
+    
     public class SplineComponentBaker: Baker<SplineComponentAuthoring>
     {
         public override void Bake(SplineComponentAuthoring authoring)
@@ -24,111 +25,119 @@ public class SplineComponentAuthoring : MonoBehaviour
 
             var spline = splineContainer.Spline;
             float4x4 transformationMatrix = splineContainer.transform.localToWorldMatrix;
-            using var nativeSpline = new NativeSpline(spline, Allocator.Temp);
-
-            var nativeSplineBlobAssetRef = NativeSplineBlob.CreateNativeSplineBlobAssetRef(
-                nativeSpline,
-                spline.Closed,
-                transformationMatrix);
+            
+            // Create the pre-sampled spline data blob asset
+            var splineDataBlobAssetRef = SplineDataBlob.CreateSplineDataBlobAssetRef(
+                spline,
+                transformationMatrix,
+                authoring.sampleCount);
        
             var entity = GetEntity(TransformUsageFlags.Dynamic);
        
-            AddBlobAsset(ref nativeSplineBlobAssetRef, out _);
+            AddBlobAsset(ref splineDataBlobAssetRef, out _);
        
-            AddComponent(entity, new SplineBlobAssetComponent
+            AddComponent(entity, new SplineDataComponent
             {
-                reference = nativeSplineBlobAssetRef,
+                splineData = splineDataBlobAssetRef,
             });
         }
     }
 }
 
 
-
-
-public struct SplineBlobAssetComponent : IComponentData
+// Component to hold reference to the pre-sampled spline data
+public struct SplineDataComponent : IComponentData
 {
-    public BlobAssetReference<NativeSplineBlob> reference;
+    public BlobAssetReference<SplineDataBlob> splineData;
 }
- 
 
-public struct NativeSplineBlob
+// Struct to hold a single sample point along the spline
+public struct SplineSample
 {
-    public BlobArray<BezierKnot> knots;
-    public bool closed;
-    public float4x4 transformMatrix;
+    public float3 position;
+    public float3 tangent;
+    public float3 upVector;
+}
 
+// Blob asset containing pre-sampled spline data
+public struct SplineDataBlob
+{
+    public BlobArray<SplineSample> samples;
+    public float totalLength;
+    public bool isClosed;
+    
     /// <summary>
-    /// NativeSpline must be disposed on caller site.
+    /// Evaluates the spline at the given distance ratio (0-1) using the pre-sampled data.
+    /// Uses linear interpolation between samples.
     /// </summary>
-    public NativeSpline CreateNativeSpline(Allocator allocator)
+    public SplineSample Evaluate(float t)
     {
-       
-        using var nativeList = new NativeList<BezierKnot>(initialCapacity: knots.Length, Allocator.Temp);
-
-        for (int i = 0; i < knots.Length; i++)
+        // Clamp or wrap the t value
+        if (isClosed)
         {
-            nativeList.Add(knots[i]);
+            t = t - math.floor(t); // Wrap around for closed splines
         }
-  
-        var readonlyKnots = new KnotsReadonlyCollection(nativeList);
-  
-        return new NativeSpline(readonlyKnots, closed, transformMatrix, allocator);
+        else
+        {
+            t = math.clamp(t, 0f, 1f);
+        }
+        
+        // Find the appropriate sample index
+        float floatIndex = t * (samples.Length - 1);
+        int index0 = (int)math.floor(floatIndex);
+        int index1 = math.min(index0 + 1, samples.Length - 1);
+        
+        // Handle closed loop wrapping
+        if (isClosed && index1 >= samples.Length)
+        {
+            index1 = 0;
+        }
+        
+        float fraction = floatIndex - index0;
+        
+        // Interpolate between samples
+        SplineSample result;
+        result.position = math.lerp(samples[index0].position, samples[index1].position, fraction);
+        result.tangent = math.normalize(math.lerp(samples[index0].tangent, samples[index1].tangent, fraction));
+        result.upVector = math.normalize(math.lerp(samples[index0].upVector, samples[index1].upVector, fraction));
+        
+        return result;
     }
 
-    public static BlobAssetReference<NativeSplineBlob> CreateNativeSplineBlobAssetRef
-        (
-        NativeSpline nativeSpline,
-        bool isClosed,
-        float4x4 transformMatrix
-        )
+    public static BlobAssetReference<SplineDataBlob> CreateSplineDataBlobAssetRef(
+        Spline spline,
+        float4x4 transformMatrix,
+        int sampleCount)
     {
-        // Riping values
-        var knots = nativeSpline.Knots;
-
-        // Constructing blob
-        using var nativeSplineBuilder = new BlobBuilder(Allocator.Temp);
-        ref var nativeSplineRoot = ref nativeSplineBuilder.ConstructRoot<NativeSplineBlob>();
-
-        var knotsBuilder = nativeSplineBuilder.Allocate(ref nativeSplineRoot.knots, knots.Length);
-        for(int i = 0; i < knots.Length; i++)
+        // Create a temporary native spline to sample from
+        using var nativeSpline = new NativeSpline(spline, transformMatrix, Allocator.Temp);
+        
+        float splineLength = nativeSpline.GetLength();
+        
+        // Create the blob asset
+        using var builder = new BlobBuilder(Allocator.Temp);
+        ref var root = ref builder.ConstructRoot<SplineDataBlob>();
+        
+        // Allocate array for samples
+        var samplesBuilder = builder.Allocate(ref root.samples, sampleCount);
+        
+        // Sample the spline at regular intervals
+        for (int i = 0; i < sampleCount; i++)
         {
-            knotsBuilder[i] = knots[i];
+            float t = i / (float)(sampleCount - 1);
+            
+            samplesBuilder[i] = new SplineSample
+            {
+                position = nativeSpline.EvaluatePosition(t),
+                tangent = math.normalize(nativeSpline.EvaluateTangent(t)),
+                upVector = nativeSpline.EvaluateUpVector(t)
+            };
         }
-  
-        nativeSplineRoot.closed = isClosed;
-        nativeSplineRoot.transformMatrix = transformMatrix;
-
-        return nativeSplineBuilder
-                .CreateBlobAssetReference<NativeSplineBlob>(Allocator.Persistent);
+        
+        root.totalLength = splineLength;
+        root.isClosed = spline.Closed;
+        
+        return builder.CreateBlobAssetReference<SplineDataBlob>(Allocator.Persistent);
     }
 }
-
-
-public readonly struct KnotsReadonlyCollection: IReadOnlyList<BezierKnot>
-{
-    private readonly NativeList<BezierKnot> _knots;
-    
-    public KnotsReadonlyCollection(NativeList<BezierKnot> knots)
-    {
-        _knots = knots;
-    }
-    
-    public IEnumerator<BezierKnot> GetEnumerator()
-    {
-        for (int i = 0; i < _knots.Length; i++)
-        {
-            yield return _knots[i];
-        }
-    }
-
-    IEnumerator IEnumerable.GetEnumerator()
-    {
-        return GetEnumerator();
-    }
-
-    public BezierKnot this[int index] => _knots[index];
-    public int Count => _knots.Length;
-}
-
 

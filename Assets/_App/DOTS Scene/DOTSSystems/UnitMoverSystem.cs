@@ -5,11 +5,10 @@ using Unity.Mathematics;
 using Unity.Physics;
 using Unity.Transforms;
 using UnityEngine;
-using UnityEngine.Splines;
 
 partial struct UnitMoverSystem : ISystem
 {
-    private const bool useJobs = false;
+    private const bool useJobs = true;
     
     [BurstCompile]
     public void OnUpdate(ref SystemState state)
@@ -29,54 +28,50 @@ partial struct UnitMoverSystem : ISystem
             foreach (var (
                          localTransform,
                          unitMover,
-                         physicsVelocity
+                         physicsVelocity,
+                         splineData
                          )
                      in SystemAPI.Query<
                          RefRW<LocalTransform>,
                          RefRW<UnitMover>,
-                         RefRW<PhysicsVelocity>
+                         RefRW<PhysicsVelocity>,
+                         RefRO<SplineDataComponent>
                      >())
             {
-                // Check if spline is valid
-                if (!unitMover.ValueRO.spline.reference.IsCreated)
+                // Check if spline data is valid
+                if (!splineData.ValueRO.splineData.IsCreated)
                 {
                     continue;
                 }
                 
-                // Create a NativeSpline from the blob asset
-                using var nativeSpline = unitMover.ValueRO.spline.reference.Value.CreateNativeSpline(Allocator.Temp);
-                
-                // Calculate the spline length
-                float splineLength = nativeSpline.GetLength();
+                ref var spline = ref splineData.ValueRO.splineData.Value;
                 
                 // Calculate the new distance ratio based on speed and time
-                unitMover.ValueRW.distanceRatio += (unitMover.ValueRO.moveSpeed * Time.deltaTime) / splineLength;
+                unitMover.ValueRW.distanceRatio += (unitMover.ValueRO.moveSpeed * Time.deltaTime) / spline.totalLength;
                 
                 // Wrap around the spline if it's a closed loop
-                if (unitMover.ValueRW.distanceRatio > 1f)
+                if (spline.isClosed)
                 {
-                    unitMover.ValueRW.distanceRatio -= 1f; // For looping paths
+                    unitMover.ValueRW.distanceRatio = unitMover.ValueRW.distanceRatio - math.floor(unitMover.ValueRW.distanceRatio);
+                }
+                else
+                {
+                    unitMover.ValueRW.distanceRatio = math.clamp(unitMover.ValueRW.distanceRatio, 0f, 1f);
                 }
                 
                 // Evaluate the spline at the current distance ratio
-                float3 position = nativeSpline.EvaluatePosition(unitMover.ValueRO.distanceRatio);
-                float3 tangent = nativeSpline.EvaluateTangent(unitMover.ValueRO.distanceRatio);
-                float3 upVector = nativeSpline.EvaluateUpVector(unitMover.ValueRO.distanceRatio);
+                SplineSample sample = spline.Evaluate(unitMover.ValueRO.distanceRatio);
                 
                 // Calculate target direction
-                float3 targetDirection = position - localTransform.ValueRO.Position;
+                float3 targetDirection = sample.position - localTransform.ValueRO.Position;
                 
                 // Set the linear velocity towards the target position
                 physicsVelocity.ValueRW.Linear = math.normalize(targetDirection) * unitMover.ValueRO.moveSpeed;
                 
-                // Normalize the tangent to ensure it's a proper direction vector
-                float3 normalizedTangent = math.normalize(tangent);
-                
                 // Calculate target rotation from the tangent direction
-                quaternion targetRotation = quaternion.LookRotation(normalizedTangent, upVector);
+                quaternion targetRotation = quaternion.LookRotation(sample.tangent, sample.upVector);
                 
                 // Smoothly interpolate rotation using slerp with a rotation speed factor
-                // Adjust the rotation speed (0.1f) to control how fast the entity rotates
                 float rotationSpeed = 5f; // Higher values = faster rotation
                 localTransform.ValueRW.Rotation = math.slerp(localTransform.ValueRO.Rotation, targetRotation, Time.deltaTime * rotationSpeed);
                 
@@ -95,45 +90,44 @@ public partial struct UnitMoverJob : IJobEntity
 {
     public float deltaTime;
     
-    public void Execute(ref LocalTransform localTransform, ref UnitMover unitMover, ref PhysicsVelocity physicsVelocity)
+    public void Execute(
+        ref LocalTransform localTransform, 
+        ref UnitMover unitMover, 
+        ref PhysicsVelocity physicsVelocity,
+        in SplineDataComponent splineData)
     {
-        // Check if spline is valid
-        if (!unitMover.spline.reference.IsCreated)
+        // Check if spline data is valid
+        if (!splineData.splineData.IsCreated)
         {
             return;
         }
         
-        // Create a NativeSpline from the blob asset
-        using var nativeSpline = unitMover.spline.reference.Value.CreateNativeSpline(Allocator.Temp);
-        
-        // Calculate the spline length
-        float splineLength = nativeSpline.GetLength();
+        ref var spline = ref splineData.splineData.Value;
         
         // Calculate the new distance ratio based on speed and time
-        unitMover.distanceRatio += (unitMover.moveSpeed * deltaTime) / splineLength;
+        unitMover.distanceRatio += (unitMover.moveSpeed * deltaTime) / spline.totalLength;
         
         // Wrap around the spline if it's a closed loop
-        if (unitMover.distanceRatio > 1f)
+        if (spline.isClosed)
         {
-            unitMover.distanceRatio -= 1f; // For looping paths
+            unitMover.distanceRatio = unitMover.distanceRatio - math.floor(unitMover.distanceRatio);
+        }
+        else
+        {
+            unitMover.distanceRatio = math.clamp(unitMover.distanceRatio, 0f, 1f);
         }
         
         // Evaluate the spline at the current distance ratio
-        float3 position = nativeSpline.EvaluatePosition(unitMover.distanceRatio);
-        float3 tangent = nativeSpline.EvaluateTangent(unitMover.distanceRatio);
-        float3 upVector = nativeSpline.EvaluateUpVector(unitMover.distanceRatio);
+        SplineSample sample = spline.Evaluate(unitMover.distanceRatio);
         
         // Calculate target direction
-        float3 targetDirection = position - localTransform.Position;
+        float3 targetDirection = sample.position - localTransform.Position;
         
         // Set the linear velocity towards the target position
         physicsVelocity.Linear = math.normalize(targetDirection) * unitMover.moveSpeed;
         
-        // Normalize the tangent to ensure it's a proper direction vector
-        float3 normalizedTangent = math.normalize(tangent);
-        
         // Calculate target rotation from the tangent direction
-        quaternion targetRotation = quaternion.LookRotation(normalizedTangent, upVector);
+        quaternion targetRotation = quaternion.LookRotation(sample.tangent, sample.upVector);
         
         // Smoothly interpolate rotation using slerp with a rotation speed factor
         float rotationSpeed = 5f; // Higher values = faster rotation
@@ -143,3 +137,4 @@ public partial struct UnitMoverJob : IJobEntity
         physicsVelocity.Angular = float3.zero;
     }
 }
+

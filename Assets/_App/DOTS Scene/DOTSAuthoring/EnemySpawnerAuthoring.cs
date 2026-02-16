@@ -1,4 +1,3 @@
-using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
 using UnityEngine;
@@ -7,6 +6,7 @@ using UnityEngine.Splines;
 public class EnemySpawnerAuthoring : MonoBehaviour
 {
     [SerializeField] private SplineContainer splineContainer;
+    [SerializeField] private int sampleCount = 100;
     
     public class Baker : Baker<EnemySpawnerAuthoring>
     {
@@ -16,33 +16,32 @@ public class EnemySpawnerAuthoring : MonoBehaviour
             AddComponent(entity, new EnemySpawner
             {
                 doSpawn = false,
-                spline = CreateSplineBlobAssetComponent(authoring.splineContainer),
+                splineData = CreateSplineDataComponent(authoring.splineContainer, authoring.sampleCount),
             });
         }
 
-        private SplineBlobAssetComponent CreateSplineBlobAssetComponent(SplineContainer splineContainer)
+        private SplineDataComponent CreateSplineDataComponent(SplineContainer splineContainer, int sampleCount)
         {
             if (splineContainer is null)
             {
                 Debug.Log(
-                    $"From {nameof(EnemySpawnerAuthoring.Baker)}.CreateSplineBlobAssetComponent(). spline container is null");
+                    $"From {nameof(EnemySpawnerAuthoring.Baker)}.CreateSplineDataComponent(). spline container is null");
                 return default;
             }
 
             var spline = splineContainer.Spline;
             float4x4 transformationMatrix = splineContainer.transform.localToWorldMatrix;
-            using var nativeSpline = new NativeSpline(spline, Allocator.Temp);
 
-            var nativeSplineBlobAssetRef = NativeSplineBlob.CreateNativeSplineBlobAssetRef(
-                nativeSpline,
-                spline.Closed,
-                transformationMatrix);
+            var splineDataBlobAssetRef = SplineDataBlob.CreateSplineDataBlobAssetRef(
+                spline,
+                transformationMatrix,
+                sampleCount);
 
-            AddBlobAsset(ref nativeSplineBlobAssetRef, out _);
+            AddBlobAsset(ref splineDataBlobAssetRef, out _);
 
-            return new SplineBlobAssetComponent
+            return new SplineDataComponent
             {
-                reference = nativeSplineBlobAssetRef,
+                splineData = splineDataBlobAssetRef,
             };
         }
     }
@@ -51,5 +50,5 @@ public class EnemySpawnerAuthoring : MonoBehaviour
 public struct EnemySpawner : IComponentData
 {
     public bool doSpawn;
-    public SplineBlobAssetComponent spline;
+    public SplineDataComponent splineData;
 }

@@ -4,7 +4,6 @@ using UnityEngine;
 public class UnitMoverAuthoring : MonoBehaviour
 {
     public float moveSpeed;
-    public SplineBlobAssetComponent spline;
 
     public class Baker : Baker<UnitMoverAuthoring>
     {
@@ -14,7 +13,7 @@ public class UnitMoverAuthoring : MonoBehaviour
             AddComponent(entity, new UnitMover
             {
                 moveSpeed = authoring.moveSpeed,
-                spline = authoring.spline
+                distanceRatio = 0f
             });
         }
     }
@@ -25,6 +24,5 @@ public class UnitMoverAuthoring : MonoBehaviour
 public struct UnitMover : IComponentData
 {
     public float moveSpeed;
-    public SplineBlobAssetComponent spline;
     public float distanceRatio; // A value from 0 to 1 representing the object's position along the spline
 }
