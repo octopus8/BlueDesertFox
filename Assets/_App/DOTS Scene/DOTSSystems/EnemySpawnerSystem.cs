@@ -39,25 +39,31 @@ partial struct EnemySpawnerSystem : ISystem
                 // Use EntityCommandBuffer for structural changes
                 Entity entity = ecb.Instantiate(prefabEntitiesReferences.prefabEntity);
                 
-                // Set the spline data on the spawned entity
-                ecb.AddComponent(entity, enemySpawner.ValueRO.splineData);
-                
-                // Get the initial position and rotation from the spline at the start (distanceRatio = 0)
-                if (enemySpawner.ValueRO.splineData.splineData.IsCreated)
+                // Get the spline data from the referenced spline entity
+                if (SystemAPI.HasComponent<SplineDataComponent>(enemySpawner.ValueRO.splineEntity))
                 {
-                    ref var spline = ref enemySpawner.ValueRO.splineData.splineData.Value;
-                    SplineSample initialSample = spline.Evaluate(0f); // Start at the beginning of the spline
+                    SplineDataComponent splineData = SystemAPI.GetComponent<SplineDataComponent>(enemySpawner.ValueRO.splineEntity);
                     
-                    // Calculate initial rotation from the spline's tangent
-                    quaternion initialRotation = quaternion.LookRotation(initialSample.tangent, initialSample.upVector);
+                    // Set the spline data on the spawned entity
+                    ecb.AddComponent(entity, splineData);
                     
-                    // Set the transform component with the spline's initial position and rotation
-                    ecb.SetComponent(entity, new LocalTransform
+                    // Get the initial position and rotation from the spline at the start (distanceRatio = 0)
+                    if (splineData.splineData.IsCreated)
                     {
-                        Position = initialSample.position,
-                        Rotation = initialRotation,
-                        Scale = 1f
-                    });
+                        ref var spline = ref splineData.splineData.Value;
+                        SplineSample initialSample = spline.Evaluate(0f); // Start at the beginning of the spline
+                        
+                        // Calculate initial rotation from the spline's tangent
+                        quaternion initialRotation = quaternion.LookRotation(initialSample.tangent, initialSample.upVector);
+                        
+                        // Set the transform component with the spline's initial position and rotation
+                        ecb.SetComponent(entity, new LocalTransform
+                        {
+                            Position = initialSample.position,
+                            Rotation = initialRotation,
+                            Scale = 1f
+                        });
+                    }
                 }
             }
         }

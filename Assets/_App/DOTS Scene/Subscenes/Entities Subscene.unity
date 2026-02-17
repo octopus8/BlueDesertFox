@@ -166,8 +166,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ab16047f4bac34c4faa2ff30a7e4f276, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::EnemySpawnerAuthoring
-  loopSpline: {fileID: 1730959684}
-  sampleCount: 100
+  splineObject: {fileID: 1730959682}
 --- !u!1 &739801508
 GameObject:
   m_ObjectHideFlags: 0

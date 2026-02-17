@@ -99,8 +99,9 @@
 └─────────────────────────────────────────────────────────────────────────────┘
 
   ┌──────────────────┐
-  │ EnemySpawner     │  Holds reference to SplineDataComponent
+  │ EnemySpawner     │  References a spline entity (not duplicate data)
   │ (Component)      │  doSpawn = true/false
+  │                  │  splineEntity = Entity reference
   └────────┬─────────┘
            │
            ▼
@@ -111,10 +112,13 @@
   │                                      │
   │ 2. Instantiate prefab entity         │
   │                                      │
-  │ 3. Add SplineDataComponent           │
+  │ 3. Get SplineDataComponent from      │
+  │    the referenced splineEntity       │
+  │                                      │
+  │ 4. Add SplineDataComponent           │
   │    to spawned entity                 │
   │                                      │
-  │ 4. Set doSpawn = false               │
+  │ 5. Set doSpawn = false               │
   └──────────────────────────────────────┘
 
 
