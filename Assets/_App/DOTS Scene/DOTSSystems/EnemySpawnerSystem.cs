@@ -40,9 +40,9 @@ partial struct EnemySpawnerSystem : ISystem
                 Entity entity = ecb.Instantiate(prefabEntitiesReferences.prefabEntity);
                 
                 // Get the spline data from the referenced spline entity
-                if (SystemAPI.HasComponent<SplineDataComponent>(enemySpawner.ValueRO.splineEntity))
+                if (SystemAPI.HasComponent<SplineDataComponent>(enemySpawner.ValueRO.loopSplineEntity))
                 {
-                    SplineDataComponent splineData = SystemAPI.GetComponent<SplineDataComponent>(enemySpawner.ValueRO.splineEntity);
+                    SplineDataComponent splineData = SystemAPI.GetComponent<SplineDataComponent>(enemySpawner.ValueRO.loopSplineEntity);
                     
                     // Set the spline data on the spawned entity
                     ecb.AddComponent(entity, splineData);

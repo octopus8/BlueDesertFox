@@ -14,7 +14,7 @@ public class EnemySpawnerAuthoring : MonoBehaviour
     /// The GameObject with a SplineComponentAuthoring that defines the path along which enemies will be spawned. 
     /// This should be assigned in the Unity Editor. The referenced GameObject must have a SplineComponentAuthoring component.
     /// </summary>
-    [SerializeField] private GameObject splineObject;
+    [SerializeField] private GameObject loopSpline;
     
     public class Baker : Baker<EnemySpawnerAuthoring>
     {
@@ -23,12 +23,12 @@ public class EnemySpawnerAuthoring : MonoBehaviour
             Entity entity = GetEntity(TransformUsageFlags.Dynamic);
             
             // Get the entity for the referenced spline GameObject
-            Entity splineEntity = GetEntity(authoring.splineObject, TransformUsageFlags.Dynamic);
+            Entity splineEntity = GetEntity(authoring.loopSpline, TransformUsageFlags.Dynamic);
             
             AddComponent(entity, new EnemySpawner
             {
                 doSpawn = false,
-                splineEntity = splineEntity,
+                loopSplineEntity = splineEntity,
             });
         }
     }
@@ -42,5 +42,5 @@ public class EnemySpawnerAuthoring : MonoBehaviour
 public struct EnemySpawner : IComponentData
 {
     public bool doSpawn;
-    public Entity splineEntity;
+    public Entity loopSplineEntity;
 }

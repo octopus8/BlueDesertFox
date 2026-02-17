@@ -33,7 +33,7 @@ partial struct SplineFollowerSystem : ISystem
                          )
                      in SystemAPI.Query<
                          RefRW<LocalTransform>,
-                         RefRW<UnitMover>,
+                         RefRW<SplineFollower>,
                          RefRW<PhysicsVelocity>,
                          RefRO<SplineDataComponent>
                      >())
@@ -91,7 +91,7 @@ public partial struct SplineFollowerJob : IJobEntity
     
     public void Execute(
         ref LocalTransform localTransform, 
-        ref UnitMover unitMover, 
+        ref SplineFollower splineFollower, 
         ref PhysicsVelocity physicsVelocity,
         in SplineDataComponent splineData)
     {
@@ -104,20 +104,20 @@ public partial struct SplineFollowerJob : IJobEntity
         ref var spline = ref splineData.splineData.Value;
         
         // Calculate the new distance ratio based on speed and time
-        unitMover.distanceRatio += (unitMover.moveSpeed * deltaTime) / spline.totalLength;
+        splineFollower.distanceRatio += (splineFollower.moveSpeed * deltaTime) / spline.totalLength;
         
         // Wrap around the spline if it's a closed loop
         if (spline.isClosed)
         {
-            unitMover.distanceRatio = unitMover.distanceRatio - math.floor(unitMover.distanceRatio);
+            splineFollower.distanceRatio = splineFollower.distanceRatio - math.floor(splineFollower.distanceRatio);
         }
         else
         {
-            unitMover.distanceRatio = math.clamp(unitMover.distanceRatio, 0f, 1f);
+            splineFollower.distanceRatio = math.clamp(splineFollower.distanceRatio, 0f, 1f);
         }
         
         // Evaluate the spline at the current distance ratio
-        SplineSample sample = spline.Evaluate(unitMover.distanceRatio);
+        SplineSample sample = spline.Evaluate(splineFollower.distanceRatio);
         
         // Smoothly interpolate position to the spline position
         float positionLerpSpeed = 10f; // Higher values = faster position interpolation
