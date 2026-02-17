@@ -45,6 +45,13 @@ partial struct EnemySpawnerSystem : ISystem
                     int formationCount = enemySpawner.ValueRO.formationCount;
                     float spacing = enemySpawner.ValueRO.formationSpacing;
                     
+                    // Get the prefab's scale to preserve it
+                    float prefabScale = 1f;
+                    if (SystemAPI.HasComponent<LocalTransform>(prefabEntitiesReferences.prefabEntity))
+                    {
+                        prefabScale = SystemAPI.GetComponent<LocalTransform>(prefabEntitiesReferences.prefabEntity).Scale;
+                    }
+                    
                     for (int i = 0; i < formationCount; i++)
                     {
                         // Use EntityCommandBuffer for structural changes
@@ -82,12 +89,12 @@ partial struct EnemySpawnerSystem : ISystem
                             // Calculate initial rotation from the spline's tangent
                             quaternion initialRotation = quaternion.LookRotation(initialSample.tangent, initialSample.upVector);
                             
-                            // Set the transform component with the spline's initial position and rotation
+                            // Set the transform component with the spline's initial position and rotation, preserving prefab's scale
                             ecb.SetComponent(entity, new LocalTransform
                             {
                                 Position = offsetPosition,
                                 Rotation = initialRotation,
-                                Scale = 1f
+                                Scale = prefabScale
                             });
                         }
                     }
