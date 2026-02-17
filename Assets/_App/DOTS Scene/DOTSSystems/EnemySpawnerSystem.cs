@@ -1,5 +1,7 @@
 using Unity.Burst;
 using Unity.Entities;
+using Unity.Mathematics;
+using Unity.Transforms;
 using UnityEngine;
 
 
@@ -39,6 +41,24 @@ partial struct EnemySpawnerSystem : ISystem
                 
                 // Set the spline data on the spawned entity
                 ecb.AddComponent(entity, enemySpawner.ValueRO.splineData);
+                
+                // Get the initial position and rotation from the spline at the start (distanceRatio = 0)
+                if (enemySpawner.ValueRO.splineData.splineData.IsCreated)
+                {
+                    ref var spline = ref enemySpawner.ValueRO.splineData.splineData.Value;
+                    SplineSample initialSample = spline.Evaluate(0f); // Start at the beginning of the spline
+                    
+                    // Calculate initial rotation from the spline's tangent
+                    quaternion initialRotation = quaternion.LookRotation(initialSample.tangent, initialSample.upVector);
+                    
+                    // Set the transform component with the spline's initial position and rotation
+                    ecb.SetComponent(entity, new LocalTransform
+                    {
+                        Position = initialSample.position,
+                        Rotation = initialRotation,
+                        Scale = 1f
+                    });
+                }
             }
         }
         
