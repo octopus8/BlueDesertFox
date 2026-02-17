@@ -62,11 +62,9 @@ partial struct UnitMoverSystem : ISystem
                 // Evaluate the spline at the current distance ratio
                 SplineSample sample = spline.Evaluate(unitMover.ValueRO.distanceRatio);
                 
-                // Calculate target direction
-                float3 targetDirection = sample.position - localTransform.ValueRO.Position;
-                
-                // Set the linear velocity towards the target position
-                physicsVelocity.ValueRW.Linear = math.normalize(targetDirection) * unitMover.ValueRO.moveSpeed;
+                // Smoothly interpolate position to the spline position
+                float positionLerpSpeed = 10f; // Higher values = faster position interpolation
+                localTransform.ValueRW.Position = math.lerp(localTransform.ValueRO.Position, sample.position, Time.deltaTime * positionLerpSpeed);
                 
                 // Calculate target rotation from the tangent direction
                 quaternion targetRotation = quaternion.LookRotation(sample.tangent, sample.upVector);
@@ -75,7 +73,8 @@ partial struct UnitMoverSystem : ISystem
                 float rotationSpeed = 5f; // Higher values = faster rotation
                 localTransform.ValueRW.Rotation = math.slerp(localTransform.ValueRO.Rotation, targetRotation, Time.deltaTime * rotationSpeed);
                 
-                // Keep angular velocity at zero to prevent unwanted rotation
+                // Keep velocities at zero since we're directly controlling position
+                physicsVelocity.ValueRW.Linear = float3.zero;
                 physicsVelocity.ValueRW.Angular = float3.zero;
             }
         }
@@ -120,11 +119,9 @@ public partial struct UnitMoverJob : IJobEntity
         // Evaluate the spline at the current distance ratio
         SplineSample sample = spline.Evaluate(unitMover.distanceRatio);
         
-        // Calculate target direction
-        float3 targetDirection = sample.position - localTransform.Position;
-        
-        // Set the linear velocity towards the target position
-        physicsVelocity.Linear = math.normalize(targetDirection) * unitMover.moveSpeed;
+        // Smoothly interpolate position to the spline position
+        float positionLerpSpeed = 10f; // Higher values = faster position interpolation
+        localTransform.Position = math.lerp(localTransform.Position, sample.position, deltaTime * positionLerpSpeed);
         
         // Calculate target rotation from the tangent direction
         quaternion targetRotation = quaternion.LookRotation(sample.tangent, sample.upVector);
@@ -133,7 +130,8 @@ public partial struct UnitMoverJob : IJobEntity
         float rotationSpeed = 5f; // Higher values = faster rotation
         localTransform.Rotation = math.slerp(localTransform.Rotation, targetRotation, deltaTime * rotationSpeed);
         
-        // Keep angular velocity at zero to prevent unwanted rotation
+        // Keep velocities at zero since we're directly controlling position
+        physicsVelocity.Linear = float3.zero;
         physicsVelocity.Angular = float3.zero;
     }
 }
