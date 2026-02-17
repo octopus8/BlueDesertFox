@@ -11,7 +11,7 @@ using UnityEngine.Splines;
 public class EnemySpawnerAuthoring : MonoBehaviour
 {
     /// <summary> The SplineContainer that defines the path along which enemies will be spawned. This should be assigned in the Unity Editor./// </summary>
-    [SerializeField] private SplineContainer splineContainer;
+    [SerializeField] private SplineContainer loopSpline;
     
     /// <summary> The number of sample points to generate along the spline. Higher values will result in smoother movement but may increase memory usage./// </summary>
     [SerializeField] private int sampleCount = 100;
@@ -24,7 +24,7 @@ public class EnemySpawnerAuthoring : MonoBehaviour
             AddComponent(entity, new EnemySpawner
             {
                 doSpawn = false,
-                splineData = CreateSplineDataComponent(authoring.splineContainer, authoring.sampleCount),
+                splineData = CreateSplineDataComponent(authoring.loopSpline, authoring.sampleCount),
             });
         }
 

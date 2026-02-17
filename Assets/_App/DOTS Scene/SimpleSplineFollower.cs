@@ -1,7 +1,7 @@
 using UnityEngine;
 using UnityEngine.Splines;
 
-public class SplineFollower : MonoBehaviour
+public class SimpleSplineFollower : MonoBehaviour
 {
     [SerializeField] private SplineContainer splineContainer;
     [SerializeField] private Rigidbody rb;

@@ -6,7 +6,7 @@ using Unity.Physics;
 using Unity.Transforms;
 using UnityEngine;
 
-partial struct UnitMoverSystem : ISystem
+partial struct SplineFollowerSystem : ISystem
 {
     private const bool useJobs = true;
     
@@ -15,11 +15,11 @@ partial struct UnitMoverSystem : ISystem
     {
         if (useJobs)
         {
-            UnitMoverJob unitMoverJob = new UnitMoverJob
+            SplineFollowerJob splineFollowerJob = new SplineFollowerJob
             {
                 deltaTime = Time.deltaTime,
             };
-            unitMoverJob.ScheduleParallel();
+            splineFollowerJob.ScheduleParallel();
         }
         
         // Not using jobs for better debugging experience, as the system is not performance critical and we want to be able to easily inspect the values of the components in the editor.
@@ -85,7 +85,7 @@ partial struct UnitMoverSystem : ISystem
 
 
 [BurstCompile]
-public partial struct UnitMoverJob : IJobEntity
+public partial struct SplineFollowerJob : IJobEntity
 {
     public float deltaTime;
     
