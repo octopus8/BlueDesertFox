@@ -165,6 +165,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::EnemySpawnerAuthoring
   loopSpline: {fileID: 1730959682}
+  formationCount: 10
+  formationSpacing: 10
 --- !u!1 &961978237
 GameObject:
   m_ObjectHideFlags: 0

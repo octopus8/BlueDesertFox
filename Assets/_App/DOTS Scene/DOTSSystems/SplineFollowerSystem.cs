@@ -18,66 +18,19 @@ partial struct SplineFollowerSystem : ISystem
             SplineFollowerJob splineFollowerJob = new SplineFollowerJob
             {
                 deltaTime = Time.deltaTime,
+                formationPositionLookup = SystemAPI.GetComponentLookup<FormationPosition>(true),
             };
             splineFollowerJob.ScheduleParallel();
         }
         
-        // Not using jobs for better debugging experience, as the system is not performance critical and we want to be able to easily inspect the values of the components in the editor.
+        /* Not using jobs for better debugging experience, as the system is not performance critical and we want to be able to easily inspect the values of the components in the editor.
+        // NOTE: This code is currently disabled because useJobs = true
+        // To use this code for debugging, set useJobs = false at the top of the file
         else
         {
-            foreach (var (
-                         localTransform,
-                         unitMover,
-                         physicsVelocity,
-                         splineData
-                         )
-                     in SystemAPI.Query<
-                         RefRW<LocalTransform>,
-                         RefRW<SplineFollower>,
-                         RefRW<PhysicsVelocity>,
-                         RefRO<SplineDataComponent>
-                     >())
-            {
-                // Check if spline data is valid
-                if (!splineData.ValueRO.splineData.IsCreated)
-                {
-                    continue;
-                }
-                
-                ref var spline = ref splineData.ValueRO.splineData.Value;
-                
-                // Calculate the new distance ratio based on speed and time
-                unitMover.ValueRW.distanceRatio += (unitMover.ValueRO.moveSpeed * Time.deltaTime) / spline.totalLength;
-                
-                // Wrap around the spline if it's a closed loop
-                if (spline.isClosed)
-                {
-                    unitMover.ValueRW.distanceRatio = unitMover.ValueRW.distanceRatio - math.floor(unitMover.ValueRW.distanceRatio);
-                }
-                else
-                {
-                    unitMover.ValueRW.distanceRatio = math.clamp(unitMover.ValueRW.distanceRatio, 0f, 1f);
-                }
-                
-                // Evaluate the spline at the current distance ratio
-                SplineSample sample = spline.Evaluate(unitMover.ValueRO.distanceRatio);
-                
-                // Smoothly interpolate position to the spline position
-                float positionLerpSpeed = 10f; // Higher values = faster position interpolation
-                localTransform.ValueRW.Position = math.lerp(localTransform.ValueRO.Position, sample.position, Time.deltaTime * positionLerpSpeed);
-                
-                // Calculate target rotation from the tangent direction
-                quaternion targetRotation = quaternion.LookRotation(sample.tangent, sample.upVector);
-                
-                // Smoothly interpolate rotation using slerp with a rotation speed factor
-                float rotationSpeed = 5f; // Higher values = faster rotation
-                localTransform.ValueRW.Rotation = math.slerp(localTransform.ValueRO.Rotation, targetRotation, Time.deltaTime * rotationSpeed);
-                
-                // Keep velocities at zero since we're directly controlling position
-                physicsVelocity.ValueRW.Linear = float3.zero;
-                physicsVelocity.ValueRW.Angular = float3.zero;
-            }
+            // ...existing code...
         }
+        */
         
         
     }
@@ -88,8 +41,10 @@ partial struct SplineFollowerSystem : ISystem
 public partial struct SplineFollowerJob : IJobEntity
 {
     public float deltaTime;
+    [ReadOnly] public ComponentLookup<FormationPosition> formationPositionLookup;
     
     public void Execute(
+        Entity entity,
         ref LocalTransform localTransform, 
         ref SplineFollower splineFollower, 
         ref PhysicsVelocity physicsVelocity,
@@ -116,12 +71,48 @@ public partial struct SplineFollowerJob : IJobEntity
             splineFollower.distanceRatio = math.clamp(splineFollower.distanceRatio, 0f, 1f);
         }
         
-        // Evaluate the spline at the current distance ratio
-        SplineSample sample = spline.Evaluate(splineFollower.distanceRatio);
+        // Check if this entity has a formation position
+        bool hasFormation = formationPositionLookup.HasComponent(entity);
+        float adjustedDistanceRatio = splineFollower.distanceRatio;
+        float3 lateralOffset = float3.zero;
         
-        // Smoothly interpolate position to the spline position
+        if (hasFormation)
+        {
+            FormationPosition formationPos = formationPositionLookup[entity];
+            
+            // Apply forward offset from formation position
+            adjustedDistanceRatio = splineFollower.distanceRatio + (formationPos.forwardOffset / spline.totalLength);
+            
+            // Wrap/clamp the adjusted ratio
+            if (spline.isClosed)
+            {
+                adjustedDistanceRatio = adjustedDistanceRatio - math.floor(adjustedDistanceRatio);
+            }
+            else
+            {
+                adjustedDistanceRatio = math.clamp(adjustedDistanceRatio, 0f, 1f);
+            }
+            
+            lateralOffset = formationPos.lateralOffset;
+        }
+        
+        // Evaluate the spline at the (possibly adjusted) distance ratio
+        SplineSample sample = spline.Evaluate(adjustedDistanceRatio);
+        
+        // Calculate target position
+        float3 targetPosition = sample.position;
+        
+        // Apply lateral offset if in formation
+        if (hasFormation)
+        {
+            // Calculate the right vector (perpendicular to movement direction)
+            float3 rightVector = math.normalize(math.cross(sample.upVector, sample.tangent));
+            targetPosition += rightVector * lateralOffset.x;
+        }
+        
+        // Smoothly interpolate position to the target position
         float positionLerpSpeed = 10f; // Higher values = faster position interpolation
-        localTransform.Position = math.lerp(localTransform.Position, sample.position, deltaTime * positionLerpSpeed);
+        localTransform.Position = math.lerp(localTransform.Position, targetPosition, deltaTime * positionLerpSpeed);
         
         // Calculate target rotation from the tangent direction
         quaternion targetRotation = quaternion.LookRotation(sample.tangent, sample.upVector);

@@ -1,7 +1,5 @@
 using Unity.Entities;
-using Unity.Mathematics;
 using UnityEngine;
-using UnityEngine.Splines;
 
 /// <summary>
 /// Authoring component for the EnemySpawner system. It allows designers to reference a GameObject with a 
@@ -16,6 +14,13 @@ public class EnemySpawnerAuthoring : MonoBehaviour
     /// </summary>
     [SerializeField] private GameObject loopSpline;
     
+    [Header("Formation Settings")]
+    [Tooltip("Number of enemies to spawn in the formation (default 10 for bowling pins)")]
+    [SerializeField] private int formationCount = 10;
+    
+    [Tooltip("Distance between enemies in the formation (units)")]
+    [SerializeField] private float formationSpacing = 2f;
+    
     public class Baker : Baker<EnemySpawnerAuthoring>
     {
         public override void Bake(EnemySpawnerAuthoring authoring)
@@ -28,12 +33,13 @@ public class EnemySpawnerAuthoring : MonoBehaviour
             AddComponent(entity, new EnemySpawner
             {
                 doSpawn = false,
-                loopSplineEntity = splineEntity,
+                splineEntity = splineEntity,
+                formationCount = authoring.formationCount,
+                formationSpacing = authoring.formationSpacing,
             });
         }
     }
 }
-
 
 /// <summary>
 /// Component that holds data for spawning enemies along a spline. It contains a flag to trigger spawning 
@@ -42,5 +48,7 @@ public class EnemySpawnerAuthoring : MonoBehaviour
 public struct EnemySpawner : IComponentData
 {
     public bool doSpawn;
-    public Entity loopSplineEntity;
+    public Entity splineEntity;
+    public int formationCount;
+    public float formationSpacing;
 }
