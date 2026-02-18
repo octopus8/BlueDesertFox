@@ -20,6 +20,11 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: ff0763a18b6d8804894cf3fd83ffa89b
+    m_Address: Assets/Samples/XR Interaction Toolkit/3.3.1/World Space UI/DemoScene.unity
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   m_ReadOnly: 0
   m_Settings: {fileID: 11400000, guid: b42bc3570bf3e5f46beeb743ed526b95, type: 2}
   m_SchemaSet:

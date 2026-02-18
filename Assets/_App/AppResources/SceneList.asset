@@ -31,3 +31,12 @@ MonoBehaviour:
       m_SubObjectGUID: 
       m_EditorAssetChanged: 0
     scenePath: 
+  - sceneDisplayName: XR Toolkit UI Demo
+    isAddressable: 0
+    scene:
+      m_AssetGUID: ff0763a18b6d8804894cf3fd83ffa89b
+      m_SubObjectName: 
+      m_SubObjectType: 
+      m_SubObjectGUID: 
+      m_EditorAssetChanged: 0
+    scenePath: DemoScene
