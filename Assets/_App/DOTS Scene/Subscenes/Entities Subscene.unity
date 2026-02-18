@@ -166,7 +166,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::EnemySpawnerAuthoring
   loopSpline: {fileID: 1730959682}
   formationCount: 10
-  formationSpacing: 10
+  formationSpacing: 2
 --- !u!1 &961978237
 GameObject:
   m_ObjectHideFlags: 0
@@ -317,9 +317,9 @@ MonoBehaviour:
   - m_EditModeType: 1
     m_Knots:
     - Position:
-        x: -0.9999962
-        y: 1.4669838
-        z: 25.204044
+        x: -0.9999995
+        y: 1.4666666
+        z: 59.174828
       TangentIn:
         x: 0
         y: 0
@@ -330,9 +330,9 @@ MonoBehaviour:
         z: 2.9710848
       Rotation:
         value:
-          x: -2.3294134e-22
+          x: -2.329425e-22
           y: 1
-          z: -5.3290748e-15
+          z: -5.329099e-15
           w: -0.000000043711395
     - Position:
         x: -0.9999962
@@ -425,9 +425,9 @@ MonoBehaviour:
           z: 0
           w: -0.00000004371139
     - Position:
-        x: -0.9999962
-        y: 1.827261
-        z: -28.482819
+        x: -0.9999995
+        y: 1.8333333
+        z: -64.191826
       TangentIn:
         x: 0
         y: 0
@@ -477,8 +477,8 @@ Transform:
   m_GameObject: {fileID: 1730959682}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -1, y: -0.8, z: -2.33245}
-  m_LocalScale: {x: 0.5, y: 0.5, z: 0.5}
+  m_LocalPosition: {x: -1, y: -0.05, z: 0.74}
+  m_LocalScale: {x: 0.3, y: 0.3, z: 0.3}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 961978238}
