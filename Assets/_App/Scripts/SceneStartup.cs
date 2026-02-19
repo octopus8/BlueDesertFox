@@ -25,9 +25,9 @@ public class SceneStartup : MonoBehaviour
         // Set the origin to the start transform.
         if (startTransform != null)
         {
-            DeviceTracking.Instance.TrackingOrigin.SetPositionAndRotation(startTransform.position,
+            DeviceTracking.Instance?.TrackingOrigin.SetPositionAndRotation(startTransform.position,
                 startTransform.rotation);
-            DeviceTracking.Instance.UpdateImmediate();
+            DeviceTracking.Instance?.UpdateImmediate();
         }
         else
         {

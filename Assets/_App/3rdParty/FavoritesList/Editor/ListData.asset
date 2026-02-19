@@ -26,37 +26,13 @@ MonoBehaviour:
     sceneGUID: 
     localIdentifier: 0
   - type: 1
-    actualReference: {fileID: 102900000, guid: d1471856b33a54649ac18da6f1de4392, type: 3}
+    actualReference: {fileID: 102900000, guid: a279f19ab3300b5478ef69186fcb4bdb, type: 3}
     cachedDrawData:
-      Name: DOTS Scene
+      Name: Ace of Ages
       Icon: {fileID: 985423054452513129, guid: 0000000000000000d000000000000000, type: 0}
       SceneData:
         IsScene: 1
-        Scene: {fileID: 102900000, guid: d1471856b33a54649ac18da6f1de4392, type: 3}
-    cachedTypes:
-    - SceneAsset
-    sceneGUID: 
-    localIdentifier: 0
-  - type: 1
-    actualReference: {fileID: 102900000, guid: c8c7e9452f8c702479dda69a148e809f, type: 3}
-    cachedDrawData:
-      Name: AutoHand Demo
-      Icon: {fileID: 985423054452513129, guid: 0000000000000000d000000000000000, type: 0}
-      SceneData:
-        IsScene: 1
-        Scene: {fileID: 102900000, guid: c8c7e9452f8c702479dda69a148e809f, type: 3}
-    cachedTypes:
-    - SceneAsset
-    sceneGUID: 
-    localIdentifier: 0
-  - type: 1
-    actualReference: {fileID: 102900000, guid: 64a1d945d8bd26e459559c8584bf5a6e, type: 3}
-    cachedDrawData:
-      Name: PhysicsTest
-      Icon: {fileID: 985423054452513129, guid: 0000000000000000d000000000000000, type: 0}
-      SceneData:
-        IsScene: 1
-        Scene: {fileID: 102900000, guid: 64a1d945d8bd26e459559c8584bf5a6e, type: 3}
+        Scene: {fileID: 102900000, guid: a279f19ab3300b5478ef69186fcb4bdb, type: 3}
     cachedTypes:
     - SceneAsset
     sceneGUID: 

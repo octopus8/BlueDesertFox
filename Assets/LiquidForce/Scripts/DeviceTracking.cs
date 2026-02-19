@@ -50,7 +50,16 @@ namespace LiquidForce
             }
             headObjectFollower.source = head;
         }
-        
+
+        private void OnDestroy()
+        {
+            // If this is the instance of this component, clear the instance.
+            if (Instance == this)
+            {
+                Instance = null;
+            }
+        }
+
 
         /// <summary>
         /// Adds an object to follow the head.

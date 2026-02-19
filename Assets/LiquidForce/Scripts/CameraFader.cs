@@ -1,3 +1,4 @@
+using System;
 using Cysharp.Threading.Tasks;
 using DG.Tweening;
 using System.Threading;
@@ -54,8 +55,20 @@ namespace LiquidForce {
             DeviceTracking.Instance.AddHeadFollower(cameraFaderRoot.transform);
         }
 
+        private void OnDestroy()
+        {
+            CancelAnimations();
+        }
 
-        
+        private void CancelAnimations()
+        {
+            if (animCancel != null) {
+                animCancel.Cancel();
+                animCancel.Dispose();
+                animCancel = null;
+            }
+        }
+
         private void CreateGameObjects()
         {
             // Z offset of the fader from the camera.
@@ -103,11 +116,7 @@ namespace LiquidForce {
         /// Called to set the camera fader completely invisible.
         /// </summary>
         public void SetCameraFadedIn() {
-            if (animCancel != null) {
-                animCancel.Cancel();
-                animCancel.Dispose();
-                animCancel = null;
-            }
+            CancelAnimations();
             cameraFaderRoot.SetActive(false);
             Color color = fadeMaterial.color;
             color.a = 0.0f;
@@ -120,11 +129,7 @@ namespace LiquidForce {
         /// Called to set the camera completely faded out.
         /// </summary>
         public void SetCameraFadedOut() {
-            if (animCancel != null) {
-                animCancel.Cancel();
-                animCancel.Dispose();
-                animCancel = null;
-            }
+            CancelAnimations();
             cameraFaderRoot.SetActive(true);
             Color color = fadeMaterial.color;
             color.a = 1.0f;
@@ -166,10 +171,7 @@ namespace LiquidForce {
         /// <param name="isFadeOut"></param>
         /// <returns></returns>
         private async UniTask DoFade(float durationSeconds, bool isFadeOut) {
-            if (animCancel != null) {
-                animCancel.Cancel();
-                animCancel.Dispose();
-            }
+            CancelAnimations();
             animCancel = new();
             Color color = fadeMaterial.color;
             color.a = isFadeOut ? 1.0f : 0.0f;

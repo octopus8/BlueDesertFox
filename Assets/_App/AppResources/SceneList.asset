@@ -13,15 +13,6 @@ MonoBehaviour:
   m_Name: SceneList
   m_EditorClassIdentifier: Assembly-CSharp::SceneListSO
   scenes:
-  - sceneDisplayName: DOTS Scene
-    isAddressable: 0
-    scene:
-      m_AssetGUID: d1471856b33a54649ac18da6f1de4392
-      m_SubObjectName: 
-      m_SubObjectType: 
-      m_SubObjectGUID: 
-      m_EditorAssetChanged: 0
-    scenePath: DOTS Scene
   - sceneDisplayName: AutoHand Demo
     isAddressable: 1
     scene:
@@ -31,12 +22,12 @@ MonoBehaviour:
       m_SubObjectGUID: 
       m_EditorAssetChanged: 0
     scenePath: 
-  - sceneDisplayName: XR Toolkit UI Demo
+  - sceneDisplayName: Ace of Ages
     isAddressable: 0
     scene:
-      m_AssetGUID: ff0763a18b6d8804894cf3fd83ffa89b
+      m_AssetGUID: 
       m_SubObjectName: 
       m_SubObjectType: 
       m_SubObjectGUID: 
       m_EditorAssetChanged: 0
-    scenePath: DemoScene
+    scenePath: Ace of Ages
