@@ -457,7 +457,7 @@ MonoBehaviour:
       Tension: 0.5
     - Mode: 3
       Tension: 0.5
-    m_Closed: 0
+    m_Closed: 1
     m_IntData:
       m_Data: []
     m_FloatData:
