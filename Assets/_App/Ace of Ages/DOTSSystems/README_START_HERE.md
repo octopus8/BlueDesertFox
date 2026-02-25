@@ -38,6 +38,8 @@ Create a GameObject that will be followed (e.g., Player, Camera)
 3. Drag your target GameObject to **Target Transform** field
 4. Set **Offset** if needed (e.g., `0, 2, 0` to float above)
 
+**Note:** The Transform reference is set at runtime (in Start()), not during baking. This allows you to reference GameObjects outside the subscene, which Unity's baking system normally doesn't allow.
+
 ### Step 3: Test
 Press Play - the entity should follow the target! ✅
 

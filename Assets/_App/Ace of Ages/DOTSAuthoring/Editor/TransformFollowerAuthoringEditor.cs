@@ -5,7 +5,10 @@ using UnityEngine;
 [CustomEditor(typeof(TransformFollowerAuthoring))]
 public class TransformFollowerAuthoringEditor : Editor
 {
-    private SerializedProperty targetTransformProp;
+    private SerializedProperty targetModeProp;
+    private SerializedProperty targetNameProp;
+    private SerializedProperty targetTagProp;
+    private SerializedProperty targetGameObjectProp;
     private SerializedProperty offsetProp;
     private SerializedProperty followRotationProp;
     private SerializedProperty smoothTimeProp;
@@ -14,7 +17,10 @@ public class TransformFollowerAuthoringEditor : Editor
     
     void OnEnable()
     {
-        targetTransformProp = serializedObject.FindProperty("targetTransform");
+        targetModeProp = serializedObject.FindProperty("targetMode");
+        targetNameProp = serializedObject.FindProperty("targetName");
+        targetTagProp = serializedObject.FindProperty("targetTag");
+        targetGameObjectProp = serializedObject.FindProperty("targetGameObject");
         offsetProp = serializedObject.FindProperty("offset");
         followRotationProp = serializedObject.FindProperty("followRotation");
         smoothTimeProp = serializedObject.FindProperty("smoothTime");
@@ -35,28 +41,95 @@ public class TransformFollowerAuthoringEditor : Editor
         if (showHelp)
         {
             EditorGUILayout.HelpBox(
-                "This component makes an entity in a DOTS subscene follow a Transform outside the subscene.\n\n" +
-                "• Target Transform: The GameObject to follow (must be outside the subscene)\n" +
-                "• Offset: Local position offset from the target\n" +
-                "• Follow Rotation: Match the target's rotation\n" +
-                "• Smooth Time: 0 = instant, higher = smoother movement",
+                "This component makes an entity in a DOTS subscene follow a GameObject outside the subscene.\n\n" +
+                "TARGET MODES:\n" +
+                "• Find By Name: Enter the exact GameObject name (e.g., 'Right Controller')\n" +
+                "• Find By Tag: Use a tag to find the target (e.g., 'Player')\n" +
+                "• Direct Reference: Drag GameObject (only works for objects in same subscene)\n\n" +
+                "RECOMMENDED: Use 'Find By Name' for objects outside the subscene!",
                 MessageType.Info);
         }
         
         EditorGUILayout.Space(5);
         
-        // Target Transform with validation
-        EditorGUI.BeginChangeCheck();
-        EditorGUILayout.PropertyField(targetTransformProp, new GUIContent("Target Transform"));
-        if (EditorGUI.EndChangeCheck())
-        {
-            serializedObject.ApplyModifiedProperties();
-            ValidateTarget();
-        }
+        // Target Mode dropdown
+        EditorGUILayout.PropertyField(targetModeProp, new GUIContent("Target Mode"));
         
-        if (targetTransformProp.objectReferenceValue == null)
+        EditorGUILayout.Space(3);
+        
+        // Show appropriate field based on mode
+        TransformFollowerAuthoring.TargetMode mode = (TransformFollowerAuthoring.TargetMode)targetModeProp.enumValueIndex;
+        
+        switch (mode)
         {
-            EditorGUILayout.HelpBox("⚠ No target assigned! This entity won't follow anything.", MessageType.Warning);
+            case TransformFollowerAuthoring.TargetMode.FindByName:
+                EditorGUILayout.PropertyField(targetNameProp, new GUIContent("Target Name"));
+                if (string.IsNullOrEmpty(targetNameProp.stringValue))
+                {
+                    EditorGUILayout.HelpBox("⚠ Enter the exact name of the GameObject (e.g., 'Right Controller')", MessageType.Warning);
+                }
+                else
+                {
+                    EditorGUILayout.HelpBox($"✓ Will find GameObject named: '{targetNameProp.stringValue}' at runtime", MessageType.Info);
+                }
+                
+                // Quick find button
+                if (GUILayout.Button("Find in Scene"))
+                {
+                    var found = GameObject.Find(targetNameProp.stringValue);
+                    if (found != null)
+                    {
+                        EditorGUIUtility.PingObject(found);
+                        Debug.Log($"Found '{targetNameProp.stringValue}' in scene!", found);
+                    }
+                    else
+                    {
+                        Debug.LogWarning($"Could not find GameObject named '{targetNameProp.stringValue}' in scene.");
+                    }
+                }
+                break;
+                
+            case TransformFollowerAuthoring.TargetMode.FindByTag:
+                EditorGUILayout.PropertyField(targetTagProp, new GUIContent("Target Tag"));
+                if (string.IsNullOrEmpty(targetTagProp.stringValue))
+                {
+                    EditorGUILayout.HelpBox("⚠ Enter a tag (e.g., 'Player', 'MainCamera')", MessageType.Warning);
+                }
+                else
+                {
+                    EditorGUILayout.HelpBox($"✓ Will find GameObject with tag: '{targetTagProp.stringValue}' at runtime", MessageType.Info);
+                }
+                
+                // Quick find button
+                if (GUILayout.Button("Find in Scene"))
+                {
+                    try
+                    {
+                        var found = GameObject.FindGameObjectWithTag(targetTagProp.stringValue);
+                        if (found != null)
+                        {
+                            EditorGUIUtility.PingObject(found);
+                            Debug.Log($"Found GameObject with tag '{targetTagProp.stringValue}': {found.name}", found);
+                        }
+                    }
+                    catch
+                    {
+                        Debug.LogWarning($"Tag '{targetTagProp.stringValue}' is not defined in Tag Manager.");
+                    }
+                }
+                break;
+                
+            case TransformFollowerAuthoring.TargetMode.DirectReference:
+                EditorGUILayout.PropertyField(targetGameObjectProp, new GUIContent("Target GameObject"));
+                if (targetGameObjectProp.objectReferenceValue == null)
+                {
+                    EditorGUILayout.HelpBox("⚠ Drag a GameObject here (must be in same subscene)", MessageType.Warning);
+                }
+                else
+                {
+                    EditorGUILayout.HelpBox("⚠ Direct reference only works for objects in the SAME subscene. For objects outside, use 'Find By Name'.", MessageType.Warning);
+                }
+                break;
         }
         
         EditorGUILayout.Space(3);
@@ -123,16 +196,16 @@ public class TransformFollowerAuthoringEditor : Editor
     
     private void ValidateTarget()
     {
-        var target = targetTransformProp.objectReferenceValue as Transform;
-        if (target != null)
+        var targetGO = targetGameObjectProp.objectReferenceValue as GameObject;
+        if (targetGO != null)
         {
             var authoring = (TransformFollowerAuthoring)serializedObject.targetObject;
             
             // Check if target is in a subscene (warning - this might not work as expected)
-            if (target.GetComponentInParent<Unity.Scenes.SubScene>() != null)
+            if (targetGO.GetComponentInParent<Unity.Scenes.SubScene>() != null)
             {
                 Debug.LogWarning(
-                    "The target Transform appears to be inside a SubScene. " +
+                    "The target GameObject appears to be inside a SubScene. " +
                     "This may not work as expected. The target should typically be outside the subscene.", 
                     authoring);
             }
@@ -152,27 +225,64 @@ public class TransformFollowerAuthoringEditor : Editor
     [DrawGizmo(GizmoType.Selected | GizmoType.Active)]
     static void DrawGizmos(TransformFollowerAuthoring follower, GizmoType gizmoType)
     {
-        if (follower.targetTransform == null)
+        Transform targetTransform = null;
+        
+        // Try to get the target based on mode
+        switch (follower.targetMode)
+        {
+            case TransformFollowerAuthoring.TargetMode.FindByName:
+                if (!string.IsNullOrEmpty(follower.targetName))
+                {
+                    var go = GameObject.Find(follower.targetName);
+                    if (go != null) targetTransform = go.transform;
+                }
+                break;
+                
+            case TransformFollowerAuthoring.TargetMode.FindByTag:
+                if (!string.IsNullOrEmpty(follower.targetTag))
+                {
+                    try
+                    {
+                        var go = GameObject.FindGameObjectWithTag(follower.targetTag);
+                        if (go != null) targetTransform = go.transform;
+                    }
+                    catch { }
+                }
+                break;
+                
+            case TransformFollowerAuthoring.TargetMode.DirectReference:
+                if (follower.targetGameObject != null)
+                    targetTransform = follower.targetGameObject.transform;
+                break;
+        }
+        
+        if (targetTransform == null)
             return;
         
         // Draw line from entity to target
         Gizmos.color = Color.cyan;
-        Gizmos.DrawLine(follower.transform.position, follower.targetTransform.position);
+        Gizmos.DrawLine(follower.transform.position, targetTransform.position);
         
         // Draw target position
         Gizmos.color = Color.yellow;
-        Gizmos.DrawWireSphere(follower.targetTransform.position, 0.3f);
+        Gizmos.DrawWireSphere(targetTransform.position, 0.3f);
         
         // Draw final position (target + offset)
-        Vector3 finalPos = follower.targetTransform.position + follower.offset;
+        Vector3 finalPos = targetTransform.position + follower.offset;
         Gizmos.color = Color.green;
         Gizmos.DrawWireSphere(finalPos, 0.2f);
-        Gizmos.DrawLine(follower.targetTransform.position, finalPos);
+        Gizmos.DrawLine(targetTransform.position, finalPos);
         
         // Draw label
-        UnityEditor.Handles.Label(
-            follower.targetTransform.position + Vector3.up * 0.5f,
-            $"Following: {follower.targetTransform.name}\nOffset: {follower.offset}",
+        string targetInfo = follower.targetMode == TransformFollowerAuthoring.TargetMode.FindByName 
+            ? follower.targetName 
+            : follower.targetMode == TransformFollowerAuthoring.TargetMode.FindByTag 
+                ? $"Tag:{follower.targetTag}" 
+                : targetTransform.gameObject.name;
+        
+        Handles.Label(
+            targetTransform.position + Vector3.up * 0.5f,
+            $"Following: {targetInfo}\nOffset: {follower.offset}",
             new GUIStyle() { normal = new GUIStyleState() { textColor = Color.white } }
         );
     }

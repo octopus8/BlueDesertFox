@@ -13,6 +13,8 @@
 2. Add Component → **TransformFollowerAuthoring**
 3. Drag the target Transform (from outside the subscene) into the **Target Transform** field
 
+**Important:** You CAN drag objects from outside the subscene! The reference is stored and applied at runtime (not during baking), which is what allows cross-subscene references to work.
+
 ### Step 3: Configure (Optional)
 
 - **Offset**: Set a local offset from the target (e.g., `0, 2, -5` to stay behind and above)
@@ -23,6 +25,8 @@
 
 1. Enter Play Mode
 2. The entity should now follow the target Transform!
+
+**How it works:** The TransformFollowerAuthoring component keeps a reference to the target. When you enter Play Mode, it sets up the entity's TransformReference component in Start(), allowing the system to update the entity's position.
 
 ---
 

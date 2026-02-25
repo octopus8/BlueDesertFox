@@ -18,6 +18,9 @@ This solution allows entities in a DOTS subscene to follow a Transform defined o
 4. Configure offset, rotation following, and smoothing as needed
 5. The entity will automatically follow the Transform at runtime
 
+**Important Note About Cross-Subscene References:**
+You CAN assign a Transform from outside the subscene in the inspector! The authoring component stores this reference and applies it at **runtime** (in Start()), not during baking. This is the workaround that allows cross-subscene references to work, since Unity's baking system doesn't allow direct cross-subscene references.
+
 ### Settings
 
 - **Target Transform**: The Transform to follow (GameObject outside the subscene)
