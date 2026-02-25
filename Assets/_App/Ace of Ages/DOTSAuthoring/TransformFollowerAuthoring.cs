@@ -42,44 +42,98 @@ public class TransformFollowerAuthoring : MonoBehaviour
     public float smoothTime = 0.1f;
 
     private Entity _entity;
-    private bool _initialized = false;
 
     void Start()
     {
+        Debug.Log($"[TransformFollower] Start() called on {gameObject.name}", this);
+        
+        // NOTE: This Start() method will NOT run for GameObjects in baked subscenes!
+        // Subscenes are fully converted to entities at edit time, and MonoBehaviours are destroyed.
+        // The TransformFollowerInitSystem handles initialization at runtime instead.
+        
+        // This code is kept for backward compatibility with non-subscene usage
+        StartCoroutine(InitializeAfterBaking());
+    }
+    
+    private System.Collections.IEnumerator InitializeAfterBaking()
+    {
+        // Wait a frame to ensure baking is complete
+        yield return null;
+        
         // Set the Transform reference at runtime (after baking)
         // This allows us to reference GameObjects outside the subscene
         var world = World.DefaultGameObjectInjectionWorld;
-        if (world != null && world.EntityManager.Exists(_entity))
+        Debug.Log($"[TransformFollower] Initializing on {gameObject.name}. World exists: {world != null}", this);
+        
+        if (world == null)
         {
-            Transform targetTransform = FindTarget();
+            Debug.LogError($"[TransformFollower] Failed to initialize on {gameObject.name}. World is null!", this);
+            yield break;
+        }
+        
+        // Try to get the entity from the baker-stored reference first
+        Entity entity = _entity;
+        
+        // If the entity is invalid, try to find it via the EntityManager
+        if (!world.EntityManager.Exists(entity))
+        {
+            Debug.LogWarning($"[TransformFollower] Baked entity reference is invalid. Trying to find entity another way...", this);
             
-            if (targetTransform == null)
+            // Query for entities with our settings component
+            // This won't work well if there are multiple followers, but it's a fallback
+            var query = world.EntityManager.CreateEntityQuery(typeof(TransformFollowerSettings));
+            var entities = query.ToEntityArray(Unity.Collections.Allocator.Temp);
+            if (entities.Length > 0)
             {
-                Debug.LogWarning($"TransformFollower on {gameObject.name}: Could not find target! " +
-                    $"Mode: {targetMode}, Name: '{targetName}', Tag: '{targetTag}'", this);
+                Debug.LogWarning($"[TransformFollower] Found {entities.Length} entities with TransformFollowerSettings. Using first one.", this);
+                entity = entities[0];
             }
-            
-            // Add or set the managed component with the Transform reference
-            if (!world.EntityManager.HasComponent<TransformReference>(_entity))
+            entities.Dispose();
+        }
+        
+        if (!world.EntityManager.Exists(entity))
+        {
+            Debug.LogError($"[TransformFollower] Failed to find valid entity for {gameObject.name}", this);
+            yield break;
+        }
+        
+        Debug.Log($"[TransformFollower] Found valid entity for {gameObject.name}", this);
+        
+        Transform targetTransform = FindTarget();
+        
+        if (targetTransform == null)
+        {
+            Debug.LogWarning($"TransformFollower on {gameObject.name}: Could not find target! " +
+                $"Mode: {targetMode}, Name: '{targetName}', Tag: '{targetTag}'", this);
+        }
+        else
+        {
+            Debug.Log($"[TransformFollower] Found target transform: {targetTransform.name} at position {targetTransform.position}", this);
+        }
+        
+        // Add or set the managed component with the Transform reference
+        if (!world.EntityManager.HasComponent<TransformReference>(entity))
+        {
+            world.EntityManager.AddComponentObject(entity, new TransformReference
             {
-                world.EntityManager.AddComponentObject(_entity, new TransformReference
-                {
-                    target = targetTransform
-                });
-            }
-            else
+                target = targetTransform
+            });
+            Debug.Log($"[TransformFollower] Added TransformReference component to entity", this);
+        }
+        else
+        {
+            world.EntityManager.SetComponentData(entity, new TransformReference
             {
-                world.EntityManager.SetComponentData(_entity, new TransformReference
-                {
-                    target = targetTransform
-                });
-            }
-            _initialized = true;
+                target = targetTransform
+            });
+            Debug.Log($"[TransformFollower] Updated TransformReference component on entity", this);
         }
     }
     
     private Transform FindTarget()
     {
+        Debug.Log($"[TransformFollower] FindTarget called. Mode: {targetMode}, Name: '{targetName}', Tag: '{targetTag}'", this);
+        
         switch (targetMode)
         {
             case TargetMode.FindByName:
@@ -88,12 +142,14 @@ public class TransformFollowerAuthoring : MonoBehaviour
                     Debug.LogError($"TransformFollower on {gameObject.name}: Target name is empty!", this);
                     return null;
                 }
+                Debug.Log($"[TransformFollower] Searching for GameObject with name: '{targetName}'", this);
                 var foundByName = GameObject.Find(targetName);
                 if (foundByName == null)
                 {
                     Debug.LogError($"TransformFollower on {gameObject.name}: Could not find GameObject named '{targetName}'", this);
                     return null;
                 }
+                Debug.Log($"[TransformFollower] Successfully found GameObject: {foundByName.name}", this);
                 return foundByName.transform;
                 
             case TargetMode.FindByTag:
@@ -102,12 +158,14 @@ public class TransformFollowerAuthoring : MonoBehaviour
                     Debug.LogError($"TransformFollower on {gameObject.name}: Target tag is empty!", this);
                     return null;
                 }
+                Debug.Log($"[TransformFollower] Searching for GameObject with tag: '{targetTag}'", this);
                 var foundByTag = GameObject.FindGameObjectWithTag(targetTag);
                 if (foundByTag == null)
                 {
                     Debug.LogError($"TransformFollower on {gameObject.name}: Could not find GameObject with tag '{targetTag}'", this);
                     return null;
                 }
+                Debug.Log($"[TransformFollower] Successfully found GameObject: {foundByTag.name}", this);
                 return foundByTag.transform;
                 
             case TargetMode.DirectReference:
@@ -116,6 +174,7 @@ public class TransformFollowerAuthoring : MonoBehaviour
                     Debug.LogError($"TransformFollower on {gameObject.name}: Target GameObject reference is null!", this);
                     return null;
                 }
+                Debug.Log($"[TransformFollower] Using direct reference: {targetGameObject.name}", this);
                 return targetGameObject.transform;
                 
             default:
@@ -142,7 +201,7 @@ public class TransformFollowerAuthoring : MonoBehaviour
         {
             Entity entity = GetEntity(TransformUsageFlags.Dynamic);
             
-            // Store the entity reference so we can access it at runtime
+            // Store the entity reference so we can access it at runtime (if needed)
             authoring._entity = entity;
             
             // Add the unmanaged component with settings
@@ -153,7 +212,39 @@ public class TransformFollowerAuthoring : MonoBehaviour
                 smoothTime = authoring.smoothTime
             });
             
-            // DO NOT add TransformReference here - it will be added at runtime in Start()
+            // Add the target search parameters
+            // This will be used at runtime to find and set the TransformReference
+            TransformFollowerTargetSearch.Mode mode;
+            string searchString;
+            
+            switch (authoring.targetMode)
+            {
+                case TargetMode.FindByName:
+                    mode = TransformFollowerTargetSearch.Mode.FindByName;
+                    searchString = authoring.targetName;
+                    break;
+                case TargetMode.FindByTag:
+                    mode = TransformFollowerTargetSearch.Mode.FindByTag;
+                    searchString = authoring.targetTag;
+                    break;
+                case TargetMode.DirectReference:
+                    mode = TransformFollowerTargetSearch.Mode.DirectReference;
+                    searchString = authoring.targetGameObject != null ? authoring.targetGameObject.name : "";
+                    break;
+                default:
+                    mode = TransformFollowerTargetSearch.Mode.FindByName;
+                    searchString = "";
+                    break;
+            }
+            
+            AddComponent(entity, new TransformFollowerTargetSearch
+            {
+                mode = mode,
+                searchString = searchString,
+                initialized = false
+            });
+            
+            // DO NOT add TransformReference here - it will be added at runtime by TransformFollowerInitSystem
             // This is because we need to reference objects outside the subscene
         }
     }
@@ -167,6 +258,24 @@ public struct TransformFollowerSettings : IComponentData
     public Unity.Mathematics.float3 offset;
     public bool followRotation;
     public float smoothTime;
+}
+
+/// <summary>
+/// Unmanaged component storing the target search parameters.
+/// This is baked into the entity so it can be used at runtime to find the target.
+/// </summary>
+public struct TransformFollowerTargetSearch : IComponentData
+{
+    public enum Mode : byte
+    {
+        FindByName = 0,
+        FindByTag = 1,
+        DirectReference = 2
+    }
+    
+    public Mode mode;
+    public Unity.Collections.FixedString128Bytes searchString; // Stores either name or tag
+    public bool initialized; // Flag to track if TransformReference has been set up
 }
 
 /// <summary>

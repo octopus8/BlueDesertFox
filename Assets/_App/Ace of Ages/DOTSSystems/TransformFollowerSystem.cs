@@ -19,15 +19,30 @@ using UnityEngine;
 [RequireMatchingQueriesForUpdate]
 public partial class TransformFollowerSystem : SystemBase
 {
+    private double _lastDebugTime;
+    
     protected override void OnUpdate()
     {
         float deltaTime = SystemAPI.Time.DeltaTime;
+        
+        // Debug logging every 2 seconds
+        if (SystemAPI.Time.ElapsedTime - _lastDebugTime > 2.0)
+        {
+            int entityCount = 0;
+            foreach (var (transformRef, settings) in SystemAPI.Query<TransformReference, TransformFollowerSettings>())
+            {
+                entityCount++;
+            }
+            Debug.Log($"[TransformFollowerSystem] OnUpdate - Processing {entityCount} entities");
+            _lastDebugTime = SystemAPI.Time.ElapsedTime;
+        }
         
         // This must run on the main thread because we're accessing managed Transform references
         Entities
             .WithAll<TransformReference>()
             .WithoutBurst() // Cannot use Burst because we're accessing managed references
             .ForEach((
+                Entity entity,
                 ref LocalTransform localTransform,
                 in TransformFollowerSettings settings,
                 in TransformReference transformRef) =>
