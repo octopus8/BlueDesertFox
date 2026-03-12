@@ -33,7 +33,7 @@ public partial class TransformFollowerSystem : SystemBase
             {
                 entityCount++;
             }
-            Debug.Log($"[TransformFollowerSystem] OnUpdate - Processing {entityCount} entities");
+//            Debug.Log($"[TransformFollowerSystem] OnUpdate - Processing {entityCount} entities");
             _lastDebugTime = SystemAPI.Time.ElapsedTime;
         }
         
