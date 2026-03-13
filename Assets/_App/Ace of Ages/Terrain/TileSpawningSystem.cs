@@ -108,6 +108,7 @@ public partial struct TileSpawningSystem : ISystem
             UnityEngine.Debug.Log($"[TileSpawning] Spawning {tilesToSpawn.Length} new tiles");
         }
         
+        // Create entities via ECB
         foreach (var gridCoord in tilesToSpawn)
         {
             Entity tileEntity = ecb.CreateEntity();
@@ -147,9 +148,7 @@ public partial struct TileSpawningSystem : ISystem
             ecb.AddBuffer<UVElement>(tileEntity);
             ecb.AddBuffer<IndexElement>(tileEntity);
             
-            _activeTiles.Add(gridCoord, tileEntity);
-            
-            UnityEngine.Debug.Log($"[TileSpawning] Created tile at grid {gridCoord}, world position {tilePosition}");
+            UnityEngine.Debug.Log($"[TileSpawning] Creating tile at grid {gridCoord}, world position {tilePosition}");
         }
         
         // Despawn old tiles
@@ -166,8 +165,30 @@ public partial struct TileSpawningSystem : ISystem
             }
         }
         
+        // Play back ECB to actually create entities
         ecb.Playback(state.EntityManager);
         ecb.Dispose();
+        
+        // Now add the newly created entities to _activeTiles using a query
+        if (tilesToSpawn.Length > 0)
+        {
+            var query = state.EntityManager.CreateEntityQuery(ComponentType.ReadOnly<TerrainTile>());
+            var allTiles = query.ToEntityArray(Allocator.Temp);
+            
+            // Find newly created tiles and add them to _activeTiles
+            foreach (var entity in allTiles)
+            {
+                var tile = state.EntityManager.GetComponentData<TerrainTile>(entity);
+                
+                // Check if this tile should be in our active set but isn't yet
+                if (tilesToSpawn.Contains(tile.gridCoordinate) && !_activeTiles.ContainsKey(tile.gridCoordinate))
+                {
+                    _activeTiles.Add(tile.gridCoordinate, entity);
+                }
+            }
+            
+            allTiles.Dispose();
+        }
         
         tilesToSpawn.Dispose();
         tilesToDespawn.Dispose();
