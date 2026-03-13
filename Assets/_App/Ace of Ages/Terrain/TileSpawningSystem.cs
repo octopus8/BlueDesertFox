@@ -1,0 +1,179 @@
+using Unity.Burst;
+using Unity.Collections;
+using Unity.Entities;
+using Unity.Mathematics;
+using Unity.Transforms;
+
+/// <summary>
+/// System that spawns and despawns terrain tiles based on player position.
+/// Uses a NativeParallelHashMap to track active tiles efficiently.
+/// </summary>
+[UpdateInGroup(typeof(SimulationSystemGroup))]
+[UpdateBefore(typeof(TransformSystemGroup))]
+public partial struct TileSpawningSystem : ISystem
+{
+    private NativeParallelHashMap<int2, Entity> _activeTiles;
+
+    [BurstCompile]
+    public void OnCreate(ref SystemState state)
+    {
+        state.RequireForUpdate<PlayerTag>();
+        state.RequireForUpdate<TerrainTileConfig>();
+        state.RequireForUpdate<WorldOriginOffset>();
+        
+        _activeTiles = new NativeParallelHashMap<int2, Entity>(256, Allocator.Persistent);
+    }
+
+    [BurstCompile]
+    public void OnDestroy(ref SystemState state)
+    {
+        if (_activeTiles.IsCreated)
+            _activeTiles.Dispose();
+    }
+
+    public void OnUpdate(ref SystemState state)
+    {
+        var config = SystemAPI.GetSingleton<TerrainTileConfig>();
+        
+        // Find player position
+        var playerEntity = SystemAPI.GetSingletonEntity<PlayerTag>();
+        if (!SystemAPI.HasComponent<LocalTransform>(playerEntity))
+            return;
+
+        var playerTransform = SystemAPI.GetComponent<LocalTransform>(playerEntity);
+        float3 playerPosition = playerTransform.Position;
+        
+        // Calculate player's grid coordinate
+        int2 playerGridCoord = new int2(
+            (int)math.floor(playerPosition.x / config.tileSize),
+            (int)math.floor(playerPosition.z / config.tileSize)
+        );
+        
+        // Calculate view distance in tiles
+        int viewDistanceInTiles = (int)math.ceil(config.viewDistance / config.tileSize);
+        
+        // Create lists to track which tiles to spawn and despawn
+        var tilesToSpawn = new NativeList<int2>(Allocator.Temp);
+        var tilesToDespawn = new NativeList<int2>(Allocator.Temp);
+        
+        // Determine which tiles should be active
+        for (int x = -viewDistanceInTiles; x <= viewDistanceInTiles; x++)
+        {
+            for (int z = -viewDistanceInTiles; z <= viewDistanceInTiles; z++)
+            {
+                int2 gridCoord = playerGridCoord + new int2(x, z);
+                
+                // Check if tile is within view distance (circular)
+                float2 tileCenter = new float2(
+                    gridCoord.x * config.tileSize + config.tileSize * 0.5f,
+                    gridCoord.y * config.tileSize + config.tileSize * 0.5f
+                );
+                float2 playerPos2D = new float2(playerPosition.x, playerPosition.z);
+                float distanceToTile = math.distance(tileCenter, playerPos2D);
+                
+                if (distanceToTile <= config.viewDistance)
+                {
+                    // This tile should be active
+                    if (!_activeTiles.ContainsKey(gridCoord))
+                    {
+                        tilesToSpawn.Add(gridCoord);
+                    }
+                }
+            }
+        }
+        
+        // Find tiles that are too far away
+        var tileKeys = _activeTiles.GetKeyArray(Allocator.Temp);
+        foreach (var gridCoord in tileKeys)
+        {
+            float2 tileCenter = new float2(
+                gridCoord.x * config.tileSize + config.tileSize * 0.5f,
+                gridCoord.y * config.tileSize + config.tileSize * 0.5f
+            );
+            float2 playerPos2D = new float2(playerPosition.x, playerPosition.z);
+            float distanceToTile = math.distance(tileCenter, playerPos2D);
+            
+            if (distanceToTile > config.viewDistance)
+            {
+                tilesToDespawn.Add(gridCoord);
+            }
+        }
+        tileKeys.Dispose();
+        
+        // Spawn new tiles
+        var ecb = new EntityCommandBuffer(Allocator.Temp);
+        
+        if (tilesToSpawn.Length > 0)
+        {
+            UnityEngine.Debug.Log($"[TileSpawning] Spawning {tilesToSpawn.Length} new tiles");
+        }
+        
+        foreach (var gridCoord in tilesToSpawn)
+        {
+            Entity tileEntity = ecb.CreateEntity();
+            
+            // Calculate world position for this tile
+            float3 tilePosition = new float3(
+                gridCoord.x * config.tileSize,
+                0,
+                gridCoord.y * config.tileSize
+            );
+            
+            ecb.AddComponent(tileEntity, new LocalTransform
+            {
+                Position = tilePosition,
+                Rotation = quaternion.identity,
+                Scale = 1f
+            });
+            
+            // Add LocalToWorld explicitly for rendering
+            ecb.AddComponent(tileEntity, new LocalToWorld
+            {
+                Value = float4x4.TRS(tilePosition, quaternion.identity, new float3(1f))
+            });
+            
+            ecb.AddComponent(tileEntity, new TerrainTile
+            {
+                gridCoordinate = gridCoord,
+                meshGenerated = false,
+                needsRegeneration = false
+            });
+            
+            ecb.AddComponent(tileEntity, new FloatingOriginEnabled());
+            
+            // Add buffers for mesh data
+            ecb.AddBuffer<VertexElement>(tileEntity);
+            ecb.AddBuffer<NormalElement>(tileEntity);
+            ecb.AddBuffer<UVElement>(tileEntity);
+            ecb.AddBuffer<IndexElement>(tileEntity);
+            
+            _activeTiles.Add(gridCoord, tileEntity);
+            
+            UnityEngine.Debug.Log($"[TileSpawning] Created tile at grid {gridCoord}, world position {tilePosition}");
+        }
+        
+        // Despawn old tiles
+        if (tilesToDespawn.Length > 0)
+        {
+            UnityEngine.Debug.Log($"[TileSpawning] Despawning {tilesToDespawn.Length} tiles");
+        }
+        foreach (var gridCoord in tilesToDespawn)
+        {
+            if (_activeTiles.TryGetValue(gridCoord, out Entity tileEntity))
+            {
+                ecb.DestroyEntity(tileEntity);
+                _activeTiles.Remove(gridCoord);
+            }
+        }
+        
+        ecb.Playback(state.EntityManager);
+        ecb.Dispose();
+        
+        tilesToSpawn.Dispose();
+        tilesToDespawn.Dispose();
+    }
+}
+
+
+
+
