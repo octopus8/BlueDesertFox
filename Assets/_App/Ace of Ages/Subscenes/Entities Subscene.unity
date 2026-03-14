@@ -548,16 +548,16 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 24d6c27b68ff405d9338bf5e0989d54e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::TerrainConfigAuthoring
-  tileSize: 100
-  viewDistance: 500
-  verticesPerSide: 32
+  tileSize: 128
+  viewDistance: 750
+  verticesPerSide: 8
   floatingOriginEnabled: 1
   shiftThreshold: 2000
-  noiseFrequency: 0.01
-  noiseAmplitude: 20
-  noiseOctaves: 4
+  noiseFrequency: 0.005
+  noiseAmplitude: 15
+  noiseOctaves: 2
   noiseLacunarity: 2
-  noisePersistence: 0.5
+  noisePersistence: 0.4
   terrainMaterial: {fileID: 2100000, guid: dc12ba763b59e3a4586cb235c2a074fc, type: 2}
 --- !u!4 &1528308291
 Transform:
@@ -850,7 +850,7 @@ Transform:
 SceneRoots:
   m_ObjectHideFlags: 0
   m_Roots:
+  - {fileID: 1528308291}
   - {fileID: 2052678063}
   - {fileID: 25680480}
   - {fileID: 263055123}
-  - {fileID: 1528308291}
