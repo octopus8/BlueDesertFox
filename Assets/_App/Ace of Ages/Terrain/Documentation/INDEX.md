@@ -150,6 +150,61 @@ Visual diagrams, flowcharts, and ASCII art showing system architecture and data 
 
 ---
 
+## 🔧 Recent Fixes & Updates
+
+### [CHANGELOG.md](CHANGELOG.md)
+**Updated:** March 14, 2026  
+**For:** All Users
+
+Complete version history and detailed changelog for the terrain system.
+
+**Topics Covered:**
+- Version 1.1.0 changes (March 14, 2026)
+- Major fixes: edge normals, ECB errors, rendering
+- Migration guide from 1.0.0 to 1.1.0
+- Known issues and resolutions
+- Upcoming features roadmap
+
+**Read this if:** You want to know what's changed or are upgrading from a previous version.
+
+---
+
+### [EDGE_NORMAL_FIX.md](EDGE_NORMAL_FIX.md)
+**Updated:** March 14, 2026  
+**Difficulty:** ⭐⭐ Intermediate
+
+Detailed explanation of the edge normal calculation fix that eliminates lighting seams at tile boundaries.
+
+**Topics Covered:**
+- Root cause of normal discontinuities
+- Vertex-array method limitations
+- Heightfield sampling solution
+- Central differences algorithm
+- Performance comparison
+- Visual before/after examples
+
+**Read this if:** You want to understand how seamless tile lighting works or need to debug normal issues.
+
+---
+
+### [NORMAL_CALCULATION_GUIDE.md](NORMAL_CALCULATION_GUIDE.md)
+**Updated:** March 14, 2026  
+**Difficulty:** ⭐⭐⭐ Advanced
+
+Comprehensive guide to the normal calculation system with visual diagrams and mathematical explanations.
+
+**Topics Covered:**
+- ASCII diagrams showing sampling patterns
+- Mathematical derivation of central differences
+- Edge case handling (corners, flat terrain, steep slopes)
+- Performance analysis
+- Alternative approaches evaluated
+- Testing and verification procedures
+
+**Read this if:** You need deep technical understanding of normal calculations or want to implement variants.
+
+---
+
 ## 📋 Quick Reference
 
 ### System Execution Order
@@ -175,19 +230,19 @@ PresentationSystemGroup
 Assets/_App/Ace of Ages/Terrain/
 ├── Documentation/                    ← You are here
 │   ├── INDEX.md                     ← This file
-│   ├── README.md
-│   ├── QUICK_START.md
-│   ├── SYSTEM_ARCHITECTURE.md
-│   ├── TECHNICAL_DETAILS.md
-│   ├── API_REFERENCE.md
-│   ├── TROUBLESHOOTING.md
-│   ├── EXTENSION_GUIDE.md
-│   └── VISUAL_GUIDE.md
-│
-│   ├── TECHNICAL_DETAILS.md
-│   ├── API_REFERENCE.md
-│   ├── TROUBLESHOOTING.md
-│   └── EXTENSION_GUIDE.md
+│   ├── README.md                    (Overview)
+│   ├── QUICK_START.md               (Setup guide)
+│   ├── SYSTEM_ARCHITECTURE.md       (Architecture overview)
+│   ├── TECHNICAL_DETAILS.md         (Deep dive)
+│   ├── API_REFERENCE.md             (API docs)
+│   ├── TROUBLESHOOTING.md           (Problem solving)
+│   ├── EXTENSION_GUIDE.md           (Customization)
+│   ├── VISUAL_GUIDE.md              (Diagrams)
+│   ├── EDGE_NORMAL_FIX.md          (Normal calculation fix)
+│   ├── NORMAL_CALCULATION_GUIDE.md  (Normal math deep dive)
+│   ├── ECB_FIX_NOTES.md            (Entity command buffer fix)
+│   ├── RENDERING_FIX_NOTES.md       (Rendering troubleshooting)
+│   └── FIX_COMPLETE.md             (Fix summary)
 │
 ├── Core Systems/
 │   ├── TileSpawningSystem.cs        (Tile creation/destruction)

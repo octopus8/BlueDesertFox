@@ -813,8 +813,52 @@ Memory: ~16 bytes per entry + overhead
 
 ## Normal Calculation Diagram
 
+### Heightfield Sampling Method (Current Implementation)
+
 ```
-Vertex Grid (showing vertex at (2,2) and neighbors)
+Normal Calculation for Vertex at World Position (worldX, worldZ)
+
+Sample Pattern (cross pattern in world space):
+                                    
+              heightUp              
+         (worldX, worldZ + stepSize)
+                  ●                 
+                  │                 
+                  │                 
+                  │                 
+    heightLeft ●──┼──● heightRight  
+ (worldX-step,wZ) │  (worldX+step,wZ)
+                  │                 
+                  │                 
+                  │                 
+                  ●                 
+             heightDown             
+         (worldX, worldZ - stepSize)
+
+Key Feature: Can sample OUTSIDE current tile's vertex array!
+✅ Works at tile boundaries (e.g., z=0 can sample z=-stepSize in neighbor tile)
+✅ Deterministic - same world position always gives same height
+✅ Seamless edges - adjacent tiles get matching normals
+
+Algorithm:
+├─ Sample 4 heights by calling SampleNoise() at neighbor positions
+├─ Calculate terrain gradients using central differences:
+│  ├─ ∂h/∂x = (heightRight - heightLeft) / (2 * stepSize)
+│  └─ ∂h/∂z = (heightUp - heightDown) / (2 * stepSize)
+├─ Construct tangent vectors:
+│  ├─ tangentX = (2*stepSize, heightRight - heightLeft, 0)
+│  └─ tangentZ = (0, heightUp - heightDown, 2*stepSize)
+└─ Normal = normalize(cross(tangentZ, tangentX))
+
+Result: Mathematically correct normal from heightfield gradient
+        Perfect continuity across all tile boundaries
+        No visible seams in lighting
+```
+
+### Why Not Use Vertex Array? (Old Method - Deprecated)
+
+```
+OLD METHOD - Only looked at in-tile vertices:
 
     (1,3)     (2,3)     (3,3)
       ●─────────●─────────●
@@ -822,35 +866,15 @@ Vertex Grid (showing vertex at (2,2) and neighbors)
       │ \     / │ \     / │
       │  \   /  │  \   /  │
       │ 1 \ / 2 │ 3 \ / 4 │
-      │    ●    │    ●    │    ← Center vertex (2,2)
+      │    ●────┼────●    │    ← Center vertex
       │ 4 / \ 1 │ 2 / \ 3 │
       │  /   \  │  /   \  │
       │ /     \ │ /     \ │
       │/   3   \│/   4   \│
       ●─────────●─────────●
-    (1,1)     (2,1)     (3,1)
 
-Normal Calculation for Center Vertex (2,2):
-├─ Face 1 (top-right):
-│  ├─ V0 = (2,2), V1 = (3,2), V2 = (2,3)
-│  ├─ Tangent1 = V1-V0 = (1,h,0)
-│  ├─ Tangent2 = V2-V0 = (0,h,1)
-│  └─ Normal1 = cross(T1, T2) = normalize(h,-1,h)
-│
-├─ Face 2 (top-left):
-│  ├─ V0 = (2,2), V1 = (2,3), V2 = (1,2)
-│  └─ Normal2 = ...
-│
-├─ Face 3 (bottom-left):
-│  └─ Normal3 = ...
-│
-└─ Face 4 (bottom-right):
-   └─ Normal4 = ...
-
-Final Normal = normalize(Normal1 + Normal2 + Normal3 + Normal4)
-
-Result: Smooth average of adjacent face normals
-        Creates smooth lighting across surface
+Problem at edges: Vertex at z=0 can't access z=-1 (in neighbor tile)
+Result: ❌ Incomplete normal, lighting discontinuity at edges
 ```
 
 ---
@@ -1314,7 +1338,8 @@ Scaling:
 │ TerrainMeshGenerationSystem.OnUpdate()          │
 │  ├─ Foreach tile              [main]            │
 │  ├─── SampleNoise()           [Burst ✓]         │
-│  ├─── CalculateNormal()       [Burst ✓]         │
+│  ├─── CalculateNormalFromHeightfield() [Burst ✓]│
+│  │     └─ Calls SampleNoise() 4× per vertex     │
 │  └─ Write to buffers          [main]            │
 │                                                  │
 │ TerrainPhysicsSystem.OnUpdate()                 │

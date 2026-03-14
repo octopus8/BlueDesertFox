@@ -469,15 +469,20 @@ Edit → Project Settings → Physics:
 
 ### Symptom: Seams Between Tiles
 
+**Types of Seams:**
+
+#### Geometry Seams (Vertex Misalignment)
+**Visual:** Gaps or cracks between tiles, visible from any angle
+
 **Cause:** Vertex positions don't match at tile boundaries.
 
 **Why This Happens:**
 - Floating-point rounding differences
 - Different noise sampling between tiles
 
-**Current System:** Should NOT have seams (noise is continuous).
+**Current System:** Should NOT have geometry seams (noise is deterministic and continuous).
 
-**If you see seams:**
+**If you see geometry seams:**
 
 **Check 1: Edge Vertices Match**
 ```csharp
@@ -496,7 +501,7 @@ for (int z = 0; z < verticesPerSide; z++)
     
     if (math.distance(v1, v2) > 0.01f)
     {
-        Debug.LogError($"Seam detected at z={z}: {math.distance(v1, v2)}m apart");
+        Debug.LogError($"Geometry seam at z={z}: {math.distance(v1, v2)}m apart");
     }
 }
 ```
@@ -506,6 +511,49 @@ for (int z = 0; z < verticesPerSide; z++)
 float stepSize = config.tileSize / (verticesPerSide - 1);
 // NOT: config.tileSize / verticesPerSide
 ```
+
+#### Lighting Seams (Normal Discontinuity)
+**Visual:** Hard lighting line at tile edge, most visible with grazing light angles
+
+**Cause:** Edge vertex normals don't match between adjacent tiles.
+
+**Why This Could Happen:**
+- Old method: `CalculateNormal()` only looked at vertices within tile array, couldn't access neighbor tiles
+- Edge vertices calculated normals from incomplete data
+
+**Current System (Fixed March 2026):** ✅ Should NOT have lighting seams.
+
+The system now uses `CalculateNormalFromHeightfield()` which:
+- Samples heights directly from noise function at neighboring world positions
+- Can sample beyond tile boundaries (e.g., at z=-stepSize for z=0 edge vertices)
+- Produces identical normals for shared edge vertices between tiles
+- See `EDGE_NORMAL_FIX.md` for details
+
+**If you see lighting seams:**
+
+**Check 1: Verify Normal Calculation Method**
+```csharp
+// In TerrainMeshGenerationSystem.cs, normal loop should use:
+normals[index] = CalculateNormalFromHeightfield(worldX, worldZ, stepSize, config);
+
+// NOT the old method:
+// normals[index] = CalculateNormal(x, z, vertices, verticesPerSide); // ❌ DEPRECATED
+```
+
+**Check 2: Compare Edge Normals**
+```csharp
+// Edge normals should be nearly identical (within float precision)
+var normal1 = tile1Normals[rightEdgeIndex].value;
+var normal2 = tile2Normals[leftEdgeIndex].value;
+float difference = math.distance(normal1, normal2);
+
+if (difference > 0.001f)
+{
+    Debug.LogError($"Normal seam detected: difference = {difference}");
+}
+```
+
+**Fix:** Ensure both tiles use the same `config` values (especially noise parameters).
 
 ---
 

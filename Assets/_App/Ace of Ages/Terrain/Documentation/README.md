@@ -40,15 +40,26 @@ Deep dive into implementation details
 
 ## 📋 Complete Documentation
 
+### Core Documentation
 1. **[INDEX.md](INDEX.md)** - Full documentation index with learning paths
-2. **[QUICK_START.md](QUICK_START.md)** - Setup guide (beginner)
-3. **[SYSTEM_ARCHITECTURE.md](SYSTEM_ARCHITECTURE.md)** - Architecture overview (intermediate)
-4. **[TECHNICAL_DETAILS.md](TECHNICAL_DETAILS.md)** - Implementation deep dive (advanced)
-5. **[API_REFERENCE.md](API_REFERENCE.md)** - Complete API documentation (reference)
-6. **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** - Problem solving (all levels)
-7. **[EXTENSION_GUIDE.md](EXTENSION_GUIDE.md)** - Custom features (advanced)
+2. **[README.md](README.md)** - This file - Documentation overview
+3. **[CHANGELOG.md](CHANGELOG.md)** - Version history and updates
+4. **[QUICK_START.md](QUICK_START.md)** - Setup guide (beginner)
+5. **[SYSTEM_ARCHITECTURE.md](SYSTEM_ARCHITECTURE.md)** - Architecture overview (intermediate)
+6. **[TECHNICAL_DETAILS.md](TECHNICAL_DETAILS.md)** - Implementation deep dive (advanced)
+7. **[API_REFERENCE.md](API_REFERENCE.md)** - Complete API documentation (reference)
+8. **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** - Problem solving (all levels)
+9. **[EXTENSION_GUIDE.md](EXTENSION_GUIDE.md)** - Custom features (advanced)
+10. **[VISUAL_GUIDE.md](VISUAL_GUIDE.md)** - Diagrams and visualizations (intermediate)
 
-**Total:** ~4,000 lines of comprehensive documentation
+### Technical Fix Documentation
+11. **[EDGE_NORMAL_FIX.md](EDGE_NORMAL_FIX.md)** - Edge normal calculation fix (intermediate)
+12. **[NORMAL_CALCULATION_GUIDE.md](NORMAL_CALCULATION_GUIDE.md)** - Normal math guide (advanced)
+13. **[ECB_FIX_NOTES.md](ECB_FIX_NOTES.md)** - Entity command buffer fix
+14. **[RENDERING_FIX_NOTES.md](RENDERING_FIX_NOTES.md)** - Rendering troubleshooting
+15. **[FIX_COMPLETE.md](FIX_COMPLETE.md)** - Complete fix summary
+
+**Total:** ~10,000+ lines of comprehensive documentation
 
 ---
 
@@ -123,12 +134,12 @@ Deep dive into implementation details
 
 ## 📊 Documentation Statistics
 
-- **Total files:** 9 markdown documents
-- **Total lines:** ~7,000 lines
-- **Total words:** ~50,000 words
-- **Reading time:** ~10 hours for complete documentation
-- **Code examples:** 150+ snippets
-- **Diagrams:** 30+ ASCII diagrams, flowcharts, and tables
+- **Total files:** 10 core markdown documents + 5 fix/notes documents
+- **Total lines:** ~10,000+ lines
+- **Total words:** ~70,000 words
+- **Reading time:** ~12 hours for complete documentation
+- **Code examples:** 200+ snippets
+- **Diagrams:** 40+ ASCII diagrams, flowcharts, and tables
 
 ---
 
@@ -215,7 +226,39 @@ See **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** § "Performance Issues" for opt
 
 ---
 
-## 📅 Last Updated
+## 📅 Recent Updates
+
+### Version 1.1 (March 14, 2026)
+
+**Major Fixes:**
+
+1. **Edge Normal Calculation (FIXED)** ✅
+   - Replaced vertex-array normal calculation with heightfield sampling
+   - Eliminates lighting seams at tile boundaries
+   - Normals now seamlessly match between adjacent tiles
+   - See: [EDGE_NORMAL_FIX.md](EDGE_NORMAL_FIX.md), [NORMAL_CALCULATION_GUIDE.md](NORMAL_CALCULATION_GUIDE.md)
+
+2. **Entity Command Buffer Fix (FIXED)** ✅
+   - Fixed InvalidOperationException when moving
+   - Tiles now properly stored after ECB playback
+   - Resolved temporary entity reference issue
+   - See: [ECB_FIX_NOTES.md](ECB_FIX_NOTES.md)
+
+3. **Rendering System Fix (FIXED)** ✅
+   - Added proper mesh/material registration with EntitiesGraphicsSystem
+   - Fixed MaterialMeshInfo assertion errors
+   - Explicit LocalToWorld component setup
+   - See: [RENDERING_FIX_NOTES.md](RENDERING_FIX_NOTES.md), [FIX_COMPLETE.md](FIX_COMPLETE.md)
+
+**Documentation Updates:**
+- Updated all core documentation to reflect normal calculation changes
+- Added 5 new technical documents explaining fixes
+- Updated API reference with current methods
+- Enhanced troubleshooting guide with lighting seam diagnostics
+
+---
+
+## 📅 Version History
 
 - **Documentation:** March 14, 2026
 - **System Version:** 1.1

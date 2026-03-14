@@ -842,32 +842,56 @@ float height = SampleNoise(worldX, worldZ, config);
 
 ---
 
-#### `CalculateNormal`
+#### `CalculateNormalFromHeightfield`
 
 **Location:** `TerrainMeshGenerationSystem.cs`  
 **Signature:**
 ```csharp
 [BurstCompile]
-private static float3 CalculateNormal(
-    int x, int z, 
-    NativeArray<float3> vertices, 
-    int verticesPerSide)
+private static float3 CalculateNormalFromHeightfield(
+    double worldX, double worldZ,
+    float stepSize,
+    TerrainTileConfig config)
 ```
 
 **Parameters:**
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `x` | int | X index in vertex grid [0, verticesPerSide-1] |
-| `z` | int | Z index in vertex grid [0, verticesPerSide-1] |
-| `vertices` | NativeArray<float3> | All vertices in tile |
-| `verticesPerSide` | int | Grid dimension |
+| `worldX` | double | World X coordinate of vertex (includes accumulated offset) |
+| `worldZ` | double | World Z coordinate of vertex (includes accumulated offset) |
+| `stepSize` | float | Distance between vertices in world units |
+| `config` | TerrainTileConfig | Terrain configuration (for noise sampling) |
 
 **Returns:** `float3` - Normalized normal vector
 
-**Algorithm:** Averages normals of up to 4 adjacent triangles.
+**Algorithm:** 
+1. Samples heights at 4 neighboring world positions (left, right, up, down) by calling `SampleNoise()` directly
+2. Calculates terrain gradient using central differences method
+3. Constructs tangent vectors from gradients
+4. Returns normalized cross product of tangents
 
-**Performance:** ~50ns per call (Burst-compiled)
+**Key Features:**
+- **Works at tile boundaries:** Can sample heights beyond current tile's vertex array
+- **Deterministic:** Same world position always produces same normal
+- **Seamless edges:** Adjacent tiles produce matching normals for shared vertices
+
+**Performance:** ~400ns per call (4 noise samples × 4 octaves × ~25ns)
+
+**Why This Method?** Eliminates normal discontinuities at tile edges that occurred with vertex-array-based methods. See `EDGE_NORMAL_FIX.md` for detailed explanation.
+
+---
+
+#### `CalculateNormal` [DEPRECATED]
+
+**Status:** ⚠️ **REMOVED** as of March 14, 2026
+
+**Previous Location:** `TerrainMeshGenerationSystem.cs`  
+**Replaced By:** `CalculateNormalFromHeightfield()`
+
+**Why Removed:** Only worked within tile boundaries. Edge vertices produced incorrect normals because neighboring tile data wasn't accessible in the vertex array, causing visible lighting seams at tile edges.
+
+**Migration:** No action required - system now uses `CalculateNormalFromHeightfield()` automatically.
 
 ---
 
@@ -1100,7 +1124,7 @@ public partial struct MySystem : ISystem
 | `OnDestroy` | TileSpawningSystem | ✅ Yes | 2x |
 | `OnUpdate` | TileSpawningSystem | ❌ No (uses Debug.Log) | - |
 | `SampleNoise` | TerrainMeshGenerationSystem | ✅ Yes | 10x |
-| `CalculateNormal` | TerrainMeshGenerationSystem | ✅ Yes | 8x |
+| `CalculateNormalFromHeightfield` | TerrainMeshGenerationSystem | ✅ Yes | 8x |
 | `ShiftWorldOriginJob` | FloatingOriginSystem | ✅ Yes | 12x |
 | `OnUpdate` | FloatingOriginSystem | ✅ Yes | 5x |
 
