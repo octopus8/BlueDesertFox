@@ -21,6 +21,7 @@ Project relies on several Singleton patterns:
 - `DeviceTracking.Instance` - VR tracking origin management (LiquidForce), includes `UpdateImmediate()` for instant head follower sync
 - `CameraFader.Instance` - Screen fade transitions (LiquidForce)
 - `SubSceneLoader.Instance` - ECS SubScene loading system
+- `AutoHandPlayer.Instance` - VR player controller (Autohand namespace), uses `_Instance` backing field with lazy initialization
 - `BLeeDev.instance` - Development testing utilities (lowercase 'i')
 
 ## Critical Systems
@@ -45,18 +46,32 @@ Located in `Assets/Scripts/Keyboard/`:
 - Press feedback: Color changes, sound via `KeySoundController`, constrained physics movement
 - Text input: `KeycodeAdder.cs` component handles character insertion
 
+### Ace of Ages Game Systems
+Located in `Assets/_App/Ace of Ages/`:
+- **Terrain System** (`Terrain/`): DOTS-based infinite terrain with floating origin, procedural generation using Perlin noise, automatic mesh collider generation (see `Terrain/README.md`)
+- **DOTS Systems** (`DOTSSystems/`): ECS performance-critical systems including:
+  - `TransformFollowerSystem`: Makes DOTS entities follow GameObject Transforms outside subscenes using managed `TransformReference` component
+  - `SplineFollowerSystem`: Moves entities along Unity.Splines with formation support, uses `SplineDataComponent` and `FormationPosition`
+  - `EnemySpawnerSystem`: Spawns entities in bowling pin formations along splines via `EnemySpawner` component
+  - `TransformFollowerInitSystem`: Initializes Transform references at runtime (runs in `InitializationSystemGroup`)
+- **Authoring Components** (`DOTSAuthoring/`): `TransformFollowerAuthoring`, `SplineFollowerAuthoring`, `EnemySpawnerAuthoring`, `PlayerTagAuthoring`, `FormationPositionAuthoring`
+- **Cross-Subscene References**: `TransformFollowerAuthoring` uses `TransformFollowerTargetSearch` component with `FindByName`, `FindByTag`, or `DirectReference` modes to locate targets at runtime
+- Entry point: `AceOfAges.cs` test component triggers enemy spawns after delay
+
 ### Camera & Scene Transitions (LiquidForce namespace)
 - **CameraFader**: Creates inverted sphere mesh around camera with custom shader, uses DOTween for async fade animations
 - **DeviceTracking**: Manages VR tracking origin, provides head-following via `ObjectFollower` component, includes `UpdateImmediate()` for instant sync
-- **ObjectFollower**: Smoothly lerps transform to follow targets with configurable speed/offsets, supports multiple update timings (OnUpdate, OnFixedUpdate, OnLateUpdate, OnPreRender, OnPreCull), includes `UpdateImmediate()` to snap target to source instantly
+- **ObjectFollower**: Smoothly lerps transform to follow targets with configurable speed/offsets, supports multiple update timings (OnUpdate, OnFixedUpdate, OnLateUpdate, OnPreRender, OnPreCull), includes `UpdateImmediate()` to snap targets to source instantly and force re-positioning
+- **SceneLoader**: Handles both Addressable and standard scene loading with camera fade coordination (LiquidForce namespace)
 
 ### UI State Machine System
 Located in `Assets/_App/Scripts/UI/`:
-- **UIManager**: Stack-based state machine with `PushState()`, `PopState()`, `PushModal()` methods for navigation
+- **UIManager**: Stack-based state machine with `PushState()`, `PopState()`, `PushModal()`, `PopModalPush()` methods for navigation
 - **IUIState**: Interface defining lifecycle methods: `OnEnter()`, `OnExit()`, `OnPushed()`, `OnModalPushed()`, `OnPopped()`
-- **UIState**: Base MonoBehaviour implementing IUIState with default GameObject activation/deactivation
+- **UIState**: Base MonoBehaviour implementing IUIState with default GameObject activation/deactivation, includes `stateName` property for debugging
+- **BreadcrumbUI**: Displays current state stack as text breadcrumb trail using `UIManager.GetStackNames()` for navigation debugging
 - **State Management**: States tracked via `Stack<IUIState>`, use `uiManager.GetStackNames()` to inspect current state hierarchy
-- **Integration**: `UIManager` requires `ObjectFollower` component (head following), `UICamera` for camera culling management
+- **Integration**: `UIManager` requires `ObjectFollower` component (head following), `UICamera` for camera culling management, calls `objectFollower.UpdateImmediate()` on Show() to snap UI to head position
 - Pattern: Create UIState subclasses in child GameObjects, set `startState` in Inspector to initialize UI on Start
 
 ### Scene Loading
@@ -107,7 +122,7 @@ Two parallel systems:
 - `SceneStartup` destroys its own GameObject after fade-in completes
 
 ### ScriptableObject Configuration
-- `SceneListSO`: Holds Addressable scene references, uses `[CreateAssetMenu]` for editor creation
+- `SceneListSO`: Holds Addressable scene references (LiquidForce version uses `sceneDisplayName`, `isAddressable`, `scenePath`; root version uses `sceneName`), uses `[CreateAssetMenu]` for editor creation
 - `AutoHandSettings`: Stores setup wizard config, loaded from Resources ("AutoHandSettings")
 - Pattern: Create via Assets menu or right-click in project, assign in Inspector
 
@@ -143,4 +158,5 @@ Two parallel systems:
 - `UIManager` requires `ObjectFollower` component - add via RequireComponent or prefab structure
 - State machine navigation: Always use `PushState()`/`PopState()` - direct GameObject activation bypasses lifecycle callbacks
 - `DeviceTracking.Instance.UpdateImmediate()` must be called after tracking origin changes to sync head followers immediately
+- `ObjectFollower.UpdateImmediate()` forces instant snap without smoothing - call after Show()/position changes to prevent UI from being visible during transition
 
