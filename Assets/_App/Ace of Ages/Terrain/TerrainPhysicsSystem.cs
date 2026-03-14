@@ -2,6 +2,7 @@ using Unity.Entities;
 using Unity.Mathematics;
 using Unity.Physics;
 using UnityEngine;
+using Unity.Collections;
 
 /// <summary>
 /// System that creates physics colliders for terrain tiles.
@@ -13,6 +14,7 @@ using UnityEngine;
 public partial class TerrainPhysicsSystem : SystemBase
 {
     private EntityQuery _tilesNeedingCollidersQuery;
+    private NativeHashSet<Entity> _createdColliders;
 
     protected override void OnCreate()
     {
@@ -25,6 +27,9 @@ public partial class TerrainPhysicsSystem : SystemBase
             ComponentType.ReadOnly<IndexElement>(),
             ComponentType.Exclude<PhysicsCollider>()
         );
+        
+        // Track entities whose colliders we created (not deserialized from SubScene)
+        _createdColliders = new NativeHashSet<Entity>(128, Allocator.Persistent);
     }
 
     protected override void OnUpdate()
@@ -94,6 +99,9 @@ public partial class TerrainPhysicsSystem : SystemBase
             // Add PhysicsCollider component
             EntityManager.AddComponentData(entity, new PhysicsCollider { Value = collider });
             
+            // Track that we created this collider (so we know to dispose it later)
+            _createdColliders.Add(entity);
+            
             // Add PhysicsWorldIndex if not present (for multi-world physics)
             if (!EntityManager.HasComponent<PhysicsWorldIndex>(entity))
             {
@@ -111,13 +119,11 @@ public partial class TerrainPhysicsSystem : SystemBase
 
     protected override void OnDestroy()
     {
-        // Clean up colliders
-        var query = GetEntityQuery(ComponentType.ReadOnly<PhysicsCollider>());
-        var entities = query.ToEntityArray(Unity.Collections.Allocator.Temp);
-        
-        foreach (var entity in entities)
+        // Clean up only colliders that we created in code (not deserialized from SubScene)
+        // Deserialized blob assets are automatically released when the scene is unloaded
+        foreach (var entity in _createdColliders)
         {
-            if (EntityManager.HasComponent<PhysicsCollider>(entity))
+            if (EntityManager.Exists(entity) && EntityManager.HasComponent<PhysicsCollider>(entity))
             {
                 var collider = EntityManager.GetComponentData<PhysicsCollider>(entity);
                 if (collider.IsValid)
@@ -127,7 +133,7 @@ public partial class TerrainPhysicsSystem : SystemBase
             }
         }
         
-        entities.Dispose();
+        _createdColliders.Dispose();
     }
 }
 
