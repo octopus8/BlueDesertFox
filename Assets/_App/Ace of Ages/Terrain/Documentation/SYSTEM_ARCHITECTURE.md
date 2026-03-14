@@ -221,6 +221,13 @@ for each vertex (x, z) in tile:
     height = SampleMultiOctaveNoise(worldPosition)
     vertices[index] = (localX, height, localZ)
     
+for each vertex (x, z) in tile:
+    worldPosition = tileWorldPosition + localPosition + accumulatedOffset
+    normal = CalculateNormalFromHeightfield(worldPosition, stepSize, config)
+    // Samples heights at 4 neighbors by calling SampleNoise() directly
+    // Works across tile boundaries for seamless lighting
+    normals[index] = normal
+    
 for each triangle quad:
     indices += [v0, v1, v2, v2, v1, v3]  // Two triangles per quad
 ```
@@ -229,6 +236,13 @@ for each triangle quad:
 - Uses `Unity.Mathematics.noise.snoise()` (Simplex noise)
 - Multiple octaves combined with lacunarity and persistence
 - Normalized to `[0, noiseAmplitude]` range
+
+**Normal Calculation:**
+- Uses **heightfield sampling** approach (not vertex array lookup)
+- Samples noise at 4 neighboring world positions (left, right, up, down)
+- Calculates gradient using central differences method
+- **Works seamlessly at tile boundaries** - can sample beyond current tile
+- Result: Perfect normal continuity across all tile edges
 
 #### 3. TerrainPhysicsSystem
 **Update Group:** `SimulationSystemGroup`  

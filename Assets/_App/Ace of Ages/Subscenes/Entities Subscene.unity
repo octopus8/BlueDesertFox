@@ -549,7 +549,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::TerrainConfigAuthoring
   tileSize: 128
-  viewDistance: 750
+  viewDistance: 814
   verticesPerSide: 8
   floatingOriginEnabled: 1
   shiftThreshold: 2000

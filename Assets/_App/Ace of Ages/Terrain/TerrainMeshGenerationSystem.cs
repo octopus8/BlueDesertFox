@@ -144,7 +144,17 @@ public partial struct TerrainMeshGenerationSystem : ISystem
             for (int x = 0; x < verticesPerSide; x++)
             {
                 int index = z * verticesPerSide + x;
-                normals[index] = CalculateNormal(x, z, vertices, verticesPerSide);
+                
+                // Calculate world position for this vertex
+                float localX = x * stepSize;
+                float localZ = z * stepSize;
+                double worldX = tileWorldPos.x + localX;
+                double worldZ = tileWorldPos.z + localZ;
+                
+                // Calculate normal by sampling neighboring heights directly from noise
+                // This ensures correct normals even at tile edges
+                normals[index] = CalculateNormalFromHeightfield(
+                    worldX, worldZ, stepSize, config);
             }
         }
         
@@ -214,53 +224,27 @@ public partial struct TerrainMeshGenerationSystem : ISystem
     }
 
     /// <summary>
-    /// Calculates the normal vector for a vertex by averaging adjacent face normals.
+    /// Calculates the normal vector by sampling heights from the noise function at neighboring positions.
+    /// This approach works correctly even at tile edges since it can sample beyond the current tile.
     /// </summary>
     [BurstCompile]
-    private static float3 CalculateNormal(int x, int z, NativeArray<float3> vertices, int verticesPerSide)
+    private static float3 CalculateNormalFromHeightfield(
+        double worldX, double worldZ, float stepSize, TerrainTileConfig config)
     {
-        int index = z * verticesPerSide + x;
-        float3 normal = new float3(0, 1, 0); // Default up
+        // Sample heights at 4 neighboring positions (cross pattern)
+        float heightLeft = SampleNoise(worldX - stepSize, worldZ, config);
+        float heightRight = SampleNoise(worldX + stepSize, worldZ, config);
+        float heightDown = SampleNoise(worldX, worldZ - stepSize, config);
+        float heightUp = SampleNoise(worldX, worldZ + stepSize, config);
         
-        // Get neighboring vertices
-        bool hasLeft = x > 0;
-        bool hasRight = x < verticesPerSide - 1;
-        bool hasDown = z > 0;
-        bool hasUp = z < verticesPerSide - 1;
+        // Calculate tangent vectors
+        float3 tangentX = new float3(2.0f * stepSize, heightRight - heightLeft, 0);
+        float3 tangentZ = new float3(0, heightUp - heightDown, 2.0f * stepSize);
         
-        if (hasRight && hasUp)
-        {
-            float3 v0 = vertices[index];
-            float3 v1 = vertices[index + 1];
-            float3 v2 = vertices[index + verticesPerSide];
-            normal += math.normalize(math.cross(v1 - v0, v2 - v0));
-        }
+        // Normal is cross product of tangents
+        float3 normal = math.normalize(math.cross(tangentZ, tangentX));
         
-        if (hasLeft && hasDown)
-        {
-            float3 v0 = vertices[index];
-            float3 v1 = vertices[index - verticesPerSide];
-            float3 v2 = vertices[index - 1];
-            normal += math.normalize(math.cross(v1 - v0, v2 - v0));
-        }
-        
-        if (hasRight && hasDown)
-        {
-            float3 v0 = vertices[index];
-            float3 v1 = vertices[index - verticesPerSide];
-            float3 v2 = vertices[index + 1];
-            normal += math.normalize(math.cross(v2 - v0, v1 - v0));
-        }
-        
-        if (hasLeft && hasUp)
-        {
-            float3 v0 = vertices[index];
-            float3 v1 = vertices[index - 1];
-            float3 v2 = vertices[index + verticesPerSide];
-            normal += math.normalize(math.cross(v2 - v0, v1 - v0));
-        }
-        
-        return math.normalize(normal);
+        return normal;
     }
 }
 
