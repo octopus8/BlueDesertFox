@@ -7,22 +7,22 @@ Unity VR application combining traditional MonoBehaviour components with Unity D
 
 ### Hybrid Unity Architecture
 - **MonoBehaviour Layer**: VR interactions (AutoHand), UI, keyboard input, word prediction
-- **ECS Layer**: Performance-critical systems loaded via SubScenes (see `Assets/_App/Scripts/ECSManagedSystems/`)
-- **Scene Management**: `SceneStartup.cs` orchestrates initial setup, loading SubScenes via `SubSceneLoader` singleton and managing camera fade-ins
+- **ECS Layer**: Performance-critical systems loaded via SubScenes (see `Assets/_App/Ace of Ages/` for DOTS systems)
+- **Scene Management**: `SceneStartup.cs` orchestrates initial setup, loading SubScenes via `SubSceneLoader` singleton and managing camera fade-ins, calls `DeviceTracking.Instance.UpdateImmediate()` after setting tracking origin
 - **UI System**: State machine pattern via `UIManager` with stack-based state management (`IUIState`, `UIState`)
+- **Input System**: Uses Unity Input System with `InputSystem.actions.FindAction("ActionName")` pattern for runtime action binding
 
 ### Key Namespaces & Assembly Definitions
 - `Autohand` (AutoHandAssembly.asmdef): VR hand/grabbable interactions
-- `LiquidForce` (LiquidForce.asmdef): Camera fading, device tracking, object following utilities
+- `LiquidForce` (LiquidForce.asmdef): Camera fading, device tracking, object following utilities, scene loading
 - `App.StartScene`: Scene selection UI and Addressables-based scene loading (legacy pattern, coexists with UIManager)
 
 ### Singleton Pattern Usage
 Project relies on several Singleton patterns:
 - `DeviceTracking.Instance` - VR tracking origin management (LiquidForce), includes `UpdateImmediate()` for instant head follower sync
 - `CameraFader.Instance` - Screen fade transitions (LiquidForce)
-- `SubSceneLoader.Instance` - ECS SubScene loading system
+- `SubSceneLoader.Instance` - ECS SubScene loading system, extends `SystemBase` and sets `Instance` in `OnCreate()`
 - `AutoHandPlayer.Instance` - VR player controller (Autohand namespace), uses `_Instance` backing field with lazy initialization
-- `BLeeDev.instance` - Development testing utilities (lowercase 'i')
 
 ## Critical Systems
 
@@ -49,20 +49,22 @@ Located in `Assets/Scripts/Keyboard/`:
 ### Ace of Ages Game Systems
 Located in `Assets/_App/Ace of Ages/`:
 - **Terrain System** (`Terrain/`): DOTS-based infinite terrain with floating origin, procedural generation using Perlin noise, automatic mesh collider generation (see `Terrain/README.md`)
-- **DOTS Systems** (`DOTSSystems/`): ECS performance-critical systems including:
-  - `TransformFollowerSystem`: Makes DOTS entities follow GameObject Transforms outside subscenes using managed `TransformReference` component
-  - `SplineFollowerSystem`: Moves entities along Unity.Splines with formation support, uses `SplineDataComponent` and `FormationPosition`
-  - `EnemySpawnerSystem`: Spawns entities in bowling pin formations along splines via `EnemySpawner` component
-  - `TransformFollowerInitSystem`: Initializes Transform references at runtime (runs in `InitializationSystemGroup`)
-- **Authoring Components** (`DOTSAuthoring/`): `TransformFollowerAuthoring`, `SplineFollowerAuthoring`, `EnemySpawnerAuthoring`, `PlayerTagAuthoring`, `FormationPositionAuthoring`
-- **Cross-Subscene References**: `TransformFollowerAuthoring` uses `TransformFollowerTargetSearch` component with `FindByName`, `FindByTag`, or `DirectReference` modes to locate targets at runtime
-- Entry point: `AceOfAges.cs` test component triggers enemy spawns after delay
+- **DOTS Systems**: ECS performance-critical systems including:
+  - `TransformFollowerSystem` (`TransformFollower/`): Makes DOTS entities follow GameObject Transforms outside subscenes using managed `TransformReference` component, runs on main thread via `.Run()` (cannot use Burst/Jobs due to managed references)
+  - `SplineFollowerSystem` (`Splines/`): Moves entities along Unity.Splines with formation support via Burst-compiled job, uses `SplineDataComponent` (with pre-sampled `BlobAssetReference<SplineDataBlob>`) and `FormationPosition`
+  - `EnemySpawnerSystem` (`EnemySpawner/`): Spawns entities in bowling pin formations along splines via `EnemySpawner` component, uses `CalculateBowlingPinPosition()` for 10-pin layout with hexagonal lateral spacing
+  - `TransformFollowerInitSystem` (`TransformFollower/`): Initializes Transform references at runtime (runs in `InitializationSystemGroup`), searches for targets via `TransformFollowerTargetSearch` component
+- **Authoring Components**: Co-located with systems in subdirectories - `TransformFollowerAuthoring`, `SplineFollowerAuthoring`, `EnemySpawnerAuthoring`, `PlayerTagAuthoring` (in `Player/`), `FormationPositionAuthoring`, `PrefabEntitiesReferencesAuthoring`
+- **Cross-Subscene References**: `TransformFollowerAuthoring` uses `TransformFollowerTargetSearch` component with `FindByName`, `FindByTag`, or `DirectReference` modes to locate targets at runtime, initialized by `TransformFollowerInitSystem` since `MonoBehaviour.Start()` doesn't run in baked SubScenes
+- **Managed Components**: `TransformReference` is a managed `IComponentData` class (not struct) bridging GameObject/Transform references to ECS
+- Entry point: `AceOfAges.cs` test component triggers enemy spawns after 3-second delay using EntityQuery
 
 ### Camera & Scene Transitions (LiquidForce namespace)
 - **CameraFader**: Creates inverted sphere mesh around camera with custom shader, uses DOTween for async fade animations
 - **DeviceTracking**: Manages VR tracking origin, provides head-following via `ObjectFollower` component, includes `UpdateImmediate()` for instant sync
-- **ObjectFollower**: Smoothly lerps transform to follow targets with configurable speed/offsets, supports multiple update timings (OnUpdate, OnFixedUpdate, OnLateUpdate, OnPreRender, OnPreCull), includes `UpdateImmediate()` to snap targets to source instantly and force re-positioning
-- **SceneLoader**: Handles both Addressable and standard scene loading with camera fade coordination (LiquidForce namespace)
+- **ObjectFollower**: Smoothly lerps transform to follow targets with configurable speed/offsets, supports multiple update timings (OnUpdate, OnFixedUpdate, OnLateUpdate, OnPreRender, OnPreCull), includes `UpdateImmediate()` to snap targets to source instantly and force re-positioning by calling internal `UpdateTargetTransforms()`
+- **SceneLoader**: Handles both Addressable and standard scene loading with camera fade coordination, supports `isAddressable` flag in `SceneListSO.SceneListScene` for mixed scene types
+- **UICamera**: Manages camera culling masks to separate UI layer rendering from main scene, toggles UI camera active state via `OnUIVisible(bool)`, used by `UIManager`
 
 ### UI State Machine System
 Located in `Assets/_App/Scripts/UI/`:
@@ -75,10 +77,11 @@ Located in `Assets/_App/Scripts/UI/`:
 - Pattern: Create UIState subclasses in child GameObjects, set `startState` in Inspector to initialize UI on Start
 
 ### Scene Loading
-Two parallel systems:
-1. **Addressables** (traditional scenes): `UI.cs` in Start Scene uses `Addressables.LoadSceneAsync()`, waits for camera fade before activation
-2. **ECS SubScenes**: `SubSceneLoader.Instance.LoadScene(subScene.SceneGUID)` via `Unity.Scenes.SceneSystem.LoadSceneAsync()`
-3. Entry point: `SceneStartup.cs` sets tracking origin, fades camera, loads SubScenes from array, then destroys itself
+Three parallel systems:
+1. **Addressables** (legacy): `UI.cs` in `App.StartScene` namespace uses `Addressables.LoadSceneAsync()`, waits for camera fade before activation via coroutine
+2. **Modern Scene Loading**: `LiquidForce.SceneLoader` handles both Addressable and standard scenes, `SceneSelectUIState` uses this for scene transitions
+3. **ECS SubScenes**: `SubSceneLoader.Instance.LoadScene(subScene.SceneGUID)` via `Unity.Scenes.SceneSystem.LoadSceneAsync(World.Unmanaged, sceneGUID)`
+4. Entry point: `SceneStartup.cs` sets tracking origin with `UpdateImmediate()` call, fades camera, loads SubScenes from array via `SubSceneLoader.Instance`, then destroys itself
 
 ## Development Workflows
 
@@ -86,7 +89,8 @@ Two parallel systems:
 - Project uses Unity 6 (2023.3+) with URP 17.3.0
 - VR: OpenXR (1.16.1), XR Hands (1.7.3), XR Interaction Toolkit (3.3.1)
 - Entry scene: `Assets/_App/Start Scene/Start Scene.unity`
-- Test scenes: `Assets/_App/Test Scenes/` (KeyboardTest, PhysicsTest, UI Dev)
+- Test scenes: `Assets/_App/Test Scenes/` (KeyboardTest.unity, UIManager Test/)
+- Ace of Ages scene: `Assets/_App/Ace of Ages/Ace of Ages.unity` (DOTS terrain demo with subscenes)
 
 ### Adding New VR Interactable
 1. Add `Grabbable` component to GameObject with Rigidbody
@@ -122,25 +126,28 @@ Two parallel systems:
 - `SceneStartup` destroys its own GameObject after fade-in completes
 
 ### ScriptableObject Configuration
-- `SceneListSO`: Holds Addressable scene references (LiquidForce version uses `sceneDisplayName`, `isAddressable`, `scenePath`; root version uses `sceneName`), uses `[CreateAssetMenu]` for editor creation
+- `SceneListSO`: Two versions exist:
+  - `LiquidForce.SceneListSO`: Uses `sceneDisplayName`, `isAddressable` flag, `scenePath`, `AssetReference scene` - supports mixed Addressable/standard scenes
+  - Root namespace version (legacy): Uses only `sceneName` and `AssetReference scene` for Addressables only
 - `AutoHandSettings`: Stores setup wizard config, loaded from Resources ("AutoHandSettings")
-- Pattern: Create via Assets menu or right-click in project, assign in Inspector
+- Pattern: Create via Assets menu (`[CreateAssetMenu]` attribute), assign in Inspector
 
 ### Layer Usage
 - "UI" layer: Used for CameraFader sphere and UI elements
 - Physics interactions expect default layer setup, AutoHand uses layer masks extensively
 
 ### Namespace Organization
-- Global namespace: Utilities, keyboard, word prediction (legacy code), UIManager/UIState system
+- Global namespace: Utilities, keyboard, word prediction (legacy code), UIManager/UIState system, DOTS components/systems
 - `Autohand`: All VR hand interaction code
-- `LiquidForce`: Custom utilities (camera, tracking, following)
-- `App.StartScene`: Scene management UI
+- `LiquidForce`: Custom utilities (camera, tracking, following, scene loading)
+- `App.StartScene`: Legacy scene selection UI (coexists with modern `SceneSelectUIState`)
 
 ### Code Style Notes
-- Singletons use `static Instance` property with private set (except `BLeeDev.instance` which is lowercase and public)
+- Singletons use `static Instance` property with private set, initialized in `Awake()` or `OnCreate()` for ECS systems
 - Async methods return `UniTask` or `IEnumerator` for coroutines
-- Heavy use of `?.` null-conditional operators
-- SerializeField with [field: SerializeField] property syntax in newer code
+- Heavy use of `?.` null-conditional operators for null safety
+- SerializeField with `[field: SerializeField]` property syntax in newer code (auto-properties)
+- DOTS components in global namespace (no assembly definitions for custom ECS code)
 
 ## External Dependencies
 - **UniTask**: Async/await replacement for Unity coroutines
@@ -152,11 +159,13 @@ Two parallel systems:
 ## Common Pitfalls
 - Physics timestep critical for AutoHand: Don't modify `Time.fixedDeltaTime` without checking AutoHandSettings
 - CameraFader requires "LiquidForce/CameraFader" shader in Resources
-- SubScenes must be added to `SceneStartup.subScenes[]` array to load
+- SubScenes must be added to `SceneStartup.subScenes[]` array to load at startup
 - Addressable scenes must be marked in Addressables groups before `AssetReference` works
 - Word prediction requires pre-generated dictionaries or will fail silently if corpus generation commented out
-- `UIManager` requires `ObjectFollower` component - add via RequireComponent or prefab structure
+- `UIManager` requires `ObjectFollower` component - add via `[RequireComponent]` attribute (already present)
 - State machine navigation: Always use `PushState()`/`PopState()` - direct GameObject activation bypasses lifecycle callbacks
 - `DeviceTracking.Instance.UpdateImmediate()` must be called after tracking origin changes to sync head followers immediately
 - `ObjectFollower.UpdateImmediate()` forces instant snap without smoothing - call after Show()/position changes to prevent UI from being visible during transition
-
+- DOTS `TransformFollowerAuthoring` must be on entities inside SubScenes - runtime init won't work for non-baked entities
+- `TransformFollowerSystem` uses `.Run()` instead of `.Schedule()` because it accesses managed Transform references (Burst incompatible)
+- `SplineDataComponent` stores pre-sampled spline data as BlobAsset - configure `sampleCount` in `SplineComponentAuthoring` for accuracy vs memory tradeoff
