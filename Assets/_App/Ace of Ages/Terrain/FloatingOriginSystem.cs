@@ -19,7 +19,6 @@ public partial struct FloatingOriginSystem : ISystem
         state.RequireForUpdate<WorldOriginOffset>();
     }
 
-    [BurstCompile]
     public void OnUpdate(ref SystemState state)
     {
         var config = SystemAPI.GetSingleton<FloatingOriginConfig>();
@@ -48,12 +47,19 @@ public partial struct FloatingOriginSystem : ISystem
             RefRW<WorldOriginOffset> worldOffset = SystemAPI.GetSingletonRW<WorldOriginOffset>();
             worldOffset.ValueRW.accumulatedOffset += shiftOffset;
             
-            // Shift all entities with FloatingOriginEnabled tag
+            // Complete all pending jobs to avoid dependency conflicts with LocalToWorldSystem
+            state.Dependency.Complete();
+            
+            // Shift all entities with FloatingOriginEnabled tag using synchronous execution
+            // Use .Run() instead of .ScheduleParallel() to ensure GameObjects can shift in the same frame
             var shiftJob = new ShiftWorldOriginJob
             {
                 offset = shiftOffset
             };
-            shiftJob.ScheduleParallel();
+            shiftJob.Run();
+            
+            // Fire event for GameObject synchronization (after ECS shift completes)
+            FloatingOriginEvents.InvokeOriginShifted(shiftOffset);
         }
     }
 }
