@@ -38,8 +38,6 @@ public partial class TerrainRenderingSystem : SystemBase
         
         if (_terrainMaterial == null)
         {
-            Debug.LogWarning("[TerrainRendering] TerrainMaterial not found in Resources, creating default material");
-            
             // Try URP Lit shader first
             var shader = Shader.Find("Universal Render Pipeline/Lit");
             if (shader == null)
@@ -72,17 +70,11 @@ public partial class TerrainRenderingSystem : SystemBase
                 {
                     _terrainMaterial.SetColor("_Color", new Color(1f, 0.5f, 0.8f, 1f));
                 }
-                
-                Debug.Log($"[TerrainRendering] Created material with shader: {shader.name}");
             }
             else
             {
                 Debug.LogError("[TerrainRendering] Failed to find any suitable shader!");
             }
-        }
-        else
-        {
-            Debug.Log($"[TerrainRendering] Loaded TerrainMaterial from Resources: {_terrainMaterial.name}");
         }
     }
 
@@ -90,17 +82,11 @@ public partial class TerrainRenderingSystem : SystemBase
     {
         if (_terrainMaterial == null)
         {
-            Debug.LogWarning("[TerrainRendering] Terrain material is null, skipping rendering setup");
             return;
         }
 
         // Process tiles that need mesh creation - use EntityManager directly
         var entities = _newTilesQuery.ToEntityArray(Unity.Collections.Allocator.Temp);
-        
-        if (entities.Length > 0)
-        {
-            Debug.Log($"[TerrainRendering] Processing {entities.Length} tiles for rendering setup");
-        }
         
         foreach (var entity in entities)
         {
@@ -116,10 +102,6 @@ public partial class TerrainRenderingSystem : SystemBase
                 if (vertices.Length > 0 && indices.Length > 0)
                 {
                     CreateAndAssignMesh(entity, vertices, normals, uvs, indices);
-                }
-                else
-                {
-                    Debug.LogWarning($"[TerrainRendering] Tile at {tile.gridCoordinate} has empty buffers!");
                 }
             }
         }

@@ -7,8 +7,9 @@ using UnityEngine;
 /// <summary>
 /// Debug system to inspect terrain tile entities and their rendering components.
 /// Add this temporarily to diagnose rendering issues.
+/// DISABLED: Uncomment the [UpdateInGroup] attribute to re-enable.
 /// </summary>
-[UpdateInGroup(typeof(PresentationSystemGroup), OrderLast = true)]
+// [UpdateInGroup(typeof(PresentationSystemGroup), OrderLast = true)]
 [UpdateAfter(typeof(TerrainRenderingSystem))]
 public partial class TerrainRenderingDebugSystem : SystemBase
 {

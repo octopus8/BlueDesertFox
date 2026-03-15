@@ -54,8 +54,6 @@ public partial struct FloatingOriginSystem : ISystem
                 offset = shiftOffset
             };
             shiftJob.ScheduleParallel();
-            
-            UnityEngine.Debug.Log($"[FloatingOrigin] World shifted by {shiftOffset}, accumulated offset: {worldOffset.ValueRO.accumulatedOffset}");
         }
     }
 }

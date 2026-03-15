@@ -42,8 +42,6 @@ public partial struct TerrainMeshGenerationSystem : ISystem
                 var uvBuffer = SystemAPI.GetBuffer<UVElement>(entity);
                 var indexBuffer = SystemAPI.GetBuffer<IndexElement>(entity);
                 
-                UnityEngine.Debug.Log($"[TerrainMeshGen] Generating mesh for tile at {tile.gridCoordinate}");
-                
                 GenerateTileMesh(
                     ref tile,
                     vertexBuffer,
@@ -56,11 +54,6 @@ public partial struct TerrainMeshGenerationSystem : ISystem
                 
                 processedCount++;
             }
-        }
-        
-        if (processedCount > 0)
-        {
-            UnityEngine.Debug.Log($"[TerrainMeshGen] Generated {processedCount} tile meshes this frame");
         }
         
         entities.Dispose();
@@ -191,8 +184,6 @@ public partial struct TerrainMeshGenerationSystem : ISystem
         
         tile.meshGenerated = true;
         tile.needsRegeneration = false;
-        
-        UnityEngine.Debug.Log($"[TerrainMeshGen] ✓ Mesh generated: {totalVertices} vertices, {totalTriangles} triangles for tile at {tile.gridCoordinate}");
     }
 
     /// <summary>

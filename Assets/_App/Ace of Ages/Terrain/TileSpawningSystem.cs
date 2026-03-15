@@ -103,11 +103,6 @@ public partial struct TileSpawningSystem : ISystem
         // Spawn new tiles
         var ecb = new EntityCommandBuffer(Allocator.Temp);
         
-        if (tilesToSpawn.Length > 0)
-        {
-            UnityEngine.Debug.Log($"[TileSpawning] Spawning {tilesToSpawn.Length} new tiles");
-        }
-        
         // Create entities via ECB
         foreach (var gridCoord in tilesToSpawn)
         {
@@ -147,15 +142,9 @@ public partial struct TileSpawningSystem : ISystem
             ecb.AddBuffer<NormalElement>(tileEntity);
             ecb.AddBuffer<UVElement>(tileEntity);
             ecb.AddBuffer<IndexElement>(tileEntity);
-            
-            UnityEngine.Debug.Log($"[TileSpawning] Creating tile at grid {gridCoord}, world position {tilePosition}");
         }
         
         // Despawn old tiles
-        if (tilesToDespawn.Length > 0)
-        {
-            UnityEngine.Debug.Log($"[TileSpawning] Despawning {tilesToDespawn.Length} tiles");
-        }
         foreach (var gridCoord in tilesToDespawn)
         {
             if (_activeTiles.TryGetValue(gridCoord, out Entity tileEntity))
