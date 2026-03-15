@@ -49,10 +49,12 @@ Located in `Assets/Scripts/Keyboard/`:
 ### Ace of Ages Game Systems
 Located in `Assets/_App/Ace of Ages/`:
 - **Terrain System** (`Terrain/`): DOTS-based infinite terrain with floating origin, procedural generation using Perlin noise, automatic mesh collider generation (see `Terrain/README.md`)
+- **Floating Origin System** (`Terrain/FloatingOriginSystem.cs`): Runs in `TransformSystemGroup` after `LocalToWorldSystem`, monitors player distance and shifts world origin when threshold exceeded, uses `WorldOriginOffset` singleton with double3 precision for terrain consistency
 - **DOTS Systems**: ECS performance-critical systems including:
   - `TransformFollowerSystem` (`TransformFollower/`): Makes DOTS entities follow GameObject Transforms outside subscenes using managed `TransformReference` component, runs on main thread via `.Run()` (cannot use Burst/Jobs due to managed references)
   - `SplineFollowerSystem` (`Splines/`): Moves entities along Unity.Splines with formation support via Burst-compiled job, uses `SplineDataComponent` (with pre-sampled `BlobAssetReference<SplineDataBlob>`) and `FormationPosition`
   - `EnemySpawnerSystem` (`EnemySpawner/`): Spawns entities in bowling pin formations along splines via `EnemySpawner` component, uses `CalculateBowlingPinPosition()` for 10-pin layout with hexagonal lateral spacing
+  - `ResetEventsSystem`: Resets event flags (e.g., `doSpawn`) each frame, runs before `EnemySpawnerSystem` via `[UpdateBefore]` attribute
   - `TransformFollowerInitSystem` (`TransformFollower/`): Initializes Transform references at runtime (runs in `InitializationSystemGroup`), searches for targets via `TransformFollowerTargetSearch` component
 - **Authoring Components**: Co-located with systems in subdirectories - `TransformFollowerAuthoring`, `SplineFollowerAuthoring`, `EnemySpawnerAuthoring`, `PlayerTagAuthoring` (in `Player/`), `FormationPositionAuthoring`, `PrefabEntitiesReferencesAuthoring`
 - **Cross-Subscene References**: `TransformFollowerAuthoring` uses `TransformFollowerTargetSearch` component with `FindByName`, `FindByTag`, or `DirectReference` modes to locate targets at runtime, initialized by `TransformFollowerInitSystem` since `MonoBehaviour.Start()` doesn't run in baked SubScenes
@@ -86,7 +88,7 @@ Three parallel systems:
 ## Development Workflows
 
 ### Building & Testing
-- Project uses Unity 6 (2023.3+) with URP 17.3.0
+- Project uses Unity 6 (6000.3.10f1) with URP 17.3.0
 - VR: OpenXR (1.16.1), XR Hands (1.7.3), XR Interaction Toolkit (3.3.1)
 - Entry scene: `Assets/_App/Start Scene/Start Scene.unity`
 - Test scenes: `Assets/_App/Test Scenes/` (KeyboardTest.unity, UIManager Test/)
@@ -133,7 +135,9 @@ Three parallel systems:
 - Pattern: Create via Assets menu (`[CreateAssetMenu]` attribute), assign in Inspector
 
 ### Layer Usage
-- "UI" layer: Used for CameraFader sphere and UI elements
+- "UI" layer: Used for CameraFader sphere and UI elements, UICamera culls "UI" and "Hand" layers together
+- "Hand" layer: AutoHand sets hand colliders recursively to left/right hand layers, UICamera includes in culling mask
+- AutoHand layers: "Grabbable", "Grabbing", "HandPlayer" - see `AutoHandSetupWizard.cs` for layer collision matrix setup
 - Physics interactions expect default layer setup, AutoHand uses layer masks extensively
 
 ### Namespace Organization
