@@ -283,7 +283,6 @@ GameObject:
   - component: {fileID: 263055123}
   - component: {fileID: 263055125}
   - component: {fileID: 263055124}
-  - component: {fileID: 263055126}
   m_Layer: 0
   m_Name: Player
   m_TagString: Untagged
@@ -338,18 +337,6 @@ MonoBehaviour:
   offset: {x: 0, y: 0, z: 0}
   followRotation: 1
   smoothTime: 0
---- !u!114 &263055126
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 263055122}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: e9b50f290cd3428b88b5f4fa072b0eb1, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::FloatingOriginEnabledAuthoring
 --- !u!1001 &512056376
 PrefabInstance:
   m_ObjectHideFlags: 0
