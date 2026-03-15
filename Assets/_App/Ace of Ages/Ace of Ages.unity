@@ -149,6 +149,7 @@ Transform:
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
+  - {fileID: 555787330}
   - {fileID: 1155157825}
   - {fileID: 1718658828}
   m_Father: {fileID: 0}
@@ -370,6 +371,38 @@ RectTransform:
   m_CorrespondingSourceObject: {fileID: 781630661673262082, guid: c24a7635b5761984d81cf6c4aac26e0d, type: 3}
   m_PrefabInstance: {fileID: 4015128327238675554}
   m_PrefabAsset: {fileID: 0}
+--- !u!1 &555787329
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 555787330}
+  m_Layer: 0
+  m_Name: Debug
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 0
+--- !u!4 &555787330
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 555787329}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children:
+  - {fileID: 1861627065}
+  m_Father: {fileID: 132629395}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &702503744
 GameObject:
   m_ObjectHideFlags: 0
@@ -486,9 +519,6 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 2218496723442559054, guid: d6878e1999eb4b44a9f5a263af86c185, type: 3}
       insertIndex: -1
       addedObject: {fileID: 880413749}
-    - targetCorrespondingSourceObject: {fileID: 2218496723442559054, guid: d6878e1999eb4b44a9f5a263af86c185, type: 3}
-      insertIndex: -1
-      addedObject: {fileID: 880413759}
     - targetCorrespondingSourceObject: {fileID: 657184242118504722, guid: d6878e1999eb4b44a9f5a263af86c185, type: 3}
       insertIndex: -1
       addedObject: {fileID: 880413745}
@@ -539,26 +569,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: LiquidForce::LiquidForce.DeviceTracking
   trackingOrigin: {fileID: 880413748}
   head: {fileID: 880413747}
---- !u!114 &880413759
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 880413746}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 9f50ad32d9f34720beb1836a53de80ec, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::TerrainTileGizmoVisualizer
-  drawTileBounds: 1
-  drawGridCoordinates: 1
-  tileColor: {r: 0, g: 1, b: 0, a: 1}
-  tileWithMeshColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
-  tileWithRenderingColor: {r: 0, g: 1, b: 1, a: 1}
-  _totalTiles: 0
-  _tilesWithMesh: 0
-  _tilesWithRendering: 0
 --- !u!1 &914191036
 GameObject:
   m_ObjectHideFlags: 0
@@ -1315,6 +1325,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 1718658828}
+  - component: {fileID: 1718658829}
   m_Layer: 0
   m_Name: PlayerMover
   m_TagString: Untagged
@@ -1337,6 +1348,80 @@ Transform:
   m_Children: []
   m_Father: {fileID: 132629395}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1718658829
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1718658827}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8dee3582838d8d54492682c3dfcbcb70, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerMover
+  trackingOrigin: {fileID: 880413748}
+  leftController: {fileID: 1746005576}
+  rightController: {fileID: 1914986450}
+  isTrackingLeftController: 0
+  speed: 100
+--- !u!4 &1746005576 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: 4901103772121430677, guid: d6878e1999eb4b44a9f5a263af86c185, type: 3}
+  m_PrefabInstance: {fileID: 880413743}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1 &1861627064
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1861627065}
+  - component: {fileID: 1861627066}
+  m_Layer: 0
+  m_Name: Terrain Tile Gizmo Visualizer
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1861627065
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1861627064}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 555787330}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1861627066
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1861627064}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9f50ad32d9f34720beb1836a53de80ec, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::TerrainTileGizmoVisualizer
+  drawTileBounds: 1
+  drawGridCoordinates: 1
+  tileColor: {r: 0, g: 1, b: 0, a: 1}
+  tileWithMeshColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
+  tileWithRenderingColor: {r: 0, g: 1, b: 1, a: 1}
+  _totalTiles: 0
+  _tilesWithMesh: 0
+  _tilesWithRendering: 0
 --- !u!1 &1869357993
 GameObject:
   m_ObjectHideFlags: 0
@@ -1373,6 +1458,11 @@ Transform:
 RectTransform:
   m_CorrespondingSourceObject: {fileID: 8747907326224632397, guid: 0cbc0856f0fb8d84a81be5dea463c369, type: 3}
   m_PrefabInstance: {fileID: 2902645850048164309}
+  m_PrefabAsset: {fileID: 0}
+--- !u!4 &1914986450 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: 795811318718094744, guid: d6878e1999eb4b44a9f5a263af86c185, type: 3}
+  m_PrefabInstance: {fileID: 880413743}
   m_PrefabAsset: {fileID: 0}
 --- !u!1 &1949500439
 GameObject:
