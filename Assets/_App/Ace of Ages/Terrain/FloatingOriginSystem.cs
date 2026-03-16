@@ -97,6 +97,7 @@ public partial struct FloatingOriginSystem : ISystem
 
 /// <summary>
 /// Job that shifts all entities with FloatingOriginEnabled by subtracting the offset from their positions.
+/// Also immediately updates LocalToWorld matrices to prevent visual glitches during rendering.
 /// </summary>
 [BurstCompile]
 [WithAll(typeof(FloatingOriginEnabled))]
@@ -104,9 +105,18 @@ public partial struct ShiftWorldOriginJob : IJobEntity
 {
     public float3 offset;
     
-    public void Execute(ref LocalTransform transform)
+    public void Execute(ref LocalTransform transform, ref LocalToWorld localToWorld)
     {
+        // Shift the local position
         transform.Position -= offset;
+        
+        // Immediately update LocalToWorld matrix to prevent one-frame visual glitch
+        // Reconstruct the matrix with the new position
+        localToWorld.Value = float4x4.TRS(
+            transform.Position,
+            transform.Rotation,
+            transform.Scale
+        );
     }
 }
 
