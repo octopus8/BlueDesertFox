@@ -14,10 +14,9 @@ public partial struct TileSpawningSystem : ISystem
 {
     private NativeParallelHashMap<int2, Entity> _activeTiles;
 
-    [BurstCompile]
     public void OnCreate(ref SystemState state)
     {
-        state.RequireForUpdate<PlayerTag>();
+        state.RequireForUpdate<PlayerTransformReference>();
         state.RequireForUpdate<TerrainTileConfig>();
         state.RequireForUpdate<WorldOriginOffset>();
         
@@ -35,13 +34,17 @@ public partial struct TileSpawningSystem : ISystem
     {
         var config = SystemAPI.GetSingleton<TerrainTileConfig>();
         
-        // Find player position
-        var playerEntity = SystemAPI.GetSingletonEntity<PlayerTag>();
-        if (!SystemAPI.HasComponent<LocalTransform>(playerEntity))
+        // Get the player transform reference (managed component, cannot use Burst)
+        var playerRef = SystemAPI.ManagedAPI.GetSingleton<PlayerTransformReference>();
+        
+        // Check if player transform is valid
+        if (playerRef == null || playerRef.playerTransform == null)
+        {
             return;
+        }
 
-        var playerTransform = SystemAPI.GetComponent<LocalTransform>(playerEntity);
-        float3 playerPosition = playerTransform.Position;
+        // Get player position from GameObject Transform
+        float3 playerPosition = playerRef.playerTransform.position;
         
         // Calculate player's grid coordinate
         int2 playerGridCoord = new int2(

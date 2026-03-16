@@ -8,6 +8,25 @@ using UnityEngine;
 /// </summary>
 public class TerrainConfigAuthoring : MonoBehaviour
 {
+    public enum PlayerSearchMode
+    {
+        AutoDetect,
+        FindByName,
+        FindByTag,
+        FindAutoHandPlayer,
+        FindMainCamera
+    }
+    
+    [Header("Player Tracking")]
+    [Tooltip("How to find the player GameObject at runtime")]
+    public PlayerSearchMode playerSearchMode = PlayerSearchMode.AutoDetect;
+    
+    [Tooltip("GameObject name to search for (only used if mode is FindByName)")]
+    public string playerName = "XR Origin Hands (XR Rig)";
+    
+    [Tooltip("GameObject tag to search for (only used if mode is FindByTag)")]
+    public string playerTag = "Player";
+    
     [Header("Tile Settings")]
     [Tooltip("Size of each terrain tile in meters")]
     public float tileSize = 100f;
@@ -78,27 +97,136 @@ public class TerrainConfigAuthoring : MonoBehaviour
             {
                 accumulatedOffset = double3.zero
             });
+            
+            // Determine search mode and parameters
+            PlayerTrackingSearch.Mode searchMode;
+            string searchString = "";
+            
+            switch (authoring.playerSearchMode)
+            {
+                case PlayerSearchMode.FindByName:
+                    searchMode = PlayerTrackingSearch.Mode.FindByName;
+                    searchString = authoring.playerName;
+                    break;
+                case PlayerSearchMode.FindByTag:
+                    searchMode = PlayerTrackingSearch.Mode.FindByTag;
+                    searchString = authoring.playerTag;
+                    break;
+                case PlayerSearchMode.FindAutoHandPlayer:
+                    searchMode = PlayerTrackingSearch.Mode.FindAutoHandPlayer;
+                    break;
+                case PlayerSearchMode.FindMainCamera:
+                    searchMode = PlayerTrackingSearch.Mode.FindMainCamera;
+                    break;
+                case PlayerSearchMode.AutoDetect:
+                default:
+                    // Auto-detect: try AutoHandPlayer first, then Main Camera
+                    searchMode = PlayerTrackingSearch.Mode.FindAutoHandPlayer;
+                    break;
+            }
+            
+            // Add search component - will be used by PlayerTrackingInitSystem at runtime
+            AddComponent(entity, new PlayerTrackingSearch
+            {
+                mode = searchMode,
+                searchString = searchString,
+                initialized = false
+            });
+            
+            // Add empty PlayerTransformReference - will be populated at runtime
+            AddComponentObject(entity, new PlayerTransformReference
+            {
+                playerTransform = null
+            });
         }
     }
 
     private void OnDrawGizmosSelected()
     {
+        // Try to find player at edit time for visualization
+        Transform playerTransform = null;
+        
+        if (Application.isPlaying)
+        {
+            // In play mode, get from ECS
+            var world = Unity.Entities.World.DefaultGameObjectInjectionWorld;
+            if (world != null)
+            {
+                var em = world.EntityManager;
+                var query = em.CreateEntityQuery(typeof(PlayerTransformReference));
+                if (query.CalculateEntityCount() > 0)
+                {
+                    var entity = query.GetSingletonEntity();
+                    var playerRef = em.GetComponentObject<PlayerTransformReference>(entity);
+                    playerTransform = playerRef?.playerTransform;
+                }
+                query.Dispose();
+            }
+        }
+        else
+        {
+            // In edit mode, try to find based on search mode
+            playerTransform = FindPlayerForVisualization();
+        }
+        
+        // Draw player position if found
+        if (playerTransform != null)
+        {
+            Gizmos.color = Color.magenta;
+            Gizmos.DrawWireSphere(playerTransform.position, 5f);
+            Gizmos.DrawLine(playerTransform.position, playerTransform.position + Vector3.up * 10f);
+        }
+        
         // Visualize view distance
+        Vector3 center = playerTransform != null ? playerTransform.position : transform.position;
         Gizmos.color = Color.green;
-        Gizmos.DrawWireSphere(transform.position, viewDistance);
+        Gizmos.DrawWireSphere(center, viewDistance);
         
         // Visualize shift threshold
         Gizmos.color = Color.yellow;
-        Gizmos.DrawWireSphere(transform.position, shiftThreshold);
+        Gizmos.DrawWireSphere(center, shiftThreshold);
         
         // Draw a sample tile
         Gizmos.color = Color.cyan;
-        Vector3 tileCorner = transform.position;
+        Vector3 tileCorner = center;
         tileCorner.x = Mathf.Floor(tileCorner.x / tileSize) * tileSize;
         tileCorner.z = Mathf.Floor(tileCorner.z / tileSize) * tileSize;
         
         Vector3 size = new Vector3(tileSize, 0, tileSize);
         Gizmos.DrawWireCube(tileCorner + size * 0.5f, size);
+    }
+    
+    private Transform FindPlayerForVisualization()
+    {
+        switch (playerSearchMode)
+        {
+            case PlayerSearchMode.FindByName:
+                if (!string.IsNullOrEmpty(playerName))
+                {
+                    var go = GameObject.Find(playerName);
+                    return go?.transform;
+                }
+                break;
+            case PlayerSearchMode.FindByTag:
+                if (!string.IsNullOrEmpty(playerTag))
+                {
+                    var go = GameObject.FindGameObjectWithTag(playerTag);
+                    return go?.transform;
+                }
+                break;
+            case PlayerSearchMode.FindAutoHandPlayer:
+                var autoHandPlayer = FindFirstObjectByType<Autohand.AutoHandPlayer>();
+                return autoHandPlayer?.transform;
+            case PlayerSearchMode.FindMainCamera:
+                return Camera.main?.transform;
+            case PlayerSearchMode.AutoDetect:
+                // Try AutoHandPlayer first
+                var player = FindFirstObjectByType<Autohand.AutoHandPlayer>();
+                if (player != null) return player.transform;
+                // Fall back to main camera
+                return Camera.main?.transform;
+        }
+        return null;
     }
 
     private void OnValidate()
@@ -111,6 +239,16 @@ public class TerrainConfigAuthoring : MonoBehaviour
         noiseFrequency = Mathf.Max(0.0001f, noiseFrequency);
         noiseAmplitude = Mathf.Max(0f, noiseAmplitude);
         noiseLacunarity = Mathf.Max(1f, noiseLacunarity);
+        
+        // Set default search string if empty
+        if (playerSearchMode == PlayerSearchMode.FindByName && string.IsNullOrEmpty(playerName))
+        {
+            playerName = "XR Origin Hands (XR Rig)";
+        }
+        if (playerSearchMode == PlayerSearchMode.FindByTag && string.IsNullOrEmpty(playerTag))
+        {
+            playerTag = "Player";
+        }
     }
 }
 

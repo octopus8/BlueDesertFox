@@ -11,10 +11,9 @@ using Unity.Transforms;
 [UpdateAfter(typeof(LocalToWorldSystem))]
 public partial struct FloatingOriginSystem : ISystem
 {
-    [BurstCompile]
     public void OnCreate(ref SystemState state)
     {
-        state.RequireForUpdate<PlayerTag>();
+        state.RequireForUpdate<PlayerTransformReference>();
         state.RequireForUpdate<FloatingOriginConfig>();
         state.RequireForUpdate<WorldOriginOffset>();
     }
@@ -26,13 +25,22 @@ public partial struct FloatingOriginSystem : ISystem
         if (!config.enabled)
             return;
 
-        // Find the player entity
-        var playerEntity = SystemAPI.GetSingletonEntity<PlayerTag>();
-        if (!SystemAPI.HasComponent<LocalTransform>(playerEntity))
+        // Get the player transform reference (managed component, cannot use Burst)
+        var playerRef = SystemAPI.ManagedAPI.GetSingleton<PlayerTransformReference>();
+        
+        // Check if player transform is valid
+        if (playerRef == null || playerRef.playerTransform == null)
+        {
+            // Only log warning once per second to avoid spam
+            if (math.fmod((float)SystemAPI.Time.ElapsedTime, 1.0f) < SystemAPI.Time.DeltaTime)
+            {
+                UnityEngine.Debug.LogWarning("FloatingOriginSystem: Player transform reference is null! Assign playerToTrack in TerrainConfigAuthoring.");
+            }
             return;
+        }
 
-        var playerTransform = SystemAPI.GetComponent<LocalTransform>(playerEntity);
-        var playerPosition = playerTransform.Position;
+        // Get player position from GameObject Transform
+        float3 playerPosition = playerRef.playerTransform.position;
         
         // Calculate distance from origin
         float distanceFromOrigin = math.length(playerPosition);
@@ -60,6 +68,8 @@ public partial struct FloatingOriginSystem : ISystem
             
             // Fire event for GameObject synchronization (after ECS shift completes)
             FloatingOriginEvents.InvokeOriginShifted(shiftOffset);
+            
+            UnityEngine.Debug.Log($"FloatingOriginSystem: Origin shifted by {shiftOffset}, accumulated offset: {worldOffset.ValueRO.accumulatedOffset}");
         }
     }
 }

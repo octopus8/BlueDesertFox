@@ -195,7 +195,8 @@ public class TerrainStatusInspector : EditorWindow
         {
             EditorGUILayout.HelpBox("No terrain tiles spawned yet.\n" +
                 "Check:\n" +
-                "- Is there a PlayerTag entity in the scene?\n" +
+                "- Is 'Player To Track' assigned in TerrainConfigAuthoring?\n" +
+                "- Is the player GameObject active and positioned correctly?\n" +
                 "- Is TerrainConfigAuthoring in the scene?", MessageType.Warning);
         }
         else if (tilesWithRendering == 0)

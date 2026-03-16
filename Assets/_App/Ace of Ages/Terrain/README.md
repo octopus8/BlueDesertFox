@@ -57,15 +57,34 @@ A high-performance Unity DOTS-based infinite terrain system that uses procedural
 4. Assign a texture to the Base Map (optional)
 5. Set the material reference in TerrainConfigAuthoring (optional - will auto-create if not set)
 
-### 3. Ensure Player Has PlayerTag
+### 3. Assign Player GameObject to Track
 
-The system identifies the player using the `PlayerTag` component. Make sure your player entity has this component (already exists in the project at `DOTSAuthoring/PlayerTagAuthoring.cs`).
+The system tracks a GameObject Transform for terrain centering:
 
-### 4. Add FloatingOriginEnabled to Player
+1. In `TerrainConfigAuthoring`, find the **Player Tracking** section
+2. Assign your player GameObject to `Player To Track` field
+   - For VR: Use XR Origin or AutoHandPlayer
+   - For desktop: Use Main Camera or player controller
+3. Auto-detection will find AutoHandPlayer or Main Camera if left empty
 
-Add the `FloatingOriginEnabled` tag to your player entity so it gets shifted along with the terrain during origin resets.
+**See [GAMEOBJECT_TRACKING_GUIDE.md](./GAMEOBJECT_TRACKING_GUIDE.md) for detailed setup instructions.**
+
+### 4. Configure Floating Origin GameObject Shifter
+
+Add `FloatingOriginGameObjectShifter` to your scene to ensure the player shifts with terrain:
+
+1. Add the component to any GameObject in the scene
+2. Assign your player's **root Transform** to `Transforms To Shift`
+3. Enable `Update Device Tracking Immediate` if using VR
 
 ## How It Works
+
+### Player Tracking
+
+The system uses a **managed component** (`PlayerTransformReference`) to track a GameObject Transform:
+- `TileSpawningSystem` spawns tiles around the player's position
+- `FloatingOriginSystem` monitors distance from origin
+- No need for ECS entities in subscenes - works with any GameObject!
 
 ### Floating Origin System
 

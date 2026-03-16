@@ -281,10 +281,8 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 263055123}
-  - component: {fileID: 263055125}
-  - component: {fileID: 263055124}
   m_Layer: 0
-  m_Name: Player
+  m_Name: HandObj
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -306,37 +304,6 @@ Transform:
   - {fileID: 512056377}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &263055124
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 263055122}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 2ba4b8800beb4aa89a202da745dccf3e, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::PlayerTagAuthoring
---- !u!114 &263055125
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 263055122}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 46022e0d621f433ca0845db4bd6d1982, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::TransformFollowerAuthoring
-  targetMode: 0
-  targetName: Right Controller Stabilized Attach
-  targetTag: 
-  targetGameObject: {fileID: 0}
-  offset: {x: 0, y: 0, z: 0}
-  followRotation: 1
-  smoothTime: 0
 --- !u!1001 &512056376
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -662,6 +629,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 24d6c27b68ff405d9338bf5e0989d54e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::TerrainConfigAuthoring
+  playerSearchMode: 1
+  playerName: XR Origin Hands (XR Rig)
+  playerTag: Player
   tileSize: 128
   viewDistance: 814
   verticesPerSide: 8
