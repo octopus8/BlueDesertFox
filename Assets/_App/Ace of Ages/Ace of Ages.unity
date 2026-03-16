@@ -181,7 +181,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::FloatingOriginGameObjectShifter
   transformsToShift: []
   updateDeviceTrackingImmediate: 1
-  debugLog: 1
+  debugLog: 0
 --- !u!1001 &250512250
 PrefabInstance:
   m_ObjectHideFlags: 0
