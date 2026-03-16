@@ -11,11 +11,16 @@ using Unity.Transforms;
 [UpdateAfter(typeof(LocalToWorldSystem))]
 public partial struct FloatingOriginSystem : ISystem
 {
+    private float3 _lastPlayerPosition;
+    private bool _initialized;
+
     public void OnCreate(ref SystemState state)
     {
         state.RequireForUpdate<PlayerTransformReference>();
         state.RequireForUpdate<FloatingOriginConfig>();
         state.RequireForUpdate<WorldOriginOffset>();
+        
+        _initialized = false;
     }
 
     public void OnUpdate(ref SystemState state)
@@ -39,17 +44,25 @@ public partial struct FloatingOriginSystem : ISystem
             return;
         }
 
-        // Get player position from GameObject Transform
+        // CRITICAL: Sample player position BEFORE any modifications occur this frame
         float3 playerPosition = playerRef.playerTransform.position;
         
-        // Calculate distance from origin
-        float distanceFromOrigin = math.length(playerPosition);
-        
-        // Check if we need to shift the world
-        if (distanceFromOrigin > config.shiftThreshold)
+        // Initialize last position on first run to player's starting position
+        if (!_initialized)
         {
-            // Calculate the offset to apply (move player back to origin)
-            float3 shiftOffset = playerPosition;
+            _lastPlayerPosition = playerPosition;
+            _initialized = true;
+        }
+        
+        // Calculate movement delta from starting position
+        float3 deltaFromStart = playerPosition - _lastPlayerPosition;
+        float distanceFromStart = math.length(deltaFromStart);
+        
+        // Check if we need to shift the world (based on distance moved from starting position)
+        if (distanceFromStart > config.shiftThreshold)
+        {
+            // Calculate the offset to apply (delta movement since last shift)
+            float3 shiftOffset = deltaFromStart;
             
             // Update the accumulated world offset (for terrain generation consistency)
             RefRW<WorldOriginOffset> worldOffset = SystemAPI.GetSingletonRW<WorldOriginOffset>();
@@ -66,8 +79,16 @@ public partial struct FloatingOriginSystem : ISystem
             };
             shiftJob.Run();
             
-            // Fire event for GameObject synchronization (after ECS shift completes)
-            FloatingOriginEvents.InvokeOriginShifted(shiftOffset);
+            // CRITICAL: Shift the player GameObject directly BEFORE firing event
+            // This prevents ObjectFollower interference and double-shifting
+            playerRef.playerTransform.position -= (UnityEngine.Vector3)shiftOffset;
+            
+            // Fire event for non-player GameObject synchronization (terrain props, particles, etc.)
+            // Note: Player GameObject is already shifted above, so subscribers should exclude it
+            FloatingOriginEvents.InvokeNonPlayerOriginShifted(shiftOffset);
+            
+            // Update last position after shift (should be near origin now)
+            _lastPlayerPosition = playerRef.playerTransform.position;
             
             UnityEngine.Debug.Log($"FloatingOriginSystem: Origin shifted by {shiftOffset}, accumulated offset: {worldOffset.ValueRO.accumulatedOffset}");
         }

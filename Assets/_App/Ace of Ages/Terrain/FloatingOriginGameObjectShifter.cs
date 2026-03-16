@@ -1,15 +1,17 @@
 using LiquidForce;
+using Unity.Entities;
 using Unity.Mathematics;
 using UnityEngine;
 
 /// <summary>
-/// Shifts GameObjects (like XR Origin) synchronously when the floating origin system shifts ECS entities.
-/// Prevents visual artifacts by ensuring terrain and player rig shift in the same frame.
+/// Shifts non-player GameObjects (terrain decorations, particle systems, etc.) synchronously 
+/// when the floating origin system shifts ECS entities.
+/// Note: The player GameObject is shifted directly by FloatingOriginSystem to prevent double-shifting.
 /// </summary>
 public class FloatingOriginGameObjectShifter : MonoBehaviour
 {
     [Header("GameObject References")]
-    [Tooltip("Transforms to shift when origin shifts. If empty, will use DeviceTracking.Instance.TrackingOrigin")]
+    [Tooltip("Transforms to shift when origin shifts (excludes player transform automatically). Leave empty to skip.")]
     [SerializeField] private Transform[] transformsToShift;
 
     [Header("Options")]
@@ -19,72 +21,91 @@ public class FloatingOriginGameObjectShifter : MonoBehaviour
     [Tooltip("Enable debug logging when origin shifts occur")]
     [SerializeField] private bool debugLog = false;
 
+    private Transform _playerTransform;
+
     private void OnEnable()
     {
         // Subscribe to the floating origin shift event
-        FloatingOriginEvents.OnOriginShifted += OnOriginShifted;
+        FloatingOriginEvents.OnNonPlayerOriginShifted += OnOriginShifted;
 
-        // If no transforms specified, try to use DeviceTracking singleton
-        if (transformsToShift == null || transformsToShift.Length == 0)
+        // Get reference to player transform to exclude it from shifting
+        var world = World.DefaultGameObjectInjectionWorld;
+        if (world != null)
         {
-            if (DeviceTracking.Instance != null && DeviceTracking.Instance.TrackingOrigin != null)
+            var em = world.EntityManager;
+            var query = em.CreateEntityQuery(typeof(PlayerTransformReference));
+            if (query.CalculateEntityCount() > 0)
             {
-                transformsToShift = new Transform[] { DeviceTracking.Instance.TrackingOrigin };
-                if (debugLog)
+                var entity = query.GetSingletonEntity();
+                var playerRef = em.GetComponentObject<PlayerTransformReference>(entity);
+                _playerTransform = playerRef?.playerTransform;
+                
+                if (debugLog && _playerTransform != null)
                 {
-                    Debug.Log($"FloatingOriginGameObjectShifter: Auto-configured to shift DeviceTracking.Instance.TrackingOrigin ({DeviceTracking.Instance.TrackingOrigin.name})");
+                    Debug.Log($"FloatingOriginGameObjectShifter: Player transform detected ({_playerTransform.name}), will be excluded from shifting");
                 }
             }
-            else
-            {
-                Debug.LogWarning("FloatingOriginGameObjectShifter: No transforms specified and DeviceTracking.Instance.TrackingOrigin is not available!");
-            }
+            query.Dispose();
         }
     }
 
     private void OnDisable()
     {
         // Unsubscribe from the event
-        FloatingOriginEvents.OnOriginShifted -= OnOriginShifted;
+        FloatingOriginEvents.OnNonPlayerOriginShifted -= OnOriginShifted;
     }
 
     /// <summary>
     /// Callback invoked when the floating origin system shifts the world.
-    /// Applies the negative offset to configured GameObjects.
+    /// Applies the negative offset to configured non-player GameObjects.
     /// </summary>
-    /// <param name="offset">The offset that was applied to ECS entities</param>
+    /// <param name="offset">The offset that was applied to ECS entities and player</param>
     private void OnOriginShifted(float3 offset)
     {
         if (transformsToShift == null || transformsToShift.Length == 0)
         {
-            Debug.LogWarning("FloatingOriginGameObjectShifter: No transforms to shift!");
-            return;
-        }
-
-        // Convert float3 to Vector3
-        Vector3 shiftVector = new Vector3(offset.x, offset.y, offset.z);
-
-        if (debugLog)
-        {
-            Debug.Log($"FloatingOriginGameObjectShifter: Shifting {transformsToShift.Length} GameObject(s) by -{shiftVector}");
-        }
-
-        // Shift all configured transforms
-        foreach (var transform in transformsToShift)
-        {
-            if (transform != null)
+            if (debugLog)
             {
-                // Subtract the offset to move GameObjects back toward origin (same as ECS entities)
-                transform.position -= shiftVector;
-
-                if (debugLog)
-                {
-                    Debug.Log($"FloatingOriginGameObjectShifter: Shifted {transform.name} to {transform.position}");
-                }
+                Debug.Log("FloatingOriginGameObjectShifter: No transforms configured to shift");
             }
-            else
+        }
+        else
+        {
+            // Convert float3 to Vector3
+            Vector3 shiftVector = new Vector3(offset.x, offset.y, offset.z);
+
+            if (debugLog)
             {
-                Debug.LogWarning("FloatingOriginGameObjectShifter: Found null transform reference!");
+                Debug.Log($"FloatingOriginGameObjectShifter: Shifting {transformsToShift.Length} GameObject(s) by -{shiftVector}");
+            }
+
+            // Shift all configured transforms (excluding player)
+            foreach (var transform in transformsToShift)
+            {
+                if (transform != null)
+                {
+                    // Skip player transform (already shifted by FloatingOriginSystem)
+                    if (transform == _playerTransform)
+                    {
+                        if (debugLog)
+                        {
+                            Debug.Log($"FloatingOriginGameObjectShifter: Skipping player transform ({transform.name}) - already shifted by FloatingOriginSystem");
+                        }
+                        continue;
+                    }
+
+                    // Subtract the offset to move GameObjects back toward origin (same as ECS entities)
+                    transform.position -= shiftVector;
+
+                    if (debugLog)
+                    {
+                        Debug.Log($"FloatingOriginGameObjectShifter: Shifted {transform.name} to {transform.position}");
+                    }
+                }
+                else
+                {
+                    Debug.LogWarning("FloatingOriginGameObjectShifter: Found null transform reference!");
+                }
             }
         }
 

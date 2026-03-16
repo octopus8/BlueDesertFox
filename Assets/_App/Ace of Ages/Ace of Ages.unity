@@ -179,10 +179,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e0b3745516ee45878cd87c2ec7ea26c1, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::FloatingOriginGameObjectShifter
-  transformsToShift:
-  - {fileID: 880413748}
+  transformsToShift: []
   updateDeviceTrackingImmediate: 1
-  debugLog: 0
+  debugLog: 1
 --- !u!1001 &250512250
 PrefabInstance:
   m_ObjectHideFlags: 0
