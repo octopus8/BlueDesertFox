@@ -119,13 +119,79 @@ When the player moves more than `shiftThreshold` meters from (0,0,0):
 - Mesh colliders are automatically created from terrain geometry
 - Colliders use Unity.Physics for ECS-native collision detection
 - Player can walk on terrain and collide with it naturally
+- **LOD system**: Collider resolution reduces with distance (full/half/quarter resolution)
+- **Frame budgeting**: Maximum colliders created per frame prevents stalls during origin shifts
+- **LRU caching**: Collider BlobAssets cached and reused, oldest evicted when memory limit exceeded
+
+## Physics Optimization
+
+### LOD System
+
+The terrain physics system uses distance-based Level of Detail (LOD) to optimize performance:
+
+- **Full Resolution** (< 150m): All vertices included in collider mesh
+- **Half Resolution** (150m - 300m): Every 2nd vertex, significantly faster creation
+- **Quarter Resolution** (300m - 450m): Every 4th vertex, minimal memory and creation time
+- **No Collider** (> 450m): Too distant for physics interaction
+
+LOD distances are configurable in `TerrainConfigAuthoring` under "Physics Optimization".
+
+### Collider Caching
+
+Physics colliders are cached using BlobAssets similar to the spline system:
+- **Cache Key**: Generated from noise parameters + vertex resolution + LOD level
+- **Reuse**: Tiles with identical parameters share cached colliders (no redundant creation)
+- **LRU Eviction**: When cache exceeds `maxColliderCacheMemoryMB`, oldest entries are disposed
+- **Origin Shift Survival**: Cached colliders remain valid after origin shifts (only positions change)
+
+### Frame Budgeting
+
+To prevent frame stalls during origin shifts:
+- System processes only `maxCollidersCreatedPerFrame` tiles per update (default: 3)
+- Pending colliders queued and sorted by distance (closest tiles prioritized)
+- On origin shift, queue is cleared and tiles re-evaluated based on new distances
+
+### Physics Layers
+
+Low-detail terrain tiles (half/quarter resolution) can use a separate physics layer:
+1. Enable `usePhysicsLODLayers` in TerrainConfigAuthoring
+2. Set `lowDetailPhysicsLayer` to your custom layer index
+3. Run **Tools → Terrain → Setup Physics Layers** menu item to configure layers
+4. This creates "TerrainLowDetail" layer and configures collision matrix
+
+**Layer Setup**:
+- "TerrainLowDetail" layer collides with player/camera
+- Collisions with "Grabbable" objects disabled (reduces physics overhead)
+- Modify collision matrix via Edit → Project Settings → Physics if needed
+
+### Performance Profiling
+
+The system includes profiler markers for measuring performance:
+- `TerrainPhysics.DistanceTracking`: LOD level calculation time
+- `TerrainPhysics.PrepareJob`: Burst-compiled collider data preparation (async)
+- `TerrainPhysics.CacheLookup`: Cache hit/miss check time
+- `TerrainPhysics.ColliderCreation`: Main-thread MeshCollider.Create() time
+- `TerrainPhysics.LRUEviction`: Cache eviction time when memory exceeded
+- `TerrainPhysics.QueueClear`: Queue clearing on origin shifts
+
+**Target Performance**: < 5ms for TerrainPhysicsSystem during origin shifts
+
+**How to Profile**:
+1. Open Window → Analysis → Profiler
+2. Enable "Deep Profile" mode
+3. Trigger origin shift by moving player > 2000 units
+4. Look for "TerrainPhysics.*" markers in timeline
+5. Adjust `maxCollidersCreatedPerFrame` if frame budget exceeded
 
 ## Performance Characteristics
 
 - **Tile Spawning**: O(view distance squared) tiles active at once
 - **Mesh Generation**: Burst-compiled, runs per-tile as needed
+- **Physics Colliders**: Burst-compiled preparation + cached BlobAssets, frame budgeted
 - **Origin Shift**: O(n) where n = number of entities with FloatingOriginEnabled
-- **Memory**: Approximately (verticesPerSide^2 * 20 bytes) per tile for mesh data
+- **Memory**: 
+  - Mesh data: (verticesPerSide^2 * 20 bytes) per tile
+  - Physics cache: Configurable via `maxColliderCacheMemoryMB`
 
 ## Typical Configuration Values
 
@@ -152,6 +218,10 @@ When the player moves more than `shiftThreshold` meters from (0,0,0):
 - Reduce `verticesPerSide` (16-32 is usually sufficient)
 - Reduce `viewDistance` (fewer active tiles)
 - Reduce `noiseOctaves` (fewer noise layers)
+- **Physics stalls during origin shifts**:
+  - Increase `maxCollidersCreatedPerFrame` (default 3, try 5-10)
+  - Increase LOD distances to reduce collider resolution
+  - Reduce `maxColliderCacheMemoryMB` if memory is constrained
 
 ### Terrain "Jumps" After Origin Shift
 - This indicates the noise sampling isn't using the accumulated offset correctly
@@ -161,10 +231,13 @@ When the player moves more than `shiftThreshold` meters from (0,0,0):
 - Verify TerrainPhysicsSystem is running (check Console for errors)
 - Ensure player has physics components (Rigidbody, Collider)
 - Check physics layers/collision matrix
+- **Distant tiles have no collision**: Normal behavior (LOD system removes colliders > 450m)
+- **Too much/too little collision detail**: Adjust LOD distance thresholds in TerrainConfigAuthoring
 
 ## Future Enhancements
 
-- LOD system with multiple mesh resolutions based on distance
+- ~~LOD system with multiple mesh resolutions based on distance~~ ✅ **Implemented** (Physics LOD)
+- **Mesh generation parallelization**: Burst-compile chunk generation with .ScheduleParallel() (dependency chain ready via JobHandle)
 - Texture splatting based on height/slope
 - Vegetation placement system
 - Chunk saving/loading for persistent worlds

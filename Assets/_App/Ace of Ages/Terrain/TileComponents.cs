@@ -21,6 +21,28 @@ public struct TerrainTileConfig : IComponentData
     public int noiseOctaves;
     public float noiseLacunarity;
     public float noisePersistence;
+    
+    // Physics optimization parameters
+    /// <summary>Maximum number of physics colliders created per frame (prevents stalls).</summary>
+    public int maxCollidersCreatedPerFrame;
+    
+    /// <summary>Distance threshold for full-resolution colliders (all vertices).</summary>
+    public float lodFullResolutionDistance;
+    
+    /// <summary>Distance threshold for half-resolution colliders (every 2nd vertex).</summary>
+    public float lodHalfResolutionDistance;
+    
+    /// <summary>Distance threshold for quarter-resolution colliders (every 4th vertex).</summary>
+    public float lodQuarterResolutionDistance;
+    
+    /// <summary>Maximum memory in megabytes for collider cache (LRU eviction when exceeded).</summary>
+    public int maxColliderCacheMemoryMB;
+    
+    /// <summary>Whether to assign distant tiles to low-detail physics layer.</summary>
+    public bool usePhysicsLODLayers;
+    
+    /// <summary>Physics layer index for low-detail terrain (half/quarter resolution).</summary>
+    public int lowDetailPhysicsLayer;
 }
 
 /// <summary>

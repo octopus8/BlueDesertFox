@@ -65,6 +65,31 @@ public class TerrainConfigAuthoring : MonoBehaviour
     [Header("Material")]
     [Tooltip("Material to use for terrain rendering (should use URP Lit shader)")]
     public Material terrainMaterial;
+    
+    [Header("Physics Optimization")]
+    [Range(1, 10)]
+    [Tooltip("Maximum number of physics colliders created per frame to prevent stalls")]
+    public int maxCollidersCreatedPerFrame = 3;
+    
+    [Tooltip("Distance threshold for full-resolution colliders (uses all vertices)")]
+    public float lodFullResolutionDistance = 150f;
+    
+    [Tooltip("Distance threshold for half-resolution colliders (uses every 2nd vertex)")]
+    public float lodHalfResolutionDistance = 300f;
+    
+    [Tooltip("Distance threshold for quarter-resolution colliders (uses every 4th vertex)")]
+    public float lodQuarterResolutionDistance = 450f;
+    
+    [Range(10, 200)]
+    [Tooltip("Maximum memory in megabytes for collider cache - oldest entries evicted when exceeded")]
+    public int maxColliderCacheMemoryMB = 50;
+    
+    [Tooltip("Assign distant tiles (half/quarter resolution) to separate physics layer")]
+    public bool usePhysicsLODLayers = true;
+    
+    [Range(0, 31)]
+    [Tooltip("Physics layer index for low-detail terrain (half/quarter resolution tiles)")]
+    public int lowDetailPhysicsLayer = 0;
 
     public class Baker : Baker<TerrainConfigAuthoring>
     {
@@ -82,7 +107,15 @@ public class TerrainConfigAuthoring : MonoBehaviour
                 noiseAmplitude = authoring.noiseAmplitude,
                 noiseOctaves = authoring.noiseOctaves,
                 noiseLacunarity = authoring.noiseLacunarity,
-                noisePersistence = authoring.noisePersistence
+                noisePersistence = authoring.noisePersistence,
+                // Physics optimization
+                maxCollidersCreatedPerFrame = authoring.maxCollidersCreatedPerFrame,
+                lodFullResolutionDistance = authoring.lodFullResolutionDistance,
+                lodHalfResolutionDistance = authoring.lodHalfResolutionDistance,
+                lodQuarterResolutionDistance = authoring.lodQuarterResolutionDistance,
+                maxColliderCacheMemoryMB = authoring.maxColliderCacheMemoryMB,
+                usePhysicsLODLayers = authoring.usePhysicsLODLayers,
+                lowDetailPhysicsLayer = authoring.lowDetailPhysicsLayer
             });
             
             // Create floating origin config singleton

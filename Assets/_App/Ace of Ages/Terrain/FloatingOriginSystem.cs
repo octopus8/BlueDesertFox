@@ -98,6 +98,7 @@ public partial struct FloatingOriginSystem : ISystem
 /// <summary>
 /// Job that shifts all entities with FloatingOriginEnabled by subtracting the offset from their positions.
 /// Also immediately updates LocalToWorld matrices to prevent visual glitches during rendering.
+/// NOTE: PhysicsColliderValid tags are NOT removed - colliders remain geometrically valid after position shift.
 /// </summary>
 [BurstCompile]
 [WithAll(typeof(FloatingOriginEnabled))]
