@@ -1,204 +1,353 @@
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Entities;
+using Unity.Jobs;
 using Unity.Mathematics;
+
+#if UNITY_EDITOR
+using Unity.Profiling;
+#endif
 
 /// <summary>
 /// System that generates procedural terrain meshes using noise functions.
-/// Processes tiles that need mesh generation in jobs for performance.
+/// Uses parallel Burst-compiled jobs for performance and frame budgeting to prevent stalls.
 /// </summary>
 [UpdateInGroup(typeof(SimulationSystemGroup))]
 [UpdateAfter(typeof(TileSpawningSystem))]
 public partial struct TerrainMeshGenerationSystem : ISystem
 {
+    private NativeQueue<Entity> _pendingTiles;
+    
+#if UNITY_EDITOR
+    private static readonly ProfilerMarker s_ProfilerMarker = new ProfilerMarker("TerrainMesh.Generation");
+    private static readonly ProfilerMarker s_JobScheduleMarker = new ProfilerMarker("TerrainMesh.JobSchedule");
+    private static readonly ProfilerMarker s_BufferCopyMarker = new ProfilerMarker("TerrainMesh.BufferCopy");
+#endif
+
     public void OnCreate(ref SystemState state)
     {
         state.RequireForUpdate<TerrainTileConfig>();
         state.RequireForUpdate<WorldOriginOffset>();
+        
+        _pendingTiles = new NativeQueue<Entity>(Allocator.Persistent);
+    }
+    
+    [BurstCompile]
+    public void OnDestroy(ref SystemState state)
+    {
+        if (_pendingTiles.IsCreated)
+            _pendingTiles.Dispose();
     }
 
     public void OnUpdate(ref SystemState state)
     {
-        var config = SystemAPI.GetSingleton<TerrainTileConfig>();
-        var worldOffset = SystemAPI.GetSingleton<WorldOriginOffset>();
-        
-        // Use entity query to iterate through tiles
-        var entityQuery = SystemAPI.QueryBuilder()
-            .WithAll<TerrainTile, VertexElement, NormalElement, UVElement, IndexElement>()
-            .Build();
-        
-        var entities = entityQuery.ToEntityArray(Unity.Collections.Allocator.Temp);
-        
-        int processedCount = 0;
-        
-        foreach (var entity in entities)
+#if UNITY_EDITOR
+        using (s_ProfilerMarker.Auto())
+#endif
         {
-            ref var tile = ref SystemAPI.GetComponentRW<TerrainTile>(entity).ValueRW;
+            var config = SystemAPI.GetSingleton<TerrainTileConfig>();
+            var worldOffset = SystemAPI.GetSingleton<WorldOriginOffset>();
             
-            if (!tile.meshGenerated || tile.needsRegeneration)
+            // Add new tiles that need generation to the queue
+            var entityQuery = SystemAPI.QueryBuilder()
+                .WithAll<TerrainTile, VertexElement, NormalElement, UVElement, IndexElement>()
+                .Build();
+            
+            var entities = entityQuery.ToEntityArray(Allocator.Temp);
+            
+            foreach (var entity in entities)
             {
-                var vertexBuffer = SystemAPI.GetBuffer<VertexElement>(entity);
-                var normalBuffer = SystemAPI.GetBuffer<NormalElement>(entity);
-                var uvBuffer = SystemAPI.GetBuffer<UVElement>(entity);
-                var indexBuffer = SystemAPI.GetBuffer<IndexElement>(entity);
+                var tile = SystemAPI.GetComponent<TerrainTile>(entity);
                 
-                GenerateTileMesh(
-                    ref tile,
-                    vertexBuffer,
-                    normalBuffer,
-                    uvBuffer,
-                    indexBuffer,
-                    config,
-                    worldOffset
-                );
-                
-                processedCount++;
+                if (!tile.meshGenerated || tile.needsRegeneration)
+                {
+                    _pendingTiles.Enqueue(entity);
+                }
             }
-        }
-        
-        entities.Dispose();
-    }
-
-    /// <summary>
-    /// Generates mesh data for a single terrain tile using procedural noise.
-    /// </summary>
-    private void GenerateTileMesh(
-        ref TerrainTile tile,
-        DynamicBuffer<VertexElement> vertexBuffer,
-        DynamicBuffer<NormalElement> normalBuffer,
-        DynamicBuffer<UVElement> uvBuffer,
-        DynamicBuffer<IndexElement> indexBuffer,
-        TerrainTileConfig config,
-        WorldOriginOffset worldOffset)
-    {
-        int verticesPerSide = config.verticesPerSide;
-        int totalVertices = verticesPerSide * verticesPerSide;
-        int totalTriangles = (verticesPerSide - 1) * (verticesPerSide - 1) * 2;
-        int totalIndices = totalTriangles * 3;
-        
-        // Clear existing data
-        vertexBuffer.Clear();
-        normalBuffer.Clear();
-        uvBuffer.Clear();
-        indexBuffer.Clear();
-        
-        // Reserve capacity
-        vertexBuffer.EnsureCapacity(totalVertices);
-        normalBuffer.EnsureCapacity(totalVertices);
-        uvBuffer.EnsureCapacity(totalVertices);
-        indexBuffer.EnsureCapacity(totalIndices);
-        
-        // Calculate world position for noise sampling (using accumulated offset)
-        double3 tileWorldPos = new double3(
-            tile.gridCoordinate.x * config.tileSize,
-            0,
-            tile.gridCoordinate.y * config.tileSize
-        ) + worldOffset.accumulatedOffset;
-        
-        // Use NativeArray for intermediate storage (can be written in parallel if needed)
-        var vertices = new NativeArray<float3>(totalVertices, Allocator.Temp);
-        var normals = new NativeArray<float3>(totalVertices, Allocator.Temp);
-        var uvs = new NativeArray<float2>(totalVertices, Allocator.Temp);
-        
-        // Generate vertices
-        float stepSize = config.tileSize / (verticesPerSide - 1);
-        
-        for (int z = 0; z < verticesPerSide; z++)
-        {
-            for (int x = 0; x < verticesPerSide; x++)
+            
+            entities.Dispose();
+            
+            // Process up to maxMeshesPerFrame tiles this frame
+            int maxMeshesPerFrame = math.max(1, config.maxCollidersCreatedPerFrame); // Reuse same budget config
+            int processedCount = 0;
+            
+            // Collect tiles to process this frame
+            var tilesToProcess = new NativeList<Entity>(maxMeshesPerFrame, Allocator.Temp);
+            var processedEntities = new NativeHashSet<Entity>(maxMeshesPerFrame, Allocator.Temp);
+            
+            while (processedCount < maxMeshesPerFrame && _pendingTiles.Count > 0)
             {
-                int index = z * verticesPerSide + x;
+                var entity = _pendingTiles.Dequeue();
+                
+                // Skip duplicates
+                if (processedEntities.Contains(entity))
+                    continue;
+                
+                // Verify entity still exists and needs processing
+                if (state.EntityManager.Exists(entity))
+                {
+                    var tile = SystemAPI.GetComponent<TerrainTile>(entity);
+                    if (!tile.meshGenerated || tile.needsRegeneration)
+                    {
+                        tilesToProcess.Add(entity);
+                        processedEntities.Add(entity);
+                        processedCount++;
+                    }
+                }
+            }
+            
+            processedEntities.Dispose();
+            
+            if (tilesToProcess.Length == 0)
+            {
+                tilesToProcess.Dispose();
+                return;
+            }
+            
+            // Schedule parallel jobs for mesh generation
+#if UNITY_EDITOR
+            using (s_JobScheduleMarker.Auto())
+#endif
+            {
+                int verticesPerSide = config.verticesPerSide;
+                int totalVertices = verticesPerSide * verticesPerSide;
+                int totalTriangles = (verticesPerSide - 1) * (verticesPerSide - 1) * 2;
+                int totalIndices = totalTriangles * 3;
+                
+                // Allocate flat arrays for all tiles (avoid nested containers)
+                int totalTileVertices = totalVertices * tilesToProcess.Length;
+                int totalTileIndices = totalIndices * tilesToProcess.Length;
+                
+                var allVertices = new NativeArray<float3>(totalTileVertices, Allocator.TempJob);
+                var allNormals = new NativeArray<float3>(totalTileVertices, Allocator.TempJob);
+                var allUVs = new NativeArray<float2>(totalTileVertices, Allocator.TempJob);
+                var allIndices = new NativeArray<int>(totalTileIndices, Allocator.TempJob);
+                var tileDataArray = new NativeArray<TileMeshJobData>(tilesToProcess.Length, Allocator.TempJob);
+                
+                // Prepare job data
+                for (int i = 0; i < tilesToProcess.Length; i++)
+                {
+                    var entity = tilesToProcess[i];
+                    var tile = SystemAPI.GetComponent<TerrainTile>(entity);
+                    
+                    // Calculate world position for noise sampling
+                    double3 tileWorldPos = new double3(
+                        tile.gridCoordinate.x * config.tileSize,
+                        0,
+                        tile.gridCoordinate.y * config.tileSize
+                    ) + worldOffset.accumulatedOffset;
+                    
+                    tileDataArray[i] = new TileMeshJobData
+                    {
+                        tileWorldPos = tileWorldPos,
+                        verticesPerSide = verticesPerSide,
+                        tileSize = config.tileSize,
+                        noiseFrequency = config.noiseFrequency,
+                        noiseAmplitude = config.noiseAmplitude,
+                        noiseOctaves = config.noiseOctaves,
+                        noiseLacunarity = config.noiseLacunarity,
+                        noisePersistence = config.noisePersistence,
+                        vertexOffset = i * totalVertices,
+                        indexOffset = i * totalIndices
+                    };
+                }
+                
+                // Schedule parallel jobs for mesh generation
+                var meshGenJob = new GenerateTileMeshJob
+                {
+                    tileData = tileDataArray,
+                    allVertices = allVertices,
+                    allNormals = allNormals,
+                    allUVs = allUVs,
+                    allIndices = allIndices
+                };
+                
+                var jobHandle = meshGenJob.Schedule(tilesToProcess.Length, 1, state.Dependency);
+                jobHandle.Complete();
+                
+                // Copy results back to buffers (must be done on main thread)
+#if UNITY_EDITOR
+                using (s_BufferCopyMarker.Auto())
+#endif
+                {
+                    for (int i = 0; i < tilesToProcess.Length; i++)
+                    {
+                        var entity = tilesToProcess[i];
+                        ref var tile = ref SystemAPI.GetComponentRW<TerrainTile>(entity).ValueRW;
+                        
+                        var vertexBuffer = SystemAPI.GetBuffer<VertexElement>(entity);
+                        var normalBuffer = SystemAPI.GetBuffer<NormalElement>(entity);
+                        var uvBuffer = SystemAPI.GetBuffer<UVElement>(entity);
+                        var indexBuffer = SystemAPI.GetBuffer<IndexElement>(entity);
+                        
+                        // Clear existing data
+                        vertexBuffer.Clear();
+                        normalBuffer.Clear();
+                        uvBuffer.Clear();
+                        indexBuffer.Clear();
+                        
+                        // Reserve capacity for better performance
+                        vertexBuffer.EnsureCapacity(totalVertices);
+                        normalBuffer.EnsureCapacity(totalVertices);
+                        uvBuffer.EnsureCapacity(totalVertices);
+                        indexBuffer.EnsureCapacity(totalIndices);
+                        
+                        // Calculate offset for this tile's data
+                        int vertexOffset = i * totalVertices;
+                        int indexOffset = i * totalIndices;
+                        
+                        // Copy from flat NativeArrays to DynamicBuffers
+                        for (int v = 0; v < totalVertices; v++)
+                        {
+                            vertexBuffer.Add(new VertexElement { value = allVertices[vertexOffset + v] });
+                            normalBuffer.Add(new NormalElement { value = allNormals[vertexOffset + v] });
+                            uvBuffer.Add(new UVElement { value = allUVs[vertexOffset + v] });
+                        }
+                        
+                        for (int idx = 0; idx < totalIndices; idx++)
+                        {
+                            indexBuffer.Add(new IndexElement { value = allIndices[indexOffset + idx] });
+                        }
+                        
+                        tile.meshGenerated = true;
+                        tile.needsRegeneration = false;
+                    }
+                }
+                
+                // Cleanup
+                allVertices.Dispose();
+                allNormals.Dispose();
+                allUVs.Dispose();
+                allIndices.Dispose();
+                tileDataArray.Dispose();
+            }
+            
+            tilesToProcess.Dispose();
+        }
+    }
+}
+
+/// <summary>
+/// Data passed to each job for mesh generation.
+/// </summary>
+[BurstCompile]
+public struct TileMeshJobData
+{
+    public double3 tileWorldPos;
+    public int verticesPerSide;
+    public float tileSize;
+    public float noiseFrequency;
+    public float noiseAmplitude;
+    public int noiseOctaves;
+    public float noiseLacunarity;
+    public float noisePersistence;
+    public int vertexOffset;  // Offset in flat vertex arrays
+    public int indexOffset;   // Offset in flat index array
+}
+
+/// <summary>
+/// Burst-compiled parallel job that generates mesh data for terrain tiles.
+/// Each job processes one tile independently using flat arrays with offsets.
+/// </summary>
+[BurstCompile]
+public struct GenerateTileMeshJob : IJobParallelFor
+{
+    [ReadOnly] public NativeArray<TileMeshJobData> tileData;
+    [NativeDisableParallelForRestriction] public NativeArray<float3> allVertices;
+    [NativeDisableParallelForRestriction] public NativeArray<float3> allNormals;
+    [NativeDisableParallelForRestriction] public NativeArray<float2> allUVs;
+    [NativeDisableParallelForRestriction] public NativeArray<int> allIndices;
+    
+    public void Execute(int index)
+    {
+        var data = tileData[index];
+        int vertexOffset = data.vertexOffset;
+        int indexOffset = data.indexOffset;
+        
+        float stepSize = data.tileSize / (data.verticesPerSide - 1);
+        
+        // Generate vertices and UVs
+        for (int z = 0; z < data.verticesPerSide; z++)
+        {
+            for (int x = 0; x < data.verticesPerSide; x++)
+            {
+                int vertexIndex = z * data.verticesPerSide + x;
+                int flatIndex = vertexOffset + vertexIndex;
                 
                 // Local position within tile
                 float localX = x * stepSize;
                 float localZ = z * stepSize;
                 
                 // World position for noise sampling (using double precision)
-                double worldX = tileWorldPos.x + localX;
-                double worldZ = tileWorldPos.z + localZ;
+                double worldX = data.tileWorldPos.x + localX;
+                double worldZ = data.tileWorldPos.z + localZ;
                 
                 // Sample noise at this position
-                float height = SampleNoise(worldX, worldZ, config);
+                float height = SampleNoise(worldX, worldZ, data);
                 
                 // Store vertex position (relative to tile origin)
-                vertices[index] = new float3(localX, height, localZ);
+                allVertices[flatIndex] = new float3(localX, height, localZ);
                 
                 // Store UV coordinates
-                uvs[index] = new float2(
-                    (float)x / (verticesPerSide - 1),
-                    (float)z / (verticesPerSide - 1)
+                allUVs[flatIndex] = new float2(
+                    (float)x / (data.verticesPerSide - 1),
+                    (float)z / (data.verticesPerSide - 1)
                 );
             }
         }
         
         // Calculate normals
-        for (int z = 0; z < verticesPerSide; z++)
+        for (int z = 0; z < data.verticesPerSide; z++)
         {
-            for (int x = 0; x < verticesPerSide; x++)
+            for (int x = 0; x < data.verticesPerSide; x++)
             {
-                int index = z * verticesPerSide + x;
+                int vertexIndex = z * data.verticesPerSide + x;
+                int flatIndex = vertexOffset + vertexIndex;
                 
                 // Calculate world position for this vertex
                 float localX = x * stepSize;
                 float localZ = z * stepSize;
-                double worldX = tileWorldPos.x + localX;
-                double worldZ = tileWorldPos.z + localZ;
+                double worldX = data.tileWorldPos.x + localX;
+                double worldZ = data.tileWorldPos.z + localZ;
                 
                 // Calculate normal by sampling neighboring heights directly from noise
-                // This ensures correct normals even at tile edges
-                normals[index] = CalculateNormalFromHeightfield(
-                    worldX, worldZ, stepSize, config);
+                allNormals[flatIndex] = CalculateNormalFromHeightfield(worldX, worldZ, stepSize, data);
             }
-        }
-        
-        // Copy to buffers
-        for (int i = 0; i < totalVertices; i++)
-        {
-            vertexBuffer.Add(new VertexElement { value = vertices[i] });
-            normalBuffer.Add(new NormalElement { value = normals[i] });
-            uvBuffer.Add(new UVElement { value = uvs[i] });
         }
         
         // Generate indices (triangles)
-        for (int z = 0; z < verticesPerSide - 1; z++)
+        int currentIndexOffset = 0;
+        for (int z = 0; z < data.verticesPerSide - 1; z++)
         {
-            for (int x = 0; x < verticesPerSide - 1; x++)
+            for (int x = 0; x < data.verticesPerSide - 1; x++)
             {
-                int baseIndex = z * verticesPerSide + x;
+                int baseIndex = z * data.verticesPerSide + x;
                 
                 // First triangle
-                indexBuffer.Add(new IndexElement { value = baseIndex });
-                indexBuffer.Add(new IndexElement { value = baseIndex + verticesPerSide });
-                indexBuffer.Add(new IndexElement { value = baseIndex + 1 });
+                allIndices[indexOffset + currentIndexOffset++] = baseIndex;
+                allIndices[indexOffset + currentIndexOffset++] = baseIndex + data.verticesPerSide;
+                allIndices[indexOffset + currentIndexOffset++] = baseIndex + 1;
                 
                 // Second triangle
-                indexBuffer.Add(new IndexElement { value = baseIndex + 1 });
-                indexBuffer.Add(new IndexElement { value = baseIndex + verticesPerSide });
-                indexBuffer.Add(new IndexElement { value = baseIndex + verticesPerSide + 1 });
+                allIndices[indexOffset + currentIndexOffset++] = baseIndex + 1;
+                allIndices[indexOffset + currentIndexOffset++] = baseIndex + data.verticesPerSide;
+                allIndices[indexOffset + currentIndexOffset++] = baseIndex + data.verticesPerSide + 1;
             }
         }
-        
-        vertices.Dispose();
-        normals.Dispose();
-        uvs.Dispose();
-        
-        tile.meshGenerated = true;
-        tile.needsRegeneration = false;
     }
-
+    
     /// <summary>
     /// Samples multi-octave noise at the given world position.
-    /// Uses the accumulated world offset to maintain consistency across origin shifts.
     /// </summary>
     [BurstCompile]
-    private static float SampleNoise(double worldX, double worldZ, TerrainTileConfig config)
+    private static float SampleNoise(double worldX, double worldZ, TileMeshJobData data)
     {
         float total = 0f;
-        float frequency = config.noiseFrequency;
-        float amplitude = config.noiseAmplitude;
+        float frequency = data.noiseFrequency;
+        float amplitude = data.noiseAmplitude;
         float maxValue = 0f;
         
-        for (int i = 0; i < config.noiseOctaves; i++)
+        for (int i = 0; i < data.noiseOctaves; i++)
         {
             // Sample noise using float (converted from double)
             float2 samplePos = new float2((float)worldX, (float)worldZ) * frequency;
@@ -207,26 +356,24 @@ public partial struct TerrainMeshGenerationSystem : ISystem
             total += noiseValue * amplitude;
             maxValue += amplitude;
             
-            amplitude *= config.noisePersistence;
-            frequency *= config.noiseLacunarity;
+            amplitude *= data.noisePersistence;
+            frequency *= data.noiseLacunarity;
         }
         
-        return total / maxValue * config.noiseAmplitude;
+        return total / maxValue * data.noiseAmplitude;
     }
-
+    
     /// <summary>
     /// Calculates the normal vector by sampling heights from the noise function at neighboring positions.
-    /// This approach works correctly even at tile edges since it can sample beyond the current tile.
     /// </summary>
     [BurstCompile]
-    private static float3 CalculateNormalFromHeightfield(
-        double worldX, double worldZ, float stepSize, TerrainTileConfig config)
+    private static float3 CalculateNormalFromHeightfield(double worldX, double worldZ, float stepSize, TileMeshJobData data)
     {
         // Sample heights at 4 neighboring positions (cross pattern)
-        float heightLeft = SampleNoise(worldX - stepSize, worldZ, config);
-        float heightRight = SampleNoise(worldX + stepSize, worldZ, config);
-        float heightDown = SampleNoise(worldX, worldZ - stepSize, config);
-        float heightUp = SampleNoise(worldX, worldZ + stepSize, config);
+        float heightLeft = SampleNoise(worldX - stepSize, worldZ, data);
+        float heightRight = SampleNoise(worldX + stepSize, worldZ, data);
+        float heightDown = SampleNoise(worldX, worldZ - stepSize, data);
+        float heightUp = SampleNoise(worldX, worldZ + stepSize, data);
         
         // Calculate tangent vectors
         float3 tangentX = new float3(2.0f * stepSize, heightRight - heightLeft, 0);
@@ -238,6 +385,5 @@ public partial struct TerrainMeshGenerationSystem : ISystem
         return normal;
     }
 }
-
 
 
