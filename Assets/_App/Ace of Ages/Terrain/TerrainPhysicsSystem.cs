@@ -55,7 +55,7 @@ public partial class TerrainPhysicsSystem : SystemBase
         
         var config = SystemAPI.GetSingleton<TerrainTileConfig>();
         
-        // Phase 1: Query tiles with prepared collider data and sort by priority
+        // Phase 1: Query tiles with prepared collider data and sort by priority (ZERO GC ALLOCATIONS)
         var preparedQuery = GetEntityQuery(
             ComponentType.ReadOnly<PhysicsColliderPrepared>(),
             ComponentType.ReadOnly<TerrainTile>(),
@@ -63,7 +63,17 @@ public partial class TerrainPhysicsSystem : SystemBase
             ComponentType.ReadWrite<ColliderPreparedTriangleElement>()
         );
         
-        var preparedEntities = preparedQuery.ToEntityArray(Allocator.Temp);
+        // Use NativeList to collect entities (stack allocated, no GC)
+        var preparedEntities = new NativeList<Entity>(64, Allocator.Temp);
+        
+        foreach (var (prepared, tile, entity) in SystemAPI.Query<
+            RefRO<PhysicsColliderPrepared>, 
+            RefRO<TerrainTile>>()
+            .WithAll<ColliderPreparedVertexElement, ColliderPreparedTriangleElement>()
+            .WithEntityAccess())
+        {
+            preparedEntities.Add(entity);
+        }
         
         if (preparedEntities.Length == 0)
         {

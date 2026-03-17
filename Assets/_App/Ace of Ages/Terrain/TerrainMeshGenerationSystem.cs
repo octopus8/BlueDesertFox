@@ -48,25 +48,21 @@ public partial struct TerrainMeshGenerationSystem : ISystem
             var config = SystemAPI.GetSingleton<TerrainTileConfig>();
             var worldOffset = SystemAPI.GetSingleton<WorldOriginOffset>();
             
-            // Add new tiles that need generation to the queue
-            var entityQuery = SystemAPI.QueryBuilder()
-                .WithAll<TerrainTile, VertexElement, NormalElement, UVElement, IndexElement>()
-                .Build();
-            
-            var entities = entityQuery.ToEntityArray(Allocator.Temp);
-            
-            foreach (var entity in entities)
+            // Add new tiles that need generation to the queue (ZERO GC ALLOCATIONS)
+            foreach (var (tile, entity) in SystemAPI.Query<RefRO<TerrainTile>>()
+                .WithAll<VertexElement>()
+                .WithAll<NormalElement>()
+                .WithAll<UVElement>()
+                .WithAll<IndexElement>()
+                .WithEntityAccess())
             {
-                var tile = SystemAPI.GetComponent<TerrainTile>(entity);
-                
-                if (!tile.meshGenerated || tile.needsRegeneration)
+                if (!tile.ValueRO.meshGenerated || tile.ValueRO.needsRegeneration)
                 {
                     _pendingTiles.Enqueue(entity);
                 }
             }
             
-            entities.Dispose();
-            
+
             // Process up to maxMeshesPerFrame tiles this frame
             int maxMeshesPerFrame = math.max(1, config.maxCollidersCreatedPerFrame); // Reuse same budget config
             int processedCount = 0;

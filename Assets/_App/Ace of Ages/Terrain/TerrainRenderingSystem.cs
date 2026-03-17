@@ -1,3 +1,4 @@
+using Unity.Collections;
 using Unity.Entities;
 using Unity.Entities.Graphics;
 using Unity.Mathematics;
@@ -85,28 +86,42 @@ public partial class TerrainRenderingSystem : SystemBase
             return;
         }
 
-        // Process tiles that need mesh creation - use EntityManager directly
-        var entities = _newTilesQuery.ToEntityArray(Unity.Collections.Allocator.Temp);
+        // Collect entities that need mesh creation (ZERO GC ALLOCATIONS)
+        var entitiesToProcess = new NativeList<Entity>(16, Allocator.Temp);
         
-        foreach (var entity in entities)
+        foreach (var (tile, entity) in SystemAPI.Query<RefRO<TerrainTile>>()
+            .WithAll<VertexElement>()
+            .WithAll<NormalElement>()
+            .WithAll<UVElement>()
+            .WithAll<IndexElement>()
+            .WithNone<MeshReference>()
+            .WithEntityAccess())
         {
-            var tile = EntityManager.GetComponentData<TerrainTile>(entity);
-            
-            if (tile.meshGenerated)
+            if (tile.ValueRO.meshGenerated)
             {
                 var vertices = EntityManager.GetBuffer<VertexElement>(entity);
-                var normals = EntityManager.GetBuffer<NormalElement>(entity);
-                var uvs = EntityManager.GetBuffer<UVElement>(entity);
-                var indices = EntityManager.GetBuffer<IndexElement>(entity);
-                
-                if (vertices.Length > 0 && indices.Length > 0)
+                if (vertices.Length > 0)
                 {
-                    CreateAndAssignMesh(entity, vertices, normals, uvs, indices);
+                    entitiesToProcess.Add(entity);
                 }
             }
         }
         
-        entities.Dispose();
+        // Process collected entities (structural changes allowed after iteration)
+        foreach (var entity in entitiesToProcess)
+        {
+            var vertices = EntityManager.GetBuffer<VertexElement>(entity);
+            var normals = EntityManager.GetBuffer<NormalElement>(entity);
+            var uvs = EntityManager.GetBuffer<UVElement>(entity);
+            var indices = EntityManager.GetBuffer<IndexElement>(entity);
+            
+            if (vertices.Length > 0 && indices.Length > 0)
+            {
+                CreateAndAssignMesh(entity, vertices, normals, uvs, indices);
+            }
+        }
+        
+        entitiesToProcess.Dispose();
     }
 
     /// <summary>
@@ -208,7 +223,7 @@ public partial class TerrainRenderingSystem : SystemBase
 
     protected override void OnDestroy()
     {
-        // Clean up meshes
+        // Clean up meshes - OnDestroy called once per session, GC allocation acceptable here
         var query = GetEntityQuery(ComponentType.ReadOnly<MeshReference>());
         var entities = query.ToEntityArray(Unity.Collections.Allocator.Temp);
         
