@@ -3,6 +3,8 @@ using Unity.Collections;
 using Unity.Entities;
 using Unity.Jobs;
 using Unity.Mathematics;
+using System;
+using System.Collections.Generic;
 
 #if UNITY_EDITOR
 using Unity.Profiling;
@@ -11,6 +13,7 @@ using Unity.Profiling;
 /// <summary>
 /// System that generates procedural terrain meshes using noise functions.
 /// Uses parallel Burst-compiled jobs for performance and frame budgeting to prevent stalls.
+/// Implements camera-aware prioritization to ensure visible tiles are generated first.
 /// </summary>
 [UpdateInGroup(typeof(SimulationSystemGroup))]
 [UpdateAfter(typeof(TileSpawningSystem))]
@@ -22,6 +25,7 @@ public partial struct TerrainMeshGenerationSystem : ISystem
     private static readonly ProfilerMarker s_ProfilerMarker = new ProfilerMarker("TerrainMesh.Generation");
     private static readonly ProfilerMarker s_JobScheduleMarker = new ProfilerMarker("TerrainMesh.JobSchedule");
     private static readonly ProfilerMarker s_BufferCopyMarker = new ProfilerMarker("TerrainMesh.BufferCopy");
+    private static readonly ProfilerMarker s_PrioritySortMarker = new ProfilerMarker("TerrainMesh.PrioritySort");
 #endif
 
     public void OnCreate(ref SystemState state)
@@ -48,6 +52,21 @@ public partial struct TerrainMeshGenerationSystem : ISystem
             var config = SystemAPI.GetSingleton<TerrainTileConfig>();
             var worldOffset = SystemAPI.GetSingleton<WorldOriginOffset>();
             
+            // Get player/camera position and forward direction for priority calculation
+            float3 cameraPosition = float3.zero;
+            float3 cameraForward = new float3(0, 0, 1); // Default forward if no camera
+            
+            if (SystemAPI.ManagedAPI.TryGetSingleton<PlayerTransformReference>(out var playerRef) &&
+                playerRef != null && 
+                playerRef.playerTransform != null)
+            {
+                cameraPosition = playerRef.playerTransform.position;
+                cameraForward = math.normalize(new float3(
+                    playerRef.playerTransform.forward.x, 
+                    playerRef.playerTransform.forward.y, 
+                    playerRef.playerTransform.forward.z));
+            }
+            
             // Add new tiles that need generation to the queue (ZERO GC ALLOCATIONS)
             foreach (var (tile, entity) in SystemAPI.Query<RefRO<TerrainTile>>()
                 .WithAll<VertexElement>()
@@ -61,17 +80,15 @@ public partial struct TerrainMeshGenerationSystem : ISystem
                     _pendingTiles.Enqueue(entity);
                 }
             }
-            
 
             // Process up to maxMeshesPerFrame tiles this frame
             int maxMeshesPerFrame = math.max(1, config.maxCollidersCreatedPerFrame); // Reuse same budget config
-            int processedCount = 0;
             
-            // Collect tiles to process this frame
-            var tilesToProcess = new NativeList<Entity>(maxMeshesPerFrame, Allocator.Temp);
-            var processedEntities = new NativeHashSet<Entity>(maxMeshesPerFrame, Allocator.Temp);
+            // Collect all pending tiles with priority calculation
+            var tilesWithPriority = new NativeList<MeshTileWithPriority>(math.min(_pendingTiles.Count, maxMeshesPerFrame * 2), Allocator.Temp);
+            var processedEntities = new NativeHashSet<Entity>(_pendingTiles.Count, Allocator.Temp);
             
-            while (processedCount < maxMeshesPerFrame && _pendingTiles.Count > 0)
+            while (_pendingTiles.Count > 0)
             {
                 var entity = _pendingTiles.Dequeue();
                 
@@ -85,20 +102,55 @@ public partial struct TerrainMeshGenerationSystem : ISystem
                     var tile = SystemAPI.GetComponent<TerrainTile>(entity);
                     if (!tile.meshGenerated || tile.needsRegeneration)
                     {
-                        tilesToProcess.Add(entity);
+                        // Calculate camera-aware priority for this tile
+                        float priority = CalculateTilePriority(tile, config, cameraPosition, cameraForward);
+                        
+                        tilesWithPriority.Add(new MeshTileWithPriority
+                        {
+                            entity = entity,
+                            priority = priority
+                        });
                         processedEntities.Add(entity);
-                        processedCount++;
                     }
                 }
             }
             
             processedEntities.Dispose();
             
-            if (tilesToProcess.Length == 0)
+            if (tilesWithPriority.Length == 0)
             {
-                tilesToProcess.Dispose();
+                tilesWithPriority.Dispose();
                 return;
             }
+            
+            // Sort by priority if we have more tiles than budget
+            // (Only sort when queue is large to minimize overhead)
+#if UNITY_EDITOR
+            using (s_PrioritySortMarker.Auto())
+#endif
+            {
+                if (tilesWithPriority.Length > maxMeshesPerFrame)
+                {
+                    tilesWithPriority.Sort(new TilePriorityComparer());
+                }
+            }
+            
+            // Select top priority tiles up to budget
+            int tilesToProcessCount = math.min(tilesWithPriority.Length, maxMeshesPerFrame);
+            var tilesToProcess = new NativeList<Entity>(tilesToProcessCount, Allocator.Temp);
+            
+            for (int i = 0; i < tilesToProcessCount; i++)
+            {
+                tilesToProcess.Add(tilesWithPriority[i].entity);
+            }
+            
+            // Put remaining tiles back in queue for next frame
+            for (int i = tilesToProcessCount; i < tilesWithPriority.Length; i++)
+            {
+                _pendingTiles.Enqueue(tilesWithPriority[i].entity);
+            }
+            
+            tilesWithPriority.Dispose();
             
             // Schedule parallel jobs for mesh generation
 #if UNITY_EDITOR
@@ -221,6 +273,46 @@ public partial struct TerrainMeshGenerationSystem : ISystem
             tilesToProcess.Dispose();
         }
     }
+    
+    /// <summary>
+    /// Calculates camera-aware priority for a tile.
+    /// Lower values = higher priority (processed first).
+    /// </summary>
+    private float CalculateTilePriority(TerrainTile tile, TerrainTileConfig config, float3 cameraPosition, float3 cameraForward)
+    {
+        // Calculate tile center position
+        float2 tileCenter = new float2(
+            tile.gridCoordinate.x * config.tileSize + config.tileSize * 0.5f,
+            tile.gridCoordinate.y * config.tileSize + config.tileSize * 0.5f
+        );
+        
+        // Vector from camera to tile (2D, XZ plane)
+        float2 cameraPos2D = new float2(cameraPosition.x, cameraPosition.z);
+        float2 toTile = tileCenter - cameraPos2D;
+        float distance = math.length(toTile);
+        
+        // Normalize distance to 0-1 range based on view distance
+        float normalizedDistance = math.clamp(distance / config.viewDistance, 0f, 1f);
+        
+        // Calculate dot product with camera forward (2D projection)
+        float2 cameraForward2D = math.normalize(new float2(cameraForward.x, cameraForward.z));
+        float2 toTileNormalized = math.normalize(toTile);
+        float dotProduct = math.dot(cameraForward2D, toTileNormalized);
+        
+        // Convert dot product from [-1, 1] to [0, 1] where:
+        // 1.0 = directly in front
+        // 0.5 = perpendicular
+        // 0.0 = behind camera
+        float viewScore = (dotProduct + 1f) * 0.5f;
+        
+        // Combined priority: weight view direction more heavily than distance
+        // Formula: priority = (1 - viewScore) * 1000 + normalizedDistance * 500
+        // This means:
+        // - Tiles in front of camera (viewScore=1.0) get priority 0-500 (based on distance)
+        // - Tiles behind camera (viewScore=0.0) get priority 1000-1500 (based on distance)
+        // - Closer tiles within same viewing direction get higher priority
+        return (1f - viewScore) * 1000f + normalizedDistance * 500f;
+    }
 }
 
 /// <summary>
@@ -335,8 +427,7 @@ public struct GenerateTileMeshJob : IJobParallelFor
     /// <summary>
     /// Samples multi-octave noise at the given world position.
     /// </summary>
-    [BurstCompile]
-    private static float SampleNoise(double worldX, double worldZ, TileMeshJobData data)
+    private static float SampleNoise(double worldX, double worldZ, in TileMeshJobData data)
     {
         float total = 0f;
         float frequency = data.noiseFrequency;
@@ -362,8 +453,7 @@ public struct GenerateTileMeshJob : IJobParallelFor
     /// <summary>
     /// Calculates the normal vector by sampling heights from the noise function at neighboring positions.
     /// </summary>
-    [BurstCompile]
-    private static float3 CalculateNormalFromHeightfield(double worldX, double worldZ, float stepSize, TileMeshJobData data)
+    private static float3 CalculateNormalFromHeightfield(double worldX, double worldZ, float stepSize, in TileMeshJobData data)
     {
         // Sample heights at 4 neighboring positions (cross pattern)
         float heightLeft = SampleNoise(worldX - stepSize, worldZ, data);
@@ -382,4 +472,22 @@ public struct GenerateTileMeshJob : IJobParallelFor
     }
 }
 
+/// <summary>
+/// Helper struct for storing entity with its calculated priority for mesh generation.
+/// </summary>
+struct MeshTileWithPriority
+{
+    public Entity entity;
+    public float priority;
+}
 
+/// <summary>
+/// Comparer for sorting tiles by priority (ascending - lower = higher priority).
+/// </summary>
+struct TilePriorityComparer : IComparer<MeshTileWithPriority>
+{
+    public int Compare(MeshTileWithPriority a, MeshTileWithPriority b)
+    {
+        return a.priority.CompareTo(b.priority);
+    }
+}

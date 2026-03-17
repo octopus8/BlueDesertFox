@@ -11,6 +11,7 @@ using Unity.Profiling;
 /// <summary>
 /// System that prepares collider data asynchronously using Burst-compiled jobs.
 /// Applies LOD decimation to vertex/index data before main-thread MeshCollider.Create() call.
+/// Calculates camera-aware priority to ensure tiles visible to camera are processed first.
 /// </summary>
 [UpdateInGroup(typeof(SimulationSystemGroup))]
 [UpdateAfter(typeof(TerrainMeshGenerationSystem))]
@@ -33,7 +34,7 @@ public partial struct TerrainColliderPreparationSystem : ISystem
         state.RequireForUpdate<TerrainTileConfig>();
     }
 
-    [BurstCompile]
+    // NOTE: Removed [BurstCompile] because we need to access managed PlayerTransformReference
     public void OnUpdate(ref SystemState state)
     {
 #if UNITY_EDITOR
@@ -42,10 +43,29 @@ public partial struct TerrainColliderPreparationSystem : ISystem
         {
             var config = SystemAPI.GetSingleton<TerrainTileConfig>();
             
+            // Get player/camera position and forward direction for priority calculation
+            float3 cameraPosition = float3.zero;
+            float3 cameraForward = new float3(0, 0, 1); // Default forward if no camera
+            
+            if (SystemAPI.ManagedAPI.TryGetSingleton<PlayerTransformReference>(out var playerRef) &&
+                playerRef != null && 
+                playerRef.playerTransform != null)
+            {
+                cameraPosition = playerRef.playerTransform.position;
+                cameraForward = math.normalize(new float3(
+                    playerRef.playerTransform.forward.x, 
+                    playerRef.playerTransform.forward.y, 
+                    playerRef.playerTransform.forward.z));
+            }
+            
             // Schedule job to prepare collider data
             var job = new PrepareColliderDataJob
             {
-                verticesPerSide = config.verticesPerSide
+                verticesPerSide = config.verticesPerSide,
+                tileSize = config.tileSize,
+                cameraPosition = cameraPosition,
+                cameraForward = cameraForward,
+                viewDistance = config.viewDistance
             };
             
             // Chain with existing dependency and schedule
@@ -58,12 +78,17 @@ public partial struct TerrainColliderPreparationSystem : ISystem
 /// <summary>
 /// Burst-compiled job that prepares collider vertex and triangle data with LOD decimation.
 /// Runs in parallel for maximum performance.
+/// Calculates camera-aware priority: tiles in front of camera get higher priority than tiles behind.
 /// </summary>
 [BurstCompile]
 [WithAll(typeof(PhysicsColliderNeedsPreparation))]
 partial struct PrepareColliderDataJob : IJobEntity
 {
     public int verticesPerSide;
+    public float tileSize;
+    public float3 cameraPosition;
+    public float3 cameraForward;
+    public float viewDistance;
     
     public void Execute(
         Entity entity,
@@ -72,6 +97,7 @@ partial struct PrepareColliderDataJob : IJobEntity
         ref DynamicBuffer<ColliderPreparedVertexElement> preparedVertices,
         ref DynamicBuffer<ColliderPreparedTriangleElement> preparedTriangles,
         in PhysicsColliderNeedsPreparation needsPrep,
+        in TerrainTile tile,
         in TerrainTileDistanceToPlayer distanceData,
         ref PhysicsColliderPrepared prepared,
         EnabledRefRW<PhysicsColliderNeedsPreparation> needsPrepEnabled)
@@ -162,12 +188,47 @@ partial struct PrepareColliderDataJob : IJobEntity
         
         vertexIndexMap.Dispose();
         
-        // Mark as prepared with priority based on distance
+        // Calculate camera-aware priority
+        // Lower priority value = higher actual priority (processed first)
+        
+        // Calculate tile center position
+        float2 tileCenter = new float2(
+            tile.gridCoordinate.x * tileSize + tileSize * 0.5f,
+            tile.gridCoordinate.y * tileSize + tileSize * 0.5f
+        );
+        
+        // Vector from camera to tile (2D, XZ plane)
+        float2 cameraPos2D = new float2(cameraPosition.x, cameraPosition.z);
+        float2 toTile = tileCenter - cameraPos2D;
+        float distance = math.length(toTile);
+        
+        // Normalize distance to 0-1 range based on view distance
+        float normalizedDistance = math.clamp(distance / viewDistance, 0f, 1f);
+        
+        // Calculate dot product with camera forward (2D projection)
+        float2 cameraForward2D = math.normalize(new float2(cameraForward.x, cameraForward.z));
+        float2 toTileNormalized = math.normalize(toTile);
+        float dotProduct = math.dot(cameraForward2D, toTileNormalized);
+        
+        // Convert dot product from [-1, 1] to [0, 1] where:
+        // 1.0 = directly in front
+        // 0.5 = perpendicular
+        // 0.0 = behind camera
+        float viewScore = (dotProduct + 1f) * 0.5f;
+        
+        // Combined priority: weight view direction more heavily than distance
+        // Formula: priority = (1 - viewScore) * 1000 + normalizedDistance * 500
+        // This means:
+        // - Tiles in front of camera (viewScore=1.0) get priority 0-500 (based on distance)
+        // - Tiles behind camera (viewScore=0.0) get priority 1000-1500 (based on distance)
+        // - Closer tiles within same viewing direction get higher priority
+        float combinedPriority = (1f - viewScore) * 1000f + normalizedDistance * 500f;
+        
+        // Mark as prepared with camera-aware priority
         prepared.lodLevel = needsPrep.targetLOD;
-        prepared.priority = (int)distanceData.distance;
+        prepared.priority = (int)combinedPriority;
         
         // Remove needs preparation flag
         needsPrepEnabled.ValueRW = false;
     }
 }
-
