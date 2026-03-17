@@ -125,7 +125,7 @@ public partial class TerrainRenderingSystem : SystemBase
     }
 
     /// <summary>
-    /// Creates a Unity Mesh from buffer data and assigns it to the entity with rendering components.
+    /// Creates a Unity Mesh from buffer data using NativeArray API to avoid GC allocations.
     /// </summary>
     private void CreateAndAssignMesh(
         Entity entity,
@@ -138,36 +138,18 @@ public partial class TerrainRenderingSystem : SystemBase
         Mesh mesh = new Mesh();
         mesh.name = $"TerrainTile_{entity.Index}";
         
-        // Convert buffers to arrays
-        Vector3[] vertices = new Vector3[vertexBuffer.Length];
-        for (int i = 0; i < vertexBuffer.Length; i++)
-        {
-            vertices[i] = vertexBuffer[i].value;
-        }
+        // Use NativeArray API to avoid GC allocations (Unity 2020.1+)
+        // Reinterpret buffers as NativeArrays directly - ZERO GC
+        var verticesNative = vertexBuffer.Reinterpret<float3>().AsNativeArray();
+        var normalsNative = normalBuffer.Reinterpret<float3>().AsNativeArray();
+        var uvsNative = uvBuffer.Reinterpret<float2>().AsNativeArray();
+        var indicesNative = indexBuffer.Reinterpret<int>().AsNativeArray();
         
-        Vector3[] normals = new Vector3[normalBuffer.Length];
-        for (int i = 0; i < normalBuffer.Length; i++)
-        {
-            normals[i] = normalBuffer[i].value;
-        }
-        
-        Vector2[] uvs = new Vector2[uvBuffer.Length];
-        for (int i = 0; i < uvBuffer.Length; i++)
-        {
-            uvs[i] = uvBuffer[i].value;
-        }
-        
-        int[] indices = new int[indexBuffer.Length];
-        for (int i = 0; i < indexBuffer.Length; i++)
-        {
-            indices[i] = indexBuffer[i].value;
-        }
-        
-        // Assign to mesh
-        mesh.vertices = vertices;
-        mesh.normals = normals;
-        mesh.uv = uvs;
-        mesh.triangles = indices;
+        // Set mesh data from NativeArrays (ZERO GC ALLOCATIONS)
+        mesh.SetVertices(verticesNative);
+        mesh.SetNormals(normalsNative);
+        mesh.SetUVs(0, uvsNative);
+        mesh.SetIndices(indicesNative, MeshTopology.Triangles, 0);
         
         // Recalculate bounds
         mesh.RecalculateBounds();
@@ -179,7 +161,9 @@ public partial class TerrainRenderingSystem : SystemBase
         var entitiesGraphicsSystem = World.GetExistingSystemManaged<EntitiesGraphicsSystem>();
         if (entitiesGraphicsSystem == null)
         {
+            #if UNITY_EDITOR
             Debug.LogError("[TerrainRendering] EntitiesGraphicsSystem not found!");
+            #endif
             return;
         }
 
@@ -210,7 +194,9 @@ public partial class TerrainRenderingSystem : SystemBase
         }
         catch (System.Exception e)
         {
+            #if UNITY_EDITOR
             Debug.LogError($"[TerrainRendering] Failed to add render components: {e.Message}\n{e.StackTrace}");
+            #endif
             return;
         }
         
@@ -239,6 +225,10 @@ public partial class TerrainRenderingSystem : SystemBase
         entities.Dispose();
     }
 }
+
+
+
+
 
 
 

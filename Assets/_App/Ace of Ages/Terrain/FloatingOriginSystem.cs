@@ -90,7 +90,9 @@ public partial struct FloatingOriginSystem : ISystem
             // Update last position after shift (should be near origin now)
             _lastPlayerPosition = playerRef.playerTransform.position;
             
+            #if UNITY_EDITOR
             UnityEngine.Debug.Log($"FloatingOriginSystem: Origin shifted by {shiftOffset}, accumulated offset: {worldOffset.ValueRO.accumulatedOffset}");
+            #endif
         }
     }
 }
@@ -120,6 +122,4 @@ public partial struct ShiftWorldOriginJob : IJobEntity
         );
     }
 }
-
-
 
