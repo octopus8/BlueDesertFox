@@ -83,11 +83,20 @@ public partial class TerrainDistanceTrackingSystem : SystemBase
                 }
                 
                 // Update or add distance component
-                ecb.SetComponent(entity, new TerrainTileDistanceToPlayer
+                var distanceData = new TerrainTileDistanceToPlayer
                 {
                     distance = distance,
                     lodLevel = newLodLevel
-                });
+                };
+                
+                if (hasDistanceData)
+                {
+                    ecb.SetComponent(entity, distanceData);
+                }
+                else
+                {
+                    ecb.AddComponent(entity, distanceData);
+                }
                 
                 // If LOD level changed and tile has mesh, mark for preparation
                 if (oldLodLevel != newLodLevel && tile.ValueRO.meshGenerated)
@@ -95,13 +104,23 @@ public partial class TerrainDistanceTrackingSystem : SystemBase
                     // Only create colliders for tiles that need them
                     if (newLodLevel != TerrainPhysicsLODLevel.NoCollider)
                     {
-                        ecb.SetComponent(entity, new PhysicsColliderNeedsPreparation
+                        var needsPrep = new PhysicsColliderNeedsPreparation
                         {
                             targetLOD = newLodLevel
-                        });
+                        };
+                        
+                        // Add or set the needs preparation component
+                        if (SystemAPI.HasComponent<PhysicsColliderNeedsPreparation>(entity))
+                        {
+                            ecb.SetComponent(entity, needsPrep);
+                        }
+                        else
+                        {
+                            ecb.AddComponent(entity, needsPrep);
+                        }
                         ecb.SetComponentEnabled<PhysicsColliderNeedsPreparation>(entity, true);
                         
-                        // Remove valid tag since we're changing LOD
+                        // Remove valid tag since we're changing LOD (only if it exists)
                         if (SystemAPI.HasComponent<PhysicsColliderValid>(entity))
                         {
                             ecb.RemoveComponent<PhysicsColliderValid>(entity);
