@@ -643,6 +643,13 @@ MonoBehaviour:
   noiseLacunarity: 2
   noisePersistence: 0.4
   terrainMaterial: {fileID: 2100000, guid: dc12ba763b59e3a4586cb235c2a074fc, type: 2}
+  maxCollidersCreatedPerFrame: 3
+  lodFullResolutionDistance: 150
+  lodHalfResolutionDistance: 300
+  lodQuarterResolutionDistance: 450
+  maxColliderCacheMemoryMB: 50
+  usePhysicsLODLayers: 1
+  lowDetailPhysicsLayer: 0
 --- !u!4 &1528308291
 Transform:
   m_ObjectHideFlags: 0

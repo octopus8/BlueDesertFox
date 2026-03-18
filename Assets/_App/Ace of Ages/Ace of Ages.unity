@@ -1380,7 +1380,7 @@ MonoBehaviour:
   leftController: {fileID: 1746005576}
   rightController: {fileID: 1914986450}
   isTrackingLeftController: 0
-  speed: 100
+  speed: 150
 --- !u!4 &1746005576 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 4901103772121430677, guid: d6878e1999eb4b44a9f5a263af86c185, type: 3}
