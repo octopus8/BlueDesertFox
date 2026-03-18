@@ -31,7 +31,6 @@ public partial struct TerrainMeshGenerationSystem : ISystem
     public void OnCreate(ref SystemState state)
     {
         state.RequireForUpdate<TerrainTileConfig>();
-        state.RequireForUpdate<WorldOriginOffset>();
         
         _pendingTiles = new NativeQueue<Entity>(Allocator.Persistent);
     }
@@ -50,7 +49,6 @@ public partial struct TerrainMeshGenerationSystem : ISystem
 #endif
         {
             var config = SystemAPI.GetSingleton<TerrainTileConfig>();
-            var worldOffset = SystemAPI.GetSingleton<WorldOriginOffset>();
             
             // Get player/camera position and forward direction for priority calculation
             float3 cameraPosition = float3.zero;
@@ -183,7 +181,7 @@ public partial struct TerrainMeshGenerationSystem : ISystem
                         tile.gridCoordinate.x * config.tileSize,
                         0,
                         tile.gridCoordinate.y * config.tileSize
-                    ) + worldOffset.accumulatedOffset;
+                    );
                     
                     tileDataArray[i] = new TileMeshJobData
                     {

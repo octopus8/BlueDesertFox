@@ -89,8 +89,6 @@ public class TerrainTrackingDebugger : MonoBehaviour
         playerQuery.Dispose();
         
         // Check for config components
-        CheckConfigComponent<FloatingOriginConfig>(em, "FloatingOriginConfig");
-        CheckConfigComponent<WorldOriginOffset>(em, "WorldOriginOffset");
         CheckConfigComponent<TerrainTileConfig>(em, "TerrainTileConfig");
         
         // Check for terrain tiles
@@ -126,63 +124,6 @@ public class TerrainTrackingDebugger : MonoBehaviour
         query.Dispose();
     }
     
-    [ContextMenu("Test Origin Shift (Set Low Threshold)")]
-    public void TestOriginShift()
-    {
-        var world = World.DefaultGameObjectInjectionWorld;
-        if (world == null)
-        {
-            Debug.LogError("❌ No ECS world - is scene running?");
-            return;
-        }
-        
-        var em = world.EntityManager;
-        var query = em.CreateEntityQuery(typeof(FloatingOriginConfig));
-        
-        if (query.CalculateEntityCount() == 0)
-        {
-            Debug.LogError("❌ FloatingOriginConfig not found!");
-            query.Dispose();
-            return;
-        }
-        
-        var entity = query.GetSingletonEntity();
-        var config = em.GetComponentData<FloatingOriginConfig>(entity);
-        
-        Debug.Log($"Current shift threshold: {config.shiftThreshold}");
-        Debug.Log("Setting to 50 for testing...");
-        
-        config.shiftThreshold = 50f;
-        em.SetComponentData(entity, config);
-        
-        Debug.Log("✅ Threshold set to 50m. Move player 50 units to trigger shift.");
-        Debug.Log("   Watch Console for 'FloatingOriginSystem: Origin shifted' message.");
-        Debug.Log("   Don't forget to set it back to 2000 after testing!");
-        
-        query.Dispose();
-    }
-    
-    [ContextMenu("Reset Origin Threshold (2000)")]
-    public void ResetOriginThreshold()
-    {
-        var world = World.DefaultGameObjectInjectionWorld;
-        if (world == null) return;
-        
-        var em = world.EntityManager;
-        var query = em.CreateEntityQuery(typeof(FloatingOriginConfig));
-        
-        if (query.CalculateEntityCount() > 0)
-        {
-            var entity = query.GetSingletonEntity();
-            var config = em.GetComponentData<FloatingOriginConfig>(entity);
-            config.shiftThreshold = 2000f;
-            em.SetComponentData(entity, config);
-            Debug.Log("✅ Origin shift threshold reset to 2000m");
-        }
-        
-        query.Dispose();
-    }
-    
     [ContextMenu("Get Player Position")]
     public void GetPlayerPosition()
     {
@@ -208,17 +149,6 @@ public class TerrainTrackingDebugger : MonoBehaviour
                 
                 Debug.Log($"Player Position: {pos}");
                 Debug.Log($"Distance from Origin: {distanceFromOrigin:F2}m");
-                
-                // Check against threshold
-                var configQuery = em.CreateEntityQuery(typeof(FloatingOriginConfig));
-                if (configQuery.CalculateEntityCount() > 0)
-                {
-                    var configEntity = configQuery.GetSingletonEntity();
-                    var config = em.GetComponentData<FloatingOriginConfig>(configEntity);
-                    float percentOfThreshold = (distanceFromOrigin / config.shiftThreshold) * 100f;
-                    Debug.Log($"Shift Threshold: {config.shiftThreshold}m ({percentOfThreshold:F1}%)");
-                }
-                configQuery.Dispose();
             }
             else
             {

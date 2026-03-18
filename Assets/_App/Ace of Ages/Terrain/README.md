@@ -1,11 +1,10 @@
-# Infinite Terrain Tiling System with Floating Origin
+# Infinite Terrain Tiling System
 
-A high-performance Unity DOTS-based infinite terrain system that uses procedural generation with floating origin support to prevent floating-point precision errors.
+A high-performance Unity DOTS-based infinite terrain system that uses procedural generation to create terrain tiles around the player.
 
 ## Features
 
 - **Infinite Terrain**: Dynamically spawns/despawns tiles as the player moves
-- **Floating Origin**: Automatically shifts the world origin when the player moves far from (0,0,0), preventing precision errors
 - **Procedural Generation**: Uses multi-octave Perlin noise for terrain height generation
 - **ECS Architecture**: Fully implemented using Unity DOTS for maximum performance
 - **Burst Compilation**: All critical systems use Burst compiler for optimal CPU performance
@@ -16,24 +15,21 @@ A high-performance Unity DOTS-based infinite terrain system that uses procedural
 
 ### Components
 
-- **FloatingOriginComponents.cs**: Defines floating origin system components
-  - `WorldOriginOffset`: Singleton tracking accumulated world offset (double3 precision)
-  - `FloatingOriginConfig`: Configuration for origin shift threshold
-  - `FloatingOriginEnabled`: Tag for entities affected by world shifts
-
 - **TileComponents.cs**: Defines terrain tile components
   - `TerrainTileConfig`: Singleton configuration for terrain generation
   - `TerrainTile`: Component identifying a tile and its grid position
   - `VertexElement`, `NormalElement`, `UVElement`, `IndexElement`: Mesh data buffers
   - `MeshReference`: Managed component holding Unity Mesh reference
+- **PlayerTrackingComponents**: Components for tracking player GameObject
+  - `PlayerTransformReference`: Managed reference to player Transform
+  - `PlayerTrackingSearch`: Configuration for finding player at runtime
 
 ### Systems
 
-1. **FloatingOriginSystem**: Monitors player distance from origin and triggers world shifts
-2. **TileSpawningSystem**: Manages tile spawning/despawning based on player position
-3. **TerrainMeshGenerationSystem**: Generates procedural terrain meshes using noise functions
-4. **TerrainRenderingSystem**: Converts ECS mesh data to Unity meshes and sets up rendering
-5. **TerrainPhysicsSystem**: Creates mesh colliders for terrain collision
+1. **TileSpawningSystem**: Manages tile spawning/despawning based on player position
+2. **TerrainMeshGenerationSystem**: Generates procedural terrain meshes using noise functions
+3. **TerrainRenderingSystem**: Converts ECS mesh data to Unity meshes and sets up rendering
+4. **TerrainPhysicsSystem**: Creates mesh colliders for terrain collision
 
 ## Setup Instructions
 
@@ -45,8 +41,6 @@ A high-performance Unity DOTS-based infinite terrain system that uses procedural
    - **Tile Size**: 100m (size of each terrain chunk)
    - **View Distance**: 500m (how far tiles are visible)
    - **Vertices Per Side**: 32 (mesh resolution, higher = more detail)
-   - **Floating Origin Enabled**: True
-   - **Shift Threshold**: 2000m (when to trigger origin shift)
    - **Noise Settings**: Adjust to taste
 
 ### 2. Create Terrain Material
@@ -68,31 +62,14 @@ The system tracks a GameObject Transform for terrain centering:
 3. Auto-detection will find AutoHandPlayer or Main Camera if left empty
 
 **See [GAMEOBJECT_TRACKING_GUIDE.md](./GAMEOBJECT_TRACKING_GUIDE.md) for detailed setup instructions.**
-
-### 4. Configure Floating Origin GameObject Shifter
-
-Add `FloatingOriginGameObjectShifter` to your scene to ensure the player shifts with terrain:
-
-1. Add the component to any GameObject in the scene
-2. Assign your player's **root Transform** to `Transforms To Shift`
-3. Enable `Update Device Tracking Immediate` if using VR
-
 ## How It Works
 
 ### Player Tracking
 
 The system uses a **managed component** (`PlayerTransformReference`) to track a GameObject Transform:
 - `TileSpawningSystem` spawns tiles around the player's position
-- `FloatingOriginSystem` monitors distance from origin
 - No need for ECS entities in subscenes - works with any GameObject!
 
-### Floating Origin System
-
-When the player moves more than `shiftThreshold` meters from (0,0,0):
-1. The system calculates the offset needed to move the player back to near-origin
-2. Updates `WorldOriginOffset.accumulatedOffset` with this shift (using double3 precision)
-3. Subtracts the offset from all entities with `FloatingOriginEnabled` tag in a single frame
-4. Terrain generation uses the accumulated offset when sampling noise, ensuring consistency
 
 ### Tile Management
 
@@ -120,7 +97,7 @@ When the player moves more than `shiftThreshold` meters from (0,0,0):
 - Colliders use Unity.Physics for ECS-native collision detection
 - Player can walk on terrain and collide with it naturally
 - **LOD system**: Collider resolution reduces with distance (full/half/quarter resolution)
-- **Frame budgeting**: Maximum colliders created per frame prevents stalls during origin shifts
+- **Frame budgeting**: Maximum colliders created per frame prevents stalls
 - **LRU caching**: Collider BlobAssets cached and reused, oldest evicted when memory limit exceeded
 
 ## Physics Optimization
@@ -142,14 +119,12 @@ Physics colliders are cached using BlobAssets similar to the spline system:
 - **Cache Key**: Generated from noise parameters + vertex resolution + LOD level
 - **Reuse**: Tiles with identical parameters share cached colliders (no redundant creation)
 - **LRU Eviction**: When cache exceeds `maxColliderCacheMemoryMB`, oldest entries are disposed
-- **Origin Shift Survival**: Cached colliders remain valid after origin shifts (only positions change)
 
 ### Frame Budgeting
 
-To prevent frame stalls during origin shifts:
+To prevent frame stalls:
 - System processes only `maxCollidersCreatedPerFrame` tiles per update (default: 3)
 - Pending colliders queued and sorted by distance (closest tiles prioritized)
-- On origin shift, queue is cleared and tiles re-evaluated based on new distances
 
 ### Physics Layers
 
@@ -172,16 +147,12 @@ The system includes profiler markers for measuring performance:
 - `TerrainPhysics.CacheLookup`: Cache hit/miss check time
 - `TerrainPhysics.ColliderCreation`: Main-thread MeshCollider.Create() time
 - `TerrainPhysics.LRUEviction`: Cache eviction time when memory exceeded
-- `TerrainPhysics.QueueClear`: Queue clearing on origin shifts
-
-**Target Performance**: < 5ms for TerrainPhysicsSystem during origin shifts
 
 **How to Profile**:
 1. Open Window → Analysis → Profiler
 2. Enable "Deep Profile" mode
-3. Trigger origin shift by moving player > 2000 units
-4. Look for "TerrainPhysics.*" markers in timeline
-5. Adjust `maxCollidersCreatedPerFrame` if frame budget exceeded
+3. Look for "TerrainPhysics.*" markers in timeline
+4. Adjust `maxCollidersCreatedPerFrame` if frame budget exceeded
 
 ## Performance Characteristics
 
@@ -218,14 +189,10 @@ The system includes profiler markers for measuring performance:
 - Reduce `verticesPerSide` (16-32 is usually sufficient)
 - Reduce `viewDistance` (fewer active tiles)
 - Reduce `noiseOctaves` (fewer noise layers)
-- **Physics stalls during origin shifts**:
+- **Physics stalls**:
   - Increase `maxCollidersCreatedPerFrame` (default 3, try 5-10)
   - Increase LOD distances to reduce collider resolution
   - Reduce `maxColliderCacheMemoryMB` if memory is constrained
-
-### Terrain "Jumps" After Origin Shift
-- This indicates the noise sampling isn't using the accumulated offset correctly
-- Should not happen with current implementation - file a bug report if seen
 
 ### Collisions Not Working
 - Verify TerrainPhysicsSystem is running (check Console for errors)
@@ -245,20 +212,11 @@ The system includes profiler markers for measuring performance:
 - Water plane with shore detection
 
 ## Technical Notes
-
-### Why Double Precision for WorldOriginOffset?
-
-Float precision breaks down at large distances (~10,000+ units). By tracking the accumulated offset in double3, we can:
-- Sample noise at the "true" world position (e.g., at x=1,000,000)
-- Keep all entity positions near origin (e.g., at x=0)
-- Maintain terrain consistency across unlimited distances
-
 ### Why Not Use Unity Terrain System?
 
 Unity's terrain system doesn't integrate well with DOTS. This custom system:
 - Is fully ECS-native (Burst-compiled jobs)
 - Supports true infinite terrain
-- Has built-in floating origin support
 - Works seamlessly with DOTS physics
 
 ### Buffer Writing Limitation

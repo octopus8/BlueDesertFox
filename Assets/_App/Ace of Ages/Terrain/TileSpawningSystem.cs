@@ -18,7 +18,6 @@ public partial struct TileSpawningSystem : ISystem
     {
         state.RequireForUpdate<PlayerTransformReference>();
         state.RequireForUpdate<TerrainTileConfig>();
-        state.RequireForUpdate<WorldOriginOffset>();
         
         _activeTiles = new NativeParallelHashMap<int2, Entity>(256, Allocator.Persistent);
     }
@@ -137,8 +136,6 @@ public partial struct TileSpawningSystem : ISystem
                 meshGenerated = false,
                 needsRegeneration = false
             });
-            
-            ecb.AddComponent(tileEntity, new FloatingOriginEnabled());
             
             // Add buffers for mesh data
             ecb.AddBuffer<VertexElement>(tileEntity);

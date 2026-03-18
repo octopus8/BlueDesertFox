@@ -29,7 +29,6 @@ public partial class TerrainPhysicsSystem : SystemBase
     private static readonly ProfilerMarker s_CacheLookupMarker = new ProfilerMarker("TerrainPhysics.CacheLookup");
     private static readonly ProfilerMarker s_ColliderCreationMarker = new ProfilerMarker("TerrainPhysics.ColliderCreation");
     private static readonly ProfilerMarker s_LRUEvictionMarker = new ProfilerMarker("TerrainPhysics.LRUEviction");
-    private static readonly ProfilerMarker s_QueueClearMarker = new ProfilerMarker("TerrainPhysics.QueueClear");
 #endif
 
     private NativeHashMap<ColliderCacheKey, ColliderCacheEntry> _colliderCache;
@@ -44,9 +43,6 @@ public partial class TerrainPhysicsSystem : SystemBase
         _colliderCache = new NativeHashMap<ColliderCacheKey, ColliderCacheEntry>(256, Allocator.Persistent);
         _totalCacheMemoryBytes = 0;
         _currentFrameNumber = 0;
-        
-        // Subscribe to origin shift events for queue clearing
-        FloatingOriginEvents.OnNonPlayerOriginShifted += OnOriginShifted;
     }
 
     protected override void OnUpdate()
@@ -357,34 +353,9 @@ public partial class TerrainPhysicsSystem : SystemBase
         }
     }
 
-    /// <summary>
-    /// Called when origin shift occurs - clears pending collider creation queue and re-evaluates LOD levels.
-    /// </summary>
-    private void OnOriginShifted(float3 offset)
-    {
-#if UNITY_EDITOR
-        using (s_QueueClearMarker.Auto())
-#endif
-        {
-            // Count tiles with prepared colliders before clearing
-            var preparedQuery = GetEntityQuery(ComponentType.ReadOnly<PhysicsColliderPrepared>());
-            int clearedCount = preparedQuery.CalculateEntityCount();
-            
-            // Remove PhysicsColliderPrepared from all entities (clear queue)
-            EntityManager.RemoveComponent<PhysicsColliderPrepared>(preparedQuery);
-            
-            // Re-evaluate LOD levels for tiles with valid colliders
-            // TerrainDistanceTrackingSystem will handle adding PhysicsColliderNeedsPreparation if LOD changed
-            
-            Debug.Log($"[TerrainPhysics] Clearing physics creation queue due to origin shift: {clearedCount} tiles cleared, will re-prioritize based on new distances");
-        }
-    }
-
     protected override void OnDestroy()
     {
-        // Unsubscribe from events
-        FloatingOriginEvents.OnNonPlayerOriginShifted -= OnOriginShifted;
-        
+
         // Dispose all cached BlobAssets
         foreach (var kvp in _colliderCache)
         {

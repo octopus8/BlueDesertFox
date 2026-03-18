@@ -37,13 +37,6 @@ public class TerrainConfigAuthoring : MonoBehaviour
     [Tooltip("Number of vertices per side of each tile (higher = more detailed)")]
     public int verticesPerSide = 32;
     
-    [Header("Floating Origin")]
-    [Tooltip("Enable floating origin to prevent floating-point precision errors")]
-    public bool floatingOriginEnabled = true;
-    
-    [Tooltip("Distance from origin (0,0,0) that triggers a world shift")]
-    public float shiftThreshold = 2000f;
-    
     [Header("Procedural Noise Settings")]
     [Tooltip("Base frequency of the noise (higher = more variation)")]
     public float noiseFrequency = 0.01f;
@@ -116,19 +109,6 @@ public class TerrainConfigAuthoring : MonoBehaviour
                 maxColliderCacheMemoryMB = authoring.maxColliderCacheMemoryMB,
                 usePhysicsLODLayers = authoring.usePhysicsLODLayers,
                 lowDetailPhysicsLayer = authoring.lowDetailPhysicsLayer
-            });
-            
-            // Create floating origin config singleton
-            AddComponent(entity, new FloatingOriginConfig
-            {
-                enabled = authoring.floatingOriginEnabled,
-                shiftThreshold = authoring.shiftThreshold
-            });
-            
-            // Create world origin offset singleton (starts at zero)
-            AddComponent(entity, new WorldOriginOffset
-            {
-                accumulatedOffset = double3.zero
             });
             
             // Determine search mode and parameters
@@ -215,10 +195,6 @@ public class TerrainConfigAuthoring : MonoBehaviour
         Gizmos.color = Color.green;
         Gizmos.DrawWireSphere(center, viewDistance);
         
-        // Visualize shift threshold
-        Gizmos.color = Color.yellow;
-        Gizmos.DrawWireSphere(center, shiftThreshold);
-        
         // Draw a sample tile
         Gizmos.color = Color.cyan;
         Vector3 tileCorner = center;
@@ -268,7 +244,6 @@ public class TerrainConfigAuthoring : MonoBehaviour
         tileSize = Mathf.Max(1f, tileSize);
         viewDistance = Mathf.Max(tileSize, viewDistance);
         verticesPerSide = Mathf.Max(2, verticesPerSide);
-        shiftThreshold = Mathf.Max(viewDistance * 2f, shiftThreshold);
         noiseFrequency = Mathf.Max(0.0001f, noiseFrequency);
         noiseAmplitude = Mathf.Max(0f, noiseAmplitude);
         noiseLacunarity = Mathf.Max(1f, noiseLacunarity);
