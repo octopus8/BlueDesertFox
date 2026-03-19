@@ -70,9 +70,10 @@ public partial struct TileSpawningSystem : ISystem
                 int2 gridCoord = playerGridCoord + new int2(x, z);
                 
                 // Check if tile is within view distance (circular)
+                // Calculate actual scrolled tile center position
                 float2 tileCenter = new float2(
                     gridCoord.x * config.tileSize + config.tileSize * 0.5f,
-                    gridCoord.y * config.tileSize + config.tileSize * 0.5f
+                    gridCoord.y * config.tileSize + config.tileSize * 0.5f - scrollOffset.accumulatedScrollZ
                 );
                 float2 playerPos2D = new float2(playerPosition.x, playerPosition.z);
                 float distanceToTile = math.distance(tileCenter, playerPos2D);
@@ -92,9 +93,10 @@ public partial struct TileSpawningSystem : ISystem
         var tileKeys = _activeTiles.GetKeyArray(Allocator.Temp);
         foreach (var gridCoord in tileKeys)
         {
+            // Calculate actual scrolled tile center position
             float2 tileCenter = new float2(
                 gridCoord.x * config.tileSize + config.tileSize * 0.5f,
-                gridCoord.y * config.tileSize + config.tileSize * 0.5f
+                gridCoord.y * config.tileSize + config.tileSize * 0.5f - scrollOffset.accumulatedScrollZ
             );
             float2 playerPos2D = new float2(playerPosition.x, playerPosition.z);
             float distanceToTile = math.distance(tileCenter, playerPos2D);
@@ -187,6 +189,8 @@ public partial struct TileSpawningSystem : ISystem
         tilesToDespawn.Dispose();
     }
 }
+
+
 
 
 
