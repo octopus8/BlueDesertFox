@@ -18,6 +18,7 @@ public partial struct TileSpawningSystem : ISystem
     {
         state.RequireForUpdate<PlayerTransformReference>();
         state.RequireForUpdate<TerrainTileConfig>();
+        state.RequireForUpdate<ScrollOffset>();
         
         _activeTiles = new NativeParallelHashMap<int2, Entity>(256, Allocator.Persistent);
     }
@@ -44,6 +45,10 @@ public partial struct TileSpawningSystem : ISystem
 
         // Get player position from GameObject Transform
         float3 playerPosition = playerRef.playerTransform.position;
+        
+        // Apply scroll offset for auto-scrolling terrain
+        var scrollOffset = SystemAPI.GetSingleton<ScrollOffset>();
+        playerPosition.z += scrollOffset.accumulatedScrollZ;
         
         // Calculate player's grid coordinate
         int2 playerGridCoord = new int2(

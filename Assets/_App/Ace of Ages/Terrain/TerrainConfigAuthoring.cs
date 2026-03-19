@@ -37,6 +37,13 @@ public class TerrainConfigAuthoring : MonoBehaviour
     [Tooltip("Number of vertices per side of each tile (higher = more detailed)")]
     public int verticesPerSide = 32;
     
+    [Header("Auto-Scrolling")]
+    [Tooltip("Enable automatic terrain scrolling along Z axis (endless runner mode)")]
+    public bool scrollEnabled = false;
+    
+    [Tooltip("Speed of terrain scrolling in units per second (5.0 = 5 m/s forward)")]
+    public float scrollSpeed = 5.0f;
+    
     [Header("Procedural Noise Settings")]
     [Tooltip("Base frequency of the noise (higher = more variation)")]
     public float noiseFrequency = 0.01f;
@@ -109,6 +116,19 @@ public class TerrainConfigAuthoring : MonoBehaviour
                 maxColliderCacheMemoryMB = authoring.maxColliderCacheMemoryMB,
                 usePhysicsLODLayers = authoring.usePhysicsLODLayers,
                 lowDetailPhysicsLayer = authoring.lowDetailPhysicsLayer
+            });
+            
+            // Create scroll config singleton
+            AddComponent(entity, new ScrollConfig
+            {
+                enabled = authoring.scrollEnabled,
+                scrollSpeed = authoring.scrollSpeed
+            });
+            
+            // Create scroll offset singleton (starts at zero)
+            AddComponent(entity, new ScrollOffset
+            {
+                accumulatedScrollZ = 0f
             });
             
             // Determine search mode and parameters

@@ -142,3 +142,34 @@ public struct PlayerTrackingSearch : IComponentData
     /// </summary>
     public bool initialized;
 }
+
+/// <summary>
+/// Singleton component that tracks accumulated terrain scroll distance.
+/// Used for auto-scrolling terrain along the Z axis.
+/// </summary>
+public struct ScrollOffset : IComponentData
+{
+    /// <summary>
+    /// Total distance the terrain has scrolled along the Z axis.
+    /// This is added to the player's Z position when calculating which tiles to spawn.
+    /// </summary>
+    public float accumulatedScrollZ;
+}
+
+/// <summary>
+/// Singleton configuration for terrain auto-scrolling.
+/// </summary>
+public struct ScrollConfig : IComponentData
+{
+    /// <summary>
+    /// If true, terrain automatically scrolls along the Z axis.
+    /// </summary>
+    public bool enabled;
+    
+    /// <summary>
+    /// Speed of terrain scrolling in units per second (e.g., 5.0 = 5 m/s forward).
+    /// Positive values scroll forward (tiles spawn ahead, despawn behind).
+    /// </summary>
+    public float scrollSpeed;
+}
+

@@ -1,4 +1,4 @@
-# Terrain System Changes - Floating Origin Removal
+# Terrain System Changes - Floating Origin Removal + Auto-Scrolling
 
 ## Quick Reference
 
@@ -11,6 +11,12 @@
 - ❌ FloatingOriginEvents (event notifications for GameObject sync)
 - ❌ FloatingOriginGameObjectShifter (MonoBehaviour for GameObject sync)
 - ❌ FloatingOriginEnabledAuthoring (baking component)
+
+### What Was Added
+- ✅ **Auto-scrolling terrain system** - tiles scroll along Z axis automatically
+- ✅ **ScrollOffset** component - tracks accumulated scroll distance
+- ✅ **ScrollConfig** component - configuration for scroll speed and enabled state
+- ✅ **ScrollTerrainSystem** - updates scroll offset each frame
 
 ### What Still Works
 - ✅ Tile spawning around player position
@@ -27,6 +33,7 @@
 - **Distance limitation**: Player should stay within ~1000-2000m of origin for best precision
 - **Simplified code**: Fewer systems, components, and edge cases
 - **No GameObject sync**: No events to subscribe to for world shifts
+- **NEW: Auto-scrolling**: Terrain can now scroll automatically along Z axis
 
 ### Inspector Changes (TerrainConfigAuthoring)
 **Before:**
@@ -99,6 +106,40 @@ private void OnOriginShifted(float3 offset)
 3. **Physics collision**: Walk on terrain, should not fall through
 4. **Performance**: Check frame time remains smooth (<16ms for 60 FPS)
 5. **Console errors**: Should be clean (no missing component errors)
+6. **Auto-scrolling**: Enable scroll in Inspector, terrain should move forward automatically
+
+## Auto-Scrolling Terrain Usage
+
+### Setup in Inspector
+1. Select the GameObject with `TerrainConfigAuthoring` component
+2. Find the "Auto-Scrolling" section
+3. Check **Scroll Enabled**
+4. Set **Scroll Speed** (default: 5.0 units/second)
+5. Enter Play mode - terrain will scroll forward automatically
+
+### Runtime Control (C# Script)
+```csharp
+using Unity.Entities;
+
+// Enable/disable scrolling at runtime
+var world = World.DefaultGameObjectInjectionWorld;
+var em = world.EntityManager;
+var query = em.CreateEntityQuery(typeof(ScrollConfig));
+var entity = query.GetSingletonEntity();
+var config = em.GetComponentData<ScrollConfig>(entity);
+
+// Enable scrolling
+config.enabled = true;
+config.scrollSpeed = 10.0f; // 10 m/s forward
+
+em.SetComponentData(entity, config);
+query.Dispose();
+```
+
+### Use Cases
+- **Endless Runner**: Player stays in place, terrain scrolls
+- **Racing Game**: Combine with player movement for high-speed effect
+- **VR Experiences**: No player movement = no motion sickness
 
 ## Known Limitations
 

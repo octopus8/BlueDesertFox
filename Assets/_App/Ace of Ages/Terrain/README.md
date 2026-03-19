@@ -5,6 +5,7 @@ A high-performance Unity DOTS-based infinite terrain system that uses procedural
 ## Features
 
 - **Infinite Terrain**: Dynamically spawns/despawns tiles as the player moves
+- **Auto-Scrolling**: Optional automatic terrain scrolling for endless runner gameplay
 - **Procedural Generation**: Uses multi-octave Perlin noise for terrain height generation
 - **ECS Architecture**: Fully implemented using Unity DOTS for maximum performance
 - **Burst Compilation**: All critical systems use Burst compiler for optimal CPU performance
@@ -23,13 +24,17 @@ A high-performance Unity DOTS-based infinite terrain system that uses procedural
 - **PlayerTrackingComponents**: Components for tracking player GameObject
   - `PlayerTransformReference`: Managed reference to player Transform
   - `PlayerTrackingSearch`: Configuration for finding player at runtime
+- **ScrollComponents**: Components for auto-scrolling terrain
+  - `ScrollConfig`: Configuration for scroll speed and enabled state
+  - `ScrollOffset`: Tracks accumulated scroll distance
 
 ### Systems
 
-1. **TileSpawningSystem**: Manages tile spawning/despawning based on player position
-2. **TerrainMeshGenerationSystem**: Generates procedural terrain meshes using noise functions
-3. **TerrainRenderingSystem**: Converts ECS mesh data to Unity meshes and sets up rendering
-4. **TerrainPhysicsSystem**: Creates mesh colliders for terrain collision
+1. **ScrollTerrainSystem**: Updates scroll offset each frame for auto-scrolling terrain
+2. **TileSpawningSystem**: Manages tile spawning/despawning based on player position (with scroll offset)
+3. **TerrainMeshGenerationSystem**: Generates procedural terrain meshes using noise functions
+4. **TerrainRenderingSystem**: Converts ECS mesh data to Unity meshes and sets up rendering
+5. **TerrainPhysicsSystem**: Creates mesh colliders for terrain collision
 
 ## Setup Instructions
 
@@ -62,6 +67,7 @@ The system tracks a GameObject Transform for terrain centering:
 3. Auto-detection will find AutoHandPlayer or Main Camera if left empty
 
 **See [GAMEOBJECT_TRACKING_GUIDE.md](./GAMEOBJECT_TRACKING_GUIDE.md) for detailed setup instructions.**
+
 ## How It Works
 
 ### Player Tracking
@@ -70,6 +76,39 @@ The system uses a **managed component** (`PlayerTransformReference`) to track a 
 - `TileSpawningSystem` spawns tiles around the player's position
 - No need for ECS entities in subscenes - works with any GameObject!
 
+### Auto-Scrolling Terrain
+
+The system supports automatic terrain scrolling along the Z axis, useful for endless runner or racing games:
+
+**Configuration** (in `TerrainConfigAuthoring`):
+- **Scroll Enabled**: Enable/disable auto-scrolling
+- **Scroll Speed**: Speed in units per second (e.g., 5.0 = 5 m/s forward)
+
+**How It Works**:
+1. `ScrollTerrainSystem` accumulates scroll distance each frame based on scroll speed
+2. `TileSpawningSystem` adds scroll offset to player's Z position when calculating tiles
+3. Tiles spawn ahead of the player and despawn behind automatically
+4. Player GameObject remains stationary (perfect for VR - no motion sickness)
+5. Works identically to the player moving forward at the specified speed
+
+**Runtime Control**:
+```csharp
+// Get the ECS world
+var world = World.DefaultGameObjectInjectionWorld;
+var em = world.EntityManager;
+
+// Find the ScrollConfig singleton
+var query = em.CreateEntityQuery(typeof(ScrollConfig));
+var entity = query.GetSingletonEntity();
+
+// Modify scroll settings
+var config = em.GetComponentData<ScrollConfig>(entity);
+config.enabled = true;
+config.scrollSpeed = 10.0f; // 10 m/s
+em.SetComponentData(entity, config);
+
+query.Dispose();
+```
 
 ### Tile Management
 
