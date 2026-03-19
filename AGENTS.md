@@ -48,14 +48,33 @@ Located in `Assets/Scripts/Keyboard/`:
 
 ### Ace of Ages Game Systems
 Located in `Assets/_App/Ace of Ages/`:
-- **Terrain System** (`Terrain/`): DOTS-based infinite terrain with floating origin, procedural generation using Perlin noise, automatic mesh collider generation (see `Terrain/README.md`)
-- **Floating Origin System** (`Terrain/FloatingOriginSystem.cs`): Runs in `TransformSystemGroup` after `LocalToWorldSystem`, monitors player distance and shifts world origin when threshold exceeded, uses `WorldOriginOffset` singleton with double3 precision for terrain consistency
+- **Terrain System** (`Terrain/`): DOTS-based infinite terrain with procedural generation using multi-octave Perlin noise, parallel Burst-compiled mesh generation, LOD physics colliders with LRU caching, camera-aware prioritization, and optional directional auto-scrolling (see `Terrain/ARCHITECTURE.md`)
+- **Terrain Core Systems**: 
+  - `PlayerTrackingInitSystem`: Finds and assigns player Transform reference at runtime (runs in `InitializationSystemGroup`), searches via `PlayerTrackingSearch` component with modes: FindByName, FindByTag, FindAutoHandPlayer, FindMainCamera
+  - `ScrollTerrainSystem`: Updates `ScrollOffset` each frame in player's forward direction (XZ plane projection) when auto-scroll enabled
+  - `TileSpawningSystem`: Spawns/despawns tiles in ring around player using `NativeParallelHashMap<int2, Entity>` to track active tiles, applies scroll offset to tile positions
+  - `TileScrollPositionSystem`: Updates all existing tile positions each frame based on `ScrollOffset` (ensures smooth scrolling)
+  - `TerrainDistanceTrackingSystem`: Calculates distance to player and LOD level for each tile, runs before physics system
+  - `TerrainMeshGenerationSystem`: Parallel Burst jobs with `IJobParallelFor` for vertex/normal generation, camera-aware priority sorting, frame budgeting via `NativeQueue<Entity>` (processes up to `maxCollidersCreatedPerFrame` tiles/frame)
+  - `TerrainColliderPreparationSystem`: Burst-compiled job for LOD decimation (1x/2x/4x vertex stride), calculates camera-aware priority, schedules parallel jobs
+  - `TerrainPhysicsSystem`: Main-thread `MeshCollider.Create()` with LRU cache (`NativeHashMap<ColliderCacheKey, ColliderCacheEntry>`), frame budgeting, cache eviction when memory threshold exceeded
+  - `TerrainRenderingSystem`: Converts DynamicBuffers to Unity Mesh instances, sets up `RenderMesh` component, runs in `PresentationSystemGroup`, handles material loading from Resources ("TerrainMaterial")
 - **DOTS Systems**: ECS performance-critical systems including:
   - `TransformFollowerSystem` (`TransformFollower/`): Makes DOTS entities follow GameObject Transforms outside subscenes using managed `TransformReference` component, runs on main thread via `.Run()` (cannot use Burst/Jobs due to managed references)
   - `SplineFollowerSystem` (`Splines/`): Moves entities along Unity.Splines with formation support via Burst-compiled job, uses `SplineDataComponent` (with pre-sampled `BlobAssetReference<SplineDataBlob>`) and `FormationPosition`
   - `EnemySpawnerSystem` (`EnemySpawner/`): Spawns entities in bowling pin formations along splines via `EnemySpawner` component, uses `CalculateBowlingPinPosition()` for 10-pin layout with hexagonal lateral spacing
   - `ResetEventsSystem`: Resets event flags (e.g., `doSpawn`) each frame, runs before `EnemySpawnerSystem` via `[UpdateBefore]` attribute
   - `TransformFollowerInitSystem` (`TransformFollower/`): Initializes Transform references at runtime (runs in `InitializationSystemGroup`), searches for targets via `TransformFollowerTargetSearch` component
+- **Terrain Components**:
+  - `TerrainTileConfig`: Singleton with tile size, view distance, vertices per side, noise parameters (frequency/amplitude/octaves/lacunarity/persistence), physics LOD thresholds, cache memory limit
+  - `TerrainTile`: Grid coordinate, mesh generation flags (`meshGenerated`, `needsRegeneration`)
+  - `ScrollOffset`: Singleton with `accumulatedOffset` (float3) for directional auto-scrolling (locked to XZ plane)
+  - `ScrollConfig`: Singleton with `enabled` flag and `scrollSpeed` for terrain auto-scrolling
+  - `PlayerTransformReference`: Managed singleton holding player Transform reference for terrain tracking
+  - `PlayerTrackingSearch`: Runtime search configuration (FindByName/FindByTag/FindAutoHandPlayer/FindMainCamera modes)
+  - `TerrainTileDistanceToPlayer`: Distance to player and current `TerrainPhysicsLODLevel` (FullResolution/HalfResolution/QuarterResolution/NoCollider)
+  - `PhysicsColliderValid`: Tag indicating collider is up-to-date and cached
+  - DynamicBuffers: `VertexElement`, `NormalElement`, `UVElement`, `IndexElement` for mesh data; `ColliderPreparedVertexElement`, `ColliderPreparedTriangleElement` for physics data
 - **Authoring Components**: Co-located with systems in subdirectories - `TransformFollowerAuthoring`, `SplineFollowerAuthoring`, `EnemySpawnerAuthoring`, `PlayerTagAuthoring` (in `Player/`), `FormationPositionAuthoring`, `PrefabEntitiesReferencesAuthoring`
 - **Cross-Subscene References**: `TransformFollowerAuthoring` uses `TransformFollowerTargetSearch` component with `FindByName`, `FindByTag`, or `DirectReference` modes to locate targets at runtime, initialized by `TransformFollowerInitSystem` since `MonoBehaviour.Start()` doesn't run in baked SubScenes
 - **Managed Components**: `TransformReference` is a managed `IComponentData` class (not struct) bridging GameObject/Transform references to ECS
@@ -119,6 +138,35 @@ Three parallel systems:
 - DOTween integration: `.WithCancellation(token)` extension for cancellable animations
 - Pattern: Store `CancellationTokenSource[]` arrays, cancel/dispose on state changes (see `UI.cs` or `UIManager.cs` for reference)
 
+### Working with Terrain System
+Located in `Assets/_App/Ace of Ages/Terrain/`:
+
+**Configuration** (`TerrainConfigAuthoring`):
+- Set player search mode: AutoDetect/FindByName/FindByTag/FindAutoHandPlayer/FindMainCamera
+- Tile settings: `tileSize` (100m), `viewDistance` (500m), `verticesPerSide` (32)
+- Auto-scroll: Enable via `scrollEnabled`, set `scrollSpeed` (5.0 m/s), scrolls in player's facing direction (XZ plane)
+- Noise params: `noiseFrequency` (0.01), `noiseAmplitude` (20), `noiseOctaves` (4), `noiseLacunarity` (2.0), `noisePersistence` (0.5)
+- Physics LOD: `maxCollidersCreatedPerFrame` (3), distance thresholds for LOD levels, `maxColliderCacheMemoryMB` (50)
+
+**Debugging Tools**:
+- `TerrainTrackingDebugger`: Attach to any GameObject, use context menu "Check Tracking Status" to verify player reference, shows GUI overlay in play mode
+- Editor window: Window → Terrain → Status Inspector (checks material, URP config, entity counts)
+- Profiler markers: `TerrainMesh.Generation`, `TerrainPhysics.ColliderCreation`, `TerrainMesh.PrioritySort` (monitor to ensure <5ms per frame)
+
+**Performance Tuning**:
+- High-end VR (RTX 4080+): Set `maxCollidersCreatedPerFrame` to 5-8
+- Mid-range VR (RTX 3070): Keep at 3-4
+- Low-end VR (Quest 2): Set to 1-2
+- Increase `verticesPerSide` for more detail (32→64), reduces physics LOD decimation effectiveness
+- Material must exist in Resources as "TerrainMaterial" (URP/Lit shader recommended)
+
+**Zero-GC Pattern for ECS**:
+- Use `SystemAPI.Query<>().WithEntityAccess()` for direct iteration (no `ToEntityArray()`)
+- Collect entities in `NativeList<Entity>(Allocator.Temp)` when structural changes needed
+- Phase 1: Collect entities during query iteration (no AddComponent/RemoveComponent calls)
+- Phase 2: Process collected entities after iteration completes (structural changes allowed)
+- Always dispose temp collections: `nativeList.Dispose()`
+
 ## Project-Specific Conventions
 
 ### Component Initialization Order
@@ -173,3 +221,9 @@ Three parallel systems:
 - DOTS `TransformFollowerAuthoring` must be on entities inside SubScenes - runtime init won't work for non-baked entities
 - `TransformFollowerSystem` uses `.Run()` instead of `.Schedule()` because it accesses managed Transform references (Burst incompatible)
 - `SplineDataComponent` stores pre-sampled spline data as BlobAsset - configure `sampleCount` in `SplineComponentAuthoring` for accuracy vs memory tradeoff
+- **Terrain System**: Floating origin system removed - player should stay within ~1000-2000m of world origin for best float precision
+- **Zero-GC Pattern**: Never use `query.ToEntityArray()` - use direct iteration with `SystemAPI.Query<>().WithEntityAccess()` or collect in `NativeList<Entity>` to avoid managed allocations
+- **Structural Changes**: Avoid `EntityManager.AddComponent()` during query iteration - collect entities in `NativeList` first, then process after iteration completes
+- **Terrain Auto-Scroll**: `ScrollOffset` is directional (float3) based on player's forward direction projected to XZ plane - not just Z-axis
+- **Camera Prioritization**: Mesh/physics generation prioritizes tiles in camera's forward direction - both systems calculate priority using dot product with camera forward
+- **Material Loading**: Terrain requires "TerrainMaterial" in Resources folder or will generate fallback material at runtime (use Editor tool: Window → Terrain → Create Material)

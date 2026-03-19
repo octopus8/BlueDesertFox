@@ -1,301 +1,244 @@
-# Infinite Terrain System - API Reference
+# API Reference - Complete Component and System API
 
-**Last Updated:** March 14, 2026
+Complete API documentation with code examples for all terrain components and systems.
 
 ## Table of Contents
-1. [Components API](#components-api)
-2. [Systems API](#systems-api)
-3. [Authoring Components](#authoring-components)
-4. [Public Methods](#public-methods)
+
+- [Components](#components)
+  - [Configuration](#configuration-components)
+  - [Runtime State](#runtime-state-components)
+  - [Per-Tile](#per-tile-components)
+  - [Buffers](#buffer-components)
+  - [Physics](#physics-components)
+- [Systems](#systems)
+- [Enums](#enums)
+- [Utility Functions](#utility-functions)
+- [Code Examples](#code-examples)
 
 ---
 
-## Components API
+## Components
 
-### Configuration Components (Singletons)
+### Configuration Components
 
-#### `TerrainTileConfig`
-
-**Type:** `IComponentData` (struct, blittable)  
-**Usage:** Singleton - one instance per world  
-**Namespace:** Global
+#### TerrainTileConfig
 
 ```csharp
 public struct TerrainTileConfig : IComponentData
-{
-    public float tileSize;
-    public float viewDistance;
-    public int verticesPerSide;
-    public float noiseFrequency;
-    public float noiseAmplitude;
-    public int noiseOctaves;
-    public float noiseLacunarity;
-    public float noisePersistence;
-}
 ```
 
-**Fields:**
+**Purpose**: Global terrain configuration singleton.
 
-| Field | Type | Description | Typical Range |
-|-------|------|-------------|---------------|
-| `tileSize` | float | Size of each terrain tile in meters | 50-200 |
-| `viewDistance` | float | Distance from player that tiles remain active (meters) | 200-1000 |
-| `verticesPerSide` | int | Number of vertices per side of tile mesh (forms N×N grid) | 16-64 |
-| `noiseFrequency` | float | Base frequency for noise sampling (higher = more variation) | 0.005-0.05 |
-| `noiseAmplitude` | float | Maximum height of terrain features (meters) | 5-100 |
-| `noiseOctaves` | int | Number of noise layers to combine | 1-8 |
-| `noiseLacunarity` | float | Frequency multiplier for each octave | 1.5-3.0 |
-| `noisePersistence` | float | Amplitude multiplier for each octave | 0.25-0.75 |
+**Fields**:
+| Field | Type | Description |
+|-------|------|-------------|
+| `tileSize` | float | Size of each tile in meters (e.g., 100) |
+| `viewDistance` | float | Maximum render distance in meters (e.g., 500) |
+| `verticesPerSide` | int | Vertices per tile edge (e.g., 32 = 32×32 mesh) |
+| `noiseFrequency` | float | Base noise sampling frequency (e.g., 0.01) |
+| `noiseAmplitude` | float | Maximum height variation in meters (e.g., 20) |
+| `noiseOctaves` | int | Number of noise layers (e.g., 4) |
+| `noiseLacunarity` | float | Frequency multiplier per octave (e.g., 2.0) |
+| `noisePersistence` | float | Amplitude multiplier per octave (e.g., 0.5) |
+| `maxCollidersCreatedPerFrame` | int | Frame budget for collider creation (e.g., 3) |
+| `lodFullResolutionDistance` | float | Full-res collider threshold (e.g., 150) |
+| `lodHalfResolutionDistance` | float | Half-res collider threshold (e.g., 300) |
+| `lodQuarterResolutionDistance` | float | Quarter-res collider threshold (e.g., 450) |
+| `maxColliderCacheMemoryMB` | int | Cache memory limit in MB (e.g., 50) |
+| `usePhysicsLODLayers` | bool | Enable physics layer separation |
+| `lowDetailPhysicsLayer` | int | Physics layer for LOD tiles (e.g., 10) |
 
-**Access Pattern:**
+**Usage**:
 ```csharp
 var config = SystemAPI.GetSingleton<TerrainTileConfig>();
 float tileSize = config.tileSize;
 ```
 
-**Created By:** `TerrainConfigAuthoring.Baker` during baking
+---
+
+#### ScrollConfig
+
+```csharp
+public struct ScrollConfig : IComponentData
+```
+
+**Purpose**: Auto-scrolling configuration singleton.
+
+**Fields**:
+| Field | Type | Description |
+|-------|------|-------------|
+| `enabled` | bool | Enable auto-scrolling |
+| `scrollSpeed` | float | Scroll speed in m/s (positive = forward) |
+
+**Usage**:
+```csharp
+// Get config
+var config = SystemAPI.GetSingleton<ScrollConfig>();
+
+// Modify at runtime
+var query = em.CreateEntityQuery(typeof(ScrollConfig));
+var entity = query.GetSingletonEntity();
+em.SetComponentData(entity, new ScrollConfig 
+{ 
+    enabled = true, 
+    scrollSpeed = 10f 
+});
+query.Dispose();
+```
 
 ---
 
-#### `FloatingOriginConfig`
-
-**Type:** `IComponentData` (struct, blittable)  
-**Usage:** Singleton  
-**Namespace:** Global
+#### PlayerTrackingSearch
 
 ```csharp
-public struct FloatingOriginConfig : IComponentData
+public struct PlayerTrackingSearch : IComponentData
+```
+
+**Purpose**: Search parameters for finding player GameObject.
+
+**Nested Types**:
+```csharp
+public enum Mode : byte
 {
-    public float shiftThreshold;
-    public bool enabled;
+    FindByName = 0,
+    FindByTag = 1,
+    FindAutoHandPlayer = 2,
+    FindMainCamera = 3
 }
 ```
 
-**Fields:**
+**Fields**:
+| Field | Type | Description |
+|-------|------|-------------|
+| `mode` | Mode | How to search for player |
+| `searchString` | FixedString128Bytes | Name or tag to search |
+| `initialized` | bool | True after player found |
 
-| Field | Type | Description | Typical Value |
-|-------|------|-------------|---------------|
-| `shiftThreshold` | float | Distance from origin that triggers world shift (meters) | 1000-5000 |
-| `enabled` | bool | Master switch for floating origin system | true |
-
-**Usage:**
+**Usage**:
 ```csharp
-var config = SystemAPI.GetSingleton<FloatingOriginConfig>();
-if (config.enabled && distanceFromOrigin > config.shiftThreshold)
+var search = SystemAPI.GetSingleton<PlayerTrackingSearch>();
+if (search.initialized)
 {
-    // Trigger shift
+    // Player found, tracking active
 }
 ```
-
-**Created By:** `TerrainConfigAuthoring.Baker`
 
 ---
 
-#### `WorldOriginOffset`
+### Runtime State Components
 
-**Type:** `IComponentData` (struct, blittable)  
-**Usage:** Singleton  
-**Namespace:** Global
+#### ScrollOffset
 
 ```csharp
-public struct WorldOriginOffset : IComponentData
-{
-    public double3 accumulatedOffset;
-}
+public struct ScrollOffset : IComponentData
 ```
 
-**Fields:**
+**Purpose**: Tracks accumulated scroll distance.
 
-| Field | Type | Description | Range |
-|-------|------|-------------|-------|
-| `accumulatedOffset` | double3 | Cumulative offset subtracted from all entities (meters) | Unlimited |
+**Fields**:
+| Field | Type | Description |
+|-------|------|-------------|
+| `accumulatedOffset` | float3 | Total scroll distance (XZ plane, Y=0) |
 
-**Important:** Uses `double3` (not `float3`) for extended precision.
-
-**Precision Comparison:**
-- `float`: ~7 decimal digits (~10⁷ range before precision loss)
-- `double`: ~15 decimal digits (~10¹⁵ range)
-
-**Access Pattern:**
+**Usage**:
 ```csharp
-// Read-only
-var offset = SystemAPI.GetSingleton<WorldOriginOffset>();
-double3 trueWorldPos = entityPos + offset.accumulatedOffset;
+// Read current offset
+var offset = SystemAPI.GetSingleton<ScrollOffset>();
+float totalDistance = math.length(offset.accumulatedOffset);
 
-// Read-write
-RefRW<WorldOriginOffset> offsetRef = SystemAPI.GetSingletonRW<WorldOriginOffset>();
-offsetRef.ValueRW.accumulatedOffset += shiftAmount;
+// Reset offset
+var query = em.CreateEntityQuery(typeof(ScrollOffset));
+var entity = query.GetSingletonEntity();
+em.SetComponentData(entity, new ScrollOffset { accumulatedOffset = float3.zero });
+query.Dispose();
 ```
-
-**Created By:** `TerrainConfigAuthoring.Baker` (initialized to zero)  
-**Modified By:** `FloatingOriginSystem` (during world shifts)
 
 ---
 
-### Tile Components
+#### PlayerTransformReference
 
-#### `TerrainTile`
+```csharp
+public class PlayerTransformReference : IComponentData
+```
 
-**Type:** `IComponentData` (struct, blittable)  
-**Usage:** Per-entity (one per tile)  
-**Namespace:** Global
+**Purpose**: Managed reference to player GameObject's Transform.
+
+**Fields**:
+| Field | Type | Description |
+|-------|------|-------------|
+| `playerTransform` | Transform | Player Transform reference |
+
+**Usage**:
+```csharp
+// Get player position (from non-Burst system)
+var playerRef = SystemAPI.ManagedAPI.GetSingleton<PlayerTransformReference>();
+if (playerRef != null && playerRef.playerTransform != null)
+{
+    float3 playerPosition = playerRef.playerTransform.position;
+}
+```
+
+**Note**: Must be class (managed) - cannot use in Burst-compiled code.
+
+---
+
+### Per-Tile Components
+
+#### TerrainTile
 
 ```csharp
 public struct TerrainTile : IComponentData
+```
+
+**Purpose**: Identifies terrain tile entity and tracks state.
+
+**Fields**:
+| Field | Type | Description |
+|-------|------|-------------|
+| `gridCoordinate` | int2 | Grid position (e.g., (0,0), (1,-2)) |
+| `meshGenerated` | bool | True if mesh data populated |
+| `needsRegeneration` | bool | True if mesh needs regeneration |
+
+**Usage**:
+```csharp
+foreach (var (tile, entity) in SystemAPI.Query<RefRO<TerrainTile>>().WithEntityAccess())
 {
-    public int2 gridCoordinate;
-    public bool meshGenerated;
-    public bool needsRegeneration;
+    int2 gridPos = tile.ValueRO.gridCoordinate;
+    bool hasData = tile.ValueRO.meshGenerated;
 }
 ```
-
-**Fields:**
-
-| Field | Type | Description | Example |
-|-------|------|-------------|---------|
-| `gridCoordinate` | int2 | Position in tile grid (x, z) | (0, 0), (2, -1) |
-| `meshGenerated` | bool | True if mesh data has been generated | true |
-| `needsRegeneration` | bool | True if mesh needs to be regenerated (after origin shift or modification) | false |
-
-**Grid Coordinate to World Position:**
-```csharp
-float3 worldPosition = new float3(
-    gridCoordinate.x * tileSize,
-    0,
-    gridCoordinate.y * tileSize
-);
-```
-
-**State Transitions:**
-```
-Created: meshGenerated=false, needsRegeneration=false
-    ↓
-Generated: meshGenerated=true, needsRegeneration=false
-    ↓
-Modified: meshGenerated=true, needsRegeneration=true
-    ↓
-Regenerated: meshGenerated=true, needsRegeneration=false
-```
-
-**Created By:** `TileSpawningSystem`  
-**Modified By:** `TerrainMeshGenerationSystem`
 
 ---
 
-#### `MeshReference`
-
-**Type:** `IComponentData` (class, managed)  
-**Usage:** Per-entity (one per tile)  
-**Namespace:** Global
+#### TerrainTileDistanceToPlayer
 
 ```csharp
-public class MeshReference : IComponentData
+public struct TerrainTileDistanceToPlayer : IComponentData
+```
+
+**Purpose**: Caches tile distance and LOD level.
+
+**Fields**:
+| Field | Type | Description |
+|-------|------|-------------|
+| `distance` | float | Distance to player in meters |
+| `lodLevel` | TerrainPhysicsLODLevel | Current physics LOD level |
+
+**Usage**:
+```csharp
+if (SystemAPI.HasComponent<TerrainTileDistanceToPlayer>(entity))
 {
-    public UnityEngine.Mesh mesh;
+    var distInfo = SystemAPI.GetComponent<TerrainTileDistanceToPlayer>(entity);
+    float dist = distInfo.distance;
+    var lod = distInfo.lodLevel;
 }
 ```
-
-**Fields:**
-
-| Field | Type | Description | Lifetime |
-|-------|------|-------------|----------|
-| `mesh` | UnityEngine.Mesh | Reference to Unity mesh object | Until tile despawns |
-
-**Note:** This is a **managed component** (class, not struct) because it holds a reference to a Unity Object.
-
-**Cleanup:**
-```csharp
-// In TerrainRenderingSystem.OnDestroy:
-var meshRef = EntityManager.GetComponentData<MeshReference>(entity);
-if (meshRef.mesh != null)
-    Object.Destroy(meshRef.mesh);  // Prevent memory leak
-```
-
-**Created By:** `TerrainRenderingSystem`
-
----
-
-### Tag Components
-
-#### `FloatingOriginEnabled`
-
-**Type:** `IComponentData` (struct, empty)  
-**Usage:** Tag - per-entity  
-**Namespace:** Global
-
-```csharp
-public struct FloatingOriginEnabled : IComponentData
-{
-}
-```
-
-**Purpose:** Marks entities that should have their positions adjusted during world origin shifts.
-
-**Should Be Added To:**
-- Terrain tiles (automatically added by `TileSpawningSystem`)
-- Player entity (via `FloatingOriginEnabledAuthoring` or manual)
-- Any world-space objects (trees, buildings, etc.)
-
-**Should NOT Be Added To:**
-- UI elements (screen-space)
-- Camera (typically parented to player)
-- Entities that should stay at absolute origin
-
-**Usage in Jobs:**
-```csharp
-[BurstCompile]
-[WithAll(typeof(FloatingOriginEnabled))]  // Only process tagged entities
-public partial struct ShiftWorldOriginJob : IJobEntity
-{
-    public float3 offset;
-    public void Execute(ref LocalTransform transform)
-    {
-        transform.Position -= offset;
-    }
-}
-```
-
-**Created By:** `TileSpawningSystem` (for tiles), user-placed authoring components (for other objects)
-
----
-
-#### `PlayerTag`
-
-**Type:** `IComponentData` (struct, empty)  
-**Usage:** Tag - singleton entity  
-**Namespace:** Global
-
-```csharp
-public struct PlayerTag : IComponentData
-{
-}
-```
-
-**Purpose:** Identifies the player entity for terrain systems to track.
-
-**Requirements:**
-- Must be on exactly one entity
-- Entity must have `LocalTransform` component
-- Should have `FloatingOriginEnabled` tag
-
-**Usage:**
-```csharp
-var playerEntity = SystemAPI.GetSingletonEntity<PlayerTag>();
-var playerTransform = SystemAPI.GetComponent<LocalTransform>(playerEntity);
-float3 playerPosition = playerTransform.Position;
-```
-
-**Created By:** `PlayerTagAuthoring` (place on player GameObject)
 
 ---
 
 ### Buffer Components
 
-#### `VertexElement`
-
-**Type:** `IBufferElementData` (struct, blittable)  
-**Usage:** Dynamic buffer per tile entity  
-**Namespace:** Global
+#### VertexElement
 
 ```csharp
 public struct VertexElement : IBufferElementData
@@ -304,21 +247,25 @@ public struct VertexElement : IBufferElementData
 }
 ```
 
-**Contents:** Vertex positions in tile-local space (relative to tile origin).
+**Purpose**: Stores mesh vertex positions.
 
-**Example:**
+**Usage**:
 ```csharp
-var vertexBuffer = EntityManager.GetBuffer<VertexElement>(tileEntity);
-float3 firstVertex = vertexBuffer[0].value;  // e.g., (0, 5.2, 0)
+var buffer = EntityManager.GetBuffer<VertexElement>(entity);
+
+// Add vertex
+buffer.Add(new VertexElement { value = new float3(0, 5, 0) });
+
+// Access vertex
+float3 position = buffer[index].value;
+
+// Convert to NativeArray (zero-copy)
+var array = buffer.Reinterpret<float3>().AsNativeArray();
 ```
 
 ---
 
-#### `NormalElement`
-
-**Type:** `IBufferElementData` (struct, blittable)  
-**Usage:** Dynamic buffer per tile entity  
-**Namespace:** Global
+#### NormalElement
 
 ```csharp
 public struct NormalElement : IBufferElementData
@@ -327,21 +274,13 @@ public struct NormalElement : IBufferElementData
 }
 ```
 
-**Contents:** Vertex normals (unit vectors).
+**Purpose**: Stores mesh vertex normals.
 
-**Example:**
-```csharp
-var normalBuffer = EntityManager.GetBuffer<NormalElement>(tileEntity);
-float3 firstNormal = normalBuffer[0].value;  // e.g., (0.1, 0.995, 0)
-```
+**Usage**: Same pattern as VertexElement
 
 ---
 
-#### `UVElement`
-
-**Type:** `IBufferElementData` (struct, blittable)  
-**Usage:** Dynamic buffer per tile entity  
-**Namespace:** Global
+#### UVElement
 
 ```csharp
 public struct UVElement : IBufferElementData
@@ -350,21 +289,17 @@ public struct UVElement : IBufferElementData
 }
 ```
 
-**Contents:** Texture coordinates in [0, 1] range.
+**Purpose**: Stores mesh UV coordinates.
 
-**Example:**
+**Usage**:
 ```csharp
-var uvBuffer = EntityManager.GetBuffer<UVElement>(tileEntity);
-float2 firstUV = uvBuffer[0].value;  // e.g., (0, 0)
+var buffer = EntityManager.GetBuffer<UVElement>(entity);
+buffer.Add(new UVElement { value = new float2(0.5f, 0.5f) });
 ```
 
 ---
 
-#### `IndexElement`
-
-**Type:** `IBufferElementData` (struct, blittable)  
-**Usage:** Dynamic buffer per tile entity  
-**Namespace:** Global
+#### IndexElement
 
 ```csharp
 public struct IndexElement : IBufferElementData
@@ -373,913 +308,866 @@ public struct IndexElement : IBufferElementData
 }
 ```
 
-**Contents:** Triangle indices referencing vertices.
+**Purpose**: Stores mesh triangle indices.
 
-**Example:**
+**Usage**:
 ```csharp
-var indexBuffer = EntityManager.GetBuffer<IndexElement>(tileEntity);
-int firstIndex = indexBuffer[0].value;  // e.g., 0
+var buffer = EntityManager.GetBuffer<IndexElement>(entity);
 
-// Indices are grouped in threes:
-// [0, 1, 2] = first triangle
-// [3, 4, 5] = second triangle
+// Add triangle (v0, v1, v2)
+buffer.Add(new IndexElement { value = 0 });
+buffer.Add(new IndexElement { value = 1 });
+buffer.Add(new IndexElement { value = 2 });
 ```
 
 ---
 
-## Systems API
+### Physics Components
 
-### `TileSpawningSystem`
-
-**Type:** `ISystem` (struct)  
-**Update Group:** `SimulationSystemGroup`  
-**Update Order:** Before `TransformSystemGroup`  
-**Namespace:** Global
+#### PhysicsColliderNeedsPreparation
 
 ```csharp
-public partial struct TileSpawningSystem : ISystem
+public struct PhysicsColliderNeedsPreparation : IComponentData, IEnableableComponent
 {
-    public void OnCreate(ref SystemState state);
-    public void OnDestroy(ref SystemState state);
-    public void OnUpdate(ref SystemState state);
+    public TerrainPhysicsLODLevel targetLOD;
 }
 ```
 
-**Lifecycle:**
+**Purpose**: Tags tiles needing collider preparation.
 
-| Method | When Called | Purpose |
-|--------|-------------|---------|
-| `OnCreate` | System initialization | Create `NativeParallelHashMap`, set up queries |
-| `OnUpdate` | Every frame | Spawn/despawn tiles based on player position |
-| `OnDestroy` | System shutdown | Dispose `NativeParallelHashMap` |
-
-**Dependencies:**
-- Requires: `PlayerTag`, `TerrainTileConfig`, `WorldOriginOffset`
-- Creates: `TerrainTile` entities with buffers
-- Modifies: `_activeTiles` HashMap
-
-**Query Requirements:**
+**Usage**:
 ```csharp
-state.RequireForUpdate<PlayerTag>();
-state.RequireForUpdate<TerrainTileConfig>();
-state.RequireForUpdate<WorldOriginOffset>();
+// Add component
+em.AddComponentData(entity, new PhysicsColliderNeedsPreparation 
+{ 
+    targetLOD = TerrainPhysicsLODLevel.HalfResolution 
+});
+
+// Enable/disable without removing
+em.SetComponentEnabled<PhysicsColliderNeedsPreparation>(entity, true);
 ```
 
-System won't run until these singletons exist.
+---
 
-**Key Data Structures:**
+#### PhysicsColliderPrepared
+
+```csharp
+public struct PhysicsColliderPrepared : IComponentData
+{
+    public TerrainPhysicsLODLevel lodLevel;
+    public int priority;
+}
+```
+
+**Purpose**: Indicates collider data ready for creation.
+
+**Usage**: Typically added/removed by systems, not manually.
+
+---
+
+#### PhysicsColliderValid
+
+```csharp
+public struct PhysicsColliderValid : IComponentData { }
+```
+
+**Purpose**: Tag component - collider is valid and current.
+
+**Usage**:
+```csharp
+// Check if collider valid
+bool isValid = SystemAPI.HasComponent<PhysicsColliderValid>(entity);
+
+// Remove to trigger regeneration
+em.RemoveComponent<PhysicsColliderValid>(entity);
+```
+
+---
+
+## Systems
+
+### PlayerTrackingInitSystem
+
+```csharp
+[UpdateInGroup(typeof(InitializationSystemGroup))]
+public partial class PlayerTrackingInitSystem : SystemBase
+```
+
+**Purpose**: Finds player GameObject at startup and populates PlayerTransformReference.
+
+**Requirements**:
+- Entities with `PlayerTrackingSearch` and `PlayerTransformReference`
+
+**API**:
+```csharp
+// None - system runs automatically
+// Check status via TerrainTrackingDebugger
+```
+
+---
+
+### ScrollTerrainSystem
+
+```csharp
+[UpdateInGroup(typeof(SimulationSystemGroup))]
+[UpdateBefore(typeof(TileSpawningSystem))]
+public partial struct ScrollTerrainSystem : ISystem
+```
+
+**Purpose**: Updates scroll offset for auto-scrolling terrain.
+
+**Requirements**:
+- `ScrollConfig` singleton
+- `ScrollOffset` singleton
+- `PlayerTransformReference` singleton
+
+**API**: Automatic - no public methods
+
+---
+
+### TileSpawningSystem
+
+```csharp
+[UpdateInGroup(typeof(SimulationSystemGroup))]
+[UpdateBefore(typeof(TransformSystemGroup))]
+public partial struct TileSpawningSystem : ISystem
+```
+
+**Purpose**: Spawns and despawns tiles based on player position.
+
+**Requirements**:
+- `PlayerTransformReference` singleton
+- `TerrainTileConfig` singleton
+- `ScrollOffset` singleton
+
+**API**: Automatic - no public methods
+
+**Internal State**:
 ```csharp
 private NativeParallelHashMap<int2, Entity> _activeTiles;
 ```
 
-**Performance:**
-- **Best Case:** No tiles to spawn/despawn = ~0.1ms
-- **Worst Case:** 20 tiles spawned = ~2ms
-- **Memory:** HashMap overhead + 16 bytes per active tile entry
+---
+
+### TileScrollPositionSystem
+
+```csharp
+[UpdateInGroup(typeof(SimulationSystemGroup))]
+[UpdateAfter(typeof(ScrollTerrainSystem))]
+[UpdateBefore(typeof(TransformSystemGroup))]
+public partial struct TileScrollPositionSystem : ISystem
+```
+
+**Purpose**: Updates tile positions with scroll offset.
+
+**Requirements**:
+- `ScrollConfig` singleton
+- `ScrollOffset` singleton
+- `TerrainTileConfig` singleton
+
+**API**: Automatic - no public methods
 
 ---
 
-### `TerrainMeshGenerationSystem`
-
-**Type:** `ISystem` (struct, partial)  
-**Update Group:** `SimulationSystemGroup`  
-**Update Order:** After `TileSpawningSystem`  
-**Namespace:** Global
+### TerrainMeshGenerationSystem
 
 ```csharp
+[UpdateInGroup(typeof(SimulationSystemGroup))]
+[UpdateAfter(typeof(TileSpawningSystem))]
 public partial struct TerrainMeshGenerationSystem : ISystem
+```
+
+**Purpose**: Generates procedural terrain meshes with Perlin noise.
+
+**Requirements**:
+- `TerrainTileConfig` singleton
+
+**API**: Automatic - no public methods
+
+**Internal State**:
+```csharp
+private NativeQueue<Entity> _pendingTiles;
+```
+
+**Jobs**:
+```csharp
+[BurstCompile]
+partial struct MeshGenerationJob : IJobEntity
 {
-    public void OnCreate(ref SystemState state);
-    public void OnUpdate(ref SystemState state);
-    
-    // Private helper methods:
-    private void GenerateTileMesh(...);
-    [BurstCompile] private static float SampleNoise(...);
-    [BurstCompile] private static float3 CalculateNormal(...);
+    // Generates vertices, normals, UVs, indices
 }
 ```
 
-**Lifecycle:**
+---
 
-| Method | When Called | Purpose |
-|--------|-------------|---------|
-| `OnCreate` | System initialization | Set up requirements |
-| `OnUpdate` | Every frame | Generate meshes for tiles that need them |
+### TerrainDistanceTrackingSystem
 
-**Dependencies:**
-- Requires: `TerrainTileConfig`, `WorldOriginOffset`
-- Reads: `TerrainTile`, `WorldOriginOffset`
-- Writes: `VertexElement`, `NormalElement`, `UVElement`, `IndexElement` buffers
-
-**Query:**
 ```csharp
-SystemAPI.QueryBuilder()
-    .WithAll<TerrainTile, VertexElement, NormalElement, UVElement, IndexElement>()
-    .Build()
+[UpdateInGroup(typeof(SimulationSystemGroup))]
+[UpdateBefore(typeof(TerrainPhysicsSystem))]
+public partial class TerrainDistanceTrackingSystem : SystemBase
 ```
 
-Processes all tiles, but only generates mesh if `tile.meshGenerated == false` or `tile.needsRegeneration == true`.
+**Purpose**: Calculates tile distances and determines LOD levels.
 
-**Performance:**
-- **Per Tile (32x32):** ~0.5-1ms
-- **Burst Compiled:** Noise sampling only (main loop not Burst-able due to buffer access)
+**Requirements**:
+- `TerrainTileConfig` singleton
+- `PlayerTransformReference` singleton
+
+**API**: Automatic - no public methods
 
 ---
 
-### `TerrainPhysicsSystem`
-
-**Type:** `SystemBase` (class, managed)  
-**Update Group:** `SimulationSystemGroup`  
-**Update Order:** After `TerrainMeshGenerationSystem`  
-**Namespace:** Global
+### TerrainColliderPreparationSystem
 
 ```csharp
+[UpdateInGroup(typeof(SimulationSystemGroup))]
+[UpdateAfter(typeof(TerrainMeshGenerationSystem))]
+public partial struct TerrainColliderPreparationSystem : ISystem
+```
+
+**Purpose**: Prepares collider data with LOD decimation via Burst jobs.
+
+**Requirements**:
+- `TerrainTileConfig` singleton
+
+**API**: 
+```csharp
+public JobHandle PreparationDependency { get; }
+```
+
+**Jobs**:
+```csharp
+[BurstCompile]
+partial struct PrepareColliderDataJob : IJobEntity
+{
+    // Decimates vertices and regenerates triangles
+}
+```
+
+---
+
+### TerrainPhysicsSystem
+
+```csharp
+[UpdateInGroup(typeof(SimulationSystemGroup))]
+[UpdateAfter(typeof(TerrainColliderPreparationSystem))]
 public partial class TerrainPhysicsSystem : SystemBase
-{
-    protected override void OnCreate();
-    protected override void OnUpdate();
-    protected override void OnDestroy();
-    
-    private void CreatePhysicsCollider(...);
-}
 ```
 
-**Lifecycle:**
+**Purpose**: Creates Unity Physics colliders with caching and frame budgeting.
 
-| Method | When Called | Purpose |
-|--------|-------------|---------|
-| `OnCreate` | System initialization | Create entity query |
-| `OnUpdate` | Every frame | Create colliders for tiles that need them |
-| `OnDestroy` | System shutdown | Dispose all physics colliders |
+**Requirements**:
+- `TerrainTileConfig` singleton
 
-**Dependencies:**
-- Requires: `TerrainTileConfig`
-- Reads: `TerrainTile`, `VertexElement`, `IndexElement`
-- Writes: `PhysicsCollider`, `PhysicsWorldIndex`
+**API**: Automatic - no public methods (manages internal cache)
 
-**Query:**
+**Internal State**:
 ```csharp
-GetEntityQuery(
-    ComponentType.ReadOnly<TerrainTile>(),
-    ComponentType.ReadOnly<VertexElement>(),
-    ComponentType.ReadOnly<IndexElement>(),
-    ComponentType.Exclude<PhysicsCollider>()  // Only tiles without collider
-);
-```
-
-**Performance:**
-- **Per Tile (32x32):** ~1-2ms
-- **Not Burst Compiled** (uses managed Unity.Physics API)
-
-**Cleanup on Destroy:**
-```csharp
-protected override void OnDestroy()
-{
-    foreach (var entity in query.ToEntityArray(Allocator.Temp))
-    {
-        var collider = EntityManager.GetComponentData<PhysicsCollider>(entity);
-        if (collider.IsValid)
-            collider.Value.Dispose();  // Important: prevent memory leak
-    }
-}
+private NativeHashMap<ColliderCacheKey, ColliderCacheEntry> _colliderCache;
+private long _totalCacheMemoryBytes;
+private long _currentFrameNumber;
 ```
 
 ---
 
-### `TerrainRenderingSystem`
-
-**Type:** `SystemBase` (class, managed)  
-**Update Group:** `PresentationSystemGroup`  
-**Namespace:** Global
+### TerrainRenderingSystem
 
 ```csharp
+[UpdateInGroup(typeof(PresentationSystemGroup))]
 public partial class TerrainRenderingSystem : SystemBase
+```
+
+**Purpose**: Creates Unity Mesh objects and sets up Entities Graphics rendering.
+
+**Requirements**:
+- `TerrainTileConfig` singleton
+
+**API**: Automatic - no public methods
+
+**Internal State**:
+```csharp
+private Material _terrainMaterial;
+private EntityQuery _newTilesQuery;
+```
+
+---
+
+## Enums
+
+### TerrainPhysicsLODLevel
+
+```csharp
+public enum TerrainPhysicsLODLevel : byte
 {
-    protected override void OnCreate();
-    protected override void OnStartRunning();
-    protected override void OnUpdate();
-    protected override void OnDestroy();
-    
-    private void CreateAndAssignMesh(...);
+    FullResolution = 0,      // Use all vertices
+    HalfResolution = 1,      // Use every 2nd vertex (25%)
+    QuarterResolution = 2,   // Use every 4th vertex (6.25%)
+    NoCollider = 3           // No collider
 }
 ```
 
-**Lifecycle:**
-
-| Method | When Called | Purpose |
-|--------|-------------|---------|
-| `OnCreate` | System initialization | Create entity query |
-| `OnStartRunning` | First frame system runs | Load/create terrain material |
-| `OnUpdate` | Every frame | Convert buffers to Unity meshes, set up rendering |
-| `OnDestroy` | System shutdown | Destroy all mesh objects |
-
-**Dependencies:**
-- Requires: `TerrainTileConfig`
-- Reads: `TerrainTile`, mesh buffers
-- Writes: `MeshReference`, Entities Graphics components
-
-**Query:**
+**Usage**:
 ```csharp
-GetEntityQuery(
-    ComponentType.ReadOnly<TerrainTile>(),
-    ComponentType.ReadOnly<VertexElement>(),
-    ComponentType.ReadOnly<IndexElement>(),
-    ComponentType.Exclude<MeshReference>()  // Only tiles without mesh
+TerrainPhysicsLODLevel lod = TerrainPhysicsLODLevel.HalfResolution;
+
+if (distance < config.lodFullResolutionDistance)
+    lod = TerrainPhysicsLODLevel.FullResolution;
+```
+
+---
+
+### PlayerTrackingSearch.Mode
+
+```csharp
+public enum Mode : byte
+{
+    FindByName = 0,           // Search by GameObject.Find(name)
+    FindByTag = 1,            // Search by FindGameObjectWithTag(tag)
+    FindAutoHandPlayer = 2,   // Search for AutoHandPlayer component
+    FindMainCamera = 3        // Use Camera.main
+}
+```
+
+**Usage**: Set in TerrainConfigAuthoring Inspector
+
+---
+
+## Utility Functions
+
+### ColliderCacheKey.FromConfig
+
+```csharp
+public static ColliderCacheKey FromConfig(
+    TerrainTileConfig config, 
+    TerrainPhysicsLODLevel lodLevel)
+```
+
+**Purpose**: Creates cache key from configuration parameters.
+
+**Parameters**:
+- `config` - Terrain configuration
+- `lodLevel` - LOD level for this collider
+
+**Returns**: Cache key for looking up cached colliders
+
+**Usage**:
+```csharp
+var key = ColliderCacheKey.FromConfig(config, TerrainPhysicsLODLevel.HalfResolution);
+```
+
+---
+
+### TerrainColliderBlob.Create
+
+```csharp
+public static BlobAssetReference<TerrainColliderBlob> Create(
+    NativeArray<float3> sourceVertices,
+    NativeArray<int3> sourceTriangles,
+    TerrainPhysicsLODLevel lodLevel,
+    Allocator allocator)
+```
+
+**Purpose**: Creates BlobAsset containing collider mesh data.
+
+**Parameters**:
+- `sourceVertices` - Vertex positions
+- `sourceTriangles` - Triangle indices (int3 per triangle)
+- `lodLevel` - LOD level for metadata
+- `allocator` - Memory allocator (typically Persistent)
+
+**Returns**: BlobAssetReference to be stored in cache
+
+**Usage**:
+```csharp
+var vertices = new NativeArray<float3>(100, Allocator.Temp);
+var triangles = new NativeArray<int3>(200, Allocator.Temp);
+// ... fill arrays ...
+
+var blobRef = TerrainColliderBlob.Create(
+    vertices, 
+    triangles, 
+    TerrainPhysicsLODLevel.FullResolution, 
+    Allocator.Persistent
 );
+
+// Store in cache or use immediately
+// Remember to Dispose when done!
 ```
 
-**Material Loading:**
+---
+
+## Code Examples
+
+### Example 1: Query All Terrain Tiles
+
 ```csharp
-protected override void OnStartRunning()
+using Unity.Entities;
+using Unity.Mathematics;
+
+public partial class CustomTerrainSystem : SystemBase
 {
-    _terrainMaterial = Resources.Load<Material>("TerrainMaterial");
-    if (_terrainMaterial == null)
+    protected override void OnUpdate()
     {
-        // Create fallback material with URP Lit shader
-        _terrainMaterial = new Material(Shader.Find("Universal Render Pipeline/Lit"));
+        foreach (var (tile, transform, entity) in 
+            SystemAPI.Query<RefRO<TerrainTile>, RefRO<LocalTransform>>()
+            .WithEntityAccess())
+        {
+            int2 gridPos = tile.ValueRO.gridCoordinate;
+            float3 worldPos = transform.ValueRO.Position;
+            
+            Debug.Log($"Tile at grid {gridPos}, world {worldPos}");
+        }
     }
 }
 ```
 
-**Performance:**
-- **Per Tile:** ~0.2-0.5ms
-- **Not Burst Compiled** (uses managed Mesh API)
+---
 
-**Cleanup on Destroy:**
+### Example 2: Modify Terrain Configuration at Runtime
+
 ```csharp
-protected override void OnDestroy()
+using Unity.Entities;
+using UnityEngine;
+
+public class RuntimeConfigModifier : MonoBehaviour
 {
-    foreach (var entity in query.ToEntityArray(Allocator.Temp))
+    public void DoubleViewDistance()
     {
-        var meshRef = EntityManager.GetComponentData<MeshReference>(entity);
-        if (meshRef.mesh != null)
-            Object.Destroy(meshRef.mesh);  // Important: prevent memory leak
-    }
-}
-```
-
----
-
-### `FloatingOriginSystem`
-
-**Type:** `ISystem` (struct)  
-**Update Group:** `TransformSystemGroup`  
-**Update Order:** After `LocalToWorldSystem`  
-**Namespace:** Global
-
-```csharp
-public partial struct FloatingOriginSystem : ISystem
-{
-    [BurstCompile] public void OnCreate(ref SystemState state);
-    [BurstCompile] public void OnUpdate(ref SystemState state);
-}
-```
-
-**Lifecycle:**
-
-| Method | When Called | Purpose |
-|--------|-------------|---------|
-| `OnCreate` | System initialization | Set up requirements |
-| `OnUpdate` | Every frame | Check player distance, trigger shifts |
-
-**Dependencies:**
-- Requires: `PlayerTag`, `FloatingOriginConfig`, `WorldOriginOffset`
-- Reads: `LocalTransform` (player)
-- Writes: `WorldOriginOffset`, all `FloatingOriginEnabled` entities' `LocalTransform`
-
-**Shift Trigger Logic:**
-```csharp
-float distanceFromOrigin = math.length(playerPosition);
-if (distanceFromOrigin > config.shiftThreshold)
-{
-    // Shift triggered
-}
-```
-
-**Performance:**
-- **Idle (no shift):** ~0.05ms
-- **During shift (100 entities):** ~0.5ms
-- **Burst Compiled:** Yes (including parallel job)
-
----
-
-### `TerrainRenderingDebugSystem`
-
-**Type:** `SystemBase` (class, managed)  
-**Update Group:** `SimulationSystemGroup`  
-**Namespace:** Global
-
-```csharp
-public partial class TerrainRenderingDebugSystem : SystemBase
-{
-    protected override void OnCreate();
-    protected override void OnUpdate();
-}
-```
-
-**Purpose:** Debug logging system that reports terrain tile status every 2 seconds.
-
-**Output Example:**
-```
-[TerrainDebug] ========== Terrain Tile Analysis ==========
-[TerrainDebug] Total tiles: 9
-[TerrainDebug] Tiles with mesh data: 9
-[TerrainDebug] Tiles with rendering components: 9
-[TerrainDebug] Sample tile at (0, 0): Entity(1:123)
-```
-
-**Enable/Disable:** Comment out system update to disable logging.
-
----
-
-## Authoring Components
-
-### `TerrainConfigAuthoring`
-
-**Type:** `MonoBehaviour` (authoring component)  
-**Location:** Place on GameObject in scene/SubScene  
-**Namespace:** Global
-
-```csharp
-public class TerrainConfigAuthoring : MonoBehaviour
-{
-    // Tile Settings
-    public float tileSize = 100f;
-    public float viewDistance = 500f;
-    public int verticesPerSide = 32;
-    
-    // Floating Origin
-    public bool floatingOriginEnabled = true;
-    public float shiftThreshold = 2000f;
-    
-    // Procedural Noise
-    public float noiseFrequency = 0.01f;
-    public float noiseAmplitude = 20f;
-    public int noiseOctaves = 4;
-    public float noiseLacunarity = 2.0f;
-    public float noisePersistence = 0.5f;
-    
-    // Material
-    public Material terrainMaterial;
-}
-```
-
-**Baker Implementation:**
-```csharp
-public class Baker : Baker<TerrainConfigAuthoring>
-{
-    public override void Bake(TerrainConfigAuthoring authoring)
-    {
-        Entity entity = GetEntity(TransformUsageFlags.None);
+        var world = World.DefaultGameObjectInjectionWorld;
+        var em = world.EntityManager;
         
-        AddComponent(entity, new TerrainTileConfig { ... });
-        AddComponent(entity, new FloatingOriginConfig { ... });
-        AddComponent(entity, new WorldOriginOffset { ... });
+        var query = em.CreateEntityQuery(typeof(TerrainTileConfig));
+        var entity = query.GetSingletonEntity();
+        var config = em.GetComponentData<TerrainTileConfig>(entity);
+        
+        config.viewDistance *= 2f;
+        em.SetComponentData(entity, config);
+        
+        query.Dispose();
+        
+        Debug.Log($"View distance now: {config.viewDistance}m");
     }
 }
 ```
 
-**Gizmo Visualization:**
-- Green sphere: View distance
-- Yellow sphere: Shift threshold
-- Cyan square: Current tile at camera position
+---
 
-**Setup:**
-1. Create GameObject: "TerrainConfig"
-2. Add Component: TerrainConfigAuthoring
-3. Configure in Inspector
-4. Place in SubScene (recommended) or regular scene
+### Example 3: Toggle Auto-Scrolling
+
+```csharp
+public class ScrollController : MonoBehaviour
+{
+    private bool _scrolling = false;
+    
+    public void ToggleScroll()
+    {
+        _scrolling = !_scrolling;
+        
+        var world = World.DefaultGameObjectInjectionWorld;
+        var em = world.EntityManager;
+        var query = em.CreateEntityQuery(typeof(ScrollConfig));
+        var entity = query.GetSingletonEntity();
+        
+        var config = em.GetComponentData<ScrollConfig>(entity);
+        config.enabled = _scrolling;
+        config.scrollSpeed = _scrolling ? 10f : 0f;
+        em.SetComponentData(entity, config);
+        
+        query.Dispose();
+    }
+}
+```
 
 ---
 
-### `PlayerTagAuthoring`
-
-**Type:** `MonoBehaviour` (authoring component)  
-**Location:** Place on player GameObject  
-**Namespace:** Global  
-**File:** `Assets/_App/Ace of Ages/DOTSAuthoring/PlayerTagAuthoring.cs`
+### Example 4: Get Tile Count
 
 ```csharp
-public class PlayerTagAuthoring : MonoBehaviour
+public int GetActiveTileCount()
 {
-    public class Baker : Baker<PlayerTagAuthoring>
+    var world = World.DefaultGameObjectInjectionWorld;
+    var em = world.EntityManager;
+    
+    var query = em.CreateEntityQuery(typeof(TerrainTile));
+    int count = query.CalculateEntityCount();
+    query.Dispose();
+    
+    return count;
+}
+```
+
+---
+
+### Example 5: Check if Tile Exists at Position
+
+```csharp
+public bool TileExistsAt(int2 gridCoordinate)
+{
+    var world = World.DefaultGameObjectInjectionWorld;
+    var em = world.EntityManager;
+    
+    var query = em.CreateEntityQuery(typeof(TerrainTile));
+    var tiles = query.ToComponentDataArray<TerrainTile>(Allocator.Temp);
+    
+    bool exists = false;
+    foreach (var tile in tiles)
     {
-        public override void Bake(PlayerTagAuthoring authoring)
+        if (tile.gridCoordinate.Equals(gridCoordinate))
         {
-            Entity entity = GetEntity(TransformUsageFlags.Dynamic);
-            AddComponent<PlayerTag>(entity);
+            exists = true;
+            break;
         }
     }
+    
+    tiles.Dispose();
+    query.Dispose();
+    
+    return exists;
 }
 ```
 
-**Setup:**
-1. Add to player GameObject (e.g., XR Origin or Camera Offset)
-2. Ensure player has Transform (will be converted to LocalTransform in baking)
-3. System will automatically track this entity
-
 ---
 
-### `FloatingOriginEnabledAuthoring`
-
-**Type:** `MonoBehaviour` (authoring component)  
-**Location:** Place on any GameObject that should shift with world origin  
-**Namespace:** Global  
-**File:** `Assets/_App/Ace of Ages/Terrain/FloatingOriginEnabledAuthoring.cs`
+### Example 6: Access Mesh Buffers
 
 ```csharp
-public class FloatingOriginEnabledAuthoring : MonoBehaviour
+public void PrintTileVertices(Entity tileEntity)
 {
-    public class Baker : Baker<FloatingOriginEnabledAuthoring>
+    var em = World.DefaultGameObjectInjectionWorld.EntityManager;
+    
+    if (!em.HasBuffer<VertexElement>(tileEntity))
     {
-        public override void Bake(FloatingOriginEnabledAuthoring authoring)
-        {
-            Entity entity = GetEntity(TransformUsageFlags.Dynamic);
-            AddComponent<FloatingOriginEnabled>(entity);
-        }
+        Debug.Log("Tile has no vertex buffer");
+        return;
+    }
+    
+    var buffer = em.GetBuffer<VertexElement>(tileEntity);
+    
+    Debug.Log($"Tile has {buffer.Length} vertices");
+    
+    for (int i = 0; i < math.min(10, buffer.Length); i++)
+    {
+        Debug.Log($"  Vertex {i}: {buffer[i].value}");
     }
 }
 ```
 
-**Setup:**
-1. Add to player GameObject
-2. Add to any world-space objects (trees, buildings, NPCs)
-3. Objects without this tag will NOT shift (stay at absolute world position)
-
 ---
 
-## Public Methods
-
-### Helper Functions
-
-#### `SampleNoise`
-
-**Location:** `TerrainMeshGenerationSystem.cs`  
-**Signature:**
-```csharp
-[BurstCompile]
-private static float SampleNoise(double worldX, double worldZ, TerrainTileConfig config)
-```
-
-**Parameters:**
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `worldX` | double | X coordinate in world space (true position) |
-| `worldZ` | double | Z coordinate in world space (true position) |
-| `config` | TerrainTileConfig | Noise parameters |
-
-**Returns:** `float` - Height value in meters
-
-**Usage:**
-```csharp
-double worldX = tilePosition.x + localX + accumulatedOffset.x;
-double worldZ = tilePosition.z + localZ + accumulatedOffset.z;
-float height = SampleNoise(worldX, worldZ, config);
-```
-
-**Performance:** ~100ns per call (Burst-compiled)
-
----
-
-#### `CalculateNormalFromHeightfield`
-
-**Location:** `TerrainMeshGenerationSystem.cs`  
-**Signature:**
-```csharp
-[BurstCompile]
-private static float3 CalculateNormalFromHeightfield(
-    double worldX, double worldZ,
-    float stepSize,
-    TerrainTileConfig config)
-```
-
-**Parameters:**
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `worldX` | double | World X coordinate of vertex (includes accumulated offset) |
-| `worldZ` | double | World Z coordinate of vertex (includes accumulated offset) |
-| `stepSize` | float | Distance between vertices in world units |
-| `config` | TerrainTileConfig | Terrain configuration (for noise sampling) |
-
-**Returns:** `float3` - Normalized normal vector
-
-**Algorithm:** 
-1. Samples heights at 4 neighboring world positions (left, right, up, down) by calling `SampleNoise()` directly
-2. Calculates terrain gradient using central differences method
-3. Constructs tangent vectors from gradients
-4. Returns normalized cross product of tangents
-
-**Key Features:**
-- **Works at tile boundaries:** Can sample heights beyond current tile's vertex array
-- **Deterministic:** Same world position always produces same normal
-- **Seamless edges:** Adjacent tiles produce matching normals for shared vertices
-
-**Performance:** ~400ns per call (4 noise samples × 4 octaves × ~25ns)
-
-**Why This Method?** Eliminates normal discontinuities at tile edges that occurred with vertex-array-based methods. See `EDGE_NORMAL_FIX.md` for detailed explanation.
-
----
-
-#### `CalculateNormal` [DEPRECATED]
-
-**Status:** ⚠️ **REMOVED** as of March 14, 2026
-
-**Previous Location:** `TerrainMeshGenerationSystem.cs`  
-**Replaced By:** `CalculateNormalFromHeightfield()`
-
-**Why Removed:** Only worked within tile boundaries. Edge vertices produced incorrect normals because neighboring tile data wasn't accessible in the vertex array, causing visible lighting seams at tile edges.
-
-**Migration:** No action required - system now uses `CalculateNormalFromHeightfield()` automatically.
-
----
-
-## Usage Examples
-
-### Example 1: Accessing Singleton Configuration
+### Example 7: Monitor Scroll Distance
 
 ```csharp
-public partial struct MyCustomSystem : ISystem
+using Unity.Entities;
+using Unity.Mathematics;
+using UnityEngine;
+
+public class ScrollDistanceMonitor : MonoBehaviour
 {
+    void Update()
+    {
+        var world = World.DefaultGameObjectInjectionWorld;
+        if (world == null) return;
+        
+        var em = world.EntityManager;
+        var query = em.CreateEntityQuery(typeof(ScrollOffset));
+        
+        if (query.CalculateEntityCount() > 0)
+        {
+            var offset = em.GetComponentData<ScrollOffset>(query.GetSingletonEntity());
+            float distance = math.length(offset.accumulatedOffset);
+            
+            Debug.Log($"Scrolled: {distance:F1}m, Direction: {offset.accumulatedOffset}");
+        }
+        
+        query.Dispose();
+    }
+}
+```
+
+---
+
+### Example 8: Force Regenerate All Tiles
+
+```csharp
+public void RegenerateAllTiles()
+{
+    var world = World.DefaultGameObjectInjectionWorld;
+    var em = world.EntityManager;
+    
+    var query = em.CreateEntityQuery(typeof(TerrainTile));
+    var entities = query.ToEntityArray(Allocator.Temp);
+    
+    foreach (var entity in entities)
+    {
+        var tile = em.GetComponentData<TerrainTile>(entity);
+        tile.needsRegeneration = true;
+        tile.meshGenerated = false;
+        em.SetComponentData(entity, tile);
+        
+        // Clear mesh buffers
+        em.GetBuffer<VertexElement>(entity).Clear();
+        em.GetBuffer<NormalElement>(entity).Clear();
+        em.GetBuffer<UVElement>(entity).Clear();
+        em.GetBuffer<IndexElement>(entity).Clear();
+    }
+    
+    entities.Dispose();
+    query.Dispose();
+    
+    Debug.Log("All tiles marked for regeneration");
+}
+```
+
+---
+
+### Example 9: Get Player Position from Terrain System
+
+```csharp
+public Vector3? GetTrackedPlayerPosition()
+{
+    var world = World.DefaultGameObjectInjectionWorld;
+    if (world == null) return null;
+    
+    var em = world.EntityManager;
+    var query = em.CreateEntityQuery(typeof(PlayerTransformReference));
+    
+    if (query.CalculateEntityCount() == 0)
+    {
+        query.Dispose();
+        return null;
+    }
+    
+    var entity = query.GetSingletonEntity();
+    var playerRef = em.GetComponentObject<PlayerTransformReference>(entity);
+    query.Dispose();
+    
+    if (playerRef == null || playerRef.playerTransform == null)
+        return null;
+    
+    return playerRef.playerTransform.position;
+}
+```
+
+---
+
+### Example 10: Custom Tile Inspector
+
+```csharp
+public class TileInspector : MonoBehaviour
+{
+    [ContextMenu("Inspect Nearest Tile")]
+    public void InspectNearestTile()
+    {
+        var world = World.DefaultGameObjectInjectionWorld;
+        var em = world.EntityManager;
+        
+        var playerPos = GetTrackedPlayerPosition();
+        if (!playerPos.HasValue) return;
+        
+        var query = em.CreateEntityQuery(typeof(TerrainTile), typeof(LocalTransform));
+        var entities = query.ToEntityArray(Allocator.Temp);
+        var transforms = query.ToComponentDataArray<LocalTransform>(Allocator.Temp);
+        var tiles = query.ToComponentDataArray<TerrainTile>(Allocator.Temp);
+        
+        float minDist = float.MaxValue;
+        int nearestIndex = -1;
+        
+        for (int i = 0; i < entities.Length; i++)
+        {
+            float dist = math.distance(transforms[i].Position, (float3)playerPos.Value);
+            if (dist < minDist)
+            {
+                minDist = dist;
+                nearestIndex = i;
+            }
+        }
+        
+        if (nearestIndex >= 0)
+        {
+            var tile = tiles[nearestIndex];
+            var transform = transforms[nearestIndex];
+            
+            Debug.Log($"=== Nearest Tile ===");
+            Debug.Log($"Grid: {tile.gridCoordinate}");
+            Debug.Log($"Position: {transform.Position}");
+            Debug.Log($"Distance: {minDist:F1}m");
+            Debug.Log($"Mesh Generated: {tile.meshGenerated}");
+            
+            // Check for additional components
+            var entity = entities[nearestIndex];
+            Debug.Log($"Has MeshReference: {em.HasComponent<MeshReference>(entity)}");
+            Debug.Log($"Has PhysicsCollider: {em.HasComponent<Unity.Physics.PhysicsCollider>(entity)}");
+        }
+        
+        entities.Dispose();
+        transforms.Dispose();
+        tiles.Dispose();
+        query.Dispose();
+    }
+}
+```
+
+---
+
+## System Access Patterns
+
+### Accessing Singletons
+
+```csharp
+// In ISystem (Burst compatible)
+var config = SystemAPI.GetSingleton<TerrainTileConfig>();
+
+// In SystemBase (non-Burst)
+var config = SystemAPI.GetSingleton<TerrainTileConfig>();
+
+// With EntityManager
+var query = em.CreateEntityQuery(typeof(TerrainTileConfig));
+var entity = query.GetSingletonEntity();
+var config = em.GetComponentData<TerrainTileConfig>(entity);
+query.Dispose();
+```
+
+### Accessing Managed Singletons
+
+```csharp
+// In ISystem (NOT Burst compatible)
+var playerRef = SystemAPI.ManagedAPI.GetSingleton<PlayerTransformReference>();
+
+// In SystemBase
+var playerRef = SystemAPI.ManagedAPI.GetSingleton<PlayerTransformReference>();
+
+// With EntityManager
+var entity = em.CreateEntityQuery(typeof(PlayerTransformReference)).GetSingletonEntity();
+var playerRef = em.GetComponentObject<PlayerTransformReference>(entity);
+```
+
+### Modifying Singleton Data
+
+```csharp
+// In ISystem
+RefRW<ScrollOffset> offset = SystemAPI.GetSingletonRW<ScrollOffset>();
+offset.ValueRW.accumulatedOffset += new float3(1, 0, 0);
+
+// In SystemBase
+var offset = SystemAPI.GetSingletonRW<ScrollOffset>();
+offset.ValueRW.accumulatedOffset += new float3(1, 0, 0);
+
+// With EntityManager
+var query = em.CreateEntityQuery(typeof(ScrollOffset));
+var entity = query.GetSingletonEntity();
+var offset = em.GetComponentData<ScrollOffset>(entity);
+offset.accumulatedOffset += new float3(1, 0, 0);
+em.SetComponentData(entity, offset);
+query.Dispose();
+```
+
+### Querying Tiles
+
+```csharp
+// Query with SystemAPI
+foreach (var (tile, entity) in 
+    SystemAPI.Query<RefRO<TerrainTile>>()
+    .WithEntityAccess())
+{
+    // Process tile
+}
+
+// Query with EntityManager
+var query = em.CreateEntityQuery(typeof(TerrainTile));
+var entities = query.ToEntityArray(Allocator.Temp);
+
+foreach (var entity in entities)
+{
+    var tile = em.GetComponentData<TerrainTile>(entity);
+    // Process tile
+}
+
+entities.Dispose();
+query.Dispose();
+```
+
+### Buffer Access
+
+```csharp
+// Get buffer
+var buffer = EntityManager.GetBuffer<VertexElement>(entity);
+
+// Read elements
+foreach (var element in buffer)
+{
+    float3 vertex = element.value;
+}
+
+// Add elements
+buffer.Add(new VertexElement { value = new float3(0, 0, 0) });
+
+// Clear buffer
+buffer.Clear();
+
+// Convert to NativeArray (zero-copy)
+var array = buffer.Reinterpret<float3>().AsNativeArray();
+```
+
+---
+
+## Thread Safety
+
+### Burst-Compatible Components
+
+Can access from Burst-compiled code:
+- ✅ TerrainTileConfig
+- ✅ ScrollConfig
+- ✅ ScrollOffset
+- ✅ PlayerTrackingSearch
+- ✅ TerrainTile
+- ✅ All buffer components
+- ✅ All physics components (except managed)
+
+### Main Thread Only
+
+Must access from main thread:
+- ❌ PlayerTransformReference (managed)
+- ❌ MeshReference (managed)
+- ❌ Any component holding Unity Object references
+
+### Usage Example
+
+```csharp
+[BurstCompile]  // ✅ OK - no managed components
+public partial struct MyBurstSystem : ISystem
+{
+    [BurstCompile]
     public void OnUpdate(ref SystemState state)
     {
-        // Get terrain config
         var config = SystemAPI.GetSingleton<TerrainTileConfig>();
+        // ✅ Can access struct singletons
         
-        // Use configuration
-        float maxHeight = config.noiseAmplitude;
-        int resolution = config.verticesPerSide;
-        
-        UnityEngine.Debug.Log($"Terrain tiles are {config.tileSize}m with {resolution} vertices per side");
+        // ❌ Cannot access PlayerTransformReference (compile error)
+        // var playerRef = SystemAPI.GetSingleton<PlayerTransformReference>();
     }
 }
-```
 
----
-
-### Example 2: Querying Active Tiles
-
-```csharp
-public partial class MyTerrainAnalyzer : SystemBase
+public partial class MyMainThreadSystem : SystemBase  // ✅ Can access managed
 {
     protected override void OnUpdate()
     {
-        int tileCount = 0;
-        
-        Entities
-            .WithAll<TerrainTile>()
-            .ForEach((Entity entity, in TerrainTile tile) =>
-            {
-                tileCount++;
-                UnityEngine.Debug.Log($"Tile {tileCount}: Grid {tile.gridCoordinate}, Generated: {tile.meshGenerated}");
-            })
-            .WithoutBurst()  // Burst can't call Debug.Log
-            .Run();
-        
-        UnityEngine.Debug.Log($"Total active tiles: {tileCount}");
+        var playerRef = SystemAPI.ManagedAPI.GetSingleton<PlayerTransformReference>();
+        // ✅ Can access managed components
     }
 }
 ```
 
 ---
 
-### Example 3: Getting Mesh Data from Buffer
+## Related Documentation
 
-```csharp
-public partial class MeshDataReader : SystemBase
-{
-    protected override void OnUpdate()
-    {
-        var entity = SystemAPI.GetSingletonEntity<TerrainTile>();
-        var vertices = EntityManager.GetBuffer<VertexElement>(entity);
-        
-        UnityEngine.Debug.Log($"First vertex: {vertices[0].value}");
-        UnityEngine.Debug.Log($"Total vertices: {vertices.Length}");
-        
-        // Convert to array if needed
-        float3[] vertexArray = new float3[vertices.Length];
-        for (int i = 0; i < vertices.Length; i++)
-        {
-            vertexArray[i] = vertices[i].value;
-        }
-    }
-}
-```
+- **[Component Reference](COMPONENT_REFERENCE.md)** - Detailed component descriptions
+- **[System Reference](SYSTEM_REFERENCE.md)** - System details
+- **[Technical Details](TECHNICAL_DETAILS.md)** - Implementation details
+- **[Code Examples](EXTENSIONS.md)** - More advanced examples
 
 ---
 
-### Example 4: Manually Triggering Mesh Regeneration
-
-```csharp
-public partial class TerrainModifier : SystemBase
-{
-    protected override void OnUpdate()
-    {
-        // Find a specific tile
-        Entities
-            .WithAll<TerrainTile>()
-            .ForEach((ref TerrainTile tile) =>
-            {
-                if (tile.gridCoordinate.Equals(new int2(0, 0)))
-                {
-                    // Mark for regeneration
-                    tile.needsRegeneration = true;
-                    UnityEngine.Debug.Log("Marked tile (0,0) for regeneration");
-                }
-            })
-            .Run();
-    }
-}
-```
-
-**Next Frame:** `TerrainMeshGenerationSystem` will see `needsRegeneration == true` and regenerate the mesh.
-
----
-
-### Example 5: Custom Noise Function
-
-To replace the noise function:
-
-```csharp
-// In TerrainMeshGenerationSystem.cs, replace SampleNoise with:
-
-[BurstCompile]
-private static float SampleCustomNoise(double worldX, double worldZ, TerrainTileConfig config)
-{
-    // Example: Ridged noise (abs of Perlin)
-    float total = 0f;
-    float frequency = config.noiseFrequency;
-    float amplitude = config.noiseAmplitude;
-    
-    for (int i = 0; i < config.noiseOctaves; i++)
-    {
-        float2 samplePos = new float2((float)worldX, (float)worldZ) * frequency;
-        float noiseValue = noise.snoise(samplePos);
-        
-        // Ridge effect: abs creates sharp peaks
-        noiseValue = math.abs(noiseValue);
-        
-        total += noiseValue * amplitude;
-        amplitude *= config.noisePersistence;
-        frequency *= config.noiseLacunarity;
-    }
-    
-    return total * 0.5f;  // Scale down (ridges are additive)
-}
-```
-
----
-
-### Example 6: Adding Custom Component to Tiles
-
-```csharp
-public struct TileBiomeType : IComponentData
-{
-    public int biomeID;  // 0=grass, 1=desert, 2=snow, etc.
-}
-
-// In TileSpawningSystem.cs, modify entity creation:
-foreach (var gridCoord in tilesToSpawn)
-{
-    Entity tileEntity = ecb.CreateEntity();
-    
-    // ... existing components ...
-    
-    // Add custom component
-    ecb.AddComponent(tileEntity, new TileBiomeType
-    {
-        biomeID = CalculateBiomeID(gridCoord)  // Your logic here
-    });
-}
-
-// Then in TerrainMeshGenerationSystem, read it:
-var biome = SystemAPI.GetComponent<TileBiomeType>(entity);
-if (biome.biomeID == 0)
-    // Use grass noise parameters
-else if (biome.biomeID == 1)
-    // Use desert noise parameters
-```
-
----
-
-### Example 7: Accessing Accumulated Offset
-
-```csharp
-public partial struct MySystem : ISystem
-{
-    public void OnUpdate(ref SystemState state)
-    {
-        var worldOffset = SystemAPI.GetSingleton<WorldOriginOffset>();
-        
-        UnityEngine.Debug.Log($"World has shifted by: {worldOffset.accumulatedOffset} meters");
-        UnityEngine.Debug.Log($"Total distance traveled: {math.length(worldOffset.accumulatedOffset)} meters");
-        
-        // Convert entity position to "true" world position
-        float3 entityPos = new float3(100, 0, 50);
-        double3 trueWorldPos = entityPos + worldOffset.accumulatedOffset;
-    }
-}
-```
-
----
-
-## Constants & Magic Numbers
-
-### Hardcoded Values in Systems
-
-| Value | Location | Purpose | Can Change? |
-|-------|----------|---------|-------------|
-| `256` | TileSpawningSystem | Initial HashMap capacity | Yes - affects memory allocation only |
-| `0` | TerrainRenderingSystem | Default Unity layer | Yes - change to put terrain on different layer |
-| `1` | TerrainRenderingSystem | Default rendering layer mask | Yes - for URP layer filtering |
-| `1u << 0` | TerrainPhysicsSystem | Physics layer 0 | Yes - change collision layer |
-| `~0u` | TerrainPhysicsSystem | Collides with all layers | Yes - restrict collision layers |
-
-### Component Counts
-
-**For 32x32 vertex tile:**
-- Vertices: 1,024
-- Normals: 1,024
-- UVs: 1,024
-- Indices: 5,766 (1,922 triangles * 3)
-
-**For 64x64 vertex tile:**
-- Vertices: 4,096
-- Normals: 4,096
-- UVs: 4,096
-- Indices: 23,814 (7,938 triangles * 3)
-
-**Memory scaling:** O(n²) where n = verticesPerSide
-
----
-
-## Thread Safety & Burst Compilation
-
-### Burst-Compiled Functions
-
-| Function | System | Burst Compiled | Performance Gain |
-|----------|--------|----------------|------------------|
-| `OnCreate` | TileSpawningSystem | ✅ Yes | 2x |
-| `OnDestroy` | TileSpawningSystem | ✅ Yes | 2x |
-| `OnUpdate` | TileSpawningSystem | ❌ No (uses Debug.Log) | - |
-| `SampleNoise` | TerrainMeshGenerationSystem | ✅ Yes | 10x |
-| `CalculateNormalFromHeightfield` | TerrainMeshGenerationSystem | ✅ Yes | 8x |
-| `ShiftWorldOriginJob` | FloatingOriginSystem | ✅ Yes | 12x |
-| `OnUpdate` | FloatingOriginSystem | ✅ Yes | 5x |
-
-### Parallel Job Execution
-
-**ShiftWorldOriginJob:**
-```csharp
-[BurstCompile]
-[WithAll(typeof(FloatingOriginEnabled))]
-public partial struct ShiftWorldOriginJob : IJobEntity
-{
-    public float3 offset;
-    
-    public void Execute(ref LocalTransform transform)
-    {
-        transform.Position -= offset;  // Thread-safe: each entity independent
-    }
-}
-
-// Scheduled in FloatingOriginSystem:
-shiftJob.ScheduleParallel();  // Runs on multiple worker threads
-```
-
-**Thread Safety:** Each entity processed independently, no shared state modifications.
-
----
-
-## Error Handling
-
-### Common Errors
-
-#### "PlayerTag not found"
-**Cause:** No entity with PlayerTag in scene  
-**Fix:** Add `PlayerTagAuthoring` to player GameObject
-
-#### "TerrainMaterial not found in Resources"
-**Cause:** Material missing from Resources folder  
-**Fix:** Run Tools → Terrain → Create Terrain Material (or let `TerrainMaterialCreator` run on startup)
-
-#### "Failed to add render components"
-**Cause:** EntitiesGraphicsSystem not available or material/mesh invalid  
-**Fix:** Ensure Entities Graphics package installed, check material shader
-
-#### "Failed to create collider"
-**Cause:** Invalid mesh data (empty buffers, negative indices)  
-**Fix:** Check console for mesh generation errors, verify vertices > 0
-
-### Defensive Programming
-
-**Null Checks:**
-```csharp
-if (_terrainMaterial == null)
-{
-    Debug.LogWarning("Material is null, skipping...");
-    return;
-}
-```
-
-**Buffer Validation:**
-```csharp
-if (vertices.Length > 0 && indices.Length > 0)
-{
-    CreateAndAssignMesh(...);
-}
-else
-{
-    Debug.LogWarning($"Tile has empty buffers!");
-}
-```
-
-**Component Checks:**
-```csharp
-if (!SystemAPI.HasComponent<LocalTransform>(playerEntity))
-    return;  // Skip frame if player not ready
-```
-
----
-
-## Integration Examples
-
-### Example: Getting Height at World Position
-
-```csharp
-public static float GetTerrainHeightAt(float3 worldPosition, TerrainTileConfig config, WorldOriginOffset offset)
-{
-    // Convert to true world position
-    double3 trueWorldPos = worldPosition + offset.accumulatedOffset;
-    
-    // Sample noise (same function terrain uses)
-    float height = SampleNoise(trueWorldPos.x, trueWorldPos.z, config);
-    
-    return height;
-}
-```
-
-**Use Case:** AI pathfinding, object placement, effect spawning
-
----
-
-### Example: Spawning Objects on Terrain
-
-```csharp
-public partial class TreeSpawner : SystemBase
-{
-    protected override void OnUpdate()
-    {
-        var config = SystemAPI.GetSingleton<TerrainTileConfig>();
-        var offset = SystemAPI.GetSingleton<WorldOriginOffset>();
-        
-        Entities
-            .WithAll<TerrainTile>()
-            .ForEach((Entity tileEntity, in TerrainTile tile) =>
-            {
-                if (!tile.meshGenerated) return;
-                
-                // Get tile world position
-                var transform = SystemAPI.GetComponent<LocalTransform>(tileEntity);
-                float3 tilePos = transform.Position;
-                
-                // Spawn tree at random position on tile
-                float3 localPos = new float3(
-                    UnityEngine.Random.Range(0, config.tileSize),
-                    0,
-                    UnityEngine.Random.Range(0, config.tileSize)
-                );
-                
-                float3 worldPos = tilePos + localPos;
-                
-                // Get height at this position
-                double3 truePos = worldPos + offset.accumulatedOffset;
-                float height = SampleNoise(truePos.x, truePos.z, config);
-                
-                // Create tree at (worldPos.x, height, worldPos.z)
-                // ... tree creation logic ...
-            })
-            .WithoutBurst()
-            .Run();
-    }
-}
-```
-
----
-
-## Version History
-
-| Version | Date | Changes |
-|---------|------|---------|
-| 1.0 | March 2026 | Initial implementation with all core systems |
-| 1.1 | March 2026 | Added rendering debug system, material auto-creation |
-
----
-
-## See Also
-
-- [SYSTEM_ARCHITECTURE.md](SYSTEM_ARCHITECTURE.md) - High-level overview
-- [TECHNICAL_DETAILS.md](TECHNICAL_DETAILS.md) - Deep implementation details
-- [TROUBLESHOOTING.md](TROUBLESHOOTING.md) - Common issues and fixes
+**Back to**: [Documentation Hub](README.md)
 

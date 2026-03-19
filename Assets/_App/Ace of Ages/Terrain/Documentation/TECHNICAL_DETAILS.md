@@ -1,1112 +1,1076 @@
-# Infinite Terrain System - Technical Deep Dive
+# Technical Details - Algorithms and Implementation
 
-**Last Updated:** March 14, 2026  
-**Complexity Level:** Advanced
+Deep dive into the algorithms, math, and implementation details of the terrain system.
 
 ## Table of Contents
-1. [Floating Origin Implementation](#floating-origin-implementation)
-2. [Noise Generation Details](#noise-generation-details)
-3. [Mesh Generation Algorithm](#mesh-generation-algorithm)
-4. [Tile Management Strategy](#tile-management-strategy)
-5. [Physics Integration](#physics-integration)
-6. [Rendering Pipeline](#rendering-pipeline)
+
+- [Procedural Generation](#procedural-generation)
+- [Normal Calculation](#normal-calculation)
+- [LOD Decimation](#lod-decimation)
+- [Priority Algorithms](#priority-algorithms)
+- [Caching Strategy](#caching-strategy)
+- [Memory Management](#memory-management)
+- [Performance Optimization](#performance-optimization)
 
 ---
 
-## Floating Origin Implementation
-
-### The Floating-Point Precision Problem
-
-**Why Floating Origin is Necessary:**
-
-At large distances from the origin, float precision degrades:
-- At 1,000 units: ~0.0001 unit precision (0.1mm)
-- At 10,000 units: ~0.001 unit precision (1mm)
-- At 100,000 units: ~0.01 unit precision (1cm) - **noticeable jitter in VR**
-- At 1,000,000 units: ~0.125 unit precision (12.5cm) - **severe artifacts**
-
-In VR applications, even millimeter-level jitter is visible and breaks immersion.
-
-### Solution: Floating Origin with Double Precision Tracking
-
-The system uses a hybrid approach:
-
-1. **Entity Positions (float3)**: All entities stay near world origin (0, 0, 0)
-2. **Accumulated Offset (double3)**: Tracks the "true" world position with high precision
-3. **Noise Sampling**: Uses true position (entity position + accumulated offset) for consistency
-
-### Implementation Details
-
-**In FloatingOriginSystem.cs:**
-
-```csharp
-void OnUpdate(ref SystemState state)
-{
-    var playerTransform = SystemAPI.GetComponent<LocalTransform>(playerEntity);
-    float3 playerPosition = playerTransform.Position;
-    float distanceFromOrigin = math.length(playerPosition);
-    
-    if (distanceFromOrigin > config.shiftThreshold)
-    {
-        // Player has moved 2000m from origin, time to shift
-        float3 shiftOffset = playerPosition;
-        
-        // Update the "true" world position tracker
-        RefRW<WorldOriginOffset> worldOffset = SystemAPI.GetSingletonRW<WorldOriginOffset>();
-        worldOffset.ValueRW.accumulatedOffset += shiftOffset;  // Add using double precision
-        
-        // Shift all floating origin entities back to near-origin
-        var shiftJob = new ShiftWorldOriginJob { offset = shiftOffset };
-        shiftJob.ScheduleParallel();
-    }
-}
-```
-
-**Parallel Shift Job:**
-
-```csharp
-[BurstCompile]
-[WithAll(typeof(FloatingOriginEnabled))]
-public partial struct ShiftWorldOriginJob : IJobEntity
-{
-    public float3 offset;
-    
-    public void Execute(ref LocalTransform transform)
-    {
-        transform.Position -= offset;  // Subtract offset from position
-    }
-}
-```
-
-**In TerrainMeshGenerationSystem.cs:**
-
-```csharp
-// Calculate true world position for noise sampling
-double3 tileWorldPos = new double3(
-    tile.gridCoordinate.x * config.tileSize,
-    0,
-    tile.gridCoordinate.y * config.tileSize
-) + worldOffset.accumulatedOffset;  // Add accumulated offset
-
-// Sample noise at true position
-for each vertex:
-    double worldX = tileWorldPos.x + localX;
-    double worldZ = tileWorldPos.z + localZ;
-    float height = SampleNoise(worldX, worldZ, config);  // Uses double for input
-```
-
-### Example Scenario
-
-**Player Journey:**
-
-| Step | Player Entity Position | Accumulated Offset | True World Position |
-|------|----------------------|-------------------|-------------------|
-| Start | (0, 0, 0) | (0, 0, 0) | (0, 0, 0) |
-| Walk 1500m | (1500, 0, 0) | (0, 0, 0) | (1500, 0, 0) |
-| Walk 2500m | (2500, 0, 0) | (0, 0, 0) | (2500, 0, 0) |
-| **Shift** | (0, 0, 0) | (2500, 0, 0) | (2500, 0, 0) |
-| Walk 500m | (500, 0, 0) | (2500, 0, 0) | (3000, 0, 0) |
-| Walk 2000m | (2000, 0, 0) | (2500, 0, 0) | (4500, 0, 0) |
-| **Shift** | (0, 0, 0) | (4500, 0, 0) | (4500, 0, 0) |
-
-Notice:
-- Entity position always stays near origin (prevents precision loss)
-- Accumulated offset grows indefinitely (double precision can handle it)
-- True world position = sum of both = consistent terrain generation
-
----
-
-## Noise Generation Details
+## Procedural Generation
 
 ### Multi-Octave Perlin Noise
 
-The system uses **Simplex Noise** (via `Unity.Mathematics.noise.snoise()`) with multiple octaves layered together.
+The system uses **Fractional Brownian Motion (fBm)** - multiple octaves of Perlin noise combined for realistic terrain.
 
-**Single Octave:**
-```csharp
-float2 samplePos = worldPosition * frequency;
-float noiseValue = noise.snoise(samplePos);  // Returns [-1, 1]
-height = noiseValue * amplitude;
-```
+#### Algorithm
 
-**Multi-Octave (Fractal Brownian Motion):**
 ```csharp
-float SampleNoise(double worldX, double worldZ, TerrainTileConfig config)
+float SampleHeight(float2 worldPosition, TerrainTileConfig config)
 {
-    float total = 0f;
-    float frequency = config.noiseFrequency;  // Start: 0.01
-    float amplitude = config.noiseAmplitude;  // Start: 20
-    float maxValue = 0f;
+    float height = 0f;
+    float frequency = config.noiseFrequency;
+    float amplitude = config.noiseAmplitude;
     
-    for (int i = 0; i < config.noiseOctaves; i++)  // Default: 4 octaves
+    for (int octave = 0; octave < config.noiseOctaves; octave++)
     {
-        float2 samplePos = new float2((float)worldX, (float)worldZ) * frequency;
-        float noiseValue = noise.snoise(samplePos);  // [-1, 1]
+        // Sample Perlin noise at current frequency
+        float sample = noise.cnoise(worldPosition * frequency);
         
-        total += noiseValue * amplitude;
-        maxValue += amplitude;
+        // Add weighted contribution
+        height += sample * amplitude;
         
-        // Prepare for next octave
-        amplitude *= config.noisePersistence;  // e.g., 0.5 (gets quieter)
-        frequency *= config.noiseLacunarity;   // e.g., 2.0 (gets finer)
+        // Increase frequency and decrease amplitude for next octave
+        frequency *= config.noiseLacunarity;  // Default: 2.0
+        amplitude *= config.noisePersistence; // Default: 0.5
     }
     
-    // Normalize to [0, noiseAmplitude]
-    return total / maxValue * config.noiseAmplitude;
+    return height;
 }
 ```
 
-### Octave Contribution Example
+#### Parameters Explained
 
-**Config:** frequency=0.01, amplitude=20, octaves=4, lacunarity=2.0, persistence=0.5
+**Frequency** (`noiseFrequency`):
+- Controls wavelength of terrain features
+- Lower = larger features (smooth hills)
+- Higher = smaller features (rough terrain)
+- Formula: `samplePoint = worldPosition × frequency`
 
-| Octave | Frequency | Amplitude | Detail Level | Contribution |
-|--------|-----------|-----------|--------------|--------------|
-| 0 | 0.01 | 20.0 | Large rolling hills | 64% |
-| 1 | 0.02 | 10.0 | Medium features | 32% |
-| 2 | 0.04 | 5.0 | Small details | 16% |
-| 3 | 0.08 | 2.5 | Fine noise | 8% |
+**Amplitude** (`noiseAmplitude`):
+- Controls height variation
+- Directly maps to meters of height difference
+- Formula: `height = noiseSample × amplitude`
 
-**Visual Effect:**
-- Low octaves: Large, smooth hills and valleys
-- High octaves: Rocky details, small bumps
-- Combined: Natural-looking terrain with variation at multiple scales
+**Octaves** (`noiseOctaves`):
+- Number of detail layers
+- Each octave adds smaller details
+- More octaves = more realistic but slower
 
-### Why Double Precision for Input?
+**Lacunarity** (`noiseLacunarity`):
+- Frequency multiplier between octaves
+- Default 2.0 = each octave doubles frequency
+- Higher = more high-frequency detail
+
+**Persistence** (`noisePersistence`):
+- Amplitude multiplier between octaves
+- Default 0.5 = each octave contributes half
+- Higher = rougher terrain
+- Lower = smoother terrain
+
+#### Perlin Noise Function
+
+Uses Unity.Mathematics `noise.cnoise()`:
 
 ```csharp
-// BAD: Using only float precision
-float worldX = tileWorldPos.x + localX;  // Precision loss at large distances
-float height = SampleNoise(worldX, worldZ, config);
-// Result: Terrain "pops" or changes after origin shift
+using Unity.Mathematics;
 
-// GOOD: Using double precision
-double worldX = (double)tileWorldPos.x + localX;
-float height = SampleNoise(worldX, worldZ, config);
-// Result: Terrain stays consistent at any distance
+// Classic Perlin noise (continuous, gradient-based)
+float sample = noise.cnoise(new float2(x, z));
+
+// Returns: -1.0 to +1.0 range
+// Properties: Continuous, smooth, tileable
 ```
 
-Even though `noise.snoise()` accepts float, the coordinate calculation is done in double precision to maintain accuracy.
+**Alternative**: Could use Simplex noise (`noise.snoise()`) for better performance.
 
 ---
 
-## Mesh Generation Algorithm
+## Normal Calculation
 
-### Vertex Grid Layout
+### Smooth Normals Algorithm
 
-For a 4x4 vertex tile (simplified example):
+Normals calculated using **averaged face normals** method:
 
-```
-z=3:  12 ---- 13 ---- 14 ---- 15
-      |   /|   /|   /|   /|
-      |  / |  / |  / |  / |
-      | /  | /  | /  | /  |
-z=2:  8 ---- 9 ---- 10 ---- 11
-      |   /|   /|   /|   /|
-      |  / |  / |  / |  / |
-      | /  | /  | /  | /  |
-z=1:  4 ---- 5 ---- 6 ---- 7
-      |   /|   /|   /|   /|
-      |  / |  / |  / |  / |
-      | /  | /  | /  | /  |
-z=0:  0 ---- 1 ---- 2 ---- 3
-     x=0   x=1   x=2   x=3
-```
+#### Step 1: Calculate Face Normals
 
-**Vertex Indexing:**
 ```csharp
-index = z * verticesPerSide + x
+for each triangle (v0, v1, v2):
+{
+    // Calculate edges
+    float3 edge1 = v1 - v0;
+    float3 edge2 = v2 - v0;
+    
+    // Cross product gives perpendicular vector
+    float3 faceNormal = math.cross(edge1, edge2);
+    
+    // No normalization yet (weight by area)
+    accumulatedNormals[i0] += faceNormal;
+    accumulatedNormals[i1] += faceNormal;
+    accumulatedNormals[i2] += faceNormal;
+}
 ```
 
-**Vertex at (2, 1):**
-- Index = 1 * 4 + 2 = 6
-- World Position = (2 * stepSize, height, 1 * stepSize)
+**Why not normalize immediately?**: Larger triangles contribute more (area-weighted).
+
+#### Step 2: Normalize Accumulated Normals
+
+```csharp
+for (int i = 0; i < vertexCount; i++)
+{
+    // Normalize to unit length
+    normals[i] = math.normalize(accumulatedNormals[i]);
+}
+```
+
+**Result**: Smooth shading across terrain surface.
+
+### Edge Normal Issue
+
+**Problem**: Tiles calculate normals independently  
+**Result**: Seams visible at tile boundaries (normal discontinuities)
+
+**Current Solution**: Accept seams as limitation
+
+**Future Solution**: Share edge vertices between adjacent tiles
+- Requires tile neighbor awareness
+- More complex data structure
+- Potential performance cost
+
+### Normal Validation
+
+```csharp
+// Ensure normals are valid (not NaN or zero)
+if (math.any(math.isnan(normal)) || math.lengthsq(normal) < 0.0001f)
+{
+    normal = new float3(0, 1, 0); // Default to up vector
+}
+```
+
+---
+
+## LOD Decimation
+
+### Vertex Stride Algorithm
+
+LOD decimation uses **vertex stride** method - skip vertices at regular intervals.
+
+#### Full Resolution (LOD 0)
+```
+Stride: 1
+Pattern: Use every vertex
+
+32×32 grid:
+● ● ● ● ● ● ● ● ... (all 1024 vertices)
+● ● ● ● ● ● ● ●
+● ● ● ● ● ● ● ●
+...
+
+Result: 1024 vertices, 2 triangle per quad
+```
+
+#### Half Resolution (LOD 1)
+```
+Stride: 2
+Pattern: Use every 2nd vertex
+
+32×32 grid becomes 16×16:
+● - ● - ● - ● - ... (256 vertices)
+- - - - - - - -
+● - ● - ● - ● -
+...
+
+Result: 256 vertices (75% reduction)
+```
+
+#### Quarter Resolution (LOD 2)
+```
+Stride: 4
+Pattern: Use every 4th vertex
+
+32×32 grid becomes 8×8:
+● - - - ● - - - ... (64 vertices)
+- - - - - - - -
+- - - - - - - -
+- - - - - - - -
+● - - - ● - - -
+...
+
+Result: 64 vertices (93.75% reduction)
+```
+
+### Decimation Code
+
+```csharp
+int stride = GetVertexStride(lodLevel); // 1, 2, or 4
+int decimatedWidth = (verticesPerSide - 1) / stride + 1;
+
+for (int z = 0; z < verticesPerSide; z += stride)
+{
+    for (int x = 0; x < verticesPerSide; x += stride)
+    {
+        int sourceIndex = z * verticesPerSide + x;
+        preparedVertices.Add(sourceVertices[sourceIndex]);
+    }
+}
+```
+
+**Result**: Evenly spaced subset of original vertices.
+
+### Triangle Regeneration
+
+After decimation, triangles must be regenerated:
+
+```csharp
+for (int z = 0; z < decimatedWidth - 1; z++)
+{
+    for (int x = 0; x < decimatedWidth - 1; x++)
+    {
+        // Calculate indices in decimated vertex array
+        int i0 = z * decimatedWidth + x;
+        int i1 = i0 + 1;
+        int i2 = i0 + decimatedWidth;
+        int i3 = i2 + 1;
+        
+        // Two triangles per quad
+        // Triangle 1: (i0, i2, i1)
+        preparedTriangles.Add(new int3(i0, i2, i1));
+        
+        // Triangle 2: (i1, i2, i3)
+        preparedTriangles.Add(new int3(i1, i2, i3));
+    }
+}
+```
+
+**Why regenerate?**: Original indices reference non-decimated vertex positions.
+
+### LOD Quality Trade-offs
+
+| LOD Level | Vertices | Physics Accuracy | Performance |
+|-----------|----------|------------------|-------------|
+| Full | 100% | Excellent | Expensive |
+| Half | 25% | Good | Moderate |
+| Quarter | 6.25% | Acceptable | Fast |
+| None | 0% | No collision | Fastest |
+
+---
+
+## Priority Algorithms
+
+### Camera-Aware Priority Formula
+
+Prioritizes tiles based on distance AND camera direction:
+
+```csharp
+float CalculateTilePriority(
+    TerrainTile tile, 
+    TerrainTileConfig config,
+    float3 cameraPosition, 
+    float3 cameraForward)
+{
+    // Calculate tile center
+    float3 tileCenter = new float3(
+        tile.gridCoordinate.x * config.tileSize + config.tileSize * 0.5f,
+        0,
+        tile.gridCoordinate.y * config.tileSize + config.tileSize * 0.5f
+    );
+    
+    // Distance component
+    float distance = math.distance(tileCenter, cameraPosition);
+    
+    // Direction component
+    float3 toTile = math.normalize(tileCenter - cameraPosition);
+    float dotProduct = math.dot(cameraForward, toTile);
+    
+    // Combined priority (lower = better = process first)
+    float priority = distance * (1.0f - dotProduct * 0.5f);
+    
+    return priority;
+}
+```
+
+#### Formula Breakdown
+
+**Distance Component**: `distance`
+- Linear distance to tile
+- Closer tiles have lower values
+
+**Direction Component**: `dotProduct`
+- Dot product of camera forward and direction to tile
+- Range: -1 (behind) to +1 (directly ahead)
+
+**Combined**: `distance × (1.0 - dotProduct × 0.5)`
+- Forward tiles: dot = +1, multiply by 0.5 (50% penalty)
+- Side tiles: dot = 0, multiply by 1.0 (no change)
+- Behind tiles: dot = -1, multiply by 1.5 (50% penalty increase)
+
+#### Priority Examples
+
+**Tile A**: 100m ahead of camera
+```
+distance = 100
+dotProduct = +1.0
+priority = 100 × (1.0 - 1.0 × 0.5) = 100 × 0.5 = 50
+```
+
+**Tile B**: 100m to the side
+```
+distance = 100
+dotProduct = 0.0
+priority = 100 × (1.0 - 0.0 × 0.5) = 100 × 1.0 = 100
+```
+
+**Tile C**: 100m behind camera
+```
+distance = 100
+dotProduct = -1.0
+priority = 100 × (1.0 - (-1.0) × 0.5) = 100 × 1.5 = 150
+```
+
+**Sort Order**: A (50) < B (100) < C (150)  
+**Result**: Tile A processed first (in view), C processed last (behind camera)
+
+---
+
+## Caching Strategy
+
+### Hash-Based Caching
+
+Colliders cached by configuration hash (not tile position).
+
+#### Why It Works
+
+**Key Insight**: All tiles with same parameters generate identical collider shapes!
+
+```
+Tile at (0, 0) with config X → Collider shape A
+Tile at (5, 3) with config X → Collider shape A (identical!)
+
+Conclusion: Only need to generate shape A once, reuse for all tiles
+```
+
+#### Cache Key Generation
+
+```csharp
+uint ComputeNoiseHash(TerrainTileConfig config)
+{
+    uint hash = (uint)config.noiseFrequency.GetHashCode();
+    hash ^= (uint)config.noiseAmplitude.GetHashCode() << 8;
+    hash ^= (uint)config.noiseOctaves << 16;
+    hash ^= (uint)config.noiseLacunarity.GetHashCode() << 4;
+    hash ^= (uint)config.noisePersistence.GetHashCode() << 12;
+    return hash;
+}
+
+ColliderCacheKey key = new ColliderCacheKey
+{
+    verticesPerSide = config.verticesPerSide,
+    lodLevel = targetLOD,
+    noiseParamsHash = ComputeNoiseHash(config)
+};
+```
+
+**Result**: Unique key for each combination of settings.
+
+### LRU Eviction Algorithm
+
+**Least Recently Used (LRU)** eviction when cache exceeds memory limit:
+
+```csharp
+void EvictLRU(int targetMemoryBytes)
+{
+    // Sort by lastAccessFrame (oldest first)
+    var sortedEntries = _colliderCache
+        .OrderBy(entry => entry.Value.lastAccessFrame)
+        .ToList();
+    
+    foreach (var entry in sortedEntries)
+    {
+        // Dispose BlobAsset
+        entry.Value.blobAsset.Dispose();
+        
+        // Remove from cache
+        _colliderCache.Remove(entry.Key);
+        _totalCacheMemoryBytes -= entry.Value.estimatedMemoryBytes;
+        
+        // Stop when under limit
+        if (_totalCacheMemoryBytes <= targetMemoryBytes)
+            break;
+    }
+}
+```
+
+**Access Tracking**:
+```csharp
+// Every cache access updates lastAccessFrame
+if (_colliderCache.TryGetValue(key, out var entry))
+{
+    entry.lastAccessFrame = _currentFrameNumber;
+    _colliderCache[key] = entry; // Update entry
+}
+```
+
+**Result**: Frequently used colliders stay cached, rarely used colliders evicted.
+
+---
+
+## Priority Algorithms
+
+### Tile Sorting Comparers
+
+#### Mesh Generation Priority
+
+```csharp
+struct MeshTileWithPriority
+{
+    public Entity entity;
+    public float priority;
+}
+
+struct TilePriorityComparer : IComparer<MeshTileWithPriority>
+{
+    public int Compare(MeshTileWithPriority a, MeshTileWithPriority b)
+    {
+        return a.priority.CompareTo(b.priority); // Lower priority first
+    }
+}
+
+// Usage
+tilesWithPriority.Sort(new TilePriorityComparer());
+```
+
+#### Collider Creation Priority
+
+```csharp
+struct EntityWithPriority
+{
+    public Entity entity;
+    public int priority;
+}
+
+struct PriorityComparer : IComparer<EntityWithPriority>
+{
+    public int Compare(EntityWithPriority a, EntityWithPriority b)
+    {
+        return a.priority.CompareTo(b.priority); // Lower first
+    }
+}
+```
+
+**Performance**: Sorting is O(n log n), but only runs when queue exceeds budget.
+
+---
+
+## Memory Management
+
+### Zero GC Allocation Techniques
+
+#### Technique 1: NativeContainers Only
+
+```csharp
+// ❌ Managed List (causes GC)
+List<Entity> entities = new List<Entity>();
+
+// ✅ NativeList (no GC)
+var entities = new NativeList<Entity>(64, Allocator.Temp);
+```
+
+#### Technique 2: Stack Allocation
+
+```csharp
+// Use Allocator.Temp for single-frame collections
+var tempList = new NativeList<int>(100, Allocator.Temp);
+// ... use list ...
+tempList.Dispose(); // Disposed at end of frame automatically
+```
+
+#### Technique 3: Reinterpret Buffers
+
+```csharp
+// ❌ Copy buffer to array (allocates)
+var vertices = new Vector3[buffer.Length];
+for (int i = 0; i < buffer.Length; i++)
+    vertices[i] = buffer[i].value;
+
+// ✅ Reinterpret buffer as NativeArray (zero-copy)
+var vertices = buffer.Reinterpret<float3>().AsNativeArray();
+```
+
+#### Technique 4: Entity Queries
+
+```csharp
+// ❌ ToArray allocates managed array
+var entities = query.ToEntityArray(Allocator.Temp); // NativeArray, but still allocation
+
+// ✅ Foreach iteration (no allocation)
+foreach (var entity in SystemAPI.Query<RefRO<TerrainTile>>())
+{
+    // Process inline
+}
+```
+
+### Buffer Memory Management
+
+**Dynamic Buffers** grow automatically:
+- Initial capacity: Small (8-16 elements)
+- Growth strategy: Double capacity when full
+- Memory: Persists with entity
+
+**Best Practice**: Reserve capacity if known:
+```csharp
+var buffer = EntityManager.GetBuffer<VertexElement>(entity);
+buffer.Capacity = 1024; // Pre-allocate for 32×32 mesh
+```
+
+### BlobAsset Management
+
+**Creation**:
+```csharp
+var builder = new BlobBuilder(Allocator.Temp);
+ref TerrainColliderBlob root = ref builder.ConstructRoot<TerrainColliderBlob>();
+
+// Build arrays
+var vertexArray = builder.Allocate(ref root.vertices, vertexCount);
+// ... fill arrays ...
+
+var blobRef = builder.CreateBlobAssetReference<TerrainColliderBlob>(Allocator.Persistent);
+builder.Dispose();
+```
+
+**Disposal**:
+```csharp
+// When evicting from cache
+if (blobRef.IsCreated)
+{
+    blobRef.Dispose();
+}
+```
+
+**Important**: BlobAssets must be explicitly disposed to avoid leaks!
+
+---
+
+## Performance Optimization
+
+### Burst Compilation
+
+Systems use `[BurstCompile]` for optimal performance:
+
+```csharp
+[BurstCompile]
+public partial struct TileScrollPositionSystem : ISystem
+{
+    [BurstCompile]
+    public void OnUpdate(ref SystemState state)
+    {
+        // This code compiles to optimized native code
+        // SIMD vectorization, loop unrolling, etc.
+    }
+}
+```
+
+**Benefits**:
+- 10-50× faster than managed C#
+- SIMD auto-vectorization
+- Aggressive optimization
+
+**Limitations**:
+- Cannot access managed objects (strings, classes, Unity Objects)
+- Cannot call methods with `[BurstDiscard]`
+
+### Parallel Job Scheduling
+
+**Pattern**:
+```csharp
+var job = new MyBurstJob { /* ... */ };
+
+// Schedule parallel (runs on multiple threads)
+JobHandle handle = job.ScheduleParallel(state.Dependency);
+state.Dependency = handle;
+```
+
+**Used In**:
+- TerrainMeshGenerationSystem (multiple tiles generate simultaneously)
+- TerrainColliderPreparationSystem (multiple colliders prepare simultaneously)
+
+**Not Used In**:
+- TerrainRenderingSystem (Unity Mesh API main-thread only)
+- TerrainPhysicsSystem (MeshCollider.Create main-thread only)
+
+### Memory Layout Optimization
+
+**Cache-Friendly Access**:
+```csharp
+// ✅ Good - sequential access
+for (int i = 0; i < buffer.Length; i++)
+{
+    Process(buffer[i]);
+}
+
+// ❌ Bad - random access
+for (int i = 0; i < buffer.Length; i++)
+{
+    int randomIndex = GetRandomIndex();
+    Process(buffer[randomIndex]);
+}
+```
+
+**Component Layout**: ECS stores components in contiguous arrays (excellent cache locality).
+
+---
+
+## Frame Budgeting Implementation
+
+### Queue-Based Budgeting
+
+```csharp
+// Persistent queue (survives across frames)
+private NativeQueue<Entity> _pendingTiles;
+
+OnUpdate:
+{
+    // Add new work to queue
+    foreach (tile needing work)
+    {
+        _pendingTiles.Enqueue(tile.entity);
+    }
+    
+    // Process up to budget
+    int processed = 0;
+    while (_pendingTiles.Count > 0 && processed < budget)
+    {
+        Entity entity = _pendingTiles.Dequeue();
+        ProcessTile(entity);
+        processed++;
+    }
+    
+    // Remaining work stays in queue for next frame
+}
+```
+
+**Advantages**:
+- Predictable frame times
+- Work spreads over multiple frames
+- No frame spikes
+
+**Trade-off**: Tiles take multiple frames to complete.
+
+### Priority-Based Budgeting
+
+Enhanced with priority sorting:
+
+```csharp
+// Collect all pending work with priorities
+var tilesWithPriority = new NativeList<TileWithPriority>(Allocator.Temp);
+
+while (_pendingTiles.Count > 0)
+{
+    var entity = _pendingTiles.Dequeue();
+    float priority = CalculatePriority(entity);
+    tilesWithPriority.Add(new TileWithPriority { entity, priority });
+}
+
+// Sort by priority (only if queue large)
+if (tilesWithPriority.Length > budget)
+{
+    tilesWithPriority.Sort(new PriorityComparer());
+}
+
+// Process top priority items up to budget
+for (int i = 0; i < math.min(tilesWithPriority.Length, budget); i++)
+{
+    ProcessTile(tilesWithPriority[i].entity);
+}
+
+// Put remaining back in queue
+for (int i = budget; i < tilesWithPriority.Length; i++)
+{
+    _pendingTiles.Enqueue(tilesWithPriority[i].entity);
+}
+```
+
+**Result**: Important tiles processed first, unimportant tiles delayed.
+
+---
+
+## Coordinate Systems
+
+### Grid Coordinates (int2)
+
+**Definition**: Integer coordinates identifying tile position in infinite grid.
+
+```
+Grid (-1, 1)  Grid (0, 1)  Grid (1, 1)
+Grid (-1, 0)  Grid (0, 0)  Grid (1, 0)
+Grid (-1,-1)  Grid (0,-1)  Grid (1,-1)
+```
+
+**Conversion to World Position**:
+```csharp
+float3 worldPosition = new float3(
+    gridCoordinate.x * tileSize,
+    0,
+    gridCoordinate.y * tileSize
+);
+```
+
+### World Coordinates (float3)
+
+**Definition**: 3D position in Unity world space (meters).
+
+```
+World (-100, 0, 100)  World (0, 0, 100)  World (100, 0, 100)
+World (-100, 0, 0)    World (0, 0, 0)    World (100, 0, 0)
+World (-100, 0, -100) World (0, 0, -100) World (100, 0, -100)
+```
+
+**Conversion to Grid Coordinates**:
+```csharp
+int2 gridCoordinate = new int2(
+    (int)math.floor(worldPosition.x / tileSize),
+    (int)math.floor(worldPosition.z / tileSize)
+);
+```
+
+### Local Coordinates (float3)
+
+**Definition**: Position relative to tile origin (0-tileSize range).
+
+```csharp
+// Local position within tile
+float3 localPosition = worldPosition - tileWorldPosition;
+
+// Local X and Z in range [0, tileSize]
+// Local Y determined by terrain height
+```
+
+### Scroll-Adjusted Coordinates
+
+When auto-scrolling enabled:
+
+```csharp
+// Base position (from grid coordinates)
+float3 basePosition = new float3(
+    gridCoordinate.x * tileSize,
+    0,
+    gridCoordinate.y * tileSize
+);
+
+// Scrolled position (tiles physically move)
+float3 scrolledPosition = basePosition - scrollOffset.accumulatedOffset;
+
+// Effective player position (for spawning calculations)
+float3 effectivePlayerPosition = playerPosition + scrollOffset.accumulatedOffset;
+```
+
+---
+
+## Mesh Generation Math
+
+### Vertex Grid Generation
+
+```csharp
+for (int z = 0; z < verticesPerSide; z++)
+{
+    for (int x = 0; x < verticesPerSide; x++)
+    {
+        // Calculate local position within tile
+        float localX = (float)x / (verticesPerSide - 1) * tileSize;
+        float localZ = (float)z / (verticesPerSide - 1) * tileSize;
+        
+        // Convert to world position
+        float worldX = tileWorldPosition.x + localX;
+        float worldZ = tileWorldPosition.z + localZ;
+        
+        // Sample height from noise
+        float height = SampleHeight(new float2(worldX, worldZ), config);
+        
+        // Store vertex
+        vertices.Add(new VertexElement 
+        { 
+            value = new float3(localX, height, localZ) 
+        });
+    }
+}
+```
+
+**Result**: Grid of vertices with noise-based heights.
 
 ### Triangle Generation
-
-Each quad becomes two triangles:
-
-```
-Quad at (x, z):
-    Vertices: v0, v1, v2, v3
-    
-    v0 = z * verticesPerSide + x
-    v1 = z * verticesPerSide + (x + 1)
-    v2 = (z + 1) * verticesPerSide + x
-    v3 = (z + 1) * verticesPerSide + (x + 1)
-    
-    Triangle 1: [v0, v2, v1]  (counter-clockwise)
-    Triangle 2: [v1, v2, v3]  (counter-clockwise)
-```
-
-**Example Quad (0, 0):**
-```
-v2(4) ----- v3(5)
- |    \      |
- |      \    |
- |        \  |
-v0(0) ----- v1(1)
-
-Triangle 1: [0, 4, 1]
-Triangle 2: [1, 4, 5]
-```
-
-**For 32x32 Vertices:**
-- Quads: 31 * 31 = 961
-- Triangles: 961 * 2 = 1922
-- Indices: 1922 * 3 = 5766
-
-### Normal Calculation
-
-**Goal:** Smooth lighting with correct normals at all tile boundaries, including edges.
-
-**Algorithm (Heightfield Sampling Method):**
-
-The system calculates normals by **sampling the height function directly** at neighboring positions, rather than looking up vertices from the array. This ensures normals are correct even at tile edges where neighboring tile data isn't available in the vertex array.
-
-```csharp
-float3 CalculateNormalFromHeightfield(
-    double worldX, double worldZ, float stepSize, TerrainTileConfig config)
-{
-    // Sample heights at 4 neighboring positions
-    float heightLeft = SampleNoise(worldX - stepSize, worldZ, config);
-    float heightRight = SampleNoise(worldX + stepSize, worldZ, config);
-    float heightDown = SampleNoise(worldX, worldZ - stepSize, config);
-    float heightUp = SampleNoise(worldX, worldZ + stepSize, config);
-    
-    // Calculate tangent vectors using central differences
-    float3 tangentX = new float3(2.0f * stepSize, heightRight - heightLeft, 0);
-    float3 tangentZ = new float3(0, heightUp - heightDown, 2.0f * stepSize);
-    
-    // Normal is cross product of tangents
-    return normalize(cross(tangentZ, tangentX));
-}
-```
-
-**Why This Approach?**
-
-1. **Works at tile boundaries:** Can sample heights beyond current tile's vertex array
-2. **Deterministic:** Adjacent tiles sampling the same world position get identical heights
-3. **Seamless edges:** Neighboring tiles produce matching normals for shared edge vertices
-4. **Central differences:** More accurate than face-averaging for heightfield data
-
-**Application:**
-```csharp
-for (int z = 0; z < verticesPerSide; z++)
-{
-    for (int x = 0; x < verticesPerSide; x++)
-    {
-        // Calculate world position for this vertex
-        double worldX = tileWorldPos.x + (x * stepSize);
-        double worldZ = tileWorldPos.z + (z * stepSize);
-        
-        // Sample heightfield for normal
-        normals[index] = CalculateNormalFromHeightfield(worldX, worldZ, stepSize, config);
-    }
-}
-```
-
-**Edge Cases Handled:**
-- **Edge vertices (z=0, bottom edge):** Samples at `worldZ - stepSize` (in neighboring tile) ✅
-- **Corner vertices:** Samples in all 4 directions across tile boundaries ✅
-- **Flat terrain:** Returns (0, 1, 0) when all heights equal ✅
-- **Steep slopes:** Returns perpendicular normal correctly ✅
-
-**Performance:**
-- Cost: 4 noise samples per vertex (4 octaves each = 16 simplex noise calls)
-- vs old method: ~6x slower per normal
-- Total impact: +0.25ms per 32×32 tile (negligible)
-- Benefit: Perfect lighting, no visible seams
-
-### UV Mapping
-
-Simple planar mapping:
-
-```csharp
-uv.x = (float)vertexX / (verticesPerSide - 1);  // [0, 1] across tile
-uv.y = (float)vertexZ / (verticesPerSide - 1);  // [0, 1] across tile
-```
-
-**Result:** Each tile has full (0,0) to (1,1) UV space.
-
-**For Tiled Textures:**
-- Material should use Repeat wrap mode
-- Each tile shows the full texture
-- No seams between tiles (UVs continuous)
-
----
-
-## Tile Management Strategy
-
-### Active Tile Tracking
-
-**Data Structure:**
-```csharp
-NativeParallelHashMap<int2, Entity> _activeTiles;
-```
-
-**Why ParallelHashMap?**
-- O(1) lookup by grid coordinate
-- Thread-safe for parallel jobs (if needed in future)
-- Efficient memory usage (only stores active tiles)
-
-**Key Operations:**
-```csharp
-// Check if tile exists
-if (_activeTiles.ContainsKey(gridCoord))
-    // Tile already spawned
-
-// Add new tile
-_activeTiles.Add(gridCoord, entity);
-
-// Remove despawned tile
-_activeTiles.Remove(gridCoord);
-
-// Iterate all active tiles
-var tileKeys = _activeTiles.GetKeyArray(Allocator.Temp);
-foreach (var gridCoord in tileKeys)
-    // Process tile
-tileKeys.Dispose();
-```
-
-### Spawn/Despawn Algorithm
-
-**Spawning Decision:**
-
-```csharp
-for x in [-viewDistanceInTiles, +viewDistanceInTiles]:
-    for z in [-viewDistanceInTiles, +viewDistanceInTiles]:
-        gridCoord = playerGridCoord + (x, z)
-        tileCenter = gridCoord * tileSize + tileSize/2
-        distance = length(tileCenter - playerPosition)
-        
-        if distance <= viewDistance:
-            if not _activeTiles.ContainsKey(gridCoord):
-                SpawnTile(gridCoord)
-```
-
-**Key Features:**
-- **Circular area:** Uses actual distance, not square bounds
-- **Centered spawn:** Checks distance to tile center, not corner
-- **Deterministic:** Same position always produces same tiles
-
-**Despawning Decision:**
-
-```csharp
-for each activeGridCoord in _activeTiles:
-    tileCenter = activeGridCoord * tileSize + tileSize/2
-    distance = length(tileCenter - playerPosition)
-    
-    if distance > viewDistance:
-        DespawnTile(activeGridCoord)
-```
-
-**Hysteresis:** No separate "unload distance" - tiles despawn immediately when exceeding view distance. This is simple but can cause tiles to spawn/despawn rapidly at the boundary.
-
-**Future Improvement:** Add unloadDistance = viewDistance * 1.2 for hysteresis.
-
-### EntityCommandBuffer Pattern
-
-**Why ECB?**
-- Cannot create/destroy entities during structural change
-- ECB defers changes until safe point
-- Allows batching multiple operations efficiently
-
-**Usage:**
-```csharp
-var ecb = new EntityCommandBuffer(Allocator.Temp);
-
-// Queue entity creation
-Entity newEntity = ecb.CreateEntity();
-ecb.AddComponent(newEntity, ...);
-ecb.AddBuffer<VertexElement>(newEntity);
-
-// Execute all changes atomically
-ecb.Playback(state.EntityManager);
-ecb.Dispose();
-```
-
-**Caveat:** Newly created entities don't have valid Entity IDs until playback. Solution: Query for them by component after playback.
-
----
-
-## Noise Generation Details
-
-### Simplex Noise (Unity.Mathematics)
-
-**Function Signature:**
-```csharp
-public static float snoise(float2 position)
-```
-
-**Properties:**
-- Returns: [-1.0, 1.0]
-- Continuous: No seams or discontinuities
-- Tileable: No (for infinite worlds, this is fine)
-- Performance: ~50ns per sample (Burst-compiled)
-
-### Octave Parameters
-
-#### Frequency
-Controls the "zoom level" of the noise.
-
-- **Low (0.001)**: Very large features, changes slowly over distance
-- **Medium (0.01)**: Hills and valleys at human scale
-- **High (0.1)**: Fine detail, changes rapidly
-
-**Formula:**
-```
-samplePosition = worldPosition * frequency
-```
-
-#### Amplitude
-Controls the height of features.
-
-- **Low (5)**: Gentle rolling terrain
-- **Medium (20)**: Moderate hills
-- **High (100)**: Mountains and deep valleys
-
-**Formula:**
-```
-height = noiseValue * amplitude
-```
-
-#### Lacunarity
-Frequency multiplier for each octave (typically 2.0).
-
-- **1.5**: Gentle increase in detail per octave
-- **2.0**: Standard, doubles frequency each octave
-- **3.0**: Aggressive, much finer detail added
-
-**Effect on Frequency:**
-```
-Octave 0: freq = 0.01
-Octave 1: freq = 0.01 * 2.0 = 0.02
-Octave 2: freq = 0.02 * 2.0 = 0.04
-Octave 3: freq = 0.04 * 2.0 = 0.08
-```
-
-#### Persistence
-Amplitude multiplier for each octave (typically 0.5).
-
-- **0.25**: Each octave has much less influence (smoother)
-- **0.5**: Standard, each octave half as strong
-- **0.75**: Each octave almost as strong (more chaotic)
-
-**Effect on Amplitude:**
-```
-Octave 0: amp = 20.0
-Octave 1: amp = 20.0 * 0.5 = 10.0
-Octave 2: amp = 10.0 * 0.5 = 5.0
-Octave 3: amp = 5.0 * 0.5 = 2.5
-```
-
-### Normalization
-
-**Why Normalize?**
-Without normalization, more octaves = taller terrain unpredictably.
-
-**Algorithm:**
-```csharp
-float maxValue = 0f;
-for each octave:
-    total += noiseValue * amplitude
-    maxValue += amplitude  // Track theoretical maximum
-
-normalizedHeight = total / maxValue * config.noiseAmplitude
-```
-
-**Effect:**
-- 1 octave: range [-20, 20]
-- 4 octaves: range [-20, 20] (same!)
-- 8 octaves: range [-20, 20] (same!)
-
-### Terrain Style Tuning
-
-**Smooth Rolling Hills:**
-```
-noiseFrequency:  0.005
-noiseAmplitude:  15
-noiseOctaves:    2
-noiseLacunarity: 2.0
-noisePersistence: 0.4
-```
-
-**Mountainous:**
-```
-noiseFrequency:  0.015
-noiseAmplitude:  50
-noiseOctaves:    6
-noiseLacunarity: 2.2
-noisePersistence: 0.55
-```
-
-**Desert (Low Variation):**
-```
-noiseFrequency:  0.008
-noiseAmplitude:  5
-noiseOctaves:    3
-noiseLacunarity: 1.8
-noisePersistence: 0.3
-```
-
----
-
-## Mesh Generation Algorithm
-
-### Vertex Generation Loop
-
-**Outer Structure:**
-```csharp
-int verticesPerSide = config.verticesPerSide;  // e.g., 32
-float stepSize = config.tileSize / (verticesPerSide - 1);  // e.g., 100/31 = 3.225m
-
-for (int z = 0; z < verticesPerSide; z++)
-{
-    for (int x = 0; x < verticesPerSide; x++)
-    {
-        int index = z * verticesPerSide + x;
-        
-        // Local position within tile (relative to tile origin)
-        float localX = x * stepSize;  // 0, 3.225, 6.45, ..., 100
-        float localZ = z * stepSize;
-        
-        // World position for noise (using double precision)
-        double worldX = tileWorldPos.x + localX;
-        double worldZ = tileWorldPos.z + localZ;
-        
-        // Sample height at this position
-        float height = SampleNoise(worldX, worldZ, config);
-        
-        // Store vertex position (relative to tile, not world)
-        vertices[index] = new float3(localX, height, localZ);
-        
-        // Generate UV
-        uvs[index] = new float2(
-            (float)x / (verticesPerSide - 1),  // [0, 1]
-            (float)z / (verticesPerSide - 1)   // [0, 1]
-        );
-    }
-}
-```
-
-**Important:** Vertices are stored in **tile-local space**, not world space. The tile's `LocalTransform.Position` positions the mesh in the world.
-
-### Index Generation Loop
-
-**Creates triangles for each quad:**
 
 ```csharp
 for (int z = 0; z < verticesPerSide - 1; z++)
 {
     for (int x = 0; x < verticesPerSide - 1; x++)
     {
-        int baseIndex = z * verticesPerSide + x;
+        // Calculate vertex indices for this quad
+        int i0 = z * verticesPerSide + x;
+        int i1 = i0 + 1;
+        int i2 = i0 + verticesPerSide;
+        int i3 = i2 + 1;
         
-        // Quad corners:
-        // v0 = baseIndex
-        // v1 = baseIndex + 1
-        // v2 = baseIndex + verticesPerSide
-        // v3 = baseIndex + verticesPerSide + 1
+        // First triangle (i0, i2, i1) - counter-clockwise
+        indices.Add(new IndexElement { value = i0 });
+        indices.Add(new IndexElement { value = i2 });
+        indices.Add(new IndexElement { value = i1 });
         
-        // Triangle 1: Counter-clockwise winding
-        indexBuffer.Add(baseIndex);                      // Bottom-left
-        indexBuffer.Add(baseIndex + verticesPerSide);     // Top-left
-        indexBuffer.Add(baseIndex + 1);                   // Bottom-right
-        
-        // Triangle 2: Counter-clockwise winding
-        indexBuffer.Add(baseIndex + 1);                   // Bottom-right
-        indexBuffer.Add(baseIndex + verticesPerSide);     // Top-left
-        indexBuffer.Add(baseIndex + verticesPerSide + 1); // Top-right
+        // Second triangle (i1, i2, i3) - counter-clockwise
+        indices.Add(new IndexElement { value = i1 });
+        indices.Add(new IndexElement { value = i2 });
+        indices.Add(new IndexElement { value = i3 });
     }
 }
 ```
 
-**Winding Order:** Counter-clockwise (default for Unity) so normals point up.
+**Result**: Two triangles per quad, 6 indices per quad.
 
-### Normal Calculation Detail
+### UV Generation
 
-**Central Difference Method:**
+World-space UVs for seamless tiling:
 
 ```csharp
-For vertex at (x, z):
-    normal = (0, 1, 0)  // Default up
-    faceCount = 0
+float uvScale = 1.0f / tileSize;
+
+for each vertex at world position (x, y, z):
+{
+    float u = x * uvScale;
+    float v = z * uvScale;
     
-    // Face 1: Current, Right, Up
-    if (x < width-1 && z < height-1):
-        tangent1 = vertices[x+1, z] - vertices[x, z]    // East
-        tangent2 = vertices[x, z+1] - vertices[x, z]    // North
-        faceNormal1 = normalize(cross(tangent1, tangent2))
-        normal += faceNormal1
-        faceCount++
-    
-    // Face 2: Current, Up, Left
-    if (x > 0 && z < height-1):
-        tangent1 = vertices[x, z+1] - vertices[x, z]    // North
-        tangent2 = vertices[x-1, z] - vertices[x, z]    // West
-        faceNormal2 = normalize(cross(tangent1, tangent2))
-        normal += faceNormal2
-        faceCount++
-    
-    // Face 3: Current, Left, Down
-    if (x > 0 && z > 0):
-        tangent1 = vertices[x-1, z] - vertices[x, z]    // West
-        tangent2 = vertices[x, z-1] - vertices[x, z]    // South
-        faceNormal3 = normalize(cross(tangent1, tangent2))
-        normal += faceNormal3
-        faceCount++
-    
-    // Face 4: Current, Down, Right
-    if (x < width-1 && z > 0):
-        tangent1 = vertices[x, z-1] - vertices[x, z]    // South
-        tangent2 = vertices[x+1, z] - vertices[x, z]    // East
-        faceNormal4 = normalize(cross(tangent1, tangent2))
-        normal += faceNormal4
-        faceCount++
-    
-    return normalize(normal)  // Average of all adjacent faces
+    uvs.Add(new UVElement { value = new float2(u, v) });
+}
 ```
 
-**Result:** Smooth shading across the terrain surface with proper lighting response.
+**Result**: 1 UV unit = 1 tile size in world units (e.g., 1 UV = 100m).
 
 ---
 
-## Physics Integration
+## Collision Detection
 
-### Unity.Physics vs. Unity PhysX
-
-This system uses **Unity.Physics** (ECS-native physics):
-- Fully integrated with DOTS
-- Supports Burst compilation
-- Deterministic simulation
-- High performance for many colliders
-
-**Alternative:** Could use GameObjects with MeshCollider (but loses ECS benefits).
-
-### Mesh Collider Creation
-
-**Process:**
+### MeshCollider Creation
 
 ```csharp
-1. Convert VertexElement buffer → NativeArray<float3>
-2. Convert IndexElement buffer → NativeArray<int3> (triangles)
-3. Create Unity.Physics.MeshCollider.Create(
-    vertices,
-    triangles,
-    collisionFilter,
-    material
-)
-4. Store in PhysicsCollider component (BlobAssetReference)
+using Unity.Physics;
+
+// Convert buffers to NativeArrays
+var vertices = new NativeArray<float3>(vertexBuffer.Length, Allocator.Temp);
+var triangles = new NativeArray<int3>(triangleBuffer.Length / 3, Allocator.Temp);
+
+// Fill arrays from buffers
+for (int i = 0; i < vertices.Length; i++)
+    vertices[i] = vertexBuffer[i].value;
+
+for (int i = 0; i < triangles.Length; i++)
+    triangles[i] = new int3(
+        indexBuffer[i*3].value,
+        indexBuffer[i*3 + 1].value,
+        indexBuffer[i*3 + 2].value
+    );
+
+// Create MeshCollider
+var collider = MeshCollider.Create(
+    vertices, 
+    triangles, 
+    CollisionFilter.Default, 
+    Material.Default
+);
+
+// Add to entity
+em.AddComponentData(entity, new PhysicsCollider { Value = collider });
+
+vertices.Dispose();
+triangles.Dispose();
 ```
 
-**Memory Structure:**
-
-```
-PhysicsCollider (4 bytes - just a pointer)
-    └─> BlobAssetReference<Collider>
-        └─> BlobAsset in shared memory
-            ├── Vertices (compressed)
-            ├── Triangles (indices)
-            └── BVH tree (for fast collision queries)
-```
-
-**BlobAsset Advantages:**
-- Immutable (thread-safe)
-- Shared between systems
-- Reference counted (auto-cleanup)
-- Very efficient memory usage
-
-### Collision Filter
+### Collision Filtering
 
 ```csharp
-new CollisionFilter
+var filter = new CollisionFilter
 {
-    BelongsTo: 1u << 0,     // Layer 0 (default layer)
-    CollidesWith: ~0u,      // All layers (bitwise NOT of 0)
-    GroupIndex: 0           // No group-based filtering
-}
-```
-
-**To Change Layer:**
-```csharp
-BelongsTo: 1u << 8,  // Layer 8
-CollidesWith: (1u << 0) | (1u << 3),  // Collides with layers 0 and 3 only
-```
-
-### Physics Material
-
-Currently uses `Unity.Physics.Material.Default`:
-```csharp
-{
-    Friction: 0.5f,
-    FrictionCombinePolicy: CombinePolicy.GeometricMean,
-    Restitution: 0.0f,  // No bounce
-    RestitutionCombinePolicy: CombinePolicy.GeometricMean
-}
-```
-
-**To Customize:**
-```csharp
-var physicsMaterial = new Unity.Physics.Material
-{
-    Friction = 0.8f,           // Higher friction (less sliding)
-    Restitution = 0.1f,        // Slight bounce
-    // ...
+    BelongsTo = 1u << 0,        // Belongs to layer 0
+    CollidesWith = 0xFFFFFFFF,   // Collides with all layers
+    GroupIndex = 0               // No group filtering
 };
 
-var collider = Unity.Physics.MeshCollider.Create(
-    vertices, triangles, collisionFilter, physicsMaterial
-);
+var collider = MeshCollider.Create(vertices, triangles, filter);
 ```
+
+**Physics Layers**: Can assign different collision filters by LOD level.
 
 ---
 
-## Rendering Pipeline
+## Numerical Precision
 
-### Entities Graphics Architecture
+### Float Precision Limits
 
-**Unity 6 Entities Graphics** uses a component-based rendering system:
+**Problem**: `float` has ~7 decimal digits of precision
+- At position 1,000,000: precision = ~0.1m
+- Causes jittering and artifacts
 
-```
-Entity Components                 GPU Representation
-─────────────────                 ──────────────────
-MaterialMeshInfo       ─────────> Material ID + Mesh ID
-    └─ Material Index             
-    └─ Mesh Index                 
+**Solution**: System handles reasonably large worlds (< 100km) without issue
 
-RenderBounds           ─────────> AABB for culling
-    └─ AABB                       
-                                  
-WorldRenderBounds      ─────────> Transformed AABB
-    └─ Transformed AABB           
+**Future Enhancement**: Double-precision coordinates for unlimited worlds
 
-LocalToWorld           ─────────> Transform matrix
-    └─ 4x4 matrix                 
+### Grid Integer Limits
 
-RenderFilterSettings   ─────────> Rendering config
-    └─ Layer                      
-    └─ RenderingLayerMask         
-    └─ Motion Vector Mode         
-    └─ Shadow Casting Mode        
-```
-
-### Material and Mesh Registration
-
-**EntitiesGraphicsSystem maintains internal registries:**
-
-```csharp
-var entitiesGraphicsSystem = World.GetExistingSystemManaged<EntitiesGraphicsSystem>();
-
-// Register mesh (returns ID for MaterialMeshInfo)
-BatchMeshID meshID = entitiesGraphicsSystem.RegisterMesh(unityMesh);
-
-// Register material (returns ID for MaterialMeshInfo)
-BatchMaterialID materialID = entitiesGraphicsSystem.RegisterMaterial(unityMaterial);
-```
-
-**Benefits:**
-- Materials shared across all tiles (instancing)
-- Mesh IDs allow GPU instancing when identical
-- Automatic cleanup when system destroyed
-
-### RenderMeshUtility API
-
-**Modern approach (Unity 6):**
-
-```csharp
-// 1. Create description (settings for how to render)
-var renderMeshDescription = new RenderMeshDescription(
-    shadowCastingMode: ShadowCastingMode.On,
-    receiveShadows: true,
-    layer: 0,                              // Unity layer for culling
-    renderingLayerMask: 1,                 // URP rendering layers
-    motionMode: MotionVectorGenerationMode.Camera  // For motion blur
-);
-
-// 2. Create array (what to render)
-var renderMeshArray = new RenderMeshArray(
-    new[] { terrainMaterial },  // Materials
-    new[] { mesh }              // Meshes
-);
-
-// 3. Create info (which material/mesh to use)
-var materialMeshInfo = MaterialMeshInfo.FromRenderMeshArrayIndices(
-    materialIndex: 0,  // First material in array
-    meshIndex: 0       // First mesh in array
-);
-
-// 4. Add all components in one call
-RenderMeshUtility.AddComponents(
-    entity,
-    EntityManager,
-    renderMeshDescription,
-    renderMeshArray,
-    materialMeshInfo
-);
-```
-
-**Components Added Automatically:**
-- `MaterialMeshInfo`
-- `RenderBounds` (from mesh bounds)
-- `RenderFilterSettings` (from description)
-- Does NOT add `LocalToWorld` (must be added separately)
-
-### Culling System
-
-**Frustum Culling:**
-1. Entities Graphics reads `WorldRenderBounds` for each entity
-2. Compares bounds against camera frustum planes
-3. Only visible entities are rendered
-
-**Bounds Calculation:**
-```csharp
-mesh.RecalculateBounds();  // Computes AABB from vertices
-RenderBounds.Value = mesh.bounds.ToAABB();  // Store in component
-
-// WorldRenderBounds updated automatically by TransformSystemGroup:
-WorldRenderBounds = Transform(RenderBounds, LocalToWorld)
-```
-
-**Performance:** Culling happens on worker threads in Burst-compiled jobs.
-
-### Material Requirements
-
-**Must be URP-compatible:**
-- Shader: "Universal Render Pipeline/Lit" (or other URP shader)
-- Will NOT work with Built-in RP shaders
-- VR requires: Single Pass Instanced rendering mode
-
-**Common Setup:**
-```csharp
-Material terrainMat = new Material(Shader.Find("Universal Render Pipeline/Lit"));
-terrainMat.SetColor("_BaseColor", Color.green);
-terrainMat.SetTexture("_BaseMap", grassTexture);
-terrainMat.SetFloat("_Smoothness", 0.2f);
-```
+**int2 grid coordinates**:
+- Range: -2,147,483,648 to +2,147,483,647
+- With 100m tiles: ±214,748 km from origin
+- Effectively unlimited for gameplay purposes
 
 ---
 
-## Performance Profiling
+## Profiling and Metrics
 
-### Bottleneck Analysis
+### Performance Metrics
 
-**CPU Bottlenecks:**
+Measured on typical hardware (i7-9700K, RTX 2070):
 
-1. **Mesh Generation** (0.5-1ms per tile)
-   - Noise sampling: ~50%
-   - Normal calculation: ~30%
-   - Buffer operations: ~20%
+**Mesh Generation** (32×32, 4 octaves):
+- Job scheduling: 0.1ms
+- Parallel execution: 5-8ms per tile
+- Buffer copy: <0.1ms
 
-2. **Collider Creation** (1-2ms per tile)
-   - Data conversion: ~20%
-   - BVH tree building: ~70%
-   - Component addition: ~10%
+**Collider Creation** (full resolution):
+- Cache lookup: <0.01ms
+- Preparation job: 1-2ms (parallel)
+- MeshCollider.Create: 3-5ms (main thread)
 
-3. **Rendering Setup** (0.2-0.5ms per tile)
-   - Mesh object creation: ~40%
-   - Entities Graphics registration: ~40%
-   - Component addition: ~20%
+**Rendering Setup**:
+- Mesh creation: 0.5-1ms per tile
+- Component setup: <0.1ms
 
-**GPU Bottlenecks:**
-- Vertex processing (high vertex count)
-- Overdraw (if view distance too large)
-- Shadow map rendering (if shadows enabled)
+### Memory Metrics
 
-### Optimization Techniques Applied
+**Per 25-tile Grid** (500m view distance):
+- Mesh data: ~1.25 MB
+- Collider data: ~1 MB (full res) or ~250 KB (quarter res)
+- Component data: ~2 KB
+- Total: ~2.5 MB per grid
 
-#### 1. Burst Compilation
-```csharp
-[BurstCompile]
-public partial struct TileSpawningSystem : ISystem
-{
-    [BurstCompile]
-    public void OnCreate(ref SystemState state) { }
-    
-    [BurstCompile]
-    public void OnDestroy(ref SystemState state) { }
-    
-    // OnUpdate not Burst-compiled (uses managed types)
-    public void OnUpdate(ref SystemState state) { }
-}
-```
+### Scalability Analysis
 
-**Speedup:** ~5-10x on math-heavy operations.
+**Linear Scaling**:
+- Noise octaves: 2× octaves = 2× generation time
+- Frame budgets: 2× budget = 2× work per frame
 
-#### 2. Incremental Processing
-```csharp
-// Only process tiles that need work
-var query = SystemAPI.QueryBuilder()
-    .WithAll<TerrainTile, VertexElement>()
-    .WithNone<MeshReference>()  // Exclude already-processed
-    .Build();
-```
+**Quadratic Scaling**:
+- Vertices per side: 2× vertices = 4× total vertices
+- View distance: 2× distance = 4× tiles
 
-**Effect:** Amortizes work across frames, smooth frame rate.
-
-#### 3. Shared Material
-All tiles use the same material reference:
-- GPU can batch render calls
-- Reduces state changes
-- Enables instancing
-
-#### 4. Efficient Containers
-- `NativeParallelHashMap`: O(1) tile lookup
-- `DynamicBuffer`: Resizable, cache-friendly
-- `NativeArray`: Stack-allocated for temp data
-
-### Profiling Markers
-
-**To profile in Unity Profiler:**
-
-Look for these markers:
-- `TileSpawningSystem.OnUpdate`
-- `TerrainMeshGenerationSystem.OnUpdate`
-- `TerrainPhysicsSystem.OnUpdate`
-- `TerrainRenderingSystem.OnUpdate`
-- `FloatingOriginSystem.OnUpdate`
-
-**Expected Frame Budget (60 FPS = 16.67ms):**
-- Idle frame (no new tiles): <0.5ms total
-- Heavy frame (9 new tiles): 10-20ms (may drop to 40-50 FPS momentarily)
+**Exponential Scaling**:
+- None (system designed to avoid exponential growth)
 
 ---
 
-## Advanced Topics
+## Algorithm Complexity
 
-### LOD System (Not Implemented Yet)
+### Time Complexity
 
-**Concept:**
-```
-Distance from Player    Vertices Per Side    Triangles
-─────────────────────   ─────────────────    ─────────
-0-100m (LOD 0)          64                   7,938
-100-300m (LOD 1)        32                   1,922
-300-500m (LOD 2)        16                   450
-500m+ (LOD 3)           8                    98
-```
+| Operation | Complexity | Notes |
+|-----------|------------|-------|
+| Tile spawning | O(n²) | n = viewDistance / tileSize |
+| Distance calculation | O(t) | t = tile count |
+| Priority sorting | O(t log t) | Only when queue > budget |
+| Cache lookup | O(1) | HashMap |
+| Mesh generation | O(v) | v = vertices per tile |
+| Collider creation | O(v) | v = vertices per collider |
 
-**Implementation Strategy:**
-1. Add `LODLevel` component to TerrainTile
-2. In TileSpawningSystem, calculate LOD based on distance
-3. In TerrainMeshGenerationSystem, use `LODLevel` to determine `verticesPerSide`
-4. Regenerate mesh when LOD changes
+### Space Complexity
 
-### Biome System (Not Implemented Yet)
+| Data Structure | Space | Notes |
+|----------------|-------|-------|
+| Active tiles map | O(t) | t = tile count |
+| Pending tiles queue | O(t) | t = tiles awaiting work |
+| Collider cache | O(c) | c = cache limit / collider size |
+| Per-tile mesh data | O(v) | v = vertices per tile |
 
-**Concept:** Different noise parameters per world region.
+---
+
+## Implementation Patterns
+
+### Pattern 1: Singleton Component
 
 ```csharp
-struct BiomeConfig
-{
-    float2 regionCenter;
-    float regionRadius;
-    TerrainNoiseParams noiseParams;
-}
+// Single entity with global config
+var config = SystemAPI.GetSingleton<TerrainTileConfig>();
 
-// Sample noise with biome blending
-float SampleNoiseWithBiomes(double3 worldPos, BiomeConfig[] biomes)
+// Modify via entity query
+var entity = em.CreateEntityQuery(typeof(TerrainTileConfig)).GetSingletonEntity();
+em.SetComponentData(entity, modifiedConfig);
+```
+
+### Pattern 2: Frame Budgeting
+
+```csharp
+private NativeQueue<Entity> _pendingWork;
+
+OnUpdate:
 {
-    float totalHeight = 0;
-    float totalWeight = 0;
+    // Add new work
+    foreach (entity needing work)
+        _pendingWork.Enqueue(entity);
     
-    foreach (var biome in biomes)
+    // Process budget
+    for (int i = 0; i < budget && _pendingWork.Count > 0; i++)
     {
-        float distance = length(worldPos.xz - biome.regionCenter);
-        float weight = saturate(1 - distance / biome.regionRadius);
-        
-        if (weight > 0)
-        {
-            float height = SampleNoise(worldPos, biome.noiseParams);
-            totalHeight += height * weight;
-            totalWeight += weight;
-        }
-    }
-    
-    return totalHeight / totalWeight;
-}
-```
-
-### Texture Splatting (Not Implemented Yet)
-
-**Concept:** Blend textures based on height/slope.
-
-```csharp
-// In shader or vertex color:
-if (height < 5)
-    texture = sand;
-else if (height < 20)
-    texture = grass;
-else if (slope > 45°)
-    texture = rock;
-else
-    texture = snow;
-```
-
-**Implementation:**
-- Store height/slope in vertex colors or additional UV channel
-- Use custom shader with texture arrays
-- Sample textures based on vertex data
-
----
-
-## Future Enhancements
-
-### 1. Chunk Saving/Loading
-**Motivation:** Persistent world modifications (player builds, terrain edits)
-
-**Design:**
-- Serialize vertex/index buffers to disk
-- Store modified chunks in database (SQLite, or JSON)
-- On spawn, check if saved version exists
-- Load saved version instead of regenerating
-
-### 2. Vegetation System
-**Motivation:** Trees, rocks, grass placement
-
-**Design:**
-- Use same noise function with different seed
-- Spawn entities at specific density
-- Parent to tile entity (auto-cleanup on despawn)
-- LOD for vegetation (impostors at distance)
-
-### 3. Dynamic Terrain Deformation
-**Motivation:** Explosions, digging, building
-
-**Design:**
-- Store height modifications in `DynamicBuffer<HeightModification>`
-- Apply modifications during mesh generation
-- Regenerate affected tiles (set `needsRegeneration = true`)
-- Physics colliders automatically update
-
-### 4. Multi-Threaded Generation
-**Motivation:** Faster mesh generation for many tiles
-
-**Design:**
-```csharp
-[BurstCompile]
-public partial struct ParallelMeshGenJob : IJobEntity
-{
-    public void Execute(
-        ref DynamicBuffer<VertexElement> vertices,
-        in TerrainTile tile,
-        in TerrainTileConfig config)
-    {
-        // Generate mesh in parallel job
+        ProcessWork(_pendingWork.Dequeue());
     }
 }
 ```
 
-**Challenge:** DynamicBuffer writing in parallel jobs has restrictions. Need to use `NativeArray` and copy afterward.
+### Pattern 3: Priority Sorting
+
+```csharp
+// Collect with priorities
+var items = new NativeList<ItemWithPriority>(Allocator.Temp);
+foreach (entity) items.Add(new ItemWithPriority { entity, priority });
+
+// Sort (conditional)
+if (items.Length > budget)
+    items.Sort(new Comparer());
+
+// Process top N
+for (int i = 0; i < math.min(items.Length, budget); i++)
+    Process(items[i]);
+```
+
+### Pattern 4: LRU Cache
+
+```csharp
+// Access updates LRU timestamp
+if (cache.TryGetValue(key, out var entry))
+{
+    entry.lastAccessFrame = currentFrame;
+    cache[key] = entry;
+    return entry.data;
+}
+
+// Eviction based on timestamp
+var sortedByAge = cache.OrderBy(e => e.Value.lastAccessFrame);
+foreach (var old in sortedByAge)
+{
+    cache.Remove(old.Key);
+    if (cache.Count <= targetSize) break;
+}
+```
 
 ---
 
-## References
+## Related Documentation
 
-- [Unity DOTS Documentation](https://docs.unity3d.com/Packages/com.unity.entities@latest)
-- [Unity.Mathematics API](https://docs.unity3d.com/Packages/com.unity.mathematics@latest)
-- [Entities Graphics Package](https://docs.unity3d.com/Packages/com.unity.entities.graphics@latest)
-- [Unity.Physics Package](https://docs.unity3d.com/Packages/com.unity.physics@latest)
-- [Perlin Noise Explained](https://en.wikipedia.org/wiki/Perlin_noise)
-- [Fractal Brownian Motion](https://en.wikipedia.org/wiki/Fractional_Brownian_motion)
+- **[System Pipeline](SYSTEM_PIPELINE.md)** - How systems interact
+- **[Component Reference](COMPONENT_REFERENCE.md)** - Component details
+- **[Performance Optimization](PERFORMANCE.md)** - Optimization strategies
+- **[API Reference](API_REFERENCE.md)** - Code examples
+
+---
+
+**Back to**: [Documentation Hub](README.md)
 

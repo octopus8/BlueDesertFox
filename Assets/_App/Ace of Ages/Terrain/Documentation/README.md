@@ -1,282 +1,182 @@
-# Infinite Terrain System Documentation
-
-Welcome to the complete documentation for the DOTS-based infinite terrain system!
-
----
-
-## üìñ Start Here
-
-Choose your path based on what you need:
-
-### üöÄ **I want to set up terrain quickly**
-‚Üí **[QUICK_START.md](QUICK_START.md)**  
-10-minute guide with step-by-step instructions
-
-### ü§î **I want to understand how it works**
-‚Üí **[SYSTEM_ARCHITECTURE.md](SYSTEM_ARCHITECTURE.md)**  
-High-level overview of components and systems
-
-### üìö **I need to look up specific APIs**
-‚Üí **[API_REFERENCE.md](API_REFERENCE.md)**  
-Complete component and system reference
-
-### üêõ **Something isn't working**
-‚Üí **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)**  
-Comprehensive problem-solving guide
-
-### üîß **I want to add custom features**
-‚Üí **[EXTENSION_GUIDE.md](EXTENSION_GUIDE.md)**  
-Guides for LOD, biomes, modifications, etc.
-
-### üìä **I'm a visual learner**
-‚Üí **[VISUAL_GUIDE.md](VISUAL_GUIDE.md)**  
-ASCII diagrams, flowcharts, and visualizations
-
-### üéì **I want to understand the algorithms**
-‚Üí **[TECHNICAL_DETAILS.md](TECHNICAL_DETAILS.md)**  
-Deep dive into implementation details
-
----
-
-## üìã Complete Documentation
-
-### Core Documentation
-1. **[INDEX.md](INDEX.md)** - Full documentation index with learning paths
-2. **[README.md](README.md)** - This file - Documentation overview
-3. **[CHANGELOG.md](CHANGELOG.md)** - Version history and updates
-4. **[QUICK_START.md](QUICK_START.md)** - Setup guide (beginner)
-5. **[SYSTEM_ARCHITECTURE.md](SYSTEM_ARCHITECTURE.md)** - Architecture overview (intermediate)
-6. **[TECHNICAL_DETAILS.md](TECHNICAL_DETAILS.md)** - Implementation deep dive (advanced)
-7. **[API_REFERENCE.md](API_REFERENCE.md)** - Complete API documentation (reference)
-8. **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** - Problem solving (all levels)
-9. **[EXTENSION_GUIDE.md](EXTENSION_GUIDE.md)** - Custom features (advanced)
-10. **[VISUAL_GUIDE.md](VISUAL_GUIDE.md)** - Diagrams and visualizations (intermediate)
-
-### Technical Fix Documentation
-11. **[EDGE_NORMAL_FIX.md](EDGE_NORMAL_FIX.md)** - Edge normal calculation fix (intermediate)
-12. **[NORMAL_CALCULATION_GUIDE.md](NORMAL_CALCULATION_GUIDE.md)** - Normal math guide (advanced)
-13. **[ECB_FIX_NOTES.md](ECB_FIX_NOTES.md)** - Entity command buffer fix
-14. **[RENDERING_FIX_NOTES.md](RENDERING_FIX_NOTES.md)** - Rendering troubleshooting
-15. **[FIX_COMPLETE.md](FIX_COMPLETE.md)** - Complete fix summary
-
-**Total:** ~10,000+ lines of comprehensive documentation
-
----
-
-## ‚ö° Quick Reference
-
-### System Components
-
+# Infinite Terrain System - Documentation Hub
+Welcome to the comprehensive documentation for the DOTS-based infinite terrain system. This system provides high-performance procedural terrain generation optimized for VR applications.
+## ?? Quick Start
+**New to the system?** Start here:
+1. **[Quick Start Guide](QUICK_START.md)** - Get terrain running in 10 minutes
+2. **[System Overview](SYSTEM_OVERVIEW.md)** - Understand how the system works
+3. **[Common Issues](TROUBLESHOOTING.md)** - Solve problems quickly
+## ?? Documentation Index
+### Getting Started
+- **[Quick Start Guide](QUICK_START.md)** - Step-by-step setup instructions for beginners
+- **[Configuration Reference](CONFIGURATION.md)** - Complete guide to all terrain settings
+- **[Player Tracking Setup](PLAYER_TRACKING.md)** - How to configure player tracking for terrain centering
+### Understanding the System
+- **[System Overview](SYSTEM_OVERVIEW.md)** - High-level architecture and component relationships
+- **[System Pipeline](SYSTEM_PIPELINE.md)** - Detailed execution order and data flow
+- **[Technical Details](TECHNICAL_DETAILS.md)** - Deep dive into algorithms and implementation
+### Feature Documentation
+- **[Auto-Scrolling Terrain](AUTO_SCROLLING.md)** - Complete guide to the scrolling terrain feature
+- **[Physics System](PHYSICS_SYSTEM.md)** - LOD-based physics collider system
+- **[Rendering System](RENDERING_SYSTEM.md)** - How mesh rendering works with Entities Graphics
+### Reference
+- **[API Reference](API_REFERENCE.md)** - Complete component and system API documentation
+- **[Component Reference](COMPONENT_REFERENCE.md)** - All components with detailed explanations
+- **[System Reference](SYSTEM_REFERENCE.md)** - All systems with update order and dependencies
+### Troubleshooting & Debugging
+- **[Troubleshooting Guide](TROUBLESHOOTING.md)** - Solutions to common problems
+- **[Debug Tools](DEBUG_TOOLS.md)** - Using TerrainTrackingDebugger and visualization tools
+- **[Performance Optimization](PERFORMANCE.md)** - Tuning for maximum performance
+### Advanced Topics
+- **[Extension Guide](EXTENSIONS.md)** - How to add custom features (biomes, LOD, modifications)
+- **[Integration Guide](INTEGRATION.md)** - Integrating with other systems in your project
+## ?? What is this System?
+The Infinite Terrain System is a production-ready Unity DOTS implementation that provides:
+### Core Features
+? **Infinite Procedural Terrain** - Tiles spawn/despawn automatically as player moves  
+? **Auto-Scrolling** - Optional endless runner mode with directional scrolling  
+? **VR Optimized** - Low overhead, no motion sickness from smooth scrolling  
+? **High Performance** - Burst-compiled ECS systems, zero GC allocations  
+? **Physics Ready** - Automatic mesh collider generation with LOD support  
+? **Flexible Player Tracking** - Works with any GameObject (VR rig, camera, etc.)
+### Performance Characteristics
+- **Tile Generation**: ~5-10ms per tile (configurable budget)
+- **Physics Collider Creation**: Budget-limited to prevent frame spikes
+- **Memory Usage**: Collider cache with LRU eviction
+- **Zero GC Allocations**: No managed memory allocations during runtime
+## ??? System Architecture Overview
 ```
-5 ECS Systems:
-‚îú‚îÄ TileSpawningSystem          (Creates/destroys tiles)
-‚îú‚îÄ TerrainMeshGenerationSystem (Generates procedural meshes)
-‚îú‚îÄ TerrainPhysicsSystem        (Creates colliders)
-‚îú‚îÄ TerrainRenderingSystem      (Sets up rendering)
-‚îî‚îÄ FloatingOriginSystem        (Prevents precision errors)
-
-8 Core Components:
-‚îú‚îÄ TerrainTileConfig           (Configuration singleton)
-‚îú‚îÄ TerrainTile                 (Tile state)
-‚îú‚îÄ FloatingOriginConfig        (Origin shift config)
-‚îú‚îÄ WorldOriginOffset           (Accumulated offset tracker)
-‚îú‚îÄ FloatingOriginEnabled       (Shift tag)
-‚îú‚îÄ PlayerTag                   (Player identifier)
-‚îú‚îÄ MeshReference               (Unity mesh holder)
-‚îî‚îÄ 4√ó Mesh buffers             (Vertex, Normal, UV, Index data)
++-------------------------------------------------------------+
+¶                    Initialization Phase                      ¶
++-------------------------------------------------------------¶
+¶ PlayerTrackingInitSystem                                    ¶
+¶ +- Finds player GameObject and stores Transform reference   ¶
++-------------------------------------------------------------+
++-------------------------------------------------------------+
+¶                    Simulation Phase (Update Order)           ¶
++-------------------------------------------------------------¶
+¶ 1. ScrollTerrainSystem                                      ¶
+¶    +- Updates scroll offset for auto-scrolling terrain      ¶
+¶                                                              ¶
+¶ 2. TileSpawningSystem                                       ¶
+¶    +- Creates/destroys tiles based on player distance       ¶
+¶                                                              ¶
+¶ 3. TileScrollPositionSystem                                 ¶
+¶    +- Applies scroll offset to tile positions               ¶
+¶                                                              ¶
+¶ 4. TerrainMeshGenerationSystem                              ¶
+¶    +- Generates procedural meshes with Perlin noise         ¶
+¶                                                              ¶
+¶ 5. TerrainDistanceTrackingSystem                            ¶
+¶    +- Calculates tile distances and LOD levels              ¶
+¶                                                              ¶
+¶ 6. TerrainColliderPreparationSystem                         ¶
+¶    +- Prepares collider data with LOD decimation (Burst)    ¶
+¶                                                              ¶
+¶ 7. TerrainPhysicsSystem                                     ¶
+¶    +- Creates Unity Physics colliders with caching          ¶
++-------------------------------------------------------------+
++-------------------------------------------------------------+
+¶                    Presentation Phase                        ¶
++-------------------------------------------------------------¶
+¶ TerrainRenderingSystem                                      ¶
+¶ +- Creates Unity Meshes and sets up Entities Graphics       ¶
++-------------------------------------------------------------+
 ```
-
-### Key Features
-
-‚úÖ **Infinite procedural terrain** using Perlin noise  
-‚úÖ **Floating origin** for unlimited world size  
-‚úÖ **Automatic physics** with mesh colliders  
-‚úÖ **DOTS-native** with Burst compilation  
-‚úÖ **VR-optimized** for high frame rates  
-‚úÖ **Fully documented** with 7 comprehensive guides
-
+## ?? Quick Configuration Reference
+### Basic Terrain Settings
+```
+Tile Size:           100m      // Size of each terrain chunk
+View Distance:       500m      // Render distance
+Vertices Per Side:   32        // Mesh resolution (32x32 = 1024 vertices)
+```
+### Noise Settings
+```
+Noise Frequency:     0.01f     // Base terrain variation (lower = smoother)
+Noise Amplitude:     20f       // Maximum height (in meters)
+Noise Octaves:       4         // Detail layers (more = more detail)
+Noise Lacunarity:    2.0f      // Frequency multiplier per octave
+Noise Persistence:   0.5f      // Amplitude multiplier per octave
+```
+### Auto-Scrolling Settings
+```
+Scroll Enabled:      false     // Enable automatic terrain scrolling
+Scroll Speed:        5.0f      // Speed in m/s (positive = forward)
+```
+### Physics LOD Settings
+```
+Max Colliders/Frame:       3      // Budget limit to prevent frame spikes
+Full Resolution Distance:  150m   // Use all vertices for collider
+Half Resolution Distance:  300m   // Use every 2nd vertex
+Quarter Resolution Distance: 450m // Use every 4th vertex
+Max Collider Cache:        50MB   // Memory limit for cached colliders
+```
+## ?? Having Issues?
+1. **Terrain not spawning?** ? [Troubleshooting - No Tiles](TROUBLESHOOTING.md#no-tiles-spawning)
+2. **Terrain not visible?** ? [Troubleshooting - Not Rendering](TROUBLESHOOTING.md#terrain-not-rendering)
+3. **Player tracking fails?** ? [Player Tracking Setup](PLAYER_TRACKING.md)
+4. **Performance issues?** ? [Performance Optimization](PERFORMANCE.md)
+5. **Physics problems?** ? [Physics System](PHYSICS_SYSTEM.md)
+**Debug Tools Available**:
+- `TerrainTrackingDebugger` - Player tracking and tile status
+- `TerrainTileGizmoVisualizer` - Visual tile debugging in Scene view
+## ?? Technical Highlights
+### Zero GC Allocation Design
+- All systems use `NativeContainer` types (no managed collections)
+- Burst-compiled jobs for mesh generation and collider preparation
+- `Reinterpret<T>().AsNativeArray()` pattern for zero-copy buffer access
+- Entity queries with stack-allocated processing
+### Camera-Aware Prioritization
+- Tiles in camera view frustum processed first
+- Forward-facing tiles prioritized over backward tiles
+- Distance-based sorting for generation order
+### Physics LOD System
+- Three LOD levels based on distance (full, half, quarter resolution)
+- Cached collider data with LRU eviction
+- Frame budget system prevents spikes
+- Optional physics layer separation for distant tiles
+### Hybrid MonoBehaviour/ECS Design
+- Player tracking via managed `PlayerTransformReference` component
+- Compatible with any GameObject (VR rigs, cameras, etc.)
+- Runtime initialization system for cross-scene references
+- Material management via MonoBehaviour systems
+## ?? File Structure
+```
+Terrain/
++- Documentation/           ? You are here!
+¶  +- README.md             (This file)
+¶  +- QUICK_START.md
+¶  +- SYSTEM_OVERVIEW.md
+¶  +- ... (all documentation)
+¶
++- TerrainConfigAuthoring.cs       (Main authoring component)
++- TileComponents.cs               (Component definitions)
++- TerrainPhysicsComponents.cs     (Physics-specific components)
+¶
++- Systems:
+¶  +- PlayerTrackingInitSystem.cs
+¶  +- ScrollTerrainSystem.cs
+¶  +- TileSpawningSystem.cs
+¶  +- TileScrollPositionSystem.cs
+¶  +- TerrainMeshGenerationSystem.cs
+¶  +- TerrainDistanceTrackingSystem.cs
+¶  +- TerrainColliderPreparationSystem.cs
+¶  +- TerrainPhysicsSystem.cs
+¶  +- TerrainRenderingSystem.cs
+¶
++- Debug Tools:
+   +- TerrainTrackingDebugger.cs
+   +- TerrainTileGizmoVisualizer.cs
+   +- TerrainRenderingDebugSystem.cs
+```
+## ?? Version Information
+**Current Version**: 2.0  
+**Unity Version**: Unity 6 (6000.3.10f1)  
+**Dependencies**:
+- Unity.Entities (1.3.0+)
+- Unity.Physics
+- Unity.Rendering.Hybrid (Entities Graphics)
+- Unity.Burst
+- Unity.Mathematics
+**Last Updated**: March 2026
 ---
-
-## üéØ Common Tasks
-
-**Task** ‚Üí **Documentation**
-
-- Set up terrain ‚Üí [QUICK_START.md](QUICK_START.md)
-- Terrain not visible ‚Üí [TROUBLESHOOTING.md](TROUBLESHOOTING.md) ¬ß "Terrain Not Appearing"
-- Poor performance ‚Üí [TROUBLESHOOTING.md](TROUBLESHOOTING.md) ¬ß "Performance Issues"
-- Understand system flow ‚Üí [SYSTEM_ARCHITECTURE.md](SYSTEM_ARCHITECTURE.md) ¬ß "System Pipeline"
-- Look up component ‚Üí [API_REFERENCE.md](API_REFERENCE.md) ¬ß "Components API"
-- Change noise style ‚Üí [TECHNICAL_DETAILS.md](TECHNICAL_DETAILS.md) ¬ß "Noise Generation"
-- Add LOD system ‚Üí [EXTENSION_GUIDE.md](EXTENSION_GUIDE.md) ¬ß "LOD System"
-- Add biomes ‚Üí [EXTENSION_GUIDE.md](EXTENSION_GUIDE.md) ¬ß "Biome System"
-- Modify terrain at runtime ‚Üí [EXTENSION_GUIDE.md](EXTENSION_GUIDE.md) ¬ß "Terrain Modification"
-
----
-
-## üîç Search Tips
-
-**Looking for something specific?**
-
-1. **Open [INDEX.md](INDEX.md)** - Has complete document map
-2. **Use Ctrl+F** in your editor to search within documents
-3. **Check API_REFERENCE.md** for component/system names
-4. **Check TROUBLESHOOTING.md** for error messages
-
-**Common search terms:**
-- "float3" ‚Üí API_REFERENCE.md
-- "performance" ‚Üí TECHNICAL_DETAILS.md, TROUBLESHOOTING.md
-- "noise" ‚Üí TECHNICAL_DETAILS.md, EXTENSION_GUIDE.md
-- "spawning" ‚Üí SYSTEM_ARCHITECTURE.md, API_REFERENCE.md
-- "physics" ‚Üí SYSTEM_ARCHITECTURE.md, TROUBLESHOOTING.md
-- "rendering" ‚Üí SYSTEM_ARCHITECTURE.md, TECHNICAL_DETAILS.md
-
----
-
-## üìä Documentation Statistics
-
-- **Total files:** 10 core markdown documents + 5 fix/notes documents
-- **Total lines:** ~10,000+ lines
-- **Total words:** ~70,000 words
-- **Reading time:** ~12 hours for complete documentation
-- **Code examples:** 200+ snippets
-- **Diagrams:** 40+ ASCII diagrams, flowcharts, and tables
-
----
-
-## üéì Recommended Reading Order
-
-### For Setup (30 minutes)
-1. QUICK_START.md (10 min)
-2. SYSTEM_ARCHITECTURE.md - Overview section only (10 min)
-3. TROUBLESHOOTING.md - Skim common issues (10 min)
-
-### For Understanding (2 hours)
-1. SYSTEM_ARCHITECTURE.md (45 min)
-2. TECHNICAL_DETAILS.md - Sections 1-3 (1 hour)
-3. API_REFERENCE.md - Skim (15 min)
-
-### For Mastery (8 hours)
-1. All documents in order
-2. Implement 2-3 extensions from EXTENSION_GUIDE.md
-3. Profile and optimize using techniques from TECHNICAL_DETAILS.md
-
----
-
-## üí° Pro Tips
-
-**Best Practices:**
-- Read QUICK_START first, even if you're experienced
-- Keep INDEX.md open while coding (quick reference)
-- Use TROUBLESHOOTING.md's diagnostic scripts
-- Profile before and after changes
-- Start with default config, tune incrementally
-
-**Common Mistakes:**
-- ‚ùå Forgetting PlayerTag on player entity
-- ‚ùå Not closing SubScene (terrain config not baked)
-- ‚ùå Setting vertices too high (>64) without profiling
-- ‚ùå Forgetting FloatingOriginEnabled on custom objects
-- ‚ùå Modifying noise without understanding octaves
-
-**Quick Wins:**
-- ‚úÖ Use provided configuration presets
-- ‚úÖ Enable TerrainRenderingDebugSystem for logging
-- ‚úÖ Test with TestECSRenderingSystem cube first
-- ‚úÖ Use Gizmos to visualize ranges
-- ‚úÖ Profile in Unity Profiler before optimizing
-
----
-
-## üåü System Capabilities
-
-**What the system does:**
-- ‚úÖ Generates infinite terrain procedurally
-- ‚úÖ Spawns/despawns tiles based on player position
-- ‚úÖ Prevents floating-point precision errors (floating origin)
-- ‚úÖ Creates mesh colliders automatically
-- ‚úÖ Renders using Entities Graphics (GPU instancing)
-- ‚úÖ Supports VR at high frame rates (60-90 FPS)
-
-**What the system doesn't do (yet):**
-- ‚ùå LOD (Level of Detail) - see EXTENSION_GUIDE.md for implementation
-- ‚ùå Biomes - see EXTENSION_GUIDE.md for implementation
-- ‚ùå Terrain modification - see EXTENSION_GUIDE.md for implementation
-- ‚ùå Vegetation - see EXTENSION_GUIDE.md for implementation
-- ‚ùå Serialization - implement based on extension examples
-
-All these features are documented with implementation guides in **EXTENSION_GUIDE.md**.
-
----
-
-## üèÜ Performance Targets
-
-**Default Configuration (100m tiles, 32 vertices, 400m view):**
-- Active tiles: ~50
-- Frame time: <5ms average, <15ms spikes
-- Memory: ~4 MB
-- Target: 60 FPS on mid-range PC, 72 FPS in VR
-
-**Optimized Configuration (100m tiles, 16 vertices, 200m view):**
-- Active tiles: ~12
-- Frame time: <2ms average, <5ms spikes
-- Memory: ~1 MB
-- Target: 90 FPS in VR
-
-See **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** ¬ß "Performance Issues" for optimization guide.
-
----
-
-## üìÖ Recent Updates
-
-### Version 1.1 (March 14, 2026)
-
-**Major Fixes:**
-
-1. **Edge Normal Calculation (FIXED)** ‚úÖ
-   - Replaced vertex-array normal calculation with heightfield sampling
-   - Eliminates lighting seams at tile boundaries
-   - Normals now seamlessly match between adjacent tiles
-   - See: [EDGE_NORMAL_FIX.md](EDGE_NORMAL_FIX.md), [NORMAL_CALCULATION_GUIDE.md](NORMAL_CALCULATION_GUIDE.md)
-
-2. **Entity Command Buffer Fix (FIXED)** ‚úÖ
-   - Fixed InvalidOperationException when moving
-   - Tiles now properly stored after ECB playback
-   - Resolved temporary entity reference issue
-   - See: [ECB_FIX_NOTES.md](ECB_FIX_NOTES.md)
-
-3. **Rendering System Fix (FIXED)** ‚úÖ
-   - Added proper mesh/material registration with EntitiesGraphicsSystem
-   - Fixed MaterialMeshInfo assertion errors
-   - Explicit LocalToWorld component setup
-   - See: [RENDERING_FIX_NOTES.md](RENDERING_FIX_NOTES.md), [FIX_COMPLETE.md](FIX_COMPLETE.md)
-
-**Documentation Updates:**
-- Updated all core documentation to reflect normal calculation changes
-- Added 5 new technical documents explaining fixes
-- Updated API reference with current methods
-- Enhanced troubleshooting guide with lighting seam diagnostics
-
----
-
-## üìÖ Version History
-
-- **Documentation:** March 14, 2026
-- **System Version:** 1.1
-- **Unity Version:** Unity 6 (2023.3+)
-- **Entities Version:** 1.0+
-
----
-
-## üîó External Resources
-
-- [Unity DOTS Documentation](https://docs.unity3d.com/Packages/com.unity.entities@latest)
-- [Unity Entities Graphics](https://docs.unity3d.com/Packages/com.unity.entities.graphics@latest)
-- [Unity.Mathematics API](https://docs.unity3d.com/Packages/com.unity.mathematics@latest)
-- [Perlin Noise Explained](https://en.wikipedia.org/wiki/Perlin_noise)
-
----
-
-**Ready to get started? Open [QUICK_START.md](QUICK_START.md) now! üöÄ**
-
-
-
+**Ready to get started?** ? [Quick Start Guide](QUICK_START.md)
