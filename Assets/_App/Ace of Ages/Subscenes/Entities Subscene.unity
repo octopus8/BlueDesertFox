@@ -632,8 +632,8 @@ MonoBehaviour:
   playerSearchMode: 1
   playerName: Right Controller Stabilized Attach
   playerTag: Player
-  tileSize: 128
-  viewDistance: 814
+  tileSize: 256
+  viewDistance: 1875
   verticesPerSide: 8
   scrollEnabled: 1
   scrollSpeed: 111.39
