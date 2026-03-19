@@ -1,0 +1,175 @@
+using Unity.Entities;
+using Unity.Mathematics;
+
+/// <summary>
+/// Singleton configuration for terrain tile system.
+/// </summary>
+public struct TerrainTileConfig : IComponentData
+{
+    /// <summary>Size of each tile in world units (e.g., 100 meters).</summary>
+    public float tileSize;
+    
+    /// <summary>Distance from player that tiles remain active (e.g., 500 meters).</summary>
+    public float viewDistance;
+    
+    /// <summary>Number of vertices per side of each tile (e.g., 32 = 32x32 grid).</summary>
+    public int verticesPerSide;
+    
+    // Noise parameters for procedural generation
+    public float noiseFrequency;
+    public float noiseAmplitude;
+    public int noiseOctaves;
+    public float noiseLacunarity;
+    public float noisePersistence;
+    
+    // Physics optimization parameters
+    /// <summary>Maximum number of physics colliders created per frame (prevents stalls).</summary>
+    public int maxCollidersCreatedPerFrame;
+    
+    /// <summary>Distance threshold for full-resolution colliders (all vertices).</summary>
+    public float lodFullResolutionDistance;
+    
+    /// <summary>Distance threshold for half-resolution colliders (every 2nd vertex).</summary>
+    public float lodHalfResolutionDistance;
+    
+    /// <summary>Distance threshold for quarter-resolution colliders (every 4th vertex).</summary>
+    public float lodQuarterResolutionDistance;
+    
+    /// <summary>Maximum memory in megabytes for collider cache (LRU eviction when exceeded).</summary>
+    public int maxColliderCacheMemoryMB;
+    
+    /// <summary>Whether to assign distant tiles to low-detail physics layer.</summary>
+    public bool usePhysicsLODLayers;
+    
+    /// <summary>Physics layer index for low-detail terrain (half/quarter resolution).</summary>
+    public int lowDetailPhysicsLayer;
+}
+
+/// <summary>
+/// Component that identifies a terrain tile and its position in the grid.
+/// </summary>
+public struct TerrainTile : IComponentData
+{
+    /// <summary>Grid coordinates of this tile (e.g., (0,0), (1,0), (-1,1)).</summary>
+    public int2 gridCoordinate;
+    
+    /// <summary>True if the mesh has been generated for this tile.</summary>
+    public bool meshGenerated;
+    
+    /// <summary>True if the mesh needs to be regenerated (e.g., after origin shift).</summary>
+    public bool needsRegeneration;
+}
+
+/// <summary>
+/// Buffer element for storing vertex positions.
+/// </summary>
+public struct VertexElement : IBufferElementData
+{
+    public float3 value;
+}
+
+/// <summary>
+/// Buffer element for storing vertex normals.
+/// </summary>
+public struct NormalElement : IBufferElementData
+{
+    public float3 value;
+}
+
+/// <summary>
+/// Buffer element for storing UV coordinates.
+/// </summary>
+public struct UVElement : IBufferElementData
+{
+    public float2 value;
+}
+
+/// <summary>
+/// Buffer element for storing triangle indices.
+/// </summary>
+public struct IndexElement : IBufferElementData
+{
+    public int value;
+}
+
+/// <summary>
+/// Component that stores a reference to the Unity Mesh object.
+/// This is a managed component because it holds a reference to a Unity Object.
+/// </summary>
+public class MeshReference : IComponentData
+{
+    public UnityEngine.Mesh mesh;
+}
+
+/// <summary>
+/// Singleton managed component that holds a reference to the player GameObject's Transform.
+/// This allows the terrain system to track a GameObject that exists outside the ECS subscene.
+/// </summary>
+public class PlayerTransformReference : IComponentData
+{
+    /// <summary>
+    /// The Transform of the player GameObject to track for terrain centering.
+    /// </summary>
+    public UnityEngine.Transform playerTransform;
+}
+
+/// <summary>
+/// Component that stores search parameters for finding the player GameObject at runtime.
+/// This is baked into the entity so it can find the target after subscenes load.
+/// </summary>
+public struct PlayerTrackingSearch : IComponentData
+{
+    public enum Mode : byte
+    {
+        FindByName = 0,
+        FindByTag = 1,
+        FindAutoHandPlayer = 2,
+        FindMainCamera = 3
+    }
+    
+    /// <summary>
+    /// How to search for the player GameObject.
+    /// </summary>
+    public Mode mode;
+    
+    /// <summary>
+    /// Search string (name or tag) - only used for FindByName and FindByTag modes.
+    /// </summary>
+    public Unity.Collections.FixedString128Bytes searchString;
+    
+    /// <summary>
+    /// True if the PlayerTransformReference has been set up successfully.
+    /// </summary>
+    public bool initialized;
+}
+
+/// <summary>
+/// Singleton component that tracks accumulated terrain scroll distance.
+/// Used for auto-scrolling terrain in the direction the player is facing (XZ plane).
+/// </summary>
+public struct ScrollOffset : IComponentData
+{
+    /// <summary>
+    /// Total distance the terrain has scrolled as a directional vector (locked to XZ plane, Y=0).
+    /// This offset is subtracted from tile positions to create the scrolling effect.
+    /// Direction is determined by the player's forward direction projected onto the XZ plane.
+    /// </summary>
+    public float3 accumulatedOffset;
+}
+
+/// <summary>
+/// Singleton configuration for terrain auto-scrolling.
+/// </summary>
+public struct ScrollConfig : IComponentData
+{
+    /// <summary>
+    /// If true, terrain automatically scrolls in the direction the player is facing (XZ plane).
+    /// </summary>
+    public bool enabled;
+    
+    /// <summary>
+    /// Speed of terrain scrolling in units per second (e.g., 5.0 = 5 m/s forward).
+    /// The scroll direction is determined by the player's forward direction projected onto XZ plane.
+    /// </summary>
+    public float scrollSpeed;
+}

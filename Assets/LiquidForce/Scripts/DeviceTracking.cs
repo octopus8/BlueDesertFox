@@ -13,6 +13,9 @@ namespace LiquidForce
         /// <summary>
         /// The source head GameObject.
         /// </summary>
+        /// <remarks>
+        /// - This is used as the source for the head object follower, which is used by `CameraFader` to follow the head.
+        /// </remarks>
         [SerializeField]
         private Transform head;
         
@@ -23,6 +26,12 @@ namespace LiquidForce
         
         static public DeviceTracking Instance { get; private set; }
         
+        /// <summary>
+        /// The parent transform for tracked devices.
+        /// </summary>
+        /// <remarks>
+        /// This is used by `SceneStartup` to set the initial starting position.
+        /// </remarks>
         public Transform TrackingOrigin => trackingOrigin;
 
 
@@ -49,10 +58,17 @@ namespace LiquidForce
                 return;
             }
             headObjectFollower.source = head;
-            
-            
         }
-        
+
+        private void OnDestroy()
+        {
+            // If this is the instance of this component, clear the instance.
+            if (Instance == this)
+            {
+                Instance = null;
+            }
+        }
+
 
         /// <summary>
         /// Adds an object to follow the head.
@@ -61,6 +77,11 @@ namespace LiquidForce
         public void AddHeadFollower(Transform target)
         {
             headObjectFollower.AddTarget(target);
+        }
+
+        public void UpdateImmediate()
+        {
+            headObjectFollower.UpdateImmediate();
         }
     }
 }

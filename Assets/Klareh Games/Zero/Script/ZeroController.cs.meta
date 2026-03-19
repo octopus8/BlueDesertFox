@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: fb8987d23c32c4460b960b5bef0b3b96
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 241166
+  packageName: Zero Fighter
+  packageVersion: 1.0
+  assetPath: Assets/Klareh Games/Zero/Script/ZeroController.cs
+  uploadId: 555338

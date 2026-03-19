@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 6bdfdbe987fbc49d6a8d1b16e784a733
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 9100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 241166
+  packageName: Zero Fighter
+  packageVersion: 1.0
+  assetPath: Assets/Klareh Games/Zero/Animations/Controller.controller
+  uploadId: 555338

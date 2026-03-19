@@ -1022,7 +1022,7 @@
                 {
                     "name": "",
                     "id": "91ce31a7-346b-4b8e-b629-dcb585b9afef",
-                    "path": "<Keyboard>/space",
+                    "path": "<Keyboard>/escape",
                     "interactions": "",
                     "processors": "",
                     "groups": "",
@@ -1033,7 +1033,7 @@
                 {
                     "name": "",
                     "id": "89cd578c-b368-4441-87d9-4347b317a767",
-                    "path": "<Keyboard>/q",
+                    "path": "<Keyboard>/space",
                     "interactions": "",
                     "processors": "",
                     "groups": "",
