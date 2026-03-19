@@ -128,7 +128,7 @@ public class TerrainConfigAuthoring : MonoBehaviour
             // Create scroll offset singleton (starts at zero)
             AddComponent(entity, new ScrollOffset
             {
-                accumulatedScrollZ = 0f
+                accumulatedOffset = float3.zero
             });
             
             // Determine search mode and parameters
@@ -279,4 +279,3 @@ public class TerrainConfigAuthoring : MonoBehaviour
         }
     }
 }
-

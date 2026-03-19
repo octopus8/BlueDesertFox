@@ -42,14 +42,9 @@ public partial struct TileScrollPositionSystem : ISystem
                 tile.ValueRO.gridCoordinate.y * tileConfig.tileSize
             );
             
-            // Apply scroll offset (subtract to make tiles move backward/toward player as scroll increases)
+            // Apply directional scroll offset (subtract to make tiles move opposite to scroll direction)
             // This creates the effect of tiles scrolling through a fixed center point (the player)
-            transform.ValueRW.Position = new float3(
-                basePosition.x,
-                basePosition.y,
-                basePosition.z - scrollOffset.accumulatedScrollZ
-            );
+            transform.ValueRW.Position = basePosition - scrollOffset.accumulatedOffset;
         }
     }
 }
-

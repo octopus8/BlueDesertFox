@@ -51,8 +51,7 @@ public partial struct TileSpawningSystem : ISystem
         
         // Calculate "effective" player position for grid determination
         // This accounts for scroll so we check the right grid tiles
-        float3 effectivePlayerPosition = playerPosition;
-        effectivePlayerPosition.z += scrollOffset.accumulatedScrollZ;
+        float3 effectivePlayerPosition = playerPosition + scrollOffset.accumulatedOffset;
         
         // Calculate player's grid coordinate (based on effective position with scroll)
         int2 playerGridCoord = new int2(
@@ -75,13 +74,14 @@ public partial struct TileSpawningSystem : ISystem
                 int2 gridCoord = playerGridCoord + new int2(x, z);
                 
                 // Check if tile is within view distance (circular)
-                // Calculate actual scrolled tile center position
-                float2 tileCenter = new float2(
+                // Calculate actual scrolled tile center position (apply directional offset)
+                float3 tileCenterBase = new float3(
                     gridCoord.x * config.tileSize + config.tileSize * 0.5f,
-                    gridCoord.y * config.tileSize + config.tileSize * 0.5f - scrollOffset.accumulatedScrollZ
+                    0,
+                    gridCoord.y * config.tileSize + config.tileSize * 0.5f
                 );
-                float2 playerPos2D = new float2(playerPosition.x, playerPosition.z);
-                float distanceToTile = math.distance(tileCenter, playerPos2D);
+                float3 tileCenterScrolled = tileCenterBase - scrollOffset.accumulatedOffset;
+                float distanceToTile = math.distance(tileCenterScrolled, playerPosition);
                 
                 if (distanceToTile <= config.viewDistance)
                 {
@@ -98,13 +98,14 @@ public partial struct TileSpawningSystem : ISystem
         var tileKeys = _activeTiles.GetKeyArray(Allocator.Temp);
         foreach (var gridCoord in tileKeys)
         {
-            // Calculate actual scrolled tile center position
-            float2 tileCenter = new float2(
+            // Calculate actual scrolled tile center position (apply directional offset)
+            float3 tileCenterBase = new float3(
                 gridCoord.x * config.tileSize + config.tileSize * 0.5f,
-                gridCoord.y * config.tileSize + config.tileSize * 0.5f - scrollOffset.accumulatedScrollZ
+                0,
+                gridCoord.y * config.tileSize + config.tileSize * 0.5f
             );
-            float2 playerPos2D = new float2(playerPosition.x, playerPosition.z);
-            float distanceToTile = math.distance(tileCenter, playerPos2D);
+            float3 tileCenterScrolled = tileCenterBase - scrollOffset.accumulatedOffset;
+            float distanceToTile = math.distance(tileCenterScrolled, playerPosition);
             
             if (distanceToTile > config.viewDistance)
             {
@@ -121,12 +122,13 @@ public partial struct TileSpawningSystem : ISystem
         {
             Entity tileEntity = ecb.CreateEntity();
             
-            // Calculate world position for this tile (subtract scroll offset to make tiles scroll)
-            float3 tilePosition = new float3(
+            // Calculate world position for this tile (subtract directional scroll offset)
+            float3 basePosition = new float3(
                 gridCoord.x * config.tileSize,
                 0,
-                gridCoord.y * config.tileSize - scrollOffset.accumulatedScrollZ
+                gridCoord.y * config.tileSize
             );
+            float3 tilePosition = basePosition - scrollOffset.accumulatedOffset;
             
             ecb.AddComponent(tileEntity, new LocalTransform
             {
@@ -194,6 +196,14 @@ public partial struct TileSpawningSystem : ISystem
         tilesToDespawn.Dispose();
     }
 }
+
+
+
+
+
+
+
+
 
 
 

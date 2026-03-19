@@ -630,7 +630,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::TerrainConfigAuthoring
   playerSearchMode: 1
-  playerName: XR Origin Hands (XR Rig)
+  playerName: Right Controller Stabilized Attach
   playerTag: Player
   tileSize: 128
   viewDistance: 814
