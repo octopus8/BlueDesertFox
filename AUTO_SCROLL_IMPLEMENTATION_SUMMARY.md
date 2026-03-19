@@ -9,13 +9,19 @@ Successfully implemented auto-scrolling terrain system that moves tiles along th
 
 ## Changes Made
 
-### New Files Created (1)
+### New Files Created (2)
 
 **ScrollTerrainSystem.cs**
 - Burst-compiled ECS system that updates scroll offset each frame
 - Updates before TileSpawningSystem to ensure correct tile positioning
 - Only runs when scroll is enabled and speed is non-zero
 - Includes optional debug logging every 100m
+
+**TileScrollPositionSystem.cs**
+- Burst-compiled ECS system that updates all tile positions each frame
+- Subtracts scroll offset from tile positions (makes tiles move backward)
+- Runs after ScrollTerrainSystem but before TransformSystemGroup
+- Ensures existing tiles continue scrolling smoothly
 
 ### Files Modified (4)
 
@@ -34,17 +40,20 @@ Successfully implemented auto-scrolling terrain system that moves tiles along th
 #### 3. TileSpawningSystem.cs
 **Added:**
 - `RequireForUpdate<ScrollOffset>()` in OnCreate()
-- Scroll offset application to player Z position before grid calculation
+- Scroll offset retrieval (but NOT applied to player position)
+- Scroll offset subtracted from tile positions when spawning
 
 **Changed logic:**
 ```csharp
 // Before
-float3 playerPosition = playerRef.playerTransform.position;
+float3 tilePosition = new float3(gridCoord.x * config.tileSize, 0, gridCoord.y * config.tileSize);
 
 // After
-float3 playerPosition = playerRef.playerTransform.position;
-var scrollOffset = SystemAPI.GetSingleton<ScrollOffset>();
-playerPosition.z += scrollOffset.accumulatedScrollZ;
+float3 tilePosition = new float3(
+    gridCoord.x * config.tileSize, 
+    0, 
+    gridCoord.y * config.tileSize - scrollOffset.accumulatedScrollZ
+);
 ```
 
 #### 4. README.md
@@ -75,15 +84,22 @@ playerPosition.z += scrollOffset.accumulatedScrollZ;
    - Example: At 5 m/s, after 10 seconds, scrollZ = 50 meters
 
 2. **TileSpawningSystem** (runs after):
-   - Gets player position: `(x=0, y=0, z=0)`
-   - Applies scroll offset: `(x=0, y=0, z=0+50) = (x=0, y=0, z=50)`
-   - Calculates grid coordinates from modified position
-   - Spawns tiles ahead of the "virtual" player position
-   - Despawns tiles behind
+   - Gets player position: `(x=0, y=0, z=0)` - **stays at actual player location**
+   - Calculates grid coordinates from **actual** player position
+   - Spawns tiles around player with **offset positions**: `tilePos.z = gridZ * tileSize - scrollOffset`
+   - Example: Tile at grid (0, 0) spawns at world position (0, 0, -50) after 50m of scroll
+   - Despawns tiles that are too far from player's actual position
 
-3. **Result**:
+3. **TileScrollPositionSystem** (runs after):
+   - Updates ALL existing tile positions each frame
+   - Recalculates: `tilePos = basePosition - scrollOffset`
+   - Ensures tiles continue moving even when no new tiles spawn
+
+4. **Result**:
    - Player GameObject stays at world origin (0, 0, 0)
-   - Tiles spawn as if player is moving forward at scroll speed
+   - Tiles spawn around player and physically move backward (toward player from ahead)
+   - Center of terrain stays at player position
+   - Tiles scroll through the play space
    - Perfect for VR (no actual player movement = no motion sickness)
 
 ### Configuration Options
@@ -169,13 +185,14 @@ With auto-scrolling, the scroll offset can accumulate indefinitely:
 
 ```
 SimulationSystemGroup
-└─ ScrollTerrainSystem (new!)
-   └─ TileSpawningSystem (reads ScrollOffset)
-      └─ TerrainMeshGenerationSystem
-         └─ TerrainRenderingSystem
+└─ ScrollTerrainSystem (updates scrollOffset)
+   └─ TileSpawningSystem (spawns tiles with offset positions)
+      └─ TileScrollPositionSystem (updates existing tile positions)
+         └─ TerrainMeshGenerationSystem
+            └─ TerrainRenderingSystem
 ```
 
-ScrollTerrainSystem runs first to ensure scroll offset is updated before tiles are spawned.
+ScrollTerrainSystem runs first to update the offset, then TileSpawningSystem spawns new tiles with correct positions, then TileScrollPositionSystem updates all existing tiles.
 
 ## Code Summary
 

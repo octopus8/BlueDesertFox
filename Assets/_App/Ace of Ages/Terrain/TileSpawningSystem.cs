@@ -43,14 +43,13 @@ public partial struct TileSpawningSystem : ISystem
             return;
         }
 
-        // Get player position from GameObject Transform
+        // Get player position from GameObject Transform (keep at actual position)
         float3 playerPosition = playerRef.playerTransform.position;
         
-        // Apply scroll offset for auto-scrolling terrain
+        // Get scroll offset (used for tile position offsetting, not player position)
         var scrollOffset = SystemAPI.GetSingleton<ScrollOffset>();
-        playerPosition.z += scrollOffset.accumulatedScrollZ;
         
-        // Calculate player's grid coordinate
+        // Calculate player's grid coordinate (based on actual player position)
         int2 playerGridCoord = new int2(
             (int)math.floor(playerPosition.x / config.tileSize),
             (int)math.floor(playerPosition.z / config.tileSize)
@@ -115,11 +114,11 @@ public partial struct TileSpawningSystem : ISystem
         {
             Entity tileEntity = ecb.CreateEntity();
             
-            // Calculate world position for this tile
+            // Calculate world position for this tile (subtract scroll offset to make tiles scroll)
             float3 tilePosition = new float3(
                 gridCoord.x * config.tileSize,
                 0,
-                gridCoord.y * config.tileSize
+                gridCoord.y * config.tileSize - scrollOffset.accumulatedScrollZ
             );
             
             ecb.AddComponent(tileEntity, new LocalTransform

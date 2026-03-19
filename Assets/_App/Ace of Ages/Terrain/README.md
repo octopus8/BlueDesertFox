@@ -31,8 +31,9 @@ A high-performance Unity DOTS-based infinite terrain system that uses procedural
 ### Systems
 
 1. **ScrollTerrainSystem**: Updates scroll offset each frame for auto-scrolling terrain
-2. **TileSpawningSystem**: Manages tile spawning/despawning based on player position (with scroll offset)
-3. **TerrainMeshGenerationSystem**: Generates procedural terrain meshes using noise functions
+2. **TileSpawningSystem**: Manages tile spawning/despawning based on player position
+3. **TileScrollPositionSystem**: Updates tile positions to apply scroll offset (makes tiles move)
+4. **TerrainMeshGenerationSystem**: Generates procedural terrain meshes using noise functions
 4. **TerrainRenderingSystem**: Converts ECS mesh data to Unity meshes and sets up rendering
 5. **TerrainPhysicsSystem**: Creates mesh colliders for terrain collision
 
@@ -86,10 +87,11 @@ The system supports automatic terrain scrolling along the Z axis, useful for end
 
 **How It Works**:
 1. `ScrollTerrainSystem` accumulates scroll distance each frame based on scroll speed
-2. `TileSpawningSystem` adds scroll offset to player's Z position when calculating tiles
-3. Tiles spawn ahead of the player and despawn behind automatically
-4. Player GameObject remains stationary (perfect for VR - no motion sickness)
-5. Works identically to the player moving forward at the specified speed
+2. `TileSpawningSystem` spawns tiles around the player's **actual position** (center stays fixed)
+3. `TileScrollPositionSystem` updates tile positions by subtracting scroll offset (tiles physically move)
+4. Tiles spawn ahead and move backward toward/past the player, then despawn behind
+5. Player GameObject remains stationary (perfect for VR - no motion sickness)
+6. Effect: Tiles scroll through a fixed center point while spawning ahead and despawning behind
 
 **Runtime Control**:
 ```csharp
