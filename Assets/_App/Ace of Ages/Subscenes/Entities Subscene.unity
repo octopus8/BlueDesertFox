@@ -635,8 +635,8 @@ MonoBehaviour:
   tileSize: 128
   viewDistance: 814
   verticesPerSide: 8
-  floatingOriginEnabled: 1
-  shiftThreshold: 2000
+  scrollEnabled: 1
+  scrollSpeed: 111.39
   noiseFrequency: 0.005
   noiseAmplitude: 15
   noiseOctaves: 2
