@@ -49,10 +49,15 @@ public partial struct TileSpawningSystem : ISystem
         // Get scroll offset (used for tile position offsetting, not player position)
         var scrollOffset = SystemAPI.GetSingleton<ScrollOffset>();
         
-        // Calculate player's grid coordinate (based on actual player position)
+        // Calculate "effective" player position for grid determination
+        // This accounts for scroll so we check the right grid tiles
+        float3 effectivePlayerPosition = playerPosition;
+        effectivePlayerPosition.z += scrollOffset.accumulatedScrollZ;
+        
+        // Calculate player's grid coordinate (based on effective position with scroll)
         int2 playerGridCoord = new int2(
-            (int)math.floor(playerPosition.x / config.tileSize),
-            (int)math.floor(playerPosition.z / config.tileSize)
+            (int)math.floor(effectivePlayerPosition.x / config.tileSize),
+            (int)math.floor(effectivePlayerPosition.z / config.tileSize)
         );
         
         // Calculate view distance in tiles
@@ -189,6 +194,8 @@ public partial struct TileSpawningSystem : ISystem
         tilesToDespawn.Dispose();
     }
 }
+
+
 
 
 
