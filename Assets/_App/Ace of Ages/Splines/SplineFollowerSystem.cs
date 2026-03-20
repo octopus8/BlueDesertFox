@@ -19,6 +19,7 @@ partial struct SplineFollowerSystem : ISystem
             {
                 deltaTime = Time.deltaTime,
                 formationPositionLookup = SystemAPI.GetComponentLookup<FormationPosition>(true),
+                movementStateLookup = SystemAPI.GetComponentLookup<FormationMovementState>(true),
             };
             splineFollowerJob.ScheduleParallel();
         }
@@ -42,6 +43,7 @@ public partial struct SplineFollowerJob : IJobEntity
 {
     public float deltaTime;
     [ReadOnly] public ComponentLookup<FormationPosition> formationPositionLookup;
+    [ReadOnly] public ComponentLookup<FormationMovementState> movementStateLookup;
     
     public void Execute(
         Entity entity,
@@ -50,6 +52,17 @@ public partial struct SplineFollowerJob : IJobEntity
         ref PhysicsVelocity physicsVelocity,
         in SplineDataComponent splineData)
     {
+        // Only process entities in FollowingSpline phase (or entities without movement state for backwards compatibility)
+        if (movementStateLookup.HasComponent(entity))
+        {
+            var movementState = movementStateLookup[entity];
+            if (movementState.phase != MovementPhase.FollowingSpline)
+            {
+                // Skip entities not currently following the spline
+                return;
+            }
+        }
+        
         // Check if spline data is valid
         if (!splineData.splineData.IsCreated)
         {

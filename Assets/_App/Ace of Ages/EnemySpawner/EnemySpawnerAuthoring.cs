@@ -51,4 +51,6 @@ public struct EnemySpawner : IComponentData
     public Entity splineEntity;
     public int formationCount;
     public float formationSpacing;
+    public float spawnDistance;
+    public float approachThreshold;
 }

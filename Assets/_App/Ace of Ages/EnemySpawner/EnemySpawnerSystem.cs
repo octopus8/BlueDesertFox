@@ -1,6 +1,7 @@
 using Unity.Burst;
 using Unity.Entities;
 using Unity.Mathematics;
+using Unity.Physics;
 using Unity.Transforms;
 using UnityEngine;
 
@@ -76,26 +77,57 @@ partial struct EnemySpawnerSystem : ISystem
                         {
                             ref var spline = ref splineData.splineData.Value;
                             
-                            // Calculate distance ratio based on forward offset
-                            float distanceRatio = formationData.forwardOffset / spline.totalLength;
-                            SplineSample initialSample = spline.Evaluate(distanceRatio);
+                            // Calculate the spline entry point (where formation will start following)
+                            float entryDistanceRatio = formationData.forwardOffset / spline.totalLength;
+                            SplineSample entrySample = spline.Evaluate(entryDistanceRatio);
                             
-                            // Calculate the right vector (perpendicular to tangent)
-                            float3 rightVector = math.normalize(math.cross(initialSample.upVector, initialSample.tangent));
+                            // Calculate the entry point with formation lateral offset
+                            float3 rightVector = math.normalize(math.cross(entrySample.upVector, entrySample.tangent));
+                            float3 splineEntryPoint = entrySample.position + rightVector * formationData.lateralOffset.x;
                             
-                            // Apply lateral offset
-                            float3 offsetPosition = initialSample.position + rightVector * formationData.lateralOffset.x;
+                            // Calculate spawn position: offset along spline's local Z axis (perpendicular to path)
+                            // Use the "up" vector crossed with tangent to get perpendicular direction
+                            float3 splineRight = math.normalize(math.cross(entrySample.upVector, entrySample.tangent));
+                            float3 spawnOffset = splineRight * enemySpawner.ValueRO.spawnDistance;
+                            float3 spawnPosition = splineEntryPoint + spawnOffset;
                             
-                            // Calculate initial rotation from the spline's tangent
-                            quaternion initialRotation = quaternion.LookRotation(initialSample.tangent, initialSample.upVector);
+                            // Calculate initial rotation facing toward the entry point
+                            float3 directionToEntry = math.normalize(splineEntryPoint - spawnPosition);
+                            quaternion initialRotation = quaternion.LookRotationSafe(directionToEntry, entrySample.upVector);
                             
-                            // Set the transform component with the spline's initial position and rotation, preserving prefab's scale
+                            // Set the transform component at spawn position
                             ecb.SetComponent(entity, new LocalTransform
                             {
-                                Position = offsetPosition,
+                                Position = spawnPosition,
                                 Rotation = initialRotation,
                                 Scale = prefabScale
                             });
+                            
+                            // Initialize movement state for approach phase
+                            ecb.AddComponent(entity, new FormationMovementState
+                            {
+                                phase = MovementPhase.ApproachingSpline,
+                                splineEntryPoint = splineEntryPoint,
+                                exitDirection = float3.zero, // Will be set when leaving spline
+                                approachThreshold = enemySpawner.ValueRO.approachThreshold
+                            });
+                            
+                            // Add SplineFollower component (will be used during FollowingSpline phase)
+                            ecb.AddComponent(entity, new SplineFollower
+                            {
+                                moveSpeed = 5f, // Default speed, can be configured
+                                distanceRatio = entryDistanceRatio // Start at formation's entry point
+                            });
+                            
+                            // Ensure PhysicsVelocity component exists (required for movement system)
+                            if (!SystemAPI.HasComponent<PhysicsVelocity>(prefabEntitiesReferences.prefabEntity))
+                            {
+                                ecb.AddComponent(entity, new PhysicsVelocity
+                                {
+                                    Linear = float3.zero,
+                                    Angular = float3.zero
+                                });
+                            }
                         }
                     }
                 }

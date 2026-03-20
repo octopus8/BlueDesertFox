@@ -165,6 +165,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::EnemySpawnerAuthoring
   loopSpline: {fileID: 1730959682}
+  spawnDistance: 1000
+  approachThreshold: 5
   formationCount: 10
   formationSpacing: 2
 --- !u!1 &181105510
@@ -885,7 +887,7 @@ MonoBehaviour:
       Tension: 0.5
     - Mode: 3
       Tension: 0.5
-    m_Closed: 1
+    m_Closed: 0
     m_IntData:
       m_Data: []
     m_FloatData:
