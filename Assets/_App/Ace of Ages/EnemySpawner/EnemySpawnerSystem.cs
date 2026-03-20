@@ -86,12 +86,12 @@ partial struct EnemySpawnerSystem : ISystem
                             float3 rightVector = math.normalize(math.cross(entrySample.upVector, entrySample.tangent));
                             float3 splineEntryPoint = entrySample.position + rightVector * formationData.lateralOffset.x;
                             
-                            // Calculate spawn position: perpendicular offset from entry point
-                            // This places enemies to the SIDE of the spline entry point
-                            float3 spawnOffset = rightVector * enemySpawner.ValueRO.spawnDistance;
+                            // Calculate spawn position: offset along the spline's negative Z axis (backward along tangent)
+                            // This places enemies IN FRONT of the spline entry point, facing forward
+                            float3 spawnOffset = -entrySample.tangent * enemySpawner.ValueRO.spawnDistance;
                             float3 spawnPosition = splineEntryPoint + spawnOffset;
                             
-                            // Calculate initial rotation facing toward the entry point
+                            // Calculate initial rotation facing toward the entry point (along the spline direction)
                             float3 directionToEntry = math.normalize(splineEntryPoint - spawnPosition);
                             quaternion initialRotation = quaternion.LookRotationSafe(directionToEntry, entrySample.upVector);
                             
