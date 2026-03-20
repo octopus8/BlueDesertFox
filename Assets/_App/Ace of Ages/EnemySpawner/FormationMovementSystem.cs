@@ -18,7 +18,6 @@ partial struct FormationMovementSystem : ISystem
     {
         // Require player tracking for distance calculations
         state.RequireForUpdate<PlayerTransformReference>();
-        state.RequireForUpdate<TerrainTileConfig>();
     }
     
     public void OnUpdate(ref SystemState state)
@@ -153,8 +152,8 @@ public partial struct FormationMovementJob : IJobEntity
         // Check distance from player
         float distanceFromPlayer = math.distance(localTransform.Position, playerPosition);
         
-        // Mark as out of bounds if beyond view distance * 1.2 (20% buffer)
-        if (distanceFromPlayer > viewDistance * 1.2f)
+        // Mark as out of bounds if beyond despawn distance (same as spawn distance)
+        if (distanceFromPlayer > movementState.despawnDistance)
         {
             movementState.phase = MovementPhase.OutOfBounds;
             physicsVelocity.Linear = float3.zero;

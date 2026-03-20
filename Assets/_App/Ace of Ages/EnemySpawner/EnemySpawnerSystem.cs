@@ -72,12 +72,13 @@ partial struct EnemySpawnerSystem : ISystem
                             forwardOffset = formationData.forwardOffset
                         });
                         
-                        // Get the initial position and rotation from the spline at the start (distanceRatio = 0)
+                        // Get the initial position and rotation from the spline
                         if (splineData.splineData.IsCreated)
                         {
                             ref var spline = ref splineData.splineData.Value;
                             
                             // Calculate the spline entry point (where formation will start following)
+                            // Entry point is at the START of the spline (distanceRatio = 0) with formation offsets
                             float entryDistanceRatio = formationData.forwardOffset / spline.totalLength;
                             SplineSample entrySample = spline.Evaluate(entryDistanceRatio);
                             
@@ -85,10 +86,9 @@ partial struct EnemySpawnerSystem : ISystem
                             float3 rightVector = math.normalize(math.cross(entrySample.upVector, entrySample.tangent));
                             float3 splineEntryPoint = entrySample.position + rightVector * formationData.lateralOffset.x;
                             
-                            // Calculate spawn position: offset along spline's local Z axis (perpendicular to path)
-                            // Use the "up" vector crossed with tangent to get perpendicular direction
-                            float3 splineRight = math.normalize(math.cross(entrySample.upVector, entrySample.tangent));
-                            float3 spawnOffset = splineRight * enemySpawner.ValueRO.spawnDistance;
+                            // Calculate spawn position: perpendicular offset from entry point
+                            // This places enemies to the SIDE of the spline entry point
+                            float3 spawnOffset = rightVector * enemySpawner.ValueRO.spawnDistance;
                             float3 spawnPosition = splineEntryPoint + spawnOffset;
                             
                             // Calculate initial rotation facing toward the entry point
@@ -109,7 +109,8 @@ partial struct EnemySpawnerSystem : ISystem
                                 phase = MovementPhase.ApproachingSpline,
                                 splineEntryPoint = splineEntryPoint,
                                 exitDirection = float3.zero, // Will be set when leaving spline
-                                approachThreshold = enemySpawner.ValueRO.approachThreshold
+                                approachThreshold = enemySpawner.ValueRO.approachThreshold,
+                                despawnDistance = enemySpawner.ValueRO.spawnDistance // Cleanup at spawn distance from player
                             });
                             
                             // Add SplineFollower component (will be used during FollowingSpline phase)
