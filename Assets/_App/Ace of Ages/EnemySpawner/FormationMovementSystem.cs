@@ -102,8 +102,21 @@ public partial struct FormationMovementJob : IJobEntity
         float3 toEntry = movementState.splineEntryPoint - localTransform.Position;
         float distanceToEntry = math.length(toEntry);
         
-        // Check if close enough to transition to following
-        if (distanceToEntry <= movementState.approachThreshold)
+        // Auto-detect transition: check if we've reached or passed the entry point
+        // Use dot product to detect if we're moving away from or perpendicular to the target
+        float3 movementDirection = math.normalizesafe(physicsVelocity.Linear);
+        float3 directionToEntry = math.normalizesafe(toEntry);
+        float dotProduct = math.dot(movementDirection, directionToEntry);
+        
+        // Transition conditions:
+        // 1. Very close to entry point (within 1m) OR
+        // 2. Moving away from or perpendicular to entry (dot < 0.5 means we've passed/passing) OR
+        // 3. Velocity is very low (< 0.1) and close (< 5m) - safety fallback for stuck enemies
+        bool veryClose = distanceToEntry < 1f;
+        bool passingOrPassed = dotProduct < 0.5f && math.lengthsq(physicsVelocity.Linear) > 0.01f;
+        bool stuckNearEntry = distanceToEntry < 5f && math.lengthsq(physicsVelocity.Linear) < 0.1f;
+        
+        if (veryClose || passingOrPassed || stuckNearEntry)
         {
             movementState.phase = MovementPhase.FollowingSpline;
             physicsVelocity.Linear = float3.zero;
@@ -113,7 +126,7 @@ public partial struct FormationMovementJob : IJobEntity
         
         // Move toward entry point using physics velocity
         float3 direction = math.normalize(toEntry);
-        float baseApproachSpeed = 10f; // Base approach speed
+        float baseApproachSpeed = 5f; // Match spline following speed for consistent movement
         
         // Project scroll velocity onto movement direction for speed offset
         // Negate to convert world velocity to player's relative velocity

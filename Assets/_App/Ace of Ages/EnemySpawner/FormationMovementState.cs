@@ -16,9 +16,6 @@ public struct FormationMovementState : IComponentData
     /// <summary>Exit direction when leaving the spline (captured tangent at spline end)</summary>
     public float3 exitDirection;
     
-    /// <summary>Distance threshold to transition from approaching to following (units)</summary>
-    public float approachThreshold;
-    
     /// <summary>Distance from player at which to destroy entity (cleanup distance)</summary>
     public float despawnDistance;
 }

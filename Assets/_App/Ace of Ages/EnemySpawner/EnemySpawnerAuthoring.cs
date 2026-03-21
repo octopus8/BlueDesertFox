@@ -25,9 +25,6 @@ public class EnemySpawnerAuthoring : MonoBehaviour
     [Tooltip("Distance ahead of spline start to spawn formation (perpendicular to path, outside player view)")]
     [SerializeField] private float spawnDistance = 75f;
     
-    [Tooltip("Distance threshold for transitioning from approach to spline following (units)")]
-    [SerializeField] private float approachThreshold = 5f;
-    
     public class Baker : Baker<EnemySpawnerAuthoring>
     {
         public override void Bake(EnemySpawnerAuthoring authoring)
@@ -44,7 +41,6 @@ public class EnemySpawnerAuthoring : MonoBehaviour
                 formationCount = authoring.formationCount,
                 formationSpacing = authoring.formationSpacing,
                 spawnDistance = authoring.spawnDistance,
-                approachThreshold = authoring.approachThreshold,
             });
         }
     }
@@ -61,5 +57,4 @@ public struct EnemySpawner : IComponentData
     public int formationCount;
     public float formationSpacing;
     public float spawnDistance;
-    public float approachThreshold;
 }

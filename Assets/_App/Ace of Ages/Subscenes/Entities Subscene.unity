@@ -167,8 +167,7 @@ MonoBehaviour:
   loopSpline: {fileID: 1730959682}
   formationCount: 10
   formationSpacing: 2
-  spawnDistance: 75
-  approachThreshold: 30
+  spawnDistance: 10
 --- !u!1 &181105510
 GameObject:
   m_ObjectHideFlags: 0
@@ -658,7 +657,7 @@ MonoBehaviour:
   viewDistance: 1875
   verticesPerSide: 8
   scrollEnabled: 1
-  scrollSpeed: 15
+  scrollSpeed: 0
   noiseFrequency: 0.005
   noiseAmplitude: 15
   noiseOctaves: 2
@@ -906,14 +905,14 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1730959682}
   serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0.7071068, w: 0.7071068}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 51, z: 12.5}
   m_LocalScale: {x: 0.3, y: 0.3, z: 0.3}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 961978238}
   m_Father: {fileID: 25680480}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 90}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &2052678061
 GameObject:
   m_ObjectHideFlags: 0
