@@ -15,9 +15,23 @@ partial struct SplineFollowerSystem : ISystem
     {
         if (useJobs)
         {
+            // Calculate scroll velocity from terrain scrolling system
+            float3 scrollVelocity = float3.zero;
+            if (SystemAPI.TryGetSingleton<ScrollConfig>(out var scrollConfig) && 
+                SystemAPI.TryGetSingleton<ScrollOffset>(out var scrollOffset))
+            {
+                if (scrollConfig.enabled && scrollConfig.scrollSpeed > 0f)
+                {
+                    // Calculate scroll direction from accumulated offset
+                    float3 scrollDirection = math.normalizesafe(scrollOffset.accumulatedOffset);
+                    scrollVelocity = scrollDirection * scrollConfig.scrollSpeed;
+                }
+            }
+            
             SplineFollowerJob splineFollowerJob = new SplineFollowerJob
             {
                 deltaTime = Time.deltaTime,
+                scrollVelocity = scrollVelocity,
                 formationPositionLookup = SystemAPI.GetComponentLookup<FormationPosition>(true),
                 movementStateLookup = SystemAPI.GetComponentLookup<FormationMovementState>(true),
             };
@@ -42,6 +56,7 @@ partial struct SplineFollowerSystem : ISystem
 public partial struct SplineFollowerJob : IJobEntity
 {
     public float deltaTime;
+    public float3 scrollVelocity;
     [ReadOnly] public ComponentLookup<FormationPosition> formationPositionLookup;
     [ReadOnly] public ComponentLookup<FormationMovementState> movementStateLookup;
     
@@ -71,8 +86,20 @@ public partial struct SplineFollowerJob : IJobEntity
         
         ref var spline = ref splineData.splineData.Value;
         
-        // Calculate the new distance ratio based on speed and time
-        splineFollower.distanceRatio += (splineFollower.moveSpeed * deltaTime) / spline.totalLength;
+        // Get enemy's current movement direction from spline tangent
+        SplineSample currentSample = spline.Evaluate(splineFollower.distanceRatio);
+        float3 enemyDirection = math.normalize(currentSample.tangent);
+        
+        // Project scroll velocity onto enemy's movement direction to get speed offset
+        // Scroll velocity represents world movement (opposite of player movement)
+        // Negate to convert to player's relative velocity for correct closing speeds
+        float scrollSpeedOffset = -math.dot(scrollVelocity, enemyDirection);
+        
+        // Apply scroll velocity offset to enemy movement speed (allow negative speeds)
+        float effectiveSpeed = splineFollower.moveSpeed + scrollSpeedOffset;
+        
+        // Calculate the new distance ratio based on effective speed and time
+        splineFollower.distanceRatio += (effectiveSpeed * deltaTime) / spline.totalLength;
         
         // Wrap around the spline if it's a closed loop
         if (spline.isClosed)

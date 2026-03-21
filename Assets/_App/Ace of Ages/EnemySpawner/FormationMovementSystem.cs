@@ -32,12 +32,26 @@ partial struct FormationMovementSystem : ISystem
         float viewDistance = config.viewDistance;
         float deltaTime = SystemAPI.Time.DeltaTime;
         
+        // Calculate scroll velocity from terrain scrolling system
+        float3 scrollVelocity = float3.zero;
+        if (SystemAPI.TryGetSingleton<ScrollConfig>(out var scrollConfig) && 
+            SystemAPI.TryGetSingleton<ScrollOffset>(out var scrollOffset))
+        {
+            if (scrollConfig.enabled && scrollConfig.scrollSpeed > 0f)
+            {
+                // Calculate scroll direction from accumulated offset
+                float3 scrollDirection = math.normalizesafe(scrollOffset.accumulatedOffset);
+                scrollVelocity = scrollDirection * scrollConfig.scrollSpeed;
+            }
+        }
+        
         // Schedule Burst-compiled job for movement calculations
         var job = new FormationMovementJob
         {
             playerPosition = playerPosition,
             viewDistance = viewDistance,
-            deltaTime = deltaTime
+            deltaTime = deltaTime,
+            scrollVelocity = scrollVelocity
         };
         
         job.ScheduleParallel();
@@ -50,6 +64,7 @@ public partial struct FormationMovementJob : IJobEntity
     public float3 playerPosition;
     public float viewDistance;
     public float deltaTime;
+    public float3 scrollVelocity;
     
     public void Execute(
         ref LocalTransform localTransform,
@@ -98,10 +113,15 @@ public partial struct FormationMovementJob : IJobEntity
         
         // Move toward entry point using physics velocity
         float3 direction = math.normalize(toEntry);
-        float approachSpeed = 10f; // Configurable approach speed
+        float baseApproachSpeed = 10f; // Base approach speed
+        
+        // Project scroll velocity onto movement direction for speed offset
+        // Negate to convert world velocity to player's relative velocity
+        float scrollSpeedOffset = -math.dot(scrollVelocity, direction);
+        float effectiveApproachSpeed = baseApproachSpeed + scrollSpeedOffset;
         
         // Lerp velocity toward target direction for smooth movement
-        float3 targetVelocity = direction * approachSpeed;
+        float3 targetVelocity = direction * effectiveApproachSpeed;
         physicsVelocity.Linear = math.lerp(physicsVelocity.Linear, targetVelocity, deltaTime * 5f);
         physicsVelocity.Angular = float3.zero;
         
@@ -145,8 +165,14 @@ public partial struct FormationMovementJob : IJobEntity
         ref PhysicsVelocity physicsVelocity)
     {
         // Continue moving in the exit direction at constant speed
-        float exitSpeed = 10f; // Speed when leaving spline
-        physicsVelocity.Linear = movementState.exitDirection * exitSpeed;
+        float baseExitSpeed = 10f; // Base speed when leaving spline
+        
+        // Project scroll velocity onto exit direction for speed offset
+        // Negate to convert world velocity to player's relative velocity
+        float scrollSpeedOffset = -math.dot(scrollVelocity, movementState.exitDirection);
+        float effectiveExitSpeed = baseExitSpeed + scrollSpeedOffset;
+        
+        physicsVelocity.Linear = movementState.exitDirection * effectiveExitSpeed;
         physicsVelocity.Angular = float3.zero;
         
         // Check distance from player
