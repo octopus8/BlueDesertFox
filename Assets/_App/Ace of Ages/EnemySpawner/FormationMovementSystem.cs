@@ -18,6 +18,7 @@ partial struct FormationMovementSystem : ISystem
     {
         // Require player tracking for distance calculations
         state.RequireForUpdate<PlayerTransformReference>();
+        state.RequireForUpdate<TerrainTileConfig>();
     }
     
     public void OnUpdate(ref SystemState state)
@@ -126,7 +127,7 @@ public partial struct FormationMovementJob : IJobEntity
         
         // Move toward entry point using physics velocity
         float3 direction = math.normalize(toEntry);
-        float baseApproachSpeed = 5f; // Match spline following speed for consistent movement
+        float baseApproachSpeed = movementState.formationSpeed; // Use configured formation speed
         
         // Project scroll velocity onto movement direction for speed offset
         // Negate to convert world velocity to player's relative velocity
@@ -178,7 +179,7 @@ public partial struct FormationMovementJob : IJobEntity
         ref PhysicsVelocity physicsVelocity)
     {
         // Continue moving in the exit direction at constant speed
-        float baseExitSpeed = 10f; // Base speed when leaving spline
+        float baseExitSpeed = movementState.formationSpeed; // Use configured formation speed
         
         // Project scroll velocity onto exit direction for speed offset
         // Negate to convert world velocity to player's relative velocity

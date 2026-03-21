@@ -110,7 +110,8 @@ partial struct EnemySpawnerSystem : ISystem
                                 phase = MovementPhase.ApproachingSpline,
                                 splineEntryPoint = splineEntryPoint, // Each enemy's unique formation entry point
                                 exitDirection = float3.zero, // Will be set when leaving spline
-                                despawnDistance = enemySpawner.ValueRO.spawnDistance // Cleanup at spawn distance from player
+                                despawnDistance = enemySpawner.ValueRO.spawnDistance, // Cleanup at spawn distance from player
+                                formationSpeed = enemySpawner.ValueRO.formationSpeed // Configurable approach/exit speed
                             });
                             
                             // Add SplineFollower component (will be used during FollowingSpline phase)

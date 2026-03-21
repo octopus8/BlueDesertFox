@@ -18,6 +18,9 @@ public struct FormationMovementState : IComponentData
     
     /// <summary>Distance from player at which to destroy entity (cleanup distance)</summary>
     public float despawnDistance;
+    
+    /// <summary>Movement speed during approach and exit phases</summary>
+    public float formationSpeed;
 }
 
 /// <summary>

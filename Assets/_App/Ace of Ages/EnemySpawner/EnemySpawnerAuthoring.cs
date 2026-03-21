@@ -21,9 +21,13 @@ public class EnemySpawnerAuthoring : MonoBehaviour
     [Tooltip("Distance between enemies in the formation (units)")]
     [SerializeField] private float formationSpacing = 2f;
     
+    [Tooltip("Movement speed for enemies during approach and exit phases")]
+    [SerializeField] private float formationSpeed = 5f;
+    
     [Header("Spawn Behavior")]
     [Tooltip("Distance ahead of spline start to spawn formation (perpendicular to path, outside player view)")]
     [SerializeField] private float spawnDistance = 75f;
+    
     
     public class Baker : Baker<EnemySpawnerAuthoring>
     {
@@ -41,6 +45,7 @@ public class EnemySpawnerAuthoring : MonoBehaviour
                 formationCount = authoring.formationCount,
                 formationSpacing = authoring.formationSpacing,
                 spawnDistance = authoring.spawnDistance,
+                formationSpeed = authoring.formationSpeed,
             });
         }
     }
@@ -57,4 +62,5 @@ public struct EnemySpawner : IComponentData
     public int formationCount;
     public float formationSpacing;
     public float spawnDistance;
+    public float formationSpeed;
 }
