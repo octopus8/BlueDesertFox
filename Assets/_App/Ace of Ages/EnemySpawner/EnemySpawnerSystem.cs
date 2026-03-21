@@ -104,11 +104,12 @@ partial struct EnemySpawnerSystem : ISystem
                             });
                             
                             // Initialize movement state - START IN APPROACH PHASE
-                            // Enemies will approach their formation entry points and auto-detect transition
+                            // Enemies will approach in formation, moving in the same direction
                             ecb.AddComponent(entity, new FormationMovementState
                             {
                                 phase = MovementPhase.ApproachingSpline,
                                 splineEntryPoint = splineEntryPoint, // Each enemy's unique formation entry point
+                                approachDirection = startSample.tangent, // All move in same direction to maintain formation
                                 exitDirection = float3.zero, // Will be set when leaving spline
                                 despawnDistance = enemySpawner.ValueRO.spawnDistance, // Cleanup at spawn distance from player
                                 formationSpeed = enemySpawner.ValueRO.formationSpeed // Configurable approach/exit speed

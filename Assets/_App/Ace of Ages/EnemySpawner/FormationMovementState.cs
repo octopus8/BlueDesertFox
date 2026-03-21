@@ -13,6 +13,9 @@ public struct FormationMovementState : IComponentData
     /// <summary>Target position when approaching the spline entry point</summary>
     public float3 splineEntryPoint;
     
+    /// <summary>Direction to move during approach phase (spline tangent, same for all in formation)</summary>
+    public float3 approachDirection;
+    
     /// <summary>Exit direction when leaving the spline (captured tangent at spline end)</summary>
     public float3 exitDirection;
     

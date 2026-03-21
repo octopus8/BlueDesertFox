@@ -99,25 +99,17 @@ public partial struct FormationMovementJob : IJobEntity
         ref FormationMovementState movementState,
         ref PhysicsVelocity physicsVelocity)
     {
-        // Calculate direction to spline entry point
+        // All enemies move in the same direction (spline tangent) to maintain formation
+        float3 direction = movementState.approachDirection;
+        
+        // Calculate distance to entry point along the approach direction (not direct distance)
+        // This ensures all formation members transition together based on forward progress
         float3 toEntry = movementState.splineEntryPoint - localTransform.Position;
-        float distanceToEntry = math.length(toEntry);
-        
-        // Auto-detect transition: check if we've reached or passed the entry point
-        // Use dot product to detect if we're moving away from or perpendicular to the target
-        float3 movementDirection = math.normalizesafe(physicsVelocity.Linear);
-        float3 directionToEntry = math.normalizesafe(toEntry);
-        float dotProduct = math.dot(movementDirection, directionToEntry);
-        
-        // Transition conditions:
-        // 1. Very close to entry point (within 1m) OR
-        // 2. Moving away from or perpendicular to entry (dot < 0.5 means we've passed/passing) OR
-        // 3. Velocity is very low (< 0.1) and close (< 5m) - safety fallback for stuck enemies
-        bool veryClose = distanceToEntry < 1f;
-        bool passingOrPassed = dotProduct < 0.5f && math.lengthsq(physicsVelocity.Linear) > 0.01f;
-        bool stuckNearEntry = distanceToEntry < 5f && math.lengthsq(physicsVelocity.Linear) < 0.1f;
-        
-        if (veryClose || passingOrPassed || stuckNearEntry)
+        float distanceAlongApproach = math.dot(toEntry, direction);
+
+        // Auto-detect transition: check if we've reached or passed the entry point along the approach axis
+        // Use small threshold to handle formation members at different lateral positions
+        if (distanceAlongApproach <= 1f)
         {
             movementState.phase = MovementPhase.FollowingSpline;
             physicsVelocity.Linear = float3.zero;
@@ -125,8 +117,7 @@ public partial struct FormationMovementJob : IJobEntity
             return;
         }
         
-        // Move toward entry point using physics velocity
-        float3 direction = math.normalize(toEntry);
+        // All enemies move in the same direction at the same speed (maintains formation)
         float baseApproachSpeed = movementState.formationSpeed; // Use configured formation speed
         
         // Project scroll velocity onto movement direction for speed offset
