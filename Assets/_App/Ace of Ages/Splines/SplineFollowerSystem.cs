@@ -115,6 +115,7 @@ public partial struct SplineFollowerJob : IJobEntity
         bool hasFormation = formationPositionLookup.HasComponent(entity);
         float adjustedDistanceRatio = splineFollower.distanceRatio;
         float3 lateralOffset = float3.zero;
+        float forwardOffsetDistance = 0f; // Track offset distance for out-of-bounds calculation
         
         if (hasFormation)
         {
@@ -122,6 +123,7 @@ public partial struct SplineFollowerJob : IJobEntity
             
             // Apply forward offset from formation position
             adjustedDistanceRatio = splineFollower.distanceRatio + (formationPos.forwardOffset / spline.totalLength);
+            forwardOffsetDistance = formationPos.forwardOffset;
             
             // Wrap/clamp the adjusted ratio
             if (spline.isClosed)
@@ -141,6 +143,38 @@ public partial struct SplineFollowerJob : IJobEntity
         
         // Calculate target position
         float3 targetPosition = sample.position;
+        
+        // For non-closed splines, handle formation offsets that extend beyond spline bounds
+        // by extending along the spline tangent instead of clamping to endpoints
+        if (hasFormation && !spline.isClosed && forwardOffsetDistance != 0f)
+        {
+            float rawAdjustedRatio = splineFollower.distanceRatio + (forwardOffsetDistance / spline.totalLength);
+            
+            // Handle enemies behind the spline start (negative offset)
+            if (rawAdjustedRatio < 0f)
+            {
+                // Enemy is behind the spline start - extend backward along start tangent
+                float offsetDistance = -rawAdjustedRatio * spline.totalLength; // Distance behind start (positive value)
+                SplineSample startSample = spline.Evaluate(0f);
+                float3 backwardDirection = -math.normalize(startSample.tangent); // Reverse tangent for backward
+                targetPosition = startSample.position + backwardDirection * offsetDistance;
+                
+                // Use start sample for lateral offset calculation
+                sample = startSample;
+            }
+            // Handle enemies ahead of the spline end (positive offset beyond 1.0)
+            else if (rawAdjustedRatio > 1f)
+            {
+                // Enemy is ahead of the spline end - extend forward along end tangent
+                float offsetDistance = (rawAdjustedRatio - 1f) * spline.totalLength; // Distance ahead of end
+                SplineSample endSample = spline.Evaluate(1f);
+                float3 forwardDirection = math.normalize(endSample.tangent);
+                targetPosition = endSample.position + forwardDirection * offsetDistance;
+                
+                // Use end sample for lateral offset calculation
+                sample = endSample;
+            }
+        }
         
         // Apply lateral offset if in formation
         if (hasFormation)

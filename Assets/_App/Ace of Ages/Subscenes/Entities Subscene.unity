@@ -167,8 +167,8 @@ MonoBehaviour:
   loopSpline: {fileID: 1730959682}
   formationCount: 10
   formationSpacing: 1
-  formationSpeed: 5
-  spawnDistance: 20
+  formationSpeed: 40
+  spawnDistance: 100
 --- !u!1 &181105510
 GameObject:
   m_ObjectHideFlags: 0
@@ -690,7 +690,7 @@ MonoBehaviour:
   viewDistance: 1875
   verticesPerSide: 8
   scrollEnabled: 1
-  scrollSpeed: 5
+  scrollSpeed: 50
   noiseFrequency: 0.005
   noiseAmplitude: 15
   noiseOctaves: 2
