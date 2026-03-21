@@ -19,6 +19,11 @@ public partial class TerrainDistanceTrackingSystem : SystemBase
     private static readonly ProfilerMarker s_ProfilerMarker = new ProfilerMarker("TerrainPhysics.DistanceTracking");
 #endif
 
+    protected override void OnCreate()
+    {
+        RequireForUpdate<TerrainTileConfig>();
+    }
+
     protected override void OnUpdate()
     {
 #if UNITY_EDITOR
