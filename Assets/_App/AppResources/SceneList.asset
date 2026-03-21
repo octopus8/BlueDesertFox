@@ -31,3 +31,12 @@ MonoBehaviour:
       m_SubObjectGUID: 
       m_EditorAssetChanged: 0
     scenePath: Ace of Ages
+  - sceneDisplayName: UI Interaction Test
+    isAddressable: 0
+    scene:
+      m_AssetGUID: 
+      m_SubObjectName: 
+      m_SubObjectType: 
+      m_SubObjectGUID: 
+      m_EditorAssetChanged: 0
+    scenePath: UI Interaction Test
