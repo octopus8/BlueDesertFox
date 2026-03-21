@@ -1,7 +1,7 @@
 # Formation Speed Exposure Summary
 
 ## Overview
-Exposed the previously hardcoded `baseApproachSpeed` parameter as a configurable `formationSpeed` field that can be set per enemy spawner in the Unity Editor.
+Exposed the previously hardcoded `baseApproachSpeed` parameter as a configurable `formationSpeed` field that can be set per enemy spawner in the Unity Editor. This speed is now used consistently across all three movement phases: approaching, following, and exiting.
 
 ## Changes Made
 
@@ -27,6 +27,10 @@ Exposed the previously hardcoded `baseApproachSpeed` parameter as a configurable
   ```csharp
   formationSpeed = enemySpawner.ValueRO.formationSpeed
   ```
+- **Updated SplineFollower.moveSpeed initialization to use formationSpeed** (was hardcoded to 5f):
+  ```csharp
+  moveSpeed = enemySpawner.ValueRO.formationSpeed
+  ```
 
 ### 5. FormationMovementSystem
 **File**: `Assets/_App/Ace of Ages/EnemySpawner/FormationMovementSystem.cs`
@@ -37,14 +41,19 @@ Exposed the previously hardcoded `baseApproachSpeed` parameter as a configurable
 ## Usage
 In the Unity Editor:
 1. Select any GameObject with EnemySpawnerAuthoring component
-2. Adjust "Formation Speed" field under "Spawn Behavior" section
+2. Adjust "Formation Speed" field under "Formation Settings" section
 3. Default value: 5.0 m/s
-4. This speed is used for both approach (moving toward spline) and exit (leaving spline) phases
-5. Speed is scroll-velocity-compensated automatically
+4. This speed is used for **all three phases**:
+   - Approaching the spline entry point
+   - Following the spline path
+   - Exiting after spline completion
+5. Speed is scroll-velocity-compensated automatically in approach/exit phases
+6. SplineFollowerSystem handles spline-following with the configured moveSpeed
 
 ## Benefits
+- Single unified speed control for all movement phases
 - Per-spawner speed configuration without code changes
-- Unified speed control for approach/exit phases
 - Maintains scroll velocity compensation for smooth terrain scrolling
 - Designer-friendly with Inspector tooltips
+- Consistent movement speed throughout enemy lifecycle
 

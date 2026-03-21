@@ -118,7 +118,7 @@ partial struct EnemySpawnerSystem : ISystem
                             // Start at distanceRatio = 0, FormationPosition handles offsets in SplineFollowerSystem
                             ecb.AddComponent(entity, new SplineFollower
                             {
-                                moveSpeed = 5f, // Default speed, can be configured
+                                moveSpeed = enemySpawner.ValueRO.formationSpeed, // Use configured formation speed
                                 distanceRatio = 0f // Start at spline beginning, formation offsets applied automatically
                             });
                             
