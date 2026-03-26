@@ -6,7 +6,7 @@ using Unity.Entities;
 /// </summary>
 /// <remarks>
 /// - MonoBehaviour components call `LoadScene` on the Singleton instance to load subscenes.
-/// - `SceneStartup` uses this to load subscenes.
+/// - `SceneStartupShutdown` uses this to load subscenes.
 /// </remarks>
 public partial class SubSceneLoader : SystemBase
 {
