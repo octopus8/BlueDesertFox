@@ -284,6 +284,7 @@ GameObject:
   - component: {fileID: 2868978512966583673}
   - component: {fileID: 4080166964458993075}
   - component: {fileID: 3380112363431979808}
+  - component: {fileID: 4889411660643954387}
   m_Layer: 5
   m_Name: Scene Select
   m_TagString: Untagged
@@ -394,6 +395,25 @@ MonoBehaviour:
   sceneListContainer: {fileID: 4978611317858011695}
   prototypeButton: {fileID: 5953491259308558538}
   sceneLoader: {fileID: 2905175676103038946}
+--- !u!114 &4889411660643954387
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1606163093048102676}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7951c64acb0fa62458bf30a60089fe2d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Unity.XR.Interaction.Toolkit::UnityEngine.XR.Interaction.Toolkit.UI.TrackedDeviceGraphicRaycaster
+  m_IgnoreReversedGraphics: 0
+  m_CheckFor2DOcclusion: 0
+  m_CheckFor3DOcclusion: 0
+  m_BlockingMask:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  m_RaycastTriggerInteraction: 1
 --- !u!1 &3110602556754765205
 GameObject:
   m_ObjectHideFlags: 0
@@ -1173,7 +1193,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2dc83644099ea0a4f89d15ed3b1c6e30, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::App.StartScene.UI
-  displayOnStart: 1
   disableClose: 0
   displaySpeed: 0.5
   uiContainer: {fileID: 4427941186224093241}
