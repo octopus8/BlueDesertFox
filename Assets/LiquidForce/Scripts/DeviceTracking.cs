@@ -79,6 +79,11 @@ namespace LiquidForce
             headObjectFollower.AddTarget(target);
         }
 
+        public void RemoveHeadFollower(Transform target)
+        {
+            headObjectFollower.RemoveTarget(target);
+        }
+
         public void UpdateImmediate()
         {
             headObjectFollower.UpdateImmediate();

@@ -112,6 +112,11 @@ namespace LiquidForce
             targets.Add(target);
         }
 
+        public void RemoveTarget(Transform target)
+        {
+            targets.Remove(target);
+        }
+
         
         /// <summary>
         /// Clears the set of targets.

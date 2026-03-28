@@ -14,6 +14,11 @@ using UnityEngine;
 public partial class TerrainRenderingDebugSystem : SystemBase
 {
     private double _lastLogTime;
+   
+    protected override void OnCreate()
+    {
+        RequireForUpdate<TerrainTileConfig>();
+    }
     
     protected override void OnUpdate()
     {
