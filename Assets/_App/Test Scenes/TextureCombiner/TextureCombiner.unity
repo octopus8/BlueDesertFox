@@ -398,8 +398,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1713e261b75e93042a6a2cdbc26fa33d, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::TextureCombinerTest
-  imageProcessorComputeShader: {fileID: 0}
+  imageProcessorComputeShader: {fileID: 7200000, guid: 327ba3f3135ba524699fcd68fa5d01ab, type: 3}
   textures: []
+  meshRenderer: {fileID: 560342784}
 --- !u!4 &1639137838
 Transform:
   m_ObjectHideFlags: 0
