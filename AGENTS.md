@@ -10,7 +10,7 @@ Unity VR application combining traditional MonoBehaviour components with Unity D
 - **ECS Layer**: Performance-critical systems loaded via SubScenes (see `Assets/_App/Ace of Ages/` for DOTS systems)
 - **Scene Management**: `SceneStartup.cs` orchestrates initial setup, loading SubScenes via `SubSceneLoader` singleton and managing camera fade-ins, calls `DeviceTracking.Instance.UpdateImmediate()` after setting tracking origin
 - **UI System**: State machine pattern via `UIManager` with stack-based state management (`IUIState`, `UIState`)
-- **Input System**: Uses Unity Input System with `InputSystem.actions.FindAction("ActionName")` pattern for runtime action binding
+- **Input System**: Uses Unity Input System with `InputSystem.actions.FindAction("ActionName")` pattern for runtime action binding. Scenes using this pattern must include `InputSystemActionsInitializer` component to set the global `InputSystem.actions` reference, or configure Project-Wide Actions in Project Settings.
 
 ### Key Namespaces & Assembly Definitions
 - `Autohand` (AutoHandAssembly.asmdef): VR hand/grabbable interactions
@@ -216,6 +216,7 @@ Located in `Assets/_App/Ace of Ages/Terrain/`:
 - Word prediction requires pre-generated dictionaries or will fail silently if corpus generation commented out
 - `UIManager` requires `ObjectFollower` component - add via `[RequireComponent]` attribute (already present)
 - State machine navigation: Always use `PushState()`/`PopState()` - direct GameObject activation bypasses lifecycle callbacks
+- **InputSystem.actions**: Scenes using `InputSystem.actions.FindAction()` must include `InputSystemActionsInitializer` component or configure Project-Wide Actions. UIManager auto-detects missing actions and logs warnings but won't function without proper initialization.
 - `DeviceTracking.Instance.UpdateImmediate()` must be called after tracking origin changes to sync head followers immediately
 - `ObjectFollower.UpdateImmediate()` forces instant snap without smoothing - call after Show()/position changes to prevent UI from being visible during transition
 - DOTS `TransformFollowerAuthoring` must be on entities inside SubScenes - runtime init won't work for non-baked entities
