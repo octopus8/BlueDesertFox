@@ -1,11 +1,136 @@
-#pragma kernel SetTextureUV
+#pragma kernel SetTextureRedBlueGradient
+#pragma kernel BlendTextures
 
 
-RWTexture2D<float4> Result;
+// The output texture. Note: this shader writes to both the output texture and the output buffer because OpenGL ES 3.0 does not support read/write
+// to rgb textures - this will APPEAR to work in the editor, but will not work unless a headset is running Vulkan.
+RWTexture2D<float4> OutputTexture;
 
 
+// The output buffer. Note: this shader writes to both the output texture and the output buffer because OpenGL ES 3.0 does not support read/write
+// to rgb textures - this will APPEAR to work in the editor, but will not work unless a headset is running Vulkan.
+RWStructuredBuffer<float4> OutputBuffer;
+
+// Width and height of the output texture (needed for buffer indexing)
+int TextureWidth;
+int TextureHeight;
+
+// Input textures for blending (up to 8 textures)
+Texture2D<float4> InputTexture0;
+Texture2D<float4> InputTexture1;
+Texture2D<float4> InputTexture2;
+Texture2D<float4> InputTexture3;
+Texture2D<float4> InputTexture4;
+Texture2D<float4> InputTexture5;
+Texture2D<float4> InputTexture6;
+Texture2D<float4> InputTexture7;
+
+// Number of textures to blend
+int TextureCount;
+
+// Blend weights for each texture (normalized so they sum to 1.0)
+StructuredBuffer<float> BlendValues;
+
+// Sampler for reading input textures
+SamplerState samplerInputTexture0;
+
+
+/// <summary>
+/// Simple kernel that sets pixel color according to the pixel position (red-blue gradient).
+/// </summary>
+/// <remarks>
+//      - Since processor's warp size is usually 64 and 2D data is being processed, numthreads is set to [8,8,1] to ensure
+//          that each warp processes a 8x8 block of pixels, maximizing efficiency and minimizing idle threads.
+/// </remarks>
 [numthreads(8,8,1)]
-void SetTextureUV (uint3 id : SV_DispatchThreadID)
+void SetTextureRedBlueGradient (uint3 id : SV_DispatchThreadID)
 {
-    Result[id.xy] = float4(id.x & id.y, (id.x & 15)/15.0, (id.y & 15)/15.0, 0.0);
+    // Compute the pixel color depending on the position (red-blue gradient).
+    float x = id.x / (float)TextureWidth;
+    float y = id.y / (float)TextureHeight;
+    float4 pixelColor = float4(x, 0.0, y, 1.0);
+
+    // Store the pixel color in the output buffer and output texture.
+    // Note: this shader writes to both the output texture and the output buffer because OpenGL ES 3.0 does not support
+    // read/write to rgb textures - this will APPEAR to work in the editor, but will not work unless a headset is running Vulkan.
+    OutputBuffer[id.y * TextureWidth + id.x] = pixelColor;
+    OutputTexture[id.xy] = pixelColor;
 }
+
+/// <summary>
+/// Blends multiple input textures using weighted blending based on BlendValues.
+/// Supports textures of different sizes by sampling using normalized UV coordinates.
+/// Each pixel's contribution is also weighted by its alpha value (alpha-weighted blending).
+/// </summary>
+/// <remarks>
+//      - Since processor's warp size is usually 64 and 2D data is being processed, numthreads is set to [8,8,1] to ensure
+//          that each warp processes a 8x8 block of pixels, maximizing efficiency and minimizing idle threads.
+//      - BlendValues should be normalized (sum to 1.0) for proper blending.
+//      - Each pixel is multiplied by both its BlendValue weight and its own alpha channel.
+/// </remarks>
+[numthreads(8,8,1)]
+void BlendTextures(uint3 id : SV_DispatchThreadID)
+{
+    // Early exit if outside texture bounds
+    if (id.x >= (uint)TextureWidth || id.y >= (uint)TextureHeight)
+        return;
+    
+    // Calculate normalized UV coordinates for sampling
+    float2 uv = float2((id.x + 0.5) / (float)TextureWidth, (id.y + 0.5) / (float)TextureHeight);
+    
+    // Accumulate weighted color from all input textures
+    float4 blendedColor = float4(0.0, 0.0, 0.0, 0.0);
+    
+    // Sample each texture and accumulate colors with their respective weights
+    // Note: BlendValues are expected to be pre-normalized (sum to 1.0)
+    // Each pixel is also multiplied by its alpha value for alpha-weighted blending
+    if (TextureCount > 0)
+    {
+        float4 sample0 = InputTexture0.SampleLevel(samplerInputTexture0, uv, 0);
+        float sample0BlendFactor = sample0.a * BlendValues[0];
+        blendedColor = (blendedColor * 1.0-sample0BlendFactor) * sample0 * sample0BlendFactor;
+    }
+    if (TextureCount > 1)
+    {
+        float4 sample1 = InputTexture1.SampleLevel(samplerInputTexture0, uv, 0);
+        blendedColor += sample1 * sample1.a * BlendValues[1];
+    }
+    if (TextureCount > 2)
+    {
+        float4 sample2 = InputTexture2.SampleLevel(samplerInputTexture0, uv, 0);
+        blendedColor += sample2 * sample2.a * BlendValues[2];
+    }
+    if (TextureCount > 3)
+    {
+        float4 sample3 = InputTexture3.SampleLevel(samplerInputTexture0, uv, 0);
+        blendedColor += sample3 * sample3.a * BlendValues[3];
+    }
+    if (TextureCount > 4)
+    {
+        float4 sample4 = InputTexture4.SampleLevel(samplerInputTexture0, uv, 0);
+        blendedColor += sample4 * sample4.a * BlendValues[4];
+    }
+    if (TextureCount > 5)
+    {
+        float4 sample5 = InputTexture5.SampleLevel(samplerInputTexture0, uv, 0);
+        blendedColor += sample5 * sample5.a * BlendValues[5];
+    }
+    if (TextureCount > 6)
+    {
+        float4 sample6 = InputTexture6.SampleLevel(samplerInputTexture0, uv, 0);
+        blendedColor += sample6 * sample6.a * BlendValues[6];
+    }
+    if (TextureCount > 7)
+    {
+        float4 sample7 = InputTexture7.SampleLevel(samplerInputTexture0, uv, 0);
+        blendedColor += sample7 * sample7.a * BlendValues[7];
+    }
+    
+    // Ensure alpha is 1.0
+    blendedColor.a = 1.0;
+    
+    // Store the blended color in the output buffer and output texture
+    OutputBuffer[id.y * TextureWidth + id.x] = blendedColor;
+    OutputTexture[id.xy] = blendedColor;
+}
+
