@@ -1,5 +1,6 @@
 #pragma kernel SetTextureRedBlueGradient
 #pragma kernel BlendTextures
+#pragma kernel DiagnosticSample
 
 
 // The output texture. Note: this shader writes to both the output texture and the output buffer because OpenGL ES 3.0 does not support read/write
@@ -34,6 +35,20 @@ StructuredBuffer<float> BlendValues;
 // Sampler for reading input textures
 SamplerState samplerInputTexture0;
 
+/// <summary>
+/// Converts a linear color value back to sRGB space.
+/// Unity automatically converts sRGB textures to Linear when sampling, so this undoes that conversion
+/// to get back the original texture values for exact value matching.
+/// </summary>
+float3 LinearToSRGB(float3 linearColor)
+{
+    float3 sRGB;
+    sRGB.r = (linearColor.r <= 0.0031308) ? linearColor.r * 12.92 : 1.055 * pow(linearColor.r, 1.0/2.4) - 0.055;
+    sRGB.g = (linearColor.g <= 0.0031308) ? linearColor.g * 12.92 : 1.055 * pow(linearColor.g, 1.0/2.4) - 0.055;
+    sRGB.b = (linearColor.b <= 0.0031308) ? linearColor.b * 12.92 : 1.055 * pow(linearColor.b, 1.0/2.4) - 0.055;
+    return sRGB;
+}
+
 
 /// <summary>
 /// Simple kernel that sets pixel color according to the pixel position (red-blue gradient).
@@ -67,6 +82,7 @@ void SetTextureRedBlueGradient (uint3 id : SV_DispatchThreadID)
 //          that each warp processes a 8x8 block of pixels, maximizing efficiency and minimizing idle threads.
 //      - BlendValues should be normalized (sum to 1.0) for proper blending.
 //      - Each pixel is multiplied by both its BlendValue weight and its own alpha channel.
+//      - All 8 texture slots are always bound (dummy textures used for empty slots), so no conditional checks needed.
 /// </remarks>
 [numthreads(8,8,1)]
 void BlendTextures(uint3 id : SV_DispatchThreadID)
@@ -79,52 +95,43 @@ void BlendTextures(uint3 id : SV_DispatchThreadID)
     float2 uv = float2((id.x + 0.5) / (float)TextureWidth, (id.y + 0.5) / (float)TextureHeight);
     
     // Accumulate weighted color from all input textures
+    // Note: All 8 texture slots are always bound (dummy textures for empty slots)
+    // Empty slots have BlendValues = 0.0, so they contribute nothing
     float4 blendedColor = float4(0.0, 0.0, 0.0, 0.0);
     
-    // Sample each texture and accumulate colors with their respective weights
-    // Note: BlendValues are expected to be pre-normalized (sum to 1.0)
-    // Each pixel is also multiplied by its alpha value for alpha-weighted blending
-    if (TextureCount > 0)
-    {
-        float4 sample0 = InputTexture0.SampleLevel(samplerInputTexture0, uv, 0);
-        float sample0BlendFactor = sample0.a * BlendValues[0];
-        blendedColor = (blendedColor * 1.0-sample0BlendFactor) * sample0 * sample0BlendFactor;
-    }
-    if (TextureCount > 1)
-    {
-        float4 sample1 = InputTexture1.SampleLevel(samplerInputTexture0, uv, 0);
-        blendedColor += sample1 * sample1.a * BlendValues[1];
-    }
-    if (TextureCount > 2)
-    {
-        float4 sample2 = InputTexture2.SampleLevel(samplerInputTexture0, uv, 0);
-        blendedColor += sample2 * sample2.a * BlendValues[2];
-    }
-    if (TextureCount > 3)
-    {
-        float4 sample3 = InputTexture3.SampleLevel(samplerInputTexture0, uv, 0);
-        blendedColor += sample3 * sample3.a * BlendValues[3];
-    }
-    if (TextureCount > 4)
-    {
-        float4 sample4 = InputTexture4.SampleLevel(samplerInputTexture0, uv, 0);
-        blendedColor += sample4 * sample4.a * BlendValues[4];
-    }
-    if (TextureCount > 5)
-    {
-        float4 sample5 = InputTexture5.SampleLevel(samplerInputTexture0, uv, 0);
-        blendedColor += sample5 * sample5.a * BlendValues[5];
-    }
-    if (TextureCount > 6)
-    {
-        float4 sample6 = InputTexture6.SampleLevel(samplerInputTexture0, uv, 0);
-        blendedColor += sample6 * sample6.a * BlendValues[6];
-    }
-    if (TextureCount > 7)
-    {
-        float4 sample7 = InputTexture7.SampleLevel(samplerInputTexture0, uv, 0);
-        blendedColor += sample7 * sample7.a * BlendValues[7];
-    }
+    // Sample all 8 textures and accumulate with alpha-weighted blending
+    // Note: Unity converts sRGB textures to Linear automatically, so we convert back to get original values
+    float4 sample0 = InputTexture0.SampleLevel(samplerInputTexture0, uv, 0);
+    sample0.rgb = LinearToSRGB(sample0.rgb);  // Convert back to sRGB for exact value matching
+    blendedColor += sample0 * sample0.a * BlendValues[0];
+    
+    float4 sample1 = InputTexture1.SampleLevel(samplerInputTexture0, uv, 0);
+    sample1.rgb = LinearToSRGB(sample1.rgb);
+    blendedColor += sample1 * sample1.a * BlendValues[1];
+    
+    float4 sample2 = InputTexture2.SampleLevel(samplerInputTexture0, uv, 0);
+    sample2.rgb = LinearToSRGB(sample2.rgb);
+    blendedColor += sample2 * sample2.a * BlendValues[2];
+    
+    float4 sample3 = InputTexture3.SampleLevel(samplerInputTexture0, uv, 0);
+    sample3.rgb = LinearToSRGB(sample3.rgb);
+    blendedColor += sample3 * sample3.a * BlendValues[3];
+    
+    float4 sample4 = InputTexture4.SampleLevel(samplerInputTexture0, uv, 0);
+    sample4.rgb = LinearToSRGB(sample4.rgb);
+    blendedColor += sample4 * sample4.a * BlendValues[4];
+    
+    float4 sample5 = InputTexture5.SampleLevel(samplerInputTexture0, uv, 0);
+    sample5.rgb = LinearToSRGB(sample5.rgb);
+    blendedColor += sample5 * sample5.a * BlendValues[5];
+    
+    float4 sample6 = InputTexture6.SampleLevel(samplerInputTexture0, uv, 0);
+    sample6.rgb = LinearToSRGB(sample6.rgb);
+    blendedColor += sample6 * sample6.a * BlendValues[6];
+    
+    float4 sample7 = InputTexture7.SampleLevel(samplerInputTexture0, uv, 0);
+    sample7.rgb = LinearToSRGB(sample7.rgb);
+    blendedColor += sample7 * sample7.a * BlendValues[7];
     
     // Ensure alpha is 1.0
     blendedColor.a = 1.0;
@@ -134,3 +141,30 @@ void BlendTextures(uint3 id : SV_DispatchThreadID)
     OutputTexture[id.xy] = blendedColor;
 }
 
+/// <summary>
+/// Diagnostic kernel that samples the texture color directly and writes it to the output.
+/// Useful for verifying the texture content and debugging.
+/// </summary>
+/// <remarks>
+//      - Since processor's warp size is usually 64 and 2D data is being processed, numthreads is set to [8,8,1] to ensure
+//          that each warp processes a 8x8 block of pixels, maximizing efficiency and minimizing idle threads.
+/// </remarks>
+[numthreads(8,8,1)]
+void DiagnosticSample(uint3 id : SV_DispatchThreadID)
+{
+    // Early exit if outside texture bounds
+    if (id.x >= (uint)TextureWidth || id.y >= (uint)TextureHeight)
+        return;
+
+    // Directly sample the color from the output texture (which should have been written by the red-blue gradient kernel)
+    float4 sampledColor = OutputTexture[id.xy];
+
+    // For diagnostics, we can also write the pixel position to the output (optional)
+    // This can help verify that the correct pixels are being processed
+    //float2 pixelPos = float2(id.x, id.y) / float2(TextureWidth, TextureHeight);
+    //sampledColor.rgb = pixelPos.xxy;
+
+    // Store the sampled color in the output buffer and output texture
+    OutputBuffer[id.y * TextureWidth + id.x] = sampledColor;
+    OutputTexture[id.xy] = sampledColor;
+}

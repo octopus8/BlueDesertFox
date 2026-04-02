@@ -175,11 +175,9 @@ public class ImageProcessorTest : MonoBehaviour
             }
         }
         
-        Debug.Log($"Blend weights (normalized): [{string.Join(", ", blendWeights)}]");
-        
         // Define output texture dimensions
-        int outputWidth = 1024;
-        int outputHeight = 1024;
+        int outputWidth = 2048;
+        int outputHeight = 2048;
         int pixelCount = outputWidth * outputHeight;
         
         // Create RenderTexture for compute shader output
@@ -220,7 +218,6 @@ public class ImageProcessorTest : MonoBehaviour
             if (i < textureCount && textures[i] != null)
             {
                 imageProcessorComputeShader.SetTexture(blendTexturesKernelID, inputTextureName, textures[i]);
-                Debug.Log($"Binding texture {i}: {textures[i].name} ({textures[i].width}x{textures[i].height})");
             }
             else
             {
@@ -245,8 +242,6 @@ public class ImageProcessorTest : MonoBehaviour
         
         // Apply the resulting texture to the mesh renderer's material
         meshRenderer.material.mainTexture = outputTexture;
-        
-        Debug.Log($"Blended {textureCount} textures into {outputWidth}x{outputHeight} output texture");
     }
 
     private void OnDestroy()
