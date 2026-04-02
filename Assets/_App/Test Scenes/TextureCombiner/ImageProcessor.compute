@@ -40,12 +40,13 @@ SamplerState samplerInputTexture0;
 /// Unity automatically converts sRGB textures to Linear when sampling, so this undoes that conversion
 /// to get back the original texture values for exact value matching.
 /// </summary>
-float3 LinearToSRGB(float3 linearColor)
+float4 LinearToSRGB(float4 linearColor)
 {
-    float3 sRGB;
+    float4 sRGB;
     sRGB.r = (linearColor.r <= 0.0031308) ? linearColor.r * 12.92 : 1.055 * pow(linearColor.r, 1.0/2.4) - 0.055;
     sRGB.g = (linearColor.g <= 0.0031308) ? linearColor.g * 12.92 : 1.055 * pow(linearColor.g, 1.0/2.4) - 0.055;
     sRGB.b = (linearColor.b <= 0.0031308) ? linearColor.b * 12.92 : 1.055 * pow(linearColor.b, 1.0/2.4) - 0.055;
+    sRGB.a = linearColor.a;
     return sRGB;
 }
 
@@ -102,39 +103,45 @@ void BlendTextures(uint3 id : SV_DispatchThreadID)
     // Sample all 8 textures and accumulate with alpha-weighted blending
     // Note: Unity converts sRGB textures to Linear automatically, so we convert back to get original values
     float4 sample0 = InputTexture0.SampleLevel(samplerInputTexture0, uv, 0);
-    sample0.rgb = LinearToSRGB(sample0.rgb);  // Convert back to sRGB for exact value matching
-    blendedColor += sample0 * sample0.a * BlendValues[0];
+    sample0 = LinearToSRGB(sample0);  // Convert back to sRGB for exact value matching
+    float blendIntensity0 = BlendValues[0] * sample0.a;
+    blendedColor = blendedColor * (1.0 - blendIntensity0) + sample0 * blendIntensity0 * sample0.a;
     
     float4 sample1 = InputTexture1.SampleLevel(samplerInputTexture0, uv, 0);
-    sample1.rgb = LinearToSRGB(sample1.rgb);
-    blendedColor += sample1 * sample1.a * BlendValues[1];
-    
+    sample1 = LinearToSRGB(sample1);
+    float blendIntensity1 = BlendValues[1] * sample1.a;
+    blendedColor = blendedColor * (1.0 - blendIntensity1) + sample1 * blendIntensity1 * sample1.a;
+
     float4 sample2 = InputTexture2.SampleLevel(samplerInputTexture0, uv, 0);
-    sample2.rgb = LinearToSRGB(sample2.rgb);
-    blendedColor += sample2 * sample2.a * BlendValues[2];
+    sample2 = LinearToSRGB(sample2);
+    float blendIntensity2 = BlendValues[2] * sample2.a;
+    blendedColor = blendedColor * (1.0 - blendIntensity2) + sample2 * blendIntensity2 * sample2.a;
     
     float4 sample3 = InputTexture3.SampleLevel(samplerInputTexture0, uv, 0);
-    sample3.rgb = LinearToSRGB(sample3.rgb);
-    blendedColor += sample3 * sample3.a * BlendValues[3];
+    sample3 = LinearToSRGB(sample3);
+    float blendIntensity3 = BlendValues[3] * sample3.a;
+    blendedColor = blendedColor * (1.0 - blendIntensity3) + sample3 * blendIntensity3 * sample3.a;
     
     float4 sample4 = InputTexture4.SampleLevel(samplerInputTexture0, uv, 0);
-    sample4.rgb = LinearToSRGB(sample4.rgb);
-    blendedColor += sample4 * sample4.a * BlendValues[4];
+    sample4 = LinearToSRGB(sample4);
+    float blendIntensity4 = BlendValues[4] * sample4.a;
+    blendedColor = blendedColor * (1.0 - blendIntensity4) + sample4 * blendIntensity4 * sample4.a;
     
     float4 sample5 = InputTexture5.SampleLevel(samplerInputTexture0, uv, 0);
-    sample5.rgb = LinearToSRGB(sample5.rgb);
-    blendedColor += sample5 * sample5.a * BlendValues[5];
+    sample5 = LinearToSRGB(sample5);
+    float blendIntensity5 = BlendValues[5] * sample5.a;
+    blendedColor = blendedColor * (1.0 - blendIntensity5) + sample5 * blendIntensity5 * sample5.a;
     
     float4 sample6 = InputTexture6.SampleLevel(samplerInputTexture0, uv, 0);
-    sample6.rgb = LinearToSRGB(sample6.rgb);
-    blendedColor += sample6 * sample6.a * BlendValues[6];
+    sample6 = LinearToSRGB(sample6);
+    float blendIntensity6 = BlendValues[6] * sample6.a;
+    blendedColor = blendedColor * (1.0 - blendIntensity6) + sample6 * blendIntensity6 * sample6.a;
     
     float4 sample7 = InputTexture7.SampleLevel(samplerInputTexture0, uv, 0);
-    sample7.rgb = LinearToSRGB(sample7.rgb);
-    blendedColor += sample7 * sample7.a * BlendValues[7];
-    
-    // Ensure alpha is 1.0
-    blendedColor.a = 1.0;
+    sample7 = LinearToSRGB(sample7);
+    float blendIntensity7 = BlendValues[7] * sample7.a;
+    blendedColor = blendedColor * (1.0 - blendIntensity7) + sample7 * blendIntensity7 * sample7.a;
+
     
     // Store the blended color in the output buffer and output texture
     OutputBuffer[id.y * TextureWidth + id.x] = blendedColor;

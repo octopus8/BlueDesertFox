@@ -50,7 +50,20 @@ public class ImageProcessorTest : MonoBehaviour
         CreateDummyTexture();
         
         // Test blending textures
-        TestBlendTextures();
+        // Define output texture dimensions
+        int outputWidth = 2048;
+        int outputHeight = 2048;
+        
+        // Create RenderTexture for compute shader output
+        outputTexture = new RenderTexture(outputWidth, outputHeight, 0, RenderTextureFormat.ARGB32);
+        outputTexture.enableRandomWrite = true;
+        outputTexture.Create();
+        
+        TestBlendTextures(outputTexture);
+        
+        // Apply the resulting texture to the mesh renderer's material
+        meshRenderer.material.mainTexture = outputTexture;
+        
         
         // Uncomment to test gradient instead
         // DoTest();
@@ -63,7 +76,7 @@ public class ImageProcessorTest : MonoBehaviour
     private void CreateDummyTexture()
     {
         dummyTexture = new Texture2D(1, 1, TextureFormat.ARGB32, false);
-        dummyTexture.SetPixel(0, 0, Color.black);
+        dummyTexture.SetPixel(0, 0, new Color(0, 0, 0, 0));
         dummyTexture.Apply();
     }
 
@@ -124,7 +137,7 @@ public class ImageProcessorTest : MonoBehaviour
     /// Tests blending multiple textures using the BlendTextures compute shader kernel.
     /// Blends all textures in the textures array and displays the result on the mesh renderer.
     /// </summary>
-    public void TestBlendTextures()
+    public void TestBlendTextures(RenderTexture outputTexture)
     {
         // Validate required references
         if (imageProcessorComputeShader == null)
@@ -166,26 +179,8 @@ public class ImageProcessorTest : MonoBehaviour
             totalWeight += blendWeights[i];
         }
         
-        // Normalize blend weights so they sum to 1.0 (prevents over/under exposure)
-        if (totalWeight > 0f)
-        {
-            for (int i = 0; i < textureCount; i++)
-            {
-                blendWeights[i] /= totalWeight;
-            }
-        }
-        
-        // Define output texture dimensions
-        int outputWidth = 2048;
-        int outputHeight = 2048;
-        int pixelCount = outputWidth * outputHeight;
-        
-        // Create RenderTexture for compute shader output
-        outputTexture = new RenderTexture(outputWidth, outputHeight, 0, RenderTextureFormat.ARGB32);
-        outputTexture.enableRandomWrite = true;
-        outputTexture.Create();
-        
         // Create ComputeBuffer for output (needed for OpenGL ES 3.0 compatibility)
+        int pixelCount = outputTexture.width * outputTexture.height;
         outputBuffer = new ComputeBuffer(pixelCount, sizeof(float) * 4);
         
         // Create ComputeBuffer for blend values (8 floats for up to 8 textures)
@@ -196,8 +191,8 @@ public class ImageProcessorTest : MonoBehaviour
         int blendTexturesKernelID = imageProcessorComputeShader.FindKernel(blendTexturesKernelName);
         
         // Set texture dimensions
-        imageProcessorComputeShader.SetInt(textureWidthShaderParameter, outputWidth);
-        imageProcessorComputeShader.SetInt(textureHeightShaderParameter, outputHeight);
+        imageProcessorComputeShader.SetInt(textureWidthShaderParameter, outputTexture.width);
+        imageProcessorComputeShader.SetInt(textureHeightShaderParameter, outputTexture.height);
         
         // Set texture count
         imageProcessorComputeShader.SetInt(textureCountShaderParameter, textureCount);
@@ -234,14 +229,11 @@ public class ImageProcessorTest : MonoBehaviour
         imageProcessorComputeShader.GetKernelThreadGroupSizes(blendTexturesKernelID, out uint threadGroupSizeX, out uint threadGroupSizeY, out uint threadGroupSizeZ);
         
         // Calculate dispatch dimensions
-        int dispatchX = Mathf.CeilToInt(outputWidth / (float)threadGroupSizeX);
-        int dispatchY = Mathf.CeilToInt(outputHeight / (float)threadGroupSizeY);
+        int dispatchX = Mathf.CeilToInt(outputTexture.width / (float)threadGroupSizeX);
+        int dispatchY = Mathf.CeilToInt(outputTexture.height / (float)threadGroupSizeY);
         
         // Dispatch the compute shader
         imageProcessorComputeShader.Dispatch(blendTexturesKernelID, dispatchX, dispatchY, (int)threadGroupSizeZ);
-        
-        // Apply the resulting texture to the mesh renderer's material
-        meshRenderer.material.mainTexture = outputTexture;
     }
 
     private void OnDestroy()
