@@ -24,15 +24,14 @@ Create a flexible texture blending system using the ImageProcessor.compute shade
 ### Component Structure
 ```
 TextureBlender.cs (new)                    - Main reusable component
-├── BlendMode enum                         - Additive, AlphaWeighted, Multiplicative, etc.
-├── BlendRequest struct                    - Encapsulates blend operation parameters
-└── TextureBlenderPool.cs (optional)       - Singleton for sharing compute resources
+├── BlendMode enum (nested)                - Additive, AlphaWeighted, Multiplicative
+├── BlendRequest struct (nested)           - Encapsulates blend operation parameters
+└── Core functionality                     - Blending methods and resource management
 
 ImageProcessorEnhanced.compute (new)       - Enhanced compute shader
 ├── BlendTexturesAdditive kernel           - Simple additive blending
 ├── BlendTexturesAlphaWeighted kernel      - Current alpha-weighted blending
-├── BlendTexturesMultiplicative kernel     - Multiplicative blending
-└── BlendTexturesCustom kernel             - User-defined blending function
+└── BlendTexturesMultiplicative kernel     - Multiplicative blending
 ```
 
 ### Key Classes
@@ -41,6 +40,10 @@ ImageProcessorEnhanced.compute (new)       - Enhanced compute shader
 ```csharp
 public class TextureBlender : MonoBehaviour
 {
+    // Nested types
+    public enum BlendMode { Additive, AlphaWeighted, Multiplicative }
+    public struct BlendRequest { /* ... */ }
+    
     // Public API
     public RenderTexture BlendTextures(Texture[] textures, float[] weights = null, BlendMode mode = BlendMode.AlphaWeighted)
     public void BlendTexturesAsync(Texture[] textures, float[] weights, BlendMode mode, Action<RenderTexture> callback)
@@ -57,7 +60,7 @@ public class TextureBlender : MonoBehaviour
 }
 ```
 
-#### 2. BlendRequest Struct
+#### 2. BlendRequest Struct (nested in TextureBlender)
 ```csharp
 public struct BlendRequest
 {
@@ -71,18 +74,13 @@ public struct BlendRequest
 }
 ```
 
-#### 3. BlendMode Enum
+#### 3. BlendMode Enum (nested in TextureBlender)
 ```csharp
 public enum BlendMode
 {
     Additive,           // Simple sum with weights
     AlphaWeighted,      // Current implementation (multiply by alpha)
-    Multiplicative,     // Multiply colors together
-    Screen,             // Screen blend mode
-    Overlay,            // Overlay blend mode
-    Max,                // Take maximum value per channel
-    Min,                // Take minimum value per channel
-    Custom              // User-defined blend function
+    Multiplicative      // Multiply colors together
 }
 ```
 
@@ -347,6 +345,30 @@ public class TextureBlenderResources : IDisposable
 
 ### Phase 4: Compute Shader Enhancements
 
+#### Performance Optimization Guidelines
+
+**Thread Group Size**: Use `[numthreads(8,8,1)]` for RTX series GPUs (64 threads per group = 2 warps)
+- Tested alternatives: 16×16 (slower on mid-range), 4×4 (poor occupancy)
+- 8×8 provides best balance of occupancy and register pressure
+
+**Loop Unrolling**: 
+```hlsl
+// For small texture counts, unroll for speed
+#pragma unroll
+for (int i = 0; i < TextureCount; i++)
+{
+    // Will unroll if TextureCount is compile-time constant
+}
+```
+
+**Register Usage**: Store sampled texture in local variable to avoid redundant samples:
+```hlsl
+float4 sample = InputTexturesArray.SampleLevel(samplerInputTextures, float3(uv, i), 0);
+// Reuse 'sample' multiple times without re-sampling
+```
+
+**Branch Reduction**: Minimize divergent branches in loops (all blend modes use uniform loop structure)
+
 #### Blend Mode Implementations
 
 Each blend mode gets its own kernel for optimal performance:
@@ -532,11 +554,9 @@ Assets/
 ├── _App/
 │   └── Scripts/
 │       └── TextureBlending/
-│           ├── TextureBlender.cs                 # Main component
+│           ├── TextureBlender.cs                 # Main component (includes BlendMode enum and BlendRequest struct)
 │           ├── TextureBlenderResources.cs         # Resource pooling
 │           ├── TextureArrayBuilder.cs             # Texture2DArray conversion
-│           ├── BlendRequest.cs                    # Request struct
-│           ├── BlendMode.cs                       # Enum definition
 │           └── Examples/
 │               └── TextureBlenderExample.cs       # Usage examples
 ├── Shaders/
