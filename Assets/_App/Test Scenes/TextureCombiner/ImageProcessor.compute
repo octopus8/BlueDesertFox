@@ -81,9 +81,8 @@ void SetTextureRedBlueGradient (uint3 id : SV_DispatchThreadID)
 /// <remarks>
 //      - Since processor's warp size is usually 64 and 2D data is being processed, numthreads is set to [8,8,1] to ensure
 //          that each warp processes a 8x8 block of pixels, maximizing efficiency and minimizing idle threads.
-//      - BlendValues should be normalized (sum to 1.0) for proper blending.
 //      - Each pixel is multiplied by both its BlendValue weight and its own alpha channel.
-//      - All 8 texture slots are always bound (dummy textures used for empty slots), so no conditional checks needed.
+//      - It's assumed all 8 texture slots are properly bound (dummy textures used for empty slots), so no conditional checks are done.
 /// </remarks>
 [numthreads(8,8,1)]
 void BlendTextures(uint3 id : SV_DispatchThreadID)
@@ -141,12 +140,12 @@ void BlendTextures(uint3 id : SV_DispatchThreadID)
     sample7 = LinearToSRGB(sample7);
     float blendIntensity7 = BlendValues[7] * sample7.a;
     blendedColor = blendedColor * (1.0 - blendIntensity7) + sample7 * blendIntensity7 * sample7.a;
-
     
     // Store the blended color in the output buffer and output texture
     OutputBuffer[id.y * TextureWidth + id.x] = blendedColor;
     OutputTexture[id.xy] = blendedColor;
 }
+
 
 /// <summary>
 /// Diagnostic kernel that samples the texture color directly and writes it to the output.
