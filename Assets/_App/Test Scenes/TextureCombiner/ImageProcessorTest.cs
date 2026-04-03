@@ -1,5 +1,18 @@
 using UnityEngine;
 
+/// <summary>
+/// DEPRECATED: This is a test component with hard-coded 8-texture limit.
+/// Use the new TextureBlender component instead for production use:
+/// - Supports unlimited textures (not limited to 8)
+/// - Multiple blend modes (Additive, AlphaWeighted, Multiplicative)
+/// - Resource pooling and caching for better performance
+/// - Async blending support
+/// - Clean public API
+/// 
+/// See: Assets/_App/Scripts/TextureBlending/TextureBlender.cs
+/// Example: Assets/_App/Scripts/TextureBlending/Examples/TextureBlenderExample.cs
+/// </summary>
+[System.Obsolete("Use TextureBlender component instead. This test component is limited to 8 textures.")]
 public class ImageProcessorTest : MonoBehaviour
 {
     [SerializeField] private ComputeShader imageProcessorComputeShader;
