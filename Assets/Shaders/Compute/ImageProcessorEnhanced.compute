@@ -35,6 +35,7 @@ float4 LinearToSRGB(float4 linearColor)
     return sRGB;
 }
 
+
 /// <summary>
 /// Additive blending kernel - Simple weighted sum of all textures.
 /// PERFORMANCE: Fastest blend mode (~30% faster than alpha-weighted).
@@ -62,8 +63,11 @@ void BlendTexturesArrayAdditive(uint3 id : SV_DispatchThreadID)
     for (int i = 0; i < TextureCount; i++)
     {
         // Sample texture layer i from the texture array
+        // Unity performs sRGB->Linear conversion because Texture2DArray is marked as sRGB (linear: false)
         float4 sample = InputTexturesArray.SampleLevel(samplerInputTexturesArray, float3(uv, i), 0);
-        sample = LinearToSRGB(sample);  // Convert back to sRGB for exact value matching
+        
+        // Convert back to sRGB to match original ImageProcessor.compute behavior
+        sample = LinearToSRGB(sample);
         
         // Simple weighted addition
         blendedColor += sample * BlendValues[i];
@@ -100,8 +104,11 @@ void BlendTexturesArrayAlphaWeighted(uint3 id : SV_DispatchThreadID)
     for (int i = 0; i < TextureCount; i++)
     {
         // Sample texture layer i from the texture array
+        // Unity performs sRGB->Linear conversion because Texture2DArray is marked as sRGB (linear: false)
         float4 sample = InputTexturesArray.SampleLevel(samplerInputTexturesArray, float3(uv, i), 0);
-        sample = LinearToSRGB(sample);  // Convert back to sRGB for exact value matching
+        
+        // Convert back to sRGB to match original ImageProcessor.compute behavior
+        sample = LinearToSRGB(sample);
         
         // Alpha-weighted blending: blend intensity is controlled by both the blend weight and the sample's alpha
         float blendIntensity = BlendValues[i] * sample.a;
@@ -139,8 +146,11 @@ void BlendTexturesArrayMultiplicative(uint3 id : SV_DispatchThreadID)
     for (int i = 0; i < TextureCount; i++)
     {
         // Sample texture layer i from the texture array
+        // Unity performs sRGB->Linear conversion because Texture2DArray is marked as sRGB (linear: false)
         float4 sample = InputTexturesArray.SampleLevel(samplerInputTexturesArray, float3(uv, i), 0);
-        sample = LinearToSRGB(sample);  // Convert back to sRGB for exact value matching
+        
+        // Convert back to sRGB to match original ImageProcessor.compute behavior
+        sample = LinearToSRGB(sample);
         
         // Lerp between white (no effect) and sample color based on weight
         // Weight of 0 = no darkening, Weight of 1 = full texture multiply

@@ -154,7 +154,8 @@ Keep current 8-slot approach but blend in batches:
      - `BlendTexturesArrayAlphaWeighted` - Current alpha-weighted logic
      - `BlendTexturesArrayMultiplicative` - Color multiplication
    - Add proper documentation for each kernel
-   - Keep LinearToSRGB conversion logic for color accuracy
+   - **Keep LinearToSRGB conversion** - This function works correctly when Texture2DArray has proper sRGB flags
+   - **Important**: LinearToSRGB is required to match original ImageProcessor.compute behavior (blending in sRGB space)
 
 2. **Create helper functions in shader**:
    ```hlsl
@@ -358,6 +359,8 @@ private float[] NormalizeWeights(Texture[] textures, float[] weights)
 
 **File**: `Assets/_App/Scripts/TextureBlending/TextureArrayBuilder.cs`
 
+**CRITICAL: Color Space Handling** - Proper color space flags are essential for correct blending results.
+
 ```csharp
 public static class TextureArrayBuilder
 {
@@ -372,9 +375,28 @@ public static class TextureArrayBuilder
         bool mipChain = false)
     {
         // Find largest texture dimensions
-        // Create temporary RenderTextures to scale mismatched sizes
-        // Copy into Texture2DArray layers
-        // Return array and output dimensions
+        
+        // CRITICAL: Create Texture2DArray with linear:false to mark as sRGB
+        // This tells Unity to perform sRGB->Linear conversion when sampling
+        Texture2DArray textureArray = new Texture2DArray(
+            width, height, textures.Length, 
+            TextureFormat.RGBA32, 
+            mipChain, 
+            linear: false  // ← REQUIRED for correct color space handling
+        );
+        
+        // CRITICAL: Use RenderTextureReadWrite.sRGB to preserve sRGB data during blit
+        // Using Linear would convert sRGB->Linear during copy, causing color distortion
+        RenderTexture tempRT = RenderTexture.GetTemporary(
+            width, height, 0, 
+            RenderTextureFormat.ARGB32, 
+            RenderTextureReadWrite.sRGB  // ← REQUIRED to preserve original colors
+        );
+        
+        // Copy textures into array layers
+        // Scale mismatched sizes using Graphics.Blit
+        
+        return textureArray;
     }
     
     /// <summary>
@@ -382,11 +404,29 @@ public static class TextureArrayBuilder
     /// </summary>
     public static Texture2DArray BuildFromUniformTextures(Texture2D[] textures)
     {
-        // Assumes all textures same size
+        // CRITICAL: Same color space flags required
+        Texture2DArray textureArray = new Texture2DArray(
+            width, height, textures.Length, 
+            TextureFormat.RGBA32, 
+            mipChain, 
+            linear: false  // ← Mark as sRGB
+        );
+        
+        // Use RenderTextureReadWrite.sRGB during copy
         // Direct copy without scaling
     }
 }
 ```
+
+**Color Space Requirements:**
+1. **`linear: false`** on Texture2DArray creation → Tells Unity the array contains sRGB data
+2. **`RenderTextureReadWrite.sRGB`** during blit → Preserves sRGB values without conversion
+3. **Both are required** → Missing either one causes color distortion (orange→reddish)
+
+**Why This Matters:**
+- Without `linear: false`: Unity won't convert sRGB→Linear when sampling → `LinearToSRGB()` gets wrong data
+- Without `RenderTextureReadWrite.sRGB`: Data is converted to Linear during copy → Creates sRGB/Linear mismatch
+- With both: sRGB data is preserved AND correctly flagged → Unity's conversion pipeline works correctly
 
 #### Resource Pool
 
@@ -625,18 +665,55 @@ Assets/
 │       └── TextureBlending/
 │           ├── TextureBlender.cs                 # Main component (includes BlendMode enum and BlendRequest struct)
 │           ├── TextureBlenderResources.cs         # Resource pooling
-│           ├── TextureArrayBuilder.cs             # Texture2DArray conversion
+│           ├── TextureArrayBuilder.cs             # Texture2DArray conversion (CRITICAL: sRGB color space handling)
 │           └── Examples/
 │               └── TextureBlenderExample.cs       # Usage examples
 ├── Shaders/
 │   └── Compute/
-│       └── ImageProcessorEnhanced.compute        # Enhanced shader
+│       └── ImageProcessorEnhanced.compute        # Enhanced shader (uses LinearToSRGB correctly)
 └── Test Scenes/
     └── TextureBlending/
         ├── TextureBlendingTests.unity            # Integration tests
         └── TestAssets/
             └── TestTextures/                      # Test texture assets
 ```
+
+## Known Issues and Solutions
+
+### Color Space Issue (RESOLVED)
+
+**Problem**: Orange textures appeared reddish when using `ImageProcessorEnhanced.compute`.
+
+**Root Cause**: Incorrect color space flags in `TextureArrayBuilder.cs`:
+1. `Texture2DArray` was created with default `linear: true` flag (should be `linear: false` for sRGB)
+2. `RenderTexture.GetTemporary` used `RenderTextureReadWrite.Linear` (should be `RenderTextureReadWrite.sRGB`)
+
+**Solution**: Both flags must be set correctly:
+```csharp
+// Texture2DArray creation - MUST use linear:false
+Texture2DArray textureArray = new Texture2DArray(
+    width, height, textures.Length, 
+    TextureFormat.RGBA32, 
+    mipChain, 
+    linear: false  // ← Marks array as containing sRGB data
+);
+
+// RenderTexture during copy - MUST use RenderTextureReadWrite.sRGB
+RenderTexture tempRT = RenderTexture.GetTemporary(
+    width, height, 0, 
+    RenderTextureFormat.ARGB32, 
+    RenderTextureReadWrite.sRGB  // ← Preserves sRGB data during blit
+);
+```
+
+**Why Both Are Required**:
+- `linear: false`: Tells Unity to perform sRGB→Linear conversion when sampling
+- `RenderTextureReadWrite.sRGB`: Preserves sRGB values during copy (no conversion)
+- Missing either: Causes sRGB/Linear mismatch → color distortion (orange→reddish)
+
+**Test Case**: Blend orange textures. If they appear reddish, check these flags.
+
+**Documentation**: See `RENDERTEXTURE_COLORSPACE_FIX.md` and `TEXTURE2DARRAY_SRGB_FIX.md` for details.
 
 ## Migration Path from Current System
 
@@ -709,6 +786,23 @@ Assets/
    - AlphaWeighted: defaults to 1f (no normalization needed)
    - Other modes: normalize to sum to 1 or use equal weights
    - Use `Array.Copy()` for efficient copying of provided weights
+8. **CRITICAL - Color Space Handling** (This was the source of orange→reddish bug):
+   - **Texture2DArray creation**: MUST use `linear: false` parameter
+   - **RenderTexture during copy**: MUST use `RenderTextureReadWrite.sRGB`
+   - **Both are required** for correct color reproduction
+   - **Why**: Unity needs both the sRGB flag AND actual sRGB data for its conversion pipeline to work
+   - **LinearToSRGB function**: Works correctly - do NOT remove it (matches original ImageProcessor.compute)
+   - **Test with orange textures**: If they appear reddish, check color space flags
+   
+   ```csharp
+   // CORRECT - Both flags set properly:
+   Texture2DArray textureArray = new Texture2DArray(width, height, count, format, mipChain, linear: false);
+   RenderTexture tempRT = RenderTexture.GetTemporary(width, height, 0, format, RenderTextureReadWrite.sRGB);
+   
+   // WRONG - Missing flags causes color distortion:
+   Texture2DArray textureArray = new Texture2DArray(width, height, count, format, mipChain); // defaults to linear:true ❌
+   RenderTexture tempRT = RenderTexture.GetTemporary(width, height, 0, format, RenderTextureReadWrite.Linear); // converts colors ❌
+   ```
 
 ---
 

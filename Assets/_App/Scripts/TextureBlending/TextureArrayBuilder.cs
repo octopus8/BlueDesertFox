@@ -62,9 +62,10 @@ public static class TextureArrayBuilder
             return BuildFromUniformTexturesFast(textures, width, height, mipChain);
         }
         
-        // Create texture array
+        // Create texture array with Linear=false to indicate sRGB color space
+        // This tells Unity to perform sRGB->Linear conversion when sampling in compute shaders
         TextureFormat format = TextureFormat.RGBA32;
-        Texture2DArray textureArray = new Texture2DArray(width, height, textures.Length, format, mipChain);
+        Texture2DArray textureArray = new Texture2DArray(width, height, textures.Length, format, mipChain, linear: false);
         textureArray.filterMode = FilterMode.Bilinear;
         textureArray.wrapMode = TextureWrapMode.Clamp;
         
@@ -87,7 +88,8 @@ public static class TextureArrayBuilder
             else if (textures[i].width == width && textures[i].height == height)
             {
                 // Direct copy for matching size
-                RenderTexture tempRT = RenderTexture.GetTemporary(width, height, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Linear);
+                // Use sRGB color space to preserve original texture data without conversion
+                RenderTexture tempRT = RenderTexture.GetTemporary(width, height, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.sRGB);
                 Graphics.Blit(textures[i], tempRT);
                 
                 RenderTexture previous = RenderTexture.active;
@@ -106,7 +108,8 @@ public static class TextureArrayBuilder
             else
             {
                 // Scale to target size
-                RenderTexture tempRT = RenderTexture.GetTemporary(width, height, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Linear);
+                // Use sRGB color space to preserve original texture data without conversion
+                RenderTexture tempRT = RenderTexture.GetTemporary(width, height, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.sRGB);
                 Graphics.Blit(textures[i], tempRT);
                 
                 RenderTexture previous = RenderTexture.active;
@@ -141,7 +144,8 @@ public static class TextureArrayBuilder
     private static Texture2DArray BuildFromUniformTexturesFast(Texture[] textures, int width, int height, bool mipChain)
     {
         TextureFormat format = TextureFormat.RGBA32;
-        Texture2DArray textureArray = new Texture2DArray(width, height, textures.Length, format, mipChain);
+        // Linear=false indicates sRGB color space, enabling Unity's automatic sRGB->Linear conversion
+        Texture2DArray textureArray = new Texture2DArray(width, height, textures.Length, format, mipChain, linear: false);
         textureArray.filterMode = FilterMode.Bilinear;
         textureArray.wrapMode = TextureWrapMode.Clamp;
         
@@ -164,7 +168,8 @@ public static class TextureArrayBuilder
             else
             {
                 // Direct GPU copy - fastest method
-                RenderTexture tempRT = RenderTexture.GetTemporary(width, height, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Linear);
+                // Use sRGB color space to preserve original texture data without conversion
+                RenderTexture tempRT = RenderTexture.GetTemporary(width, height, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.sRGB);
                 Graphics.Blit(textures[i], tempRT);
                 
                 RenderTexture previous = RenderTexture.active;
