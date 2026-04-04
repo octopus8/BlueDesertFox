@@ -265,9 +265,10 @@ public RenderTexture[] BatchBlend(BlendRequest[] requests)
    - Initialize resource pools
 
 2. **Implement BlendTextures() core method**:
+   - Validate inputs (null checks, at least one valid texture)
+   - Create output RenderTexture (from pool or new allocation)
+   - Prepare blend weights using mode-appropriate strategy
    - Convert input textures to Texture2DArray (helper method)
-   - Normalize blend weights (or use equal weights)
-   - Create output RenderTexture
    - Create/reuse ComputeBuffer for blend weights
    - Set shader parameters
    - Dispatch compute shader
@@ -283,7 +284,75 @@ public RenderTexture[] BatchBlend(BlendRequest[] requests)
    - Pool RenderTextures for reuse
    - Track and clean up buffers in OnDestroy()
 
+5. **Implement weight preparation strategies**:
+   - **AlphaWeighted mode**: Use `PrepareWeightsForAlphaMode()` - copies provided weights and fills missing entries with `1f` (no normalization)
+   - **Other modes**: Use `NormalizeWeights()` - normalizes weights to sum to 1, missing entries default to `0f`
+   - Use `Array.Copy()` for efficient weight copying
+   - Single ternary operator to select appropriate method: `mode == BlendMode.AlphaWeighted ? PrepareWeightsForAlphaMode(...) : NormalizeWeights(...)`
+
 ### Phase 3: Helper Utilities
+
+#### Weight Preparation Methods
+
+**Implementation Pattern** (Clean separation of concerns):
+
+```csharp
+// In BlendToExistingTexture method:
+float[] normalizedWeights = mode == BlendMode.AlphaWeighted
+    ? PrepareWeightsForAlphaMode(textures, weights)
+    : NormalizeWeights(textures, weights);
+
+// Helper method for AlphaWeighted mode (no normalization, defaults to 1f)
+private float[] PrepareWeightsForAlphaMode(Texture[] textures, float[] weights)
+{
+    float[] result = new float[textures.Length];
+    int copyCount = weights?.Length ?? 0;
+
+    if (weights != null)
+    {
+        Array.Copy(weights, result, Math.Min(copyCount, textures.Length));
+    }
+
+    // Fill remaining with 1f (full intensity for AlphaWeighted mode)
+    for (int i = copyCount; i < result.Length; i++)
+    {
+        result[i] = 1f;
+    }
+
+    return result;
+}
+
+// Helper method for Additive/Multiplicative modes (normalized, defaults to equal weights or 0f)
+private float[] NormalizeWeights(Texture[] textures, float[] weights)
+{
+    int count = textures.Length;
+    float[] normalizedWeights = new float[count];
+    
+    if (weights != null && weights.Length > 0)
+    {
+        for (int i = 0; i < count; i++)
+        {
+            normalizedWeights[i] = (i < weights.Length) ? weights[i] : 0f;
+        }
+    }
+    else
+    {
+        // Equal weights for all textures (sum to 1)
+        float equalWeight = 1f / count;
+        for (int i = 0; i < count; i++)
+        {
+            normalizedWeights[i] = equalWeight;
+        }
+    }
+    
+    return normalizedWeights;
+}
+```
+
+**Why Two Methods?**
+- **AlphaWeighted mode** doesn't need normalized weights because the blend formula uses `weight * alpha` directly
+- **Additive/Multiplicative modes** benefit from normalized weights (sum = 1) for predictable results
+- Separation of concerns makes code more maintainable and easier to understand
 
 #### Texture2DArray Conversion Utility
 
@@ -635,6 +704,11 @@ Assets/
    - UniTask for async operations
    - Shader.PropertyToID for parameter caching
    - IDisposable pattern for resource cleanup
+7. **Weight preparation pattern**: 
+   - Use ternary operator to select method: `mode == BlendMode.AlphaWeighted ? PrepareWeightsForAlphaMode(...) : NormalizeWeights(...)`
+   - AlphaWeighted: defaults to 1f (no normalization needed)
+   - Other modes: normalize to sum to 1 or use equal weights
+   - Use `Array.Copy()` for efficient copying of provided weights
 
 ---
 

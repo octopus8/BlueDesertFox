@@ -229,7 +229,9 @@ public class TextureBlender : MonoBehaviour
             return;
         
         // Normalize weights
-        float[] normalizedWeights = NormalizeWeights(textures, weights);
+        float[] normalizedWeights = mode == BlendMode.AlphaWeighted
+            ? PrepareWeightsForAlphaMode(textures, weights)
+            : NormalizeWeights(textures, weights);
         
         // Convert textures to Texture2DArray (with caching)
         Texture2DArray textureArray;
@@ -352,6 +354,12 @@ public class TextureBlender : MonoBehaviour
         return true;
     }
     
+    /// <summary>
+    /// Normalizes blend weights to ensure they sum to 1. If weights are null or empty, defaults to equal weights.
+    /// </summary>
+    /// <param name="textures"></param>
+    /// <param name="weights"></param>
+    /// <returns></returns>
     private float[] NormalizeWeights(Texture[] textures, float[] weights)
     {
         int count = textures.Length;
@@ -377,6 +385,32 @@ public class TextureBlender : MonoBehaviour
         
         return normalizedWeights;
     }
+    
+    
+    /// <summary>
+    /// Prepares blend weights for alpha-weighted mode. If weights are null, defaults to 1 for all textures.
+    /// </summary>
+    /// <param name="textures"></param>
+    /// <param name="weights"></param>
+    /// <returns></returns>
+    private float[] PrepareWeightsForAlphaMode(Texture[] textures, float[] weights)
+    {
+        float[] result = new float[textures.Length];
+        int copyCount = weights?.Length ?? 0;
+    
+        if (weights != null)
+        {
+            Array.Copy(weights, result, Math.Min(copyCount, textures.Length));
+        }
+    
+        // Fill remaining with 1f
+        for (int i = copyCount; i < result.Length; i++)
+        {
+            result[i] = 1f;
+        }
+    
+        return result;
+    }    
     
     private Texture2DArray GetOrCreateTextureArray(Texture[] textures, out int width, out int height)
     {
