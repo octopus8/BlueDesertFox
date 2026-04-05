@@ -243,3 +243,6 @@ Located in `Assets/_App/Ace of Ages/Terrain/`:
 - **Terrain Auto-Scroll**: `ScrollOffset` is directional (float3) based on player's forward direction projected to XZ plane - not just Z-axis
 - **Camera Prioritization**: Mesh/physics generation prioritizes tiles in camera's forward direction - both systems calculate priority using dot product with camera forward
 - **Material Loading**: Terrain requires "TerrainMaterial" in Resources folder or will generate fallback material at runtime (use Editor tool: Window → Terrain → Create Material)
+- **Formation Movement**: `FormationMovementSystem` integrates with terrain scroll velocity - entities compensate for scrolling during approach/exit phases to maintain correct world positions
+- **Movement Phase Transitions**: Threshold-based state machine - entities automatically progress through phases based on distance checks, no manual state management required
+- **EnemySpawner Positioning**: Spawn point calculated perpendicular to spline start (Z-axis direction), using player position for off-camera placement

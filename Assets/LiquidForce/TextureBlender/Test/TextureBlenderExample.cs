@@ -116,9 +116,12 @@ public class TextureBlenderExample : MonoBehaviour
     {
         Debug.Log("Example 1: Simple blend with per-pixel alpha-weighted normals");
         
-        // Extract texture arrays
+        // Extract texture arrays.
+        // This is done here for demonstration, but in a real application you might want to cache these arrays if textureLayers doesn't change frequently.
+        // This method converts the array of textureLayers into separate arrays for base textures, normal textures, and weights, which is the format expected by TextureBlender.
         GetTextureArrays(out Texture[] baseTextures, out Texture[] normalTextures, out float[] weights);
         
+        // Record the start time.
         var totalStartTime = Time.realtimeSinceStartup;
         
         // Blend base textures
@@ -130,16 +133,20 @@ public class TextureBlenderExample : MonoBehaviour
         var normalStartTime = Time.realtimeSinceStartup;
         currentNormalResult = textureBlender.BlendNormalsWithBaseAlpha(normalTextures, baseTextures, weights, blendMode);
         lastNormalBlendTime = (Time.realtimeSinceStartup - normalStartTime) * 1000f;
-        
+
+        // Compute the end time.
         lastTotalBlendTime = (Time.realtimeSinceStartup - totalStartTime) * 1000f;
         
         // Apply to renderer
         ApplyTexturesToMaterial();
-        
+
+        // Log performance.
         Debug.Log($"Blend completed - Base: {lastBaseBlendTime:F2}ms, Normal (per-pixel alpha): {lastNormalBlendTime:F2}ms, Total: {lastTotalBlendTime:F2}ms");
         
+        // Update the performance display.
         UpdatePerformanceDisplay();
         
+        // End UniTask.
         await UniTask.Yield();
     }
     

@@ -106,11 +106,18 @@ public class TextureBlender : MonoBehaviour
     
     #region Initialization
     
+    /// <summary>
+    /// Initializes the TextureBlender.
+    /// </summary>
     private void Awake()
     {
         Initialize();
     }
     
+    
+    /// <summary>
+    /// Performs initialization tasks such as validating shader references, caching kernel IDs, and prewarming resource pools.
+    /// </summary>
     private void Initialize()
     {
         if (isInitialized) return;
@@ -431,6 +438,11 @@ public class TextureBlender : MonoBehaviour
     
     #region Private Methods
     
+    /// <summary>
+    /// Validates input textures for blending. Checks for null/empty arrays and at least one valid texture.
+    /// </summary>
+    /// <param name="textures"> </param>
+    /// <returns></returns>
     private bool ValidateInputs(Texture[] textures)
     {
         if (textures == null || textures.Length == 0)
@@ -517,6 +529,14 @@ public class TextureBlender : MonoBehaviour
         return result;
     }    
     
+    
+    /// <summary>
+    /// Gets a cached Texture2DArray for the given textures or creates a new one if not cached.
+    /// </summary>
+    /// <param name="textures"></param>
+    /// <param name="width"></param>
+    /// <param name="height"></param>
+    /// <returns></returns>
     private Texture2DArray GetOrCreateTextureArray(Texture[] textures, out int width, out int height)
     {
         using (s_CacheCheck.Auto())
@@ -558,6 +578,17 @@ public class TextureBlender : MonoBehaviour
         return textureArray;
     }
     
+    
+    /// <summary>
+    /// Executes the blend operation by dispatching the appropriate compute shader kernel based on the blend mode.
+    /// </summary>
+    /// <param name="target"></param>
+    /// <param name="textureArray"></param>
+    /// <param name="weights"></param>
+    /// <param name="textureCount"></param>
+    /// <param name="width"></param>
+    /// <param name="height"></param>
+    /// <param name="mode"></param>
     private void ExecuteBlend(
         RenderTexture target,
         Texture2DArray textureArray,
@@ -605,6 +636,18 @@ public class TextureBlender : MonoBehaviour
         }
     }
     
+    
+    /// <summary>
+    /// Executes the normal map blending operation with per-pixel alpha weighting from base textures.
+    /// </summary>
+    /// <param name="target"></param>
+    /// <param name="normalTextureArray"></param>
+    /// <param name="baseTextureArray"></param>
+    /// <param name="weights"></param>
+    /// <param name="textureCount"></param>
+    /// <param name="width"></param>
+    /// <param name="height"></param>
+    /// <param name="mode"></param>
     private void ExecuteNormalBlendWithBaseAlpha(
         RenderTexture target,
         Texture2DArray normalTextureArray,
@@ -654,6 +697,12 @@ public class TextureBlender : MonoBehaviour
         }
     }
     
+    
+    /// <summary>
+    /// Returns the appropriate compute shader kernel ID based on the specified blend mode.
+    /// </summary>
+    /// <param name="mode"></param>
+    /// <returns></returns>
     private int GetKernelForBlendMode(BlendMode mode)
     {
         switch (mode)
@@ -669,6 +718,13 @@ public class TextureBlender : MonoBehaviour
         }
     }
     
+    
+    /// <summary>
+    /// Creates a new RenderTexture with the specified dimensions and format. Used when pooling is disabled or no pooled texture is available.
+    /// </summary>
+    /// <param name="width"></param>
+    /// <param name="height"></param>
+    /// <returns></returns>
     private RenderTexture CreateRenderTexture(int width, int height)
     {
         RenderTexture rt = new RenderTexture(width, height, 0, outputFormat);
