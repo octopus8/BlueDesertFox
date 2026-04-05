@@ -1,6 +1,9 @@
 #pragma kernel BlendTexturesArrayAdditive
 #pragma kernel BlendTexturesArrayAlphaWeighted
 #pragma kernel BlendTexturesArrayMultiplicative
+#pragma kernel BlendNormalsWithBaseAlphaAdditive
+#pragma kernel BlendNormalsWithBaseAlphaAlphaWeighted
+#pragma kernel BlendNormalsWithBaseAlphaMultiplicative
 
 // Output texture and buffer (VR compatibility - write to both)
 RWTexture2D<float4> OutputTexture;
@@ -8,6 +11,9 @@ RWStructuredBuffer<float4> OutputBuffer;
 
 // Input textures as Texture2DArray (removes 8-texture limit)
 Texture2DArray<float4> InputTexturesArray;
+
+// Base textures array for per-pixel alpha sampling (used for normal blending)
+Texture2DArray<float4> BaseTexturesArray;
 
 // Blend weights for each texture layer
 StructuredBuffer<float> BlendValues;
@@ -163,3 +169,121 @@ void BlendTexturesArrayMultiplicative(uint3 id : SV_DispatchThreadID)
     OutputTexture[id.xy] = blendedColor;
 }
 
+/// <summary>
+/// Normal blending kernel with per-pixel alpha - Additive version.
+/// Blends normals from the normal texture array, using the base texture's alpha for per-pixel weight modulation.
+/// Each pixel's normal contribution is scaled by the corresponding base texture alpha at that pixel.
+/// </summary>
+[numthreads(8,8,1)]
+void BlendNormalsWithBaseAlphaAdditive(uint3 id : SV_DispatchThreadID)
+{
+    // Early exit if outside texture bounds
+    if (id.x >= (uint)TextureWidth || id.y >= (uint)TextureHeight)
+        return;
+    
+    // Calculate normalized UV coordinates for sampling
+    float2 uv = (id.xy + 0.5) / float2(TextureWidth, TextureHeight);
+    
+    // Accumulate weighted normal
+    float4 blendedNormal = float4(0, 0, 0, 0);
+    
+    // Loop through all textures in array
+    for (int i = 0; i < TextureCount; i++)
+    {
+        // Sample normal texture layer i from the texture array
+        float4 normalSample = InputTexturesArray.SampleLevel(samplerInputTexturesArray, float3(uv, i), 0);
+        normalSample = LinearToSRGB(normalSample);
+        
+        // Sample base texture alpha for per-pixel blending weight modulation
+        float4 baseSample = BaseTexturesArray.SampleLevel(samplerInputTexturesArray, float3(uv, i), 0);
+        baseSample = LinearToSRGB(baseSample);
+        
+        // Combine layer weight with base texture alpha at this pixel
+        float weight = BlendValues[i] * baseSample.a;
+        
+        // Accumulate weighted normal
+        blendedNormal += normalSample * weight;
+    }
+    
+    // Write to both buffer and texture (VR/OpenGL ES 3.0 compatibility)
+    OutputBuffer[id.y * TextureWidth + id.x] = blendedNormal;
+    OutputTexture[id.xy] = blendedNormal;
+}
+
+/// <summary>
+/// Normal blending kernel with per-pixel alpha - Alpha-weighted version.
+/// Blends normals from the normal texture array, using the base texture's alpha for per-pixel weight modulation.
+/// Each pixel's normal contribution is scaled by the corresponding base texture alpha at that pixel.
+/// </summary>
+[numthreads(8,8,1)]
+void BlendNormalsWithBaseAlphaAlphaWeighted(uint3 id : SV_DispatchThreadID)
+{
+    // Early exit if outside texture bounds
+    if (id.x >= (uint)TextureWidth || id.y >= (uint)TextureHeight)
+        return;
+    
+    // Calculate normalized UV coordinates for sampling
+    float2 uv = (id.xy + 0.5) / float2(TextureWidth, TextureHeight);
+    
+    // Accumulate weighted normal
+    float4 blendedNormal = float4(0, 0, 0, 0);
+    
+    // Loop through all textures in array
+    for (int i = 0; i < TextureCount; i++)
+    {
+        // Sample normal texture layer i from the texture array
+        float4 normalSample = InputTexturesArray.SampleLevel(samplerInputTexturesArray, float3(uv, i), 0);
+        normalSample = LinearToSRGB(normalSample);
+        
+        // Sample base texture alpha for per-pixel blending weight modulation
+        float4 baseSample = BaseTexturesArray.SampleLevel(samplerInputTexturesArray, float3(uv, i), 0);
+        baseSample = LinearToSRGB(baseSample);
+        
+        // Alpha-weighted blending: blend intensity controlled by layer weight, base alpha, and normal alpha
+        float blendIntensity = BlendValues[i] * baseSample.a * normalSample.a;
+        blendedNormal = blendedNormal * (1.0 - blendIntensity) + normalSample * blendIntensity * normalSample.a;
+    }
+    
+    // Write to both buffer and texture (VR/OpenGL ES 3.0 compatibility)
+    OutputBuffer[id.y * TextureWidth + id.x] = blendedNormal;
+    OutputTexture[id.xy] = blendedNormal;
+}
+
+/// <summary>
+/// Normal blending kernel with per-pixel alpha - Multiplicative version.
+/// Blends normals from the normal texture array, using the base texture's alpha for per-pixel weight modulation.
+/// Each pixel's normal contribution is scaled by the corresponding base texture alpha at that pixel.
+/// </summary>
+[numthreads(8,8,1)]
+void BlendNormalsWithBaseAlphaMultiplicative(uint3 id : SV_DispatchThreadID)
+{
+    // Early exit if outside texture bounds
+    if (id.x >= (uint)TextureWidth || id.y >= (uint)TextureHeight)
+        return;
+    
+    // Calculate normalized UV coordinates for sampling
+    float2 uv = (id.xy + 0.5) / float2(TextureWidth, TextureHeight);
+    
+    // Start with white (multiplicative identity)
+    float4 blendedNormal = float4(1, 1, 1, 1);
+    
+    // Loop through all textures in array
+    for (int i = 0; i < TextureCount; i++)
+    {
+        // Sample normal texture layer i from the texture array
+        float4 normalSample = InputTexturesArray.SampleLevel(samplerInputTexturesArray, float3(uv, i), 0);
+        normalSample = LinearToSRGB(normalSample);
+        
+        // Sample base texture alpha for per-pixel blending weight modulation
+        float4 baseSample = BaseTexturesArray.SampleLevel(samplerInputTexturesArray, float3(uv, i), 0);
+        baseSample = LinearToSRGB(baseSample);
+        
+        // Lerp between white (no effect) and normal sample based on weight * base alpha
+        float4 weighted = lerp(float4(1,1,1,1), normalSample, BlendValues[i] * baseSample.a);
+        blendedNormal *= weighted;
+    }
+    
+    // Write to both buffer and texture (VR/OpenGL ES 3.0 compatibility)
+    OutputBuffer[id.y * TextureWidth + id.x] = blendedNormal;
+    OutputTexture[id.xy] = blendedNormal;
+}

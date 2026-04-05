@@ -150,13 +150,16 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::TextureBlenderExample
   textureBlender: {fileID: 300810099}
-  texturesToBlend:
-  - {fileID: 2800000, guid: 2c6d8b425ef743d428013b3af82966d4, type: 3}
-  - {fileID: 2800000, guid: 9de83b148a714634fa566dae0f1738f4, type: 3}
-  blendWeights:
-  - 1
-  - 1
+  textureLayers:
+  - baseTexture: {fileID: 2800000, guid: 9de83b148a714634fa566dae0f1738f4, type: 3}
+    normalTexture: {fileID: 2800000, guid: ff120313806472b4c8e55de12d1dd328, type: 3}
+    weight: 1
+  - baseTexture: {fileID: 2800000, guid: 9de83b148a714634fa566dae0f1738f4, type: 3}
+    normalTexture: {fileID: 2800000, guid: 60901a6fd21b45e4591ac1f8c99f82fc, type: 3}
+    weight: 1
   targetRenderer: {fileID: 560342784}
+  baseMapPropertyName: _BaseMap
+  normalMapPropertyName: _BumpMap
   blendMode: 1
   useAsyncBlending: 0
   showPerformanceStats: 1

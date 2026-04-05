@@ -79,9 +79,13 @@ public class TextureBlender : MonoBehaviour
     private int kernelBlendArrayAdditive;
     private int kernelBlendArrayAlphaWeighted;
     private int kernelBlendArrayMultiplicative;
+    private int kernelBlendNormalsWithBaseAlphaAdditive;
+    private int kernelBlendNormalsWithBaseAlphaAlphaWeighted;
+    private int kernelBlendNormalsWithBaseAlphaMultiplicative;
     
     // Shader parameter IDs (cached for speed)
     private static readonly int InputTexturesArrayID = Shader.PropertyToID("InputTexturesArray");
+    private static readonly int BaseTexturesArrayID = Shader.PropertyToID("BaseTexturesArray");
     private static readonly int OutputTextureID = Shader.PropertyToID("OutputTexture");
     private static readonly int OutputBufferID = Shader.PropertyToID("OutputBuffer");
     private static readonly int BlendValuesID = Shader.PropertyToID("BlendValues");
@@ -122,6 +126,9 @@ public class TextureBlender : MonoBehaviour
         kernelBlendArrayAdditive = imageProcessorShader.FindKernel("BlendTexturesArrayAdditive");
         kernelBlendArrayAlphaWeighted = imageProcessorShader.FindKernel("BlendTexturesArrayAlphaWeighted");
         kernelBlendArrayMultiplicative = imageProcessorShader.FindKernel("BlendTexturesArrayMultiplicative");
+        kernelBlendNormalsWithBaseAlphaAdditive = imageProcessorShader.FindKernel("BlendNormalsWithBaseAlphaAdditive");
+        kernelBlendNormalsWithBaseAlphaAlphaWeighted = imageProcessorShader.FindKernel("BlendNormalsWithBaseAlphaAlphaWeighted");
+        kernelBlendNormalsWithBaseAlphaMultiplicative = imageProcessorShader.FindKernel("BlendNormalsWithBaseAlphaMultiplicative");
         
         // Initialize resource pools
         resources = new TextureBlenderResources(maxPooledTextures);
@@ -322,6 +329,104 @@ public class TextureBlender : MonoBehaviour
         }
     }
     
+    /// <summary>
+    /// Blends normal maps with per-pixel alpha weighting from base textures.
+    /// Each pixel's normal contribution is modulated by the corresponding base texture alpha.
+    /// PERFORMANCE: Similar to regular blending, requires both normal and base texture arrays.
+    /// </summary>
+    /// <param name="normalTextures">Array of normal map textures to blend</param>
+    /// <param name="baseTextures">Array of base textures (alpha channel used for per-pixel weighting)</param>
+    /// <param name="weights">Blend weights for each layer</param>
+    /// <param name="mode">Blend mode to use</param>
+    /// <returns>New RenderTexture with blended normal map</returns>
+    public RenderTexture BlendNormalsWithBaseAlpha(
+        Texture[] normalTextures,
+        Texture[] baseTextures,
+        float[] weights = null,
+        BlendMode mode = BlendMode.AlphaWeighted)
+    {
+        if (!isInitialized)
+            Initialize();
+        
+        if (!ValidateInputs(normalTextures) || !ValidateInputs(baseTextures))
+            return null;
+        
+        if (normalTextures.Length != baseTextures.Length)
+        {
+            Debug.LogError("TextureBlender: Normal textures and base textures must have same count!");
+            return null;
+        }
+        
+        // Create output RenderTexture
+        RenderTexture output = useTexturePooling
+            ? resources.GetOrCreateRenderTexture(defaultOutputWidth, defaultOutputHeight, outputFormat)
+            : CreateRenderTexture(defaultOutputWidth, defaultOutputHeight);
+        
+        // Blend to the output texture
+        BlendNormalsWithBaseAlphaToExistingTexture(output, normalTextures, baseTextures, weights, mode);
+        
+        return output;
+    }
+    
+    /// <summary>
+    /// Blends normal maps with per-pixel alpha weighting from base textures into an existing RenderTexture.
+    /// PERFORMANCE: Fastest option for normal blending when reusing render targets.
+    /// </summary>
+    public void BlendNormalsWithBaseAlphaToExistingTexture(
+        RenderTexture target,
+        Texture[] normalTextures,
+        Texture[] baseTextures,
+        float[] weights,
+        BlendMode mode = BlendMode.AlphaWeighted)
+    {
+        if (!isInitialized)
+            Initialize();
+        
+        if (target == null)
+        {
+            Debug.LogError("TextureBlender: Target RenderTexture is null!");
+            return;
+        }
+        
+        if (!fastMode && (!ValidateInputs(normalTextures) || !ValidateInputs(baseTextures)))
+            return;
+        
+        if (normalTextures.Length != baseTextures.Length)
+        {
+            Debug.LogError("TextureBlender: Normal textures and base textures must have same count!");
+            return;
+        }
+        
+        // Normalize weights
+        float[] normalizedWeights = mode == BlendMode.AlphaWeighted
+            ? PrepareWeightsForAlphaMode(normalTextures, weights)
+            : NormalizeWeights(normalTextures, weights);
+        
+        // Convert textures to Texture2DArrays (with caching)
+        Texture2DArray normalTextureArray;
+        Texture2DArray baseTextureArray;
+        int normalWidth, normalHeight;
+        int baseWidth, baseHeight;
+        
+        using (s_TextureArrayConversion.Auto())
+        {
+            normalTextureArray = GetOrCreateTextureArray(normalTextures, out normalWidth, out normalHeight);
+            baseTextureArray = GetOrCreateTextureArray(baseTextures, out baseWidth, out baseHeight);
+        }
+        
+        if (normalTextureArray == null || baseTextureArray == null)
+        {
+            Debug.LogError("TextureBlender: Failed to create Texture2DArrays!");
+            return;
+        }
+        
+        // Execute blend operation with base alpha
+        using (s_ShaderDispatch.Auto())
+        {
+            ExecuteNormalBlendWithBaseAlpha(target, normalTextureArray, baseTextureArray, normalizedWeights, normalTextures.Length, normalWidth, normalHeight, mode);
+        }
+    }
+    
     #endregion
     
     #region Private Methods
@@ -500,6 +605,55 @@ public class TextureBlender : MonoBehaviour
         }
     }
     
+    private void ExecuteNormalBlendWithBaseAlpha(
+        RenderTexture target,
+        Texture2DArray normalTextureArray,
+        Texture2DArray baseTextureArray,
+        float[] weights,
+        int textureCount,
+        int width,
+        int height,
+        BlendMode mode)
+    {
+        using (s_ResourceAllocation.Auto())
+        {
+            // Get kernel ID for normal blend with base alpha
+            int kernelID = kernelBlendNormalsWithBaseAlphaAlphaWeighted;
+            
+            // Create compute buffer for blend weights
+            ComputeBuffer weightsBuffer = resources.GetOrCreateBuffer(weights.Length, sizeof(float));
+            weightsBuffer.SetData(weights);
+            
+            // Create output buffer for OpenGL ES 3.0 compatibility
+            int pixelCount = target.width * target.height;
+            ComputeBuffer outputBuffer = resources.GetOrCreateBuffer(pixelCount, sizeof(float) * 4);
+            
+            // Set shader parameters
+            imageProcessorShader.SetInt(TextureWidthID, target.width);
+            imageProcessorShader.SetInt(TextureHeightID, target.height);
+            imageProcessorShader.SetInt(TextureCountID, textureCount);
+            
+            // Bind normal and base texture arrays
+            imageProcessorShader.SetTexture(kernelID, InputTexturesArrayID, normalTextureArray);
+            imageProcessorShader.SetTexture(kernelID, BaseTexturesArrayID, baseTextureArray);
+            imageProcessorShader.SetTexture(kernelID, OutputTextureID, target);
+            imageProcessorShader.SetBuffer(kernelID, OutputBufferID, outputBuffer);
+            imageProcessorShader.SetBuffer(kernelID, BlendValuesID, weightsBuffer);
+            
+            // Calculate dispatch dimensions
+            imageProcessorShader.GetKernelThreadGroupSizes(kernelID, out uint threadGroupSizeX, out uint threadGroupSizeY, out uint threadGroupSizeZ);
+            int dispatchX = Mathf.CeilToInt(target.width / (float)threadGroupSizeX);
+            int dispatchY = Mathf.CeilToInt(target.height / (float)threadGroupSizeY);
+            
+            // Dispatch compute shader (single dispatch for maximum speed)
+            imageProcessorShader.Dispatch(kernelID, dispatchX, dispatchY, (int)threadGroupSizeZ);
+            
+            // Return buffers to pool
+            resources.ReturnBuffer(weightsBuffer);
+            resources.ReturnBuffer(outputBuffer);
+        }
+    }
+    
     private int GetKernelForBlendMode(BlendMode mode)
     {
         switch (mode)
@@ -540,6 +694,5 @@ public class TextureBlender : MonoBehaviour
     
     #endregion
 }
-
 
 

@@ -110,10 +110,11 @@ public class TextureBlenderExample : MonoBehaviour
     
     /// <summary>
     /// Example 1: Simple blend with default settings (equal weights, alpha-weighted mode)
+    /// Uses per-pixel alpha weighting from base textures for normal blending.
     /// </summary>
     private async UniTask Example1_SimpleBlend()
     {
-        Debug.Log("Example 1: Simple blend with default settings");
+        Debug.Log("Example 1: Simple blend with per-pixel alpha-weighted normals");
         
         // Extract texture arrays
         GetTextureArrays(out Texture[] baseTextures, out Texture[] normalTextures, out float[] weights);
@@ -125,9 +126,9 @@ public class TextureBlenderExample : MonoBehaviour
         currentBaseResult = textureBlender.BlendTextures(baseTextures, weights, blendMode);
         lastBaseBlendTime = (Time.realtimeSinceStartup - baseStartTime) * 1000f;
         
-        // Blend normal textures
+        // Blend normal textures with per-pixel base alpha modulation
         var normalStartTime = Time.realtimeSinceStartup;
-        currentNormalResult = textureBlender.BlendTextures(normalTextures, weights, blendMode);
+        currentNormalResult = textureBlender.BlendNormalsWithBaseAlpha(normalTextures, baseTextures, weights, blendMode);
         lastNormalBlendTime = (Time.realtimeSinceStartup - normalStartTime) * 1000f;
         
         lastTotalBlendTime = (Time.realtimeSinceStartup - totalStartTime) * 1000f;
@@ -135,7 +136,7 @@ public class TextureBlenderExample : MonoBehaviour
         // Apply to renderer
         ApplyTexturesToMaterial();
         
-        Debug.Log($"Blend completed - Base: {lastBaseBlendTime:F2}ms, Normal: {lastNormalBlendTime:F2}ms, Total: {lastTotalBlendTime:F2}ms");
+        Debug.Log($"Blend completed - Base: {lastBaseBlendTime:F2}ms, Normal (per-pixel alpha): {lastNormalBlendTime:F2}ms, Total: {lastTotalBlendTime:F2}ms");
         
         UpdatePerformanceDisplay();
         
@@ -147,7 +148,7 @@ public class TextureBlenderExample : MonoBehaviour
     /// </summary>
     private async UniTask Example2_CustomWeightsAndMode()
     {
-        Debug.Log("Example 2: Custom weights and blend mode");
+        Debug.Log("Example 2: Custom weights and blend mode with per-pixel alpha normals");
         
         // Extract texture arrays
         GetTextureArrays(out Texture[] baseTextures, out Texture[] normalTextures, out float[] weights);
@@ -159,9 +160,9 @@ public class TextureBlenderExample : MonoBehaviour
         currentBaseResult = textureBlender.BlendTextures(baseTextures, weights, blendMode);
         lastBaseBlendTime = (Time.realtimeSinceStartup - baseStartTime) * 1000f;
         
-        // Blend normal textures
+        // Blend normal textures with per-pixel base alpha modulation
         var normalStartTime = Time.realtimeSinceStartup;
-        currentNormalResult = textureBlender.BlendTextures(normalTextures, weights, blendMode);
+        currentNormalResult = textureBlender.BlendNormalsWithBaseAlpha(normalTextures, baseTextures, weights, blendMode);
         lastNormalBlendTime = (Time.realtimeSinceStartup - normalStartTime) * 1000f;
         
         lastTotalBlendTime = (Time.realtimeSinceStartup - totalStartTime) * 1000f;
@@ -169,7 +170,7 @@ public class TextureBlenderExample : MonoBehaviour
         // Apply to renderer
         ApplyTexturesToMaterial();
         
-        Debug.Log($"Custom blend completed - Base: {lastBaseBlendTime:F2}ms, Normal: {lastNormalBlendTime:F2}ms, Total: {lastTotalBlendTime:F2}ms");
+        Debug.Log($"Custom blend completed - Base: {lastBaseBlendTime:F2}ms, Normal (per-pixel alpha): {lastNormalBlendTime:F2}ms, Total: {lastTotalBlendTime:F2}ms");
         
         UpdatePerformanceDisplay();
         
@@ -197,27 +198,20 @@ public class TextureBlenderExample : MonoBehaviour
             blendMode,
             cancellationToken);
         
-        var normalBlendTask = textureBlender.BlendTexturesAsync(
-            normalTextures, 
-            weights, 
-            blendMode,
-            cancellationToken);
+        // Note: BlendNormalsWithBaseAlpha doesn't have async version yet, so blend sequentially
+        currentBaseResult = await baseBlendTask;
         
-        // Wait for both to complete
-        var results = await UniTask.WhenAll(baseBlendTask, normalBlendTask);
-        
-        currentBaseResult = results.Item1;
-        currentNormalResult = results.Item2;
+        var normalStartTime = Time.realtimeSinceStartup;
+        currentNormalResult = textureBlender.BlendNormalsWithBaseAlpha(normalTextures, baseTextures, weights, blendMode);
+        lastNormalBlendTime = (Time.realtimeSinceStartup - normalStartTime) * 1000f;
         
         lastTotalBlendTime = (Time.realtimeSinceStartup - totalStartTime) * 1000f;
-        // Note: Individual times not available for parallel execution
-        lastBaseBlendTime = lastTotalBlendTime; // Approximate
-        lastNormalBlendTime = lastTotalBlendTime; // Approximate
+        lastBaseBlendTime = lastTotalBlendTime - lastNormalBlendTime; // Approximate
         
         // Apply to renderer
         ApplyTexturesToMaterial();
         
-        Debug.Log($"Parallel async blend completed in {lastTotalBlendTime:F2}ms");
+        Debug.Log($"Async blend completed - Base: {lastBaseBlendTime:F2}ms, Normal (per-pixel alpha): {lastNormalBlendTime:F2}ms, Total: {lastTotalBlendTime:F2}ms");
         
         UpdatePerformanceDisplay();
     }
@@ -254,9 +248,9 @@ public class TextureBlenderExample : MonoBehaviour
         textureBlender.BlendToExistingTexture(currentBaseResult, baseTextures, weights, blendMode);
         lastBaseBlendTime = (Time.realtimeSinceStartup - baseStartTime) * 1000f;
         
-        // Blend normal textures
+        // Blend normal textures with per-pixel base alpha modulation
         var normalStartTime = Time.realtimeSinceStartup;
-        textureBlender.BlendToExistingTexture(currentNormalResult, normalTextures, weights, blendMode);
+        textureBlender.BlendNormalsWithBaseAlphaToExistingTexture(currentNormalResult, normalTextures, baseTextures, weights, blendMode);
         lastNormalBlendTime = (Time.realtimeSinceStartup - normalStartTime) * 1000f;
         
         lastTotalBlendTime = (Time.realtimeSinceStartup - totalStartTime) * 1000f;
@@ -264,7 +258,7 @@ public class TextureBlenderExample : MonoBehaviour
         // Apply to renderer
         ApplyTexturesToMaterial();
         
-        Debug.Log($"Blend to existing completed - Base: {lastBaseBlendTime:F2}ms, Normal: {lastNormalBlendTime:F2}ms, Total: {lastTotalBlendTime:F2}ms (no allocation overhead)");
+        Debug.Log($"Blend to existing completed - Base: {lastBaseBlendTime:F2}ms, Normal (per-pixel alpha): {lastNormalBlendTime:F2}ms, Total: {lastTotalBlendTime:F2}ms (no allocation overhead)");
         
         UpdatePerformanceDisplay();
         
@@ -310,35 +304,6 @@ public class TextureBlenderExample : MonoBehaviour
             }
         };
         
-        // Create multiple blend requests for normal textures
-        var normalRequests = new TextureBlender.BlendRequest[]
-        {
-            new TextureBlender.BlendRequest
-            {
-                inputTextures = normalTextures,
-                blendWeights = weights,
-                blendMode = TextureBlender.BlendMode.Additive,
-                outputWidth = 1024,
-                outputHeight = 1024
-            },
-            new TextureBlender.BlendRequest
-            {
-                inputTextures = normalTextures,
-                blendWeights = weights,
-                blendMode = TextureBlender.BlendMode.AlphaWeighted,
-                outputWidth = 1024,
-                outputHeight = 1024
-            },
-            new TextureBlender.BlendRequest
-            {
-                inputTextures = normalTextures,
-                blendWeights = weights,
-                blendMode = TextureBlender.BlendMode.Multiplicative,
-                outputWidth = 1024,
-                outputHeight = 1024
-            }
-        };
-        
         var totalStartTime = Time.realtimeSinceStartup;
         
         // Execute all base blends
@@ -346,19 +311,22 @@ public class TextureBlenderExample : MonoBehaviour
         RenderTexture[] baseResults = textureBlender.BatchBlend(baseRequests);
         lastBaseBlendTime = (Time.realtimeSinceStartup - baseStartTime) * 1000f;
         
-        // Execute all normal blends
+        // For normals, blend with per-pixel alpha (sequential for simplicity)
         var normalStartTime = Time.realtimeSinceStartup;
-        RenderTexture[] normalResults = textureBlender.BatchBlend(normalRequests);
+        RenderTexture[] normalResults = new RenderTexture[3];
+        normalResults[0] = textureBlender.BlendNormalsWithBaseAlpha(normalTextures, baseTextures, weights, TextureBlender.BlendMode.Additive);
+        normalResults[1] = textureBlender.BlendNormalsWithBaseAlpha(normalTextures, baseTextures, weights, TextureBlender.BlendMode.AlphaWeighted);
+        normalResults[2] = textureBlender.BlendNormalsWithBaseAlpha(normalTextures, baseTextures, weights, TextureBlender.BlendMode.Multiplicative);
         lastNormalBlendTime = (Time.realtimeSinceStartup - normalStartTime) * 1000f;
         
         lastTotalBlendTime = (Time.realtimeSinceStartup - totalStartTime) * 1000f;
         
         Debug.Log($"Batch blend of {baseResults.Length} base + {normalResults.Length} normal operations completed");
         Debug.Log($"Base: {lastBaseBlendTime:F2}ms ({lastBaseBlendTime / baseResults.Length:F2}ms avg)");
-        Debug.Log($"Normal: {lastNormalBlendTime:F2}ms ({lastNormalBlendTime / normalResults.Length:F2}ms avg)");
+        Debug.Log($"Normal (per-pixel alpha): {lastNormalBlendTime:F2}ms ({lastNormalBlendTime / normalResults.Length:F2}ms avg)");
         Debug.Log($"Total: {lastTotalBlendTime:F2}ms");
         
-        // Use first result (alpha-weighted mode at index 1)
+        // Use alpha-weighted mode (index 1)
         if (baseResults.Length > 1 && normalResults.Length > 1)
         {
             currentBaseResult = baseResults[1];
@@ -396,14 +364,14 @@ public class TextureBlenderExample : MonoBehaviour
         var baseResult = textureBlender.BlendTextures(baseTextures, weights, blendMode);
         var firstBaseBlendTime = (Time.realtimeSinceStartup - baseStartTime) * 1000f;
         
-        // First blend (includes array conversion) - Normal
+        // First blend (includes array conversion) - Normal with per-pixel alpha
         var normalStartTime = Time.realtimeSinceStartup;
-        var normalResult = textureBlender.BlendTextures(normalTextures, weights, blendMode);
+        var normalResult = textureBlender.BlendNormalsWithBaseAlpha(normalTextures, baseTextures, weights, blendMode);
         var firstNormalBlendTime = (Time.realtimeSinceStartup - normalStartTime) * 1000f;
         
         var firstTotalTime = (Time.realtimeSinceStartup - totalStartTime) * 1000f;
         
-        Debug.Log($"First blend (uncached) - Base: {firstBaseBlendTime:F2}ms, Normal: {firstNormalBlendTime:F2}ms, Total: {firstTotalTime:F2}ms");
+        Debug.Log($"First blend (uncached) - Base: {firstBaseBlendTime:F2}ms, Normal (per-pixel alpha): {firstNormalBlendTime:F2}ms, Total: {firstTotalTime:F2}ms");
         
         // Return to pool
         textureBlender.ReturnTexture(baseResult);
@@ -417,12 +385,12 @@ public class TextureBlenderExample : MonoBehaviour
         var secondBaseBlendTime = (Time.realtimeSinceStartup - baseStartTime) * 1000f;
         
         normalStartTime = Time.realtimeSinceStartup;
-        normalResult = textureBlender.BlendTextures(normalTextures, weights, blendMode);
+        normalResult = textureBlender.BlendNormalsWithBaseAlpha(normalTextures, baseTextures, weights, blendMode);
         var secondNormalBlendTime = (Time.realtimeSinceStartup - normalStartTime) * 1000f;
         
         var secondTotalTime = (Time.realtimeSinceStartup - totalStartTime) * 1000f;
         
-        Debug.Log($"Second blend (cached) - Base: {secondBaseBlendTime:F2}ms, Normal: {secondNormalBlendTime:F2}ms, Total: {secondTotalTime:F2}ms");
+        Debug.Log($"Second blend (cached) - Base: {secondBaseBlendTime:F2}ms, Normal (per-pixel alpha): {secondNormalBlendTime:F2}ms, Total: {secondTotalTime:F2}ms");
         Debug.Log($"Speedup - Base: {firstBaseBlendTime / secondBaseBlendTime:F2}x, Normal: {firstNormalBlendTime / secondNormalBlendTime:F2}x, Total: {firstTotalTime / secondTotalTime:F2}x");
         
         // Keep results
