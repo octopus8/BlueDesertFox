@@ -54,7 +54,10 @@ RenderTexture result = blender.BlendTextures(myTextures, weights);
 
 // With rotation (0-360 degrees per texture)
 float[] rotations = { 0f, 45f, 90f };
-RenderTexture result = blender.BlendTextures(myTextures, weights, rotations);
+RenderTexture result = blender.BlendTextures(myTextures, weights, rotations);// With rotation and offset (full control)
+float[] rotations = { 0f, 45f, 90f };
+Vector2[] offsets = { new Vector2(0.5f, 0), Vector2.zero, new Vector2(0.25f, 0.25f) };
+RenderTexture result = blender.BlendTextures(myTextures, weights, rotations, offsets);
 
 // Different mode
 RenderTexture result = blender.BlendTextures(
