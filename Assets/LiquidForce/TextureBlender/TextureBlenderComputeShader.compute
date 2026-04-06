@@ -47,7 +47,8 @@ SamplerState sampler_linear_repeat;
 float2 TransformUV(float2 uv, float angleRadians, float2 offset)
 {
     // Apply offset first (wrapping handled by sampler)
-    float2 offsetUV = uv + offset;
+    // Note: Subtract offset to move texture in intuitive direction (positive X = right, positive Y = up)
+    float2 offsetUV = uv - offset;
     // Then rotate around center if needed
     if (abs(angleRadians) > 0.0001)  // Skip rotation if angle is ~zero
     {
