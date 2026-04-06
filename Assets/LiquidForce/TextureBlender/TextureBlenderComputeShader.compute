@@ -18,6 +18,9 @@ Texture2DArray<float4> BaseTexturesArray;
 // Blend weights for each texture layer
 StructuredBuffer<float> BlendValues;
 
+// Rotation angles in radians for each texture layer (0 = no rotation)
+StructuredBuffer<float> RotationAngles;
+
 // Parameters
 int TextureCount;
 int TextureWidth;
@@ -25,6 +28,26 @@ int TextureHeight;
 
 // Sampler for texture array
 SamplerState samplerInputTexturesArray;
+
+/// <summary>
+/// Rotates UV coordinates around center point (0.5, 0.5) by given angle in radians.
+/// UVs automatically wrap due to Wrap sampler state settings.
+/// </summary>
+float2 RotateUV(float2 uv, float angleRadians)
+{
+    // Translate to origin (rotate around center)
+    float2 centered = uv - 0.5;
+    
+    // Apply 2D rotation matrix
+    float cosAngle = cos(angleRadians);
+    float sinAngle = sin(angleRadians);
+    float2 rotated;
+    rotated.x = centered.x * cosAngle - centered.y * sinAngle;
+    rotated.y = centered.x * sinAngle + centered.y * cosAngle;
+    
+    // Translate back (wrapping handled by sampler)
+    return rotated + 0.5;
+}
 
 /// <summary>
 /// Converts a linear color value back to sRGB space.
@@ -68,9 +91,11 @@ void BlendTexturesArrayAdditive(uint3 id : SV_DispatchThreadID)
     // For small TextureCount (<8), compiler will unroll this loop for maximum speed
     for (int i = 0; i < TextureCount; i++)
     {
-        // Sample texture layer i from the texture array
-        // Unity performs sRGB->Linear conversion because Texture2DArray is marked as sRGB (linear: false)
-        float4 sample = InputTexturesArray.SampleLevel(samplerInputTexturesArray, float3(uv, i), 0);
+        // Apply rotation to UV coordinates
+        float2 rotatedUV = RotateUV(uv, RotationAngles[i]);
+        
+        // Sample texture layer i from the texture array with rotated UV
+        float4 sample = InputTexturesArray.SampleLevel(samplerInputTexturesArray, float3(rotatedUV, i), 0);
         
         // Convert back to sRGB to match original ImageProcessor.compute behavior
         sample = LinearToSRGB(sample);
@@ -109,9 +134,12 @@ void BlendTexturesArrayAlphaWeighted(uint3 id : SV_DispatchThreadID)
     // Loop through all textures in array
     for (int i = 0; i < TextureCount; i++)
     {
-        // Sample texture layer i from the texture array
+        // Apply rotation to UV coordinates
+        float2 rotatedUV = RotateUV(uv, RotationAngles[i]);
+        
+        // Sample texture layer i from the texture array with rotated UV
         // Unity performs sRGB->Linear conversion because Texture2DArray is marked as sRGB (linear: false)
-        float4 sample = InputTexturesArray.SampleLevel(samplerInputTexturesArray, float3(uv, i), 0);
+        float4 sample = InputTexturesArray.SampleLevel(samplerInputTexturesArray, float3(rotatedUV, i), 0);
         
         // Convert back to sRGB to match original ImageProcessor.compute behavior
         sample = LinearToSRGB(sample);
@@ -151,9 +179,11 @@ void BlendTexturesArrayMultiplicative(uint3 id : SV_DispatchThreadID)
     // Loop through all textures in array
     for (int i = 0; i < TextureCount; i++)
     {
-        // Sample texture layer i from the texture array
-        // Unity performs sRGB->Linear conversion because Texture2DArray is marked as sRGB (linear: false)
-        float4 sample = InputTexturesArray.SampleLevel(samplerInputTexturesArray, float3(uv, i), 0);
+        // Apply rotation to UV coordinates
+        float2 rotatedUV = RotateUV(uv, RotationAngles[i]);
+        
+        // Sample texture layer i from the texture array with rotated UV
+        float4 sample = InputTexturesArray.SampleLevel(samplerInputTexturesArray, float3(rotatedUV, i), 0);
         
         // Convert back to sRGB to match original ImageProcessor.compute behavior
         sample = LinearToSRGB(sample);
@@ -190,12 +220,15 @@ void BlendNormalsWithBaseAlphaAdditive(uint3 id : SV_DispatchThreadID)
     // Loop through all textures in array
     for (int i = 0; i < TextureCount; i++)
     {
-        // Sample normal texture layer i from the texture array
-        float4 normalSample = InputTexturesArray.SampleLevel(samplerInputTexturesArray, float3(uv, i), 0);
+        // Apply rotation to UV coordinates
+        float2 rotatedUV = RotateUV(uv, RotationAngles[i]);
+        
+        // Sample normal texture layer i from the texture array with rotated UV
+        float4 normalSample = InputTexturesArray.SampleLevel(samplerInputTexturesArray, float3(rotatedUV, i), 0);
         normalSample = LinearToSRGB(normalSample);
         
-        // Sample base texture alpha for per-pixel blending weight modulation
-        float4 baseSample = BaseTexturesArray.SampleLevel(samplerInputTexturesArray, float3(uv, i), 0);
+        // Sample base texture alpha for per-pixel blending weight modulation with rotated UV
+        float4 baseSample = BaseTexturesArray.SampleLevel(samplerInputTexturesArray, float3(rotatedUV, i), 0);
         baseSample = LinearToSRGB(baseSample);
         
         // Combine layer weight with base texture alpha at this pixel
@@ -231,12 +264,15 @@ void BlendNormalsWithBaseAlphaAlphaWeighted(uint3 id : SV_DispatchThreadID)
     // Loop through all textures in array
     for (int i = 0; i < TextureCount; i++)
     {
-        // Sample normal texture layer i from the texture array
-        float4 normalSample = InputTexturesArray.SampleLevel(samplerInputTexturesArray, float3(uv, i), 0);
+        // Apply rotation to UV coordinates
+        float2 rotatedUV = RotateUV(uv, RotationAngles[i]);
+        
+        // Sample normal texture layer i from the texture array with rotated UV
+        float4 normalSample = InputTexturesArray.SampleLevel(samplerInputTexturesArray, float3(rotatedUV, i), 0);
         normalSample = LinearToSRGB(normalSample);
         
-        // Sample base texture alpha for per-pixel blending weight modulation
-        float4 baseSample = BaseTexturesArray.SampleLevel(samplerInputTexturesArray, float3(uv, i), 0);
+        // Sample base texture alpha for per-pixel blending weight modulation with rotated UV
+        float4 baseSample = BaseTexturesArray.SampleLevel(samplerInputTexturesArray, float3(rotatedUV, i), 0);
         baseSample = LinearToSRGB(baseSample);
         
         // Alpha-weighted blending: blend intensity controlled by layer weight, base alpha, and normal alpha
@@ -270,12 +306,15 @@ void BlendNormalsWithBaseAlphaMultiplicative(uint3 id : SV_DispatchThreadID)
     // Loop through all textures in array
     for (int i = 0; i < TextureCount; i++)
     {
-        // Sample normal texture layer i from the texture array
-        float4 normalSample = InputTexturesArray.SampleLevel(samplerInputTexturesArray, float3(uv, i), 0);
+        // Apply rotation to UV coordinates
+        float2 rotatedUV = RotateUV(uv, RotationAngles[i]);
+        
+        // Sample normal texture layer i from the texture array with rotated UV
+        float4 normalSample = InputTexturesArray.SampleLevel(samplerInputTexturesArray, float3(rotatedUV, i), 0);
         normalSample = LinearToSRGB(normalSample);
         
-        // Sample base texture alpha for per-pixel blending weight modulation
-        float4 baseSample = BaseTexturesArray.SampleLevel(samplerInputTexturesArray, float3(uv, i), 0);
+        // Sample base texture alpha for per-pixel blending weight modulation with rotated UV
+        float4 baseSample = BaseTexturesArray.SampleLevel(samplerInputTexturesArray, float3(rotatedUV, i), 0);
         baseSample = LinearToSRGB(baseSample);
         
         // Lerp between white (no effect) and normal sample based on weight * base alpha

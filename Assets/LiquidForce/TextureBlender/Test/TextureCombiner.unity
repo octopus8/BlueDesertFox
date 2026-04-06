@@ -151,12 +151,14 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::TextureBlenderExample
   textureBlender: {fileID: 300810099}
   textureLayers:
-  - baseTexture: {fileID: 2800000, guid: 2c6d8b425ef743d428013b3af82966d4, type: 3}
-    normalTexture: {fileID: 2800000, guid: 964bef7aef06b7c48a7fa6040e0d44ec, type: 3}
+  - baseTexture: {fileID: 2800000, guid: de4c8791189002445b01a8403eaa05ad, type: 3}
+    normalTexture: {fileID: 2800000, guid: 0863aa562dacf3742a407cd51a9cbdf1, type: 3}
     weight: 1
+    rotationDegrees: 19
   - baseTexture: {fileID: 2800000, guid: 81151869f330e3646a88480dba77b7e4, type: 3}
-    normalTexture: {fileID: 2800000, guid: 60901a6fd21b45e4591ac1f8c99f82fc, type: 3}
+    normalTexture: {fileID: 2800000, guid: 0863aa562dacf3742a407cd51a9cbdf1, type: 3}
     weight: 1
+    rotationDegrees: 0
   targetRenderer: {fileID: 560342784}
   baseMapPropertyName: _BaseMap
   normalMapPropertyName: _BumpMap
