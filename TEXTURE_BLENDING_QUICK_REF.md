@@ -20,6 +20,12 @@ RenderTexture result = blender.BlendTextures(myTextures);
 material.mainTexture = result;
 ```
 
+## New Features
+
+✨ **Texture Rotation** - Rotate each texture independently (0-360°)
+✨ **Normal Map Support** - Blend normals with per-pixel alpha from base textures
+✨ **Zero Overhead** - No performance cost when rotation isn't used
+
 ## Common Patterns
 
 ### Pattern 1: Simple Blend (Equal Weights)
@@ -33,7 +39,31 @@ float[] weights = { 0.5f, 0.3f, 0.2f };
 RenderTexture result = blender.BlendTextures(textures, weights);
 ```
 
-### Pattern 3: Different Blend Mode
+### Pattern 3: With Rotation (NEW!)
+```csharp
+float[] weights = { 0.5f, 0.3f, 0.2f };
+float[] rotations = { 0f, 45f, 90f };  // Degrees per texture
+RenderTexture result = blender.BlendTextures(textures, weights, rotations);
+```
+
+### Pattern 4: Base + Normal Maps (NEW!)
+```csharp
+// IMPORTANT: Use SAME rotation array for visual coherence!
+float[] rotations = { 0f, 45f, 90f };
+
+// Blend base textures
+RenderTexture baseResult = blender.BlendTextures(baseTextures, weights, rotations);
+
+// Blend normals with SAME rotation
+RenderTexture normalResult = blender.BlendNormalsWithBaseAlpha(
+    normalTextures, baseTextures, weights, rotations);
+
+// Apply both
+material.SetTexture("_BaseMap", baseResult);
+material.SetTexture("_BumpMap", normalResult);
+```
+
+### Pattern 5: Different Blend Mode
 ```csharp
 // Additive (fastest - 30% faster than alpha)
 RenderTexture result = blender.BlendTextures(textures, null, BlendMode.Additive);
@@ -42,7 +72,7 @@ RenderTexture result = blender.BlendTextures(textures, null, BlendMode.Additive)
 RenderTexture result = blender.BlendTextures(textures, null, BlendMode.Multiplicative);
 ```
 
-### Pattern 4: Async (Non-Blocking)
+### Pattern 6: Async (Non-Blocking)
 ```csharp
 private async void Start()
 {
@@ -51,7 +81,7 @@ private async void Start()
 }
 ```
 
-### Pattern 5: Reuse RenderTexture (Fastest)
+### Pattern 7: Reuse RenderTexture (Fastest)
 ```csharp
 // Create once
 RenderTexture target = new RenderTexture(2048, 2048, 0);
@@ -65,7 +95,7 @@ blender.BlendToExistingTexture(target, textures2, weights2);
 // ... use ...
 ```
 
-### Pattern 6: Cleanup
+### Pattern 8: Cleanup
 ```csharp
 // Return to pool for reuse
 blender.ReturnTexture(result);
@@ -80,6 +110,7 @@ result.Release();
 ⚡ **Use Texture Pooling** - 0.5-1ms speedup (avoid allocation)
 ⚡ **BlendToExistingTexture()** - Fastest when updating frequently
 ⚡ **Additive Mode** - 30% faster than AlphaWeighted
+⚡ **Rotation** - Zero overhead when all rotations are 0° (pass null)
 ⚡ **Lower Resolution for VR** - Use 1024×1024 or smaller
 ⚡ **Fast Mode** - Skip validation for trusted inputs
 
@@ -146,9 +177,18 @@ See these files for complete examples:
 ```csharp
 // Main methods
 RenderTexture BlendTextures(Texture[], float[], BlendMode)
+RenderTexture BlendTextures(Texture[], float[], float[] rotationsDegrees, BlendMode)  // NEW!
 UniTask<RenderTexture> BlendTexturesAsync(Texture[], float[], BlendMode, CancellationToken)
+UniTask<RenderTexture> BlendTexturesAsync(Texture[], float[], float[] rotationsDegrees, BlendMode, CancellationToken)  // NEW!
 void BlendToExistingTexture(RenderTexture, Texture[], float[], BlendMode)
+void BlendToExistingTexture(RenderTexture, Texture[], float[], float[] rotationsDegrees, BlendMode)  // NEW!
 RenderTexture[] BatchBlend(BlendRequest[])
+
+// Normal map blending (NEW!)
+RenderTexture BlendNormalsWithBaseAlpha(Texture[] normals, Texture[] bases, float[], BlendMode)
+RenderTexture BlendNormalsWithBaseAlpha(Texture[] normals, Texture[] bases, float[], float[] rotationsDegrees, BlendMode)
+void BlendNormalsWithBaseAlphaToExistingTexture(RenderTexture, Texture[] normals, Texture[] bases, float[], BlendMode)
+void BlendNormalsWithBaseAlphaToExistingTexture(RenderTexture, Texture[] normals, Texture[] bases, float[], float[] rotationsDegrees, BlendMode)
 
 // Resource management
 void ReturnTexture(RenderTexture)

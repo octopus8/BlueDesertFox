@@ -89,6 +89,10 @@ public class TextureBlender : MonoBehaviour
     // Speed optimization: Cache Texture2DArray conversions
     private Dictionary<int, Texture2DArray> textureArrayCache;
     
+    // Speed optimization: Cached zero-rotation arrays to avoid allocations when rotation is not used
+    private Dictionary<int, float[]> cachedZeroRotations = new Dictionary<int, float[]>();
+    private const float RotationEpsilon = 0.0001f;  // Threshold for considering rotation as zero
+    
     // Profiler markers for performance tracking
     private static readonly ProfilerMarker s_TextureArrayConversion = new ProfilerMarker("TextureBlender.ConvertToArray");
     private static readonly ProfilerMarker s_ShaderDispatch = new ProfilerMarker("TextureBlender.Dispatch");
@@ -729,25 +733,57 @@ public class TextureBlender : MonoBehaviour
     }
     
     /// <summary>
+    /// Checks if any meaningful rotation is present in the rotation array.
+    /// Returns false if rotations is null or all values are effectively zero.
+    /// OPTIMIZATION: Avoids expensive degree-to-radian conversion when rotation isn't needed.
+    /// </summary>
+    /// <param name="rotationsDegrees">Rotation angles in degrees</param>
+    /// <returns>True if any rotation value exceeds the epsilon threshold</returns>
+    private bool IsRotationNeeded(float[] rotationsDegrees)
+    {
+        if (rotationsDegrees == null || rotationsDegrees.Length == 0)
+            return false;
+        
+        // Check if any rotation value is non-zero
+        for (int i = 0; i < rotationsDegrees.Length; i++)
+        {
+            if (Mathf.Abs(rotationsDegrees[i]) > RotationEpsilon)
+                return true;
+        }
+        
+        return false;
+    }
+    
+    /// <summary>
     /// Prepares rotation angles in radians for GPU shader. Converts degrees to radians.
-    /// If rotationsDegrees is null, returns zero rotations for all textures.
+    /// If rotationsDegrees is null or all zeros, returns cached zero array for maximum speed.
+    /// OPTIMIZATION: Caches zero-rotation arrays to avoid allocation for the common case.
     /// </summary>
     /// <param name="textureCount">Number of textures</param>
     /// <param name="rotationsDegrees">Rotation angles in degrees (null = no rotation)</param>
     /// <returns>Array of rotation angles in radians</returns>
     private float[] PrepareRotationAngles(int textureCount, float[] rotationsDegrees)
     {
+        // OPTIMIZATION: Check if rotation is actually needed
+        if (!IsRotationNeeded(rotationsDegrees))
+        {
+            // Return cached zero array if available, otherwise create and cache it
+            if (!cachedZeroRotations.TryGetValue(textureCount, out float[] cachedZeros))
+            {
+                cachedZeros = new float[textureCount];  // Already initialized to zeros
+                cachedZeroRotations[textureCount] = cachedZeros;
+            }
+            return cachedZeros;
+        }
+        
+        // Rotation is needed - perform conversion
         float[] rotations = new float[textureCount];
         
-        if (rotationsDegrees != null)
+        for (int i = 0; i < textureCount; i++)
         {
-            for (int i = 0; i < textureCount; i++)
-            {
-                float degrees = (i < rotationsDegrees.Length) ? rotationsDegrees[i] : 0f;
-                rotations[i] = degrees * Mathf.Deg2Rad;  // Convert to radians
-            }
+            float degrees = (i < rotationsDegrees.Length) ? rotationsDegrees[i] : 0f;
+            rotations[i] = degrees * Mathf.Deg2Rad;  // Convert to radians
         }
-        // else: all zeros (no rotation)
         
         return rotations;
     }
@@ -973,6 +1009,9 @@ public class TextureBlender : MonoBehaviour
     {
         // Clear cache
         ClearCache();
+        
+        // Clear rotation cache
+        cachedZeroRotations?.Clear();
         
         // Dispose resources
         resources?.Dispose();

@@ -50,10 +50,12 @@ Located in `Assets/Scripts/Keyboard/`:
 Located in `Assets/_App/Scripts/TextureBlending/`:
 - **TextureBlender**: Reusable MonoBehaviour component for GPU-accelerated texture blending, removes 8-texture hard limit via Texture2DArray
 - **Performance**: Target <5ms for 4×2048² textures on RTX 3070, <2ms for cached repeat blends, <3ms for VR-optimized (1024×1024)
+- **Rotation**: Per-texture rotation (0-360°) with zero-overhead when unused (cached zero arrays), ideal for terrain variation and normal map coherence
 - **Blend Modes**: Additive (fastest, 30% faster than alpha), AlphaWeighted (respects texture alpha), Multiplicative (masking/darkening)
+- **Normal Maps**: `BlendNormalsWithBaseAlpha()` blends normals with per-pixel alpha weighting, supports rotation for visual coherence with base textures
 - **Resource Management**: Automatic pooling for RenderTextures and ComputeBuffers, Texture2DArray caching for repeat blends
-- **API**: `BlendTextures()` (simple), `BlendTexturesAsync()` (non-blocking with UniTask), `BlendToExistingTexture()` (fastest - no allocation), `BatchBlend()` (multiple operations)
-- **Compute Shader**: `ImageProcessorEnhanced.compute` with kernels for each blend mode, uses [numthreads(8,8,1)] for optimal GPU occupancy on RTX series
+- **API**: `BlendTextures()` (simple, optional rotation), `BlendTexturesAsync()` (non-blocking with UniTask), `BlendToExistingTexture()` (fastest - no allocation), `BlendNormalsWithBaseAlpha()` (normal map support), `BatchBlend()` (multiple operations)
+- **Compute Shader**: `ImageProcessorEnhanced.compute` with kernels for each blend mode and normal blending, uses [numthreads(8,8,1)] for optimal GPU occupancy on RTX series
 - **VR Compatible**: Writes to both RWTexture2D and RWStructuredBuffer for OpenGL ES 3.0 support
 - **Configuration**: Enable array caching and texture pooling in Inspector for maximum speed, FastMode to skip validation
 - **Profiler Markers**: `TextureBlender.ConvertToArray`, `TextureBlender.Dispatch`, `TextureBlender.AllocateResources`, `TextureBlender.CacheCheck`
