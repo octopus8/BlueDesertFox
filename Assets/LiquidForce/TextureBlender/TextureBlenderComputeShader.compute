@@ -21,17 +21,49 @@ StructuredBuffer<float> BlendValues;
 // Rotation angles in radians for each texture layer (0 = no rotation)
 StructuredBuffer<float> RotationAngles;
 
+// UV offsets for each texture layer (float2 per texture: offsetX, offsetY)
+// Stored as interleaved floats: [tex0.x, tex0.y, tex1.x, tex1.y, ...]
+StructuredBuffer<float> UVOffsets;
+
 // Parameters
 int TextureCount;
 int TextureWidth;
 int TextureHeight;
 
-// Custom inline sampler with Wrap mode for tiling during rotation
+// Custom inline sampler with Wrap mode for tiling during rotation and offset
 // Format: SamplerState sampler<TextureName> creates an inline sampler
 // Linear filtering with Wrap address mode ensures smooth tiling when UV goes out of [0,1] bounds
 SamplerState sampler_linear_repeat;
 
+
 /// <summary>
+/// Transforms UV coordinates: applies offset, then rotates around center point (0.5, 0.5).
+/// UVs automatically tile/wrap due to Wrap sampler state (AddressU/V = Wrap).
+/// Out-of-bounds UVs wrap seamlessly for continuous tiling.
+/// </summary>
+/// <param name="uv">Original UV coordinates</param>
+/// <param name="angleRadians">Rotation angle in radians</param>
+/// <param name="offset">UV offset (x, y)</param>
+float2 TransformUV(float2 uv, float angleRadians, float2 offset)
+{
+    // Apply offset first (wrapping handled by sampler)
+    float2 offsetUV = uv + offset;
+    // Then rotate around center if needed
+    if (abs(angleRadians) > 0.0001)  // Skip rotation if angle is ~zero
+    {
+        // Translate to origin (rotate around center)
+        float2 centered = offsetUV - 0.5;
+        // Apply 2D rotation matrix
+        float cosAngle = cos(angleRadians);
+        float sinAngle = sin(angleRadians);
+        float2 rotated;
+        rotated.x = centered.x * cosAngle - centered.y * sinAngle;
+        rotated.y = centered.x * sinAngle + centered.y * cosAngle;
+        // Translate back (wrapping handled by sampler)
+        return rotated + 0.5;
+    }
+    return offsetUV;
+}/// <summary>
 /// Rotates UV coordinates around center point (0.5, 0.5) by given angle in radians.
 /// UVs automatically tile/wrap due to Wrap sampler state (AddressU/V = Wrap).
 /// Out-of-bounds UVs wrap seamlessly during rotation for continuous tiling.
@@ -94,11 +126,14 @@ void BlendTexturesArrayAdditive(uint3 id : SV_DispatchThreadID)
     // For small TextureCount (<8), compiler will unroll this loop for maximum speed
     for (int i = 0; i < TextureCount; i++)
     {
-        // Apply rotation to UV coordinates
-        float2 rotatedUV = RotateUV(uv, RotationAngles[i]);
+        // Get UV offset for this texture (stored as interleaved x,y pairs)
+        float2 offset = float2(UVOffsets[i * 2], UVOffsets[i * 2 + 1]);
         
-        // Sample texture layer i from the texture array with rotated UV
-        float4 sample = InputTexturesArray.SampleLevel(sampler_linear_repeat, float3(rotatedUV, i), 0);
+        // Apply offset and rotation
+        float2 transformedUV = TransformUV(uv, RotationAngles[i], offset);
+        
+        // Sample texture layer i from the texture array with transformed UV
+        float4 sample = InputTexturesArray.SampleLevel(sampler_linear_repeat, float3(transformedUV, i), 0);
         
         // Convert back to sRGB to match original ImageProcessor.compute behavior
         sample = LinearToSRGB(sample);
@@ -137,12 +172,15 @@ void BlendTexturesArrayAlphaWeighted(uint3 id : SV_DispatchThreadID)
     // Loop through all textures in array
     for (int i = 0; i < TextureCount; i++)
     {
-        // Apply rotation to UV coordinates
-        float2 rotatedUV = RotateUV(uv, RotationAngles[i]);
+        // Get UV offset for this texture (stored as interleaved x,y pairs)
+        float2 offset = float2(UVOffsets[i * 2], UVOffsets[i * 2 + 1]);
         
-        // Sample texture layer i from the texture array with rotated UV
+        // Apply offset and rotation
+        float2 transformedUV = TransformUV(uv, RotationAngles[i], offset);
+        
+        // Sample texture layer i from the texture array with transformed UV
         // Unity performs sRGB->Linear conversion because Texture2DArray is marked as sRGB (linear: false)
-        float4 sample = InputTexturesArray.SampleLevel(sampler_linear_repeat, float3(rotatedUV, i), 0);
+        float4 sample = InputTexturesArray.SampleLevel(sampler_linear_repeat, float3(transformedUV, i), 0);
         
         // Convert back to sRGB to match original ImageProcessor.compute behavior
         sample = LinearToSRGB(sample);
@@ -182,11 +220,14 @@ void BlendTexturesArrayMultiplicative(uint3 id : SV_DispatchThreadID)
     // Loop through all textures in array
     for (int i = 0; i < TextureCount; i++)
     {
-        // Apply rotation to UV coordinates
-        float2 rotatedUV = RotateUV(uv, RotationAngles[i]);
+        // Get UV offset for this texture (stored as interleaved x,y pairs)
+        float2 offset = float2(UVOffsets[i * 2], UVOffsets[i * 2 + 1]);
         
-        // Sample texture layer i from the texture array with rotated UV
-        float4 sample = InputTexturesArray.SampleLevel(sampler_linear_repeat, float3(rotatedUV, i), 0);
+        // Apply offset and rotation
+        float2 transformedUV = TransformUV(uv, RotationAngles[i], offset);
+        
+        // Sample texture layer i from the texture array with transformed UV
+        float4 sample = InputTexturesArray.SampleLevel(sampler_linear_repeat, float3(transformedUV, i), 0);
         
         // Convert back to sRGB to match original ImageProcessor.compute behavior
         sample = LinearToSRGB(sample);
@@ -223,15 +264,18 @@ void BlendNormalsWithBaseAlphaAdditive(uint3 id : SV_DispatchThreadID)
     // Loop through all textures in array
     for (int i = 0; i < TextureCount; i++)
     {
-        // Apply rotation to UV coordinates
-        float2 rotatedUV = RotateUV(uv, RotationAngles[i]);
+        // Get UV offset for this texture (stored as interleaved x,y pairs)
+        float2 offset = float2(UVOffsets[i * 2], UVOffsets[i * 2 + 1]);
         
-        // Sample normal texture layer i from the texture array with rotated UV
-        float4 normalSample = InputTexturesArray.SampleLevel(sampler_linear_repeat, float3(rotatedUV, i), 0);
+        // Apply offset and rotation
+        float2 transformedUV = TransformUV(uv, RotationAngles[i], offset);
+        
+        // Sample normal texture layer i with transformed UV
+        float4 normalSample = InputTexturesArray.SampleLevel(sampler_linear_repeat, float3(transformedUV, i), 0);
         normalSample = LinearToSRGB(normalSample);
         
-        // Sample base texture alpha for per-pixel blending weight modulation with rotated UV
-        float4 baseSample = BaseTexturesArray.SampleLevel(sampler_linear_repeat, float3(rotatedUV, i), 0);
+        // Sample base texture alpha with transformed UV
+        float4 baseSample = BaseTexturesArray.SampleLevel(sampler_linear_repeat, float3(transformedUV, i), 0);
         baseSample = LinearToSRGB(baseSample);
         
         // Combine layer weight with base texture alpha at this pixel
@@ -267,15 +311,18 @@ void BlendNormalsWithBaseAlphaAlphaWeighted(uint3 id : SV_DispatchThreadID)
     // Loop through all textures in array
     for (int i = 0; i < TextureCount; i++)
     {
-        // Apply rotation to UV coordinates
-        float2 rotatedUV = RotateUV(uv, RotationAngles[i]);
+        // Get UV offset for this texture (stored as interleaved x,y pairs)
+        float2 offset = float2(UVOffsets[i * 2], UVOffsets[i * 2 + 1]);
         
-        // Sample normal texture layer i from the texture array with rotated UV
-        float4 normalSample = InputTexturesArray.SampleLevel(sampler_linear_repeat, float3(rotatedUV, i), 0);
+        // Apply offset and rotation
+        float2 transformedUV = TransformUV(uv, RotationAngles[i], offset);
+        
+        // Sample normal texture layer i with transformed UV
+        float4 normalSample = InputTexturesArray.SampleLevel(sampler_linear_repeat, float3(transformedUV, i), 0);
         normalSample = LinearToSRGB(normalSample);
         
-        // Sample base texture alpha for per-pixel blending weight modulation with rotated UV
-        float4 baseSample = BaseTexturesArray.SampleLevel(sampler_linear_repeat, float3(rotatedUV, i), 0);
+        // Sample base texture alpha with transformed UV
+        float4 baseSample = BaseTexturesArray.SampleLevel(sampler_linear_repeat, float3(transformedUV, i), 0);
         baseSample = LinearToSRGB(baseSample);
         
         // Alpha-weighted blending: blend intensity controlled by layer weight, base alpha, and normal alpha
@@ -309,15 +356,18 @@ void BlendNormalsWithBaseAlphaMultiplicative(uint3 id : SV_DispatchThreadID)
     // Loop through all textures in array
     for (int i = 0; i < TextureCount; i++)
     {
-        // Apply rotation to UV coordinates
-        float2 rotatedUV = RotateUV(uv, RotationAngles[i]);
+        // Get UV offset for this texture (stored as interleaved x,y pairs)
+        float2 offset = float2(UVOffsets[i * 2], UVOffsets[i * 2 + 1]);
         
-        // Sample normal texture layer i from the texture array with rotated UV
-        float4 normalSample = InputTexturesArray.SampleLevel(sampler_linear_repeat, float3(rotatedUV, i), 0);
+        // Apply offset and rotation
+        float2 transformedUV = TransformUV(uv, RotationAngles[i], offset);
+        
+        // Sample normal texture layer i with transformed UV
+        float4 normalSample = InputTexturesArray.SampleLevel(sampler_linear_repeat, float3(transformedUV, i), 0);
         normalSample = LinearToSRGB(normalSample);
         
-        // Sample base texture alpha for per-pixel blending weight modulation with rotated UV
-        float4 baseSample = BaseTexturesArray.SampleLevel(sampler_linear_repeat, float3(rotatedUV, i), 0);
+        // Sample base texture alpha with transformed UV
+        float4 baseSample = BaseTexturesArray.SampleLevel(sampler_linear_repeat, float3(transformedUV, i), 0);
         baseSample = LinearToSRGB(baseSample);
         
         // Lerp between white (no effect) and normal sample based on weight * base alpha

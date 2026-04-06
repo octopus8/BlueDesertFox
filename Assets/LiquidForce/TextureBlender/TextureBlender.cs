@@ -82,6 +82,7 @@ public class TextureBlender : MonoBehaviour
     private static readonly int OutputBufferID = Shader.PropertyToID("OutputBuffer");
     private static readonly int BlendValuesID = Shader.PropertyToID("BlendValues");
     private static readonly int RotationAnglesID = Shader.PropertyToID("RotationAngles");
+    private static readonly int UVOffsetsID = Shader.PropertyToID("UVOffsets");
     private static readonly int TextureCountID = Shader.PropertyToID("TextureCount");
     private static readonly int TextureWidthID = Shader.PropertyToID("TextureWidth");
     private static readonly int TextureHeightID = Shader.PropertyToID("TextureHeight");
@@ -91,7 +92,11 @@ public class TextureBlender : MonoBehaviour
     
     // Speed optimization: Cached zero-rotation arrays to avoid allocations when rotation is not used
     private Dictionary<int, float[]> cachedZeroRotations = new Dictionary<int, float[]>();
-    private const float RotationEpsilon = 0.0001f;  // Threshold for considering rotation as zero
+    private const float RotationEpsilon = 0.0001f;
+    
+    // Speed optimization: Cached zero-offset arrays to avoid allocations when offset is not used
+    private Dictionary<int, float[]> cachedZeroOffsets = new Dictionary<int, float[]>();
+    private const float OffsetEpsilon = 0.0001f;  // Threshold for considering offset as zero  // Threshold for considering rotation as zero
     
     // Profiler markers for performance tracking
     private static readonly ProfilerMarker s_TextureArrayConversion = new ProfilerMarker("TextureBlender.ConvertToArray");
@@ -217,6 +222,36 @@ public class TextureBlender : MonoBehaviour
         return output;
     }
     
+    
+    /// <summary>
+    /// Blends multiple textures into a new RenderTexture with optional rotation and UV offset per texture.
+    /// PERFORMANCE: Under 5ms for 4×2048² textures, under 2ms for cached repeat blends.
+    /// </summary>
+    /// <param name="textures">Array of textures to blend (any count)</param>
+    /// <param name="weights">Optional blend weights (null = equal weights)</param>
+    /// <param name="rotationsDegrees">Optional rotation angles in degrees for each texture (null = no rotation)</param>
+    /// <param name="offsets">Optional UV offsets for each texture (null = no offset)</param>
+    /// <param name="mode">Blend mode to use</param>
+    /// <returns>New RenderTexture with blended result</returns>
+    public RenderTexture BlendTextures(
+        Texture[] textures,
+        float[] weights,
+        float[] rotationsDegrees,
+        Vector2[] offsets,
+        BlendMode mode = BlendMode.AlphaWeighted)
+    {
+        if (!isInitialized)
+            Initialize();
+        if (!ValidateInputs(textures))
+            return null;
+        // Create output RenderTexture
+        RenderTexture output = useTexturePooling
+            ? resources.GetOrCreateRenderTexture(defaultOutputWidth, defaultOutputHeight, outputFormat)
+            : CreateRenderTexture(defaultOutputWidth, defaultOutputHeight);
+        // Blend to the output texture
+        BlendToExistingTexture(output, textures, weights, rotationsDegrees, offsets, mode);
+        return output;
+    }
     /// <summary>
     /// Blends textures asynchronously (non-blocking).
     /// Useful for loading screens or background processing.
@@ -278,6 +313,33 @@ public class TextureBlender : MonoBehaviour
         return output;
     }
     
+    
+    /// <summary>
+    /// Blends textures asynchronously (non-blocking) with optional rotation and UV offset per texture.
+    /// Useful for loading screens or background processing.
+    /// </summary>
+    public async UniTask<RenderTexture> BlendTexturesAsync(
+        Texture[] textures,
+        float[] weights,
+        float[] rotationsDegrees,
+        Vector2[] offsets,
+        BlendMode mode = BlendMode.AlphaWeighted,
+        CancellationToken cancellationToken = default)
+    {
+        if (!isInitialized)
+            Initialize();
+        if (!ValidateInputs(textures))
+            return null;
+        // Create output RenderTexture
+        RenderTexture output = useTexturePooling
+            ? resources.GetOrCreateRenderTexture(defaultOutputWidth, defaultOutputHeight, outputFormat)
+            : CreateRenderTexture(defaultOutputWidth, defaultOutputHeight);
+        // Blend to the output texture with rotation and offset
+        BlendToExistingTexture(output, textures, weights, rotationsDegrees, offsets, mode);
+        // Yield to next frame for frame pacing
+        await UniTask.Yield(PlayerLoopTiming.Update, cancellationToken);
+        return output;
+    }
     /// <summary>
     /// Blends textures into an existing RenderTexture (no allocation).
     /// PERFORMANCE: Fastest option when reusing render targets.
@@ -375,6 +437,49 @@ public class TextureBlender : MonoBehaviour
         }
     }
     
+    
+    /// <summary>
+    /// Blends textures into an existing RenderTexture with optional rotation and UV offset per texture (no allocation).
+    /// PERFORMANCE: Fastest option when reusing render targets.
+    /// </summary>
+    public void BlendToExistingTexture(
+        RenderTexture target,
+        Texture[] textures,
+        float[] weights,
+        float[] rotationsDegrees,
+        Vector2[] offsets,
+        BlendMode mode = BlendMode.AlphaWeighted)
+    {
+        if (!isInitialized)
+            Initialize();
+        if (target == null)
+        {
+            Debug.LogError("TextureBlender: Target RenderTexture is null!");
+            return;
+        }
+        if (!fastMode && !ValidateInputs(textures))
+            return;
+        // Normalize weights
+        float[] normalizedWeights = mode == BlendMode.AlphaWeighted
+            ? PrepareWeightsForAlphaMode(textures, weights)
+            : NormalizeWeights(textures, weights);
+        // Convert textures to Texture2DArray (with caching)
+        Texture2DArray textureArray;
+        using (s_TextureArrayConversion.Auto())
+        {
+            textureArray = GetOrCreateTextureArray(textures, out _, out _);
+        }
+        if (textureArray == null)
+        {
+            Debug.LogError("TextureBlender: Failed to create Texture2DArray!");
+            return;
+        }
+        // Execute blend operation with rotation and offset
+        using (s_ShaderDispatch.Auto())
+        {
+            ExecuteBlend(target, textureArray, normalizedWeights, textures.Length, mode, rotationsDegrees, offsets);
+        }
+    }
     /// <summary>
     /// Executes multiple blend requests in a batch (efficient GPU usage).
     /// </summary>
@@ -522,6 +627,44 @@ public class TextureBlender : MonoBehaviour
         return output;
     }
     
+    
+    /// <summary>
+    /// Blends normal maps with per-pixel alpha weighting from base textures with optional rotation and UV offset.
+    /// Each pixel's normal contribution is modulated by the corresponding base texture alpha at that pixel.
+    /// PERFORMANCE: Similar to regular blending, requires both normal and base texture arrays.
+    /// </summary>
+    /// <param name="normalTextures">Array of normal map textures to blend</param>
+    /// <param name="baseTextures">Array of base textures (alpha channel used for per-pixel weighting)</param>
+    /// <param name="weights">Blend weights for each layer</param>
+    /// <param name="rotationsDegrees">Rotation angles in degrees for each texture</param>
+    /// <param name="offsets">UV offsets for each texture</param>
+    /// <param name="mode">Blend mode to use</param>
+    /// <returns>New RenderTexture with blended normal map</returns>
+    public RenderTexture BlendNormalsWithBaseAlpha(
+        Texture[] normalTextures,
+        Texture[] baseTextures,
+        float[] weights,
+        float[] rotationsDegrees,
+        Vector2[] offsets,
+        BlendMode mode = BlendMode.AlphaWeighted)
+    {
+        if (!isInitialized)
+            Initialize();
+        if (!ValidateInputs(normalTextures) || !ValidateInputs(baseTextures))
+            return null;
+        if (normalTextures.Length != baseTextures.Length)
+        {
+            Debug.LogError("TextureBlender: Normal textures and base textures must have same count!");
+            return null;
+        }
+        // Create output RenderTexture
+        RenderTexture output = useTexturePooling
+            ? resources.GetOrCreateRenderTexture(defaultOutputWidth, defaultOutputHeight, outputFormat)
+            : CreateRenderTexture(defaultOutputWidth, defaultOutputHeight);
+        // Blend to the output texture with rotation and offset
+        BlendNormalsWithBaseAlphaToExistingTexture(output, normalTextures, baseTextures, weights, rotationsDegrees, offsets, mode);
+        return output;
+    }
     /// <summary>
     /// Blends normal maps with per-pixel alpha weighting from base textures into an existing RenderTexture.
     /// PERFORMANCE: Fastest option for normal blending when reusing render targets.
@@ -637,6 +780,57 @@ public class TextureBlender : MonoBehaviour
         }
     }
     
+    
+    /// <summary>
+    /// Blends normal maps with per-pixel alpha weighting from base textures into an existing RenderTexture with optional rotation and UV offset.
+    /// PERFORMANCE: Fastest option for normal blending when reusing render targets.
+    /// </summary>
+    public void BlendNormalsWithBaseAlphaToExistingTexture(
+        RenderTexture target,
+        Texture[] normalTextures,
+        Texture[] baseTextures,
+        float[] weights,
+        float[] rotationsDegrees,
+        Vector2[] offsets,
+        BlendMode mode = BlendMode.AlphaWeighted)
+    {
+        if (!isInitialized)
+            Initialize();
+        if (target == null)
+        {
+            Debug.LogError("TextureBlender: Target RenderTexture is null!");
+            return;
+        }
+        if (!fastMode && (!ValidateInputs(normalTextures) || !ValidateInputs(baseTextures)))
+            return;
+        if (normalTextures.Length != baseTextures.Length)
+        {
+            Debug.LogError("TextureBlender: Normal textures and base textures must have same count!");
+            return;
+        }
+        // Normalize weights
+        float[] normalizedWeights = mode == BlendMode.AlphaWeighted
+            ? PrepareWeightsForAlphaMode(normalTextures, weights)
+            : NormalizeWeights(normalTextures, weights);
+        // Convert textures to Texture2DArrays (with caching)
+        Texture2DArray normalTextureArray;
+        Texture2DArray baseTextureArray;
+        using (s_TextureArrayConversion.Auto())
+        {
+            normalTextureArray = GetOrCreateTextureArray(normalTextures, out _, out _);
+            baseTextureArray = GetOrCreateTextureArray(baseTextures, out _, out _);
+        }
+        if (normalTextureArray == null || baseTextureArray == null)
+        {
+            Debug.LogError("TextureBlender: Failed to create Texture2DArrays!");
+            return;
+        }
+        // Execute blend operation with base alpha, rotation, and offset
+        using (s_ShaderDispatch.Auto())
+        {
+            ExecuteNormalBlendWithBaseAlpha(target, normalTextureArray, baseTextureArray, normalizedWeights, normalTextures.Length, rotationsDegrees, offsets);
+        }
+    }
     #endregion
     
     #region Private Methods
@@ -789,6 +983,59 @@ public class TextureBlender : MonoBehaviour
     }
     
     
+   
+    /// <summary>
+    /// Checks if any meaningful UV offset is present in the offset array.
+    /// Returns false if offsets is null or all values are effectively zero.
+    /// OPTIMIZATION: Avoids expensive array allocation when offset isn't needed.
+    /// </summary>
+    /// <param name="offsets">UV offsets as Vector2 array</param>
+    /// <returns>True if any offset value exceeds the epsilon threshold</returns>
+    private bool IsOffsetNeeded(Vector2[] offsets)
+    {
+        if (offsets == null || offsets.Length == 0)
+            return false;
+        // Check if any offset value is non-zero
+        for (int i = 0; i < offsets.Length; i++)
+        {
+            if (Mathf.Abs(offsets[i].x) > OffsetEpsilon || Mathf.Abs(offsets[i].y) > OffsetEpsilon)
+                return true;
+        }
+        return false;
+    }
+    /// <summary>
+    /// Prepares UV offsets for GPU shader as interleaved float array [x0, y0, x1, y1, ...].
+    /// If offsets is null or all zeros, returns cached zero array for maximum speed.
+    /// OPTIMIZATION: Caches zero-offset arrays to avoid allocation for the common case.
+    /// </summary>
+    /// <param name="textureCount">Number of textures</param>
+    /// <param name="offsets">UV offsets as Vector2 array (null = no offset)</param>
+    /// <returns>Interleaved array of UV offsets [x0, y0, x1, y1, ...]</returns>
+    private float[] PrepareUVOffsets(int textureCount, Vector2[] offsets)
+    {
+        // OPTIMIZATION: Check if offset is actually needed
+        if (!IsOffsetNeeded(offsets))
+        {
+            // Return cached zero array if available, otherwise create and cache it
+            int arraySize = textureCount * 2;  // x,y pairs
+            if (!cachedZeroOffsets.TryGetValue(arraySize, out float[] cachedZeros))
+            {
+                cachedZeros = new float[arraySize];  // Already initialized to zeros
+                cachedZeroOffsets[arraySize] = cachedZeros;
+            }
+            return cachedZeros;
+        }
+        // Offset is needed - convert Vector2[] to interleaved float array
+        float[] result = new float[textureCount * 2];
+        for (int i = 0; i < textureCount; i++)
+        {
+            Vector2 offset = (i < offsets.Length) ? offsets[i] : Vector2.zero;
+            result[i * 2] = offset.x;      // X component
+            result[i * 2 + 1] = offset.y;  // Y component
+        }
+        return result;
+    }
+    
     /// <summary>
     /// Gets a cached Texture2DArray for the given textures or creates a new one if not cached.
     /// </summary>
@@ -853,7 +1100,8 @@ public class TextureBlender : MonoBehaviour
         float[] weights,
         int textureCount,
         BlendMode mode,
-        float[] rotationsDegrees = null)
+        float[] rotationsDegrees = null,
+        Vector2[] offsets = null)
     {
         using (s_ResourceAllocation.Auto())
         {
@@ -867,7 +1115,10 @@ public class TextureBlender : MonoBehaviour
             // Prepare rotation angles (degrees to radians)
             float[] rotationAngles = PrepareRotationAngles(textureCount, rotationsDegrees);
             ComputeBuffer rotationBuffer = resources.GetOrCreateBuffer(rotationAngles.Length, sizeof(float));
-            rotationBuffer.SetData(rotationAngles);
+            rotationBuffer.SetData(rotationAngles);            // Prepare UV offsets (interleaved x,y pairs)
+            float[] uvOffsets = PrepareUVOffsets(textureCount, offsets);
+            ComputeBuffer offsetBuffer = resources.GetOrCreateBuffer(uvOffsets.Length, sizeof(float));
+            offsetBuffer.SetData(uvOffsets);
             
             // Create output buffer for OpenGL ES 3.0 compatibility
             int pixelCount = target.width * target.height;
@@ -884,6 +1135,7 @@ public class TextureBlender : MonoBehaviour
             imageProcessorShader.SetBuffer(kernelID, OutputBufferID, outputBuffer);
             imageProcessorShader.SetBuffer(kernelID, BlendValuesID, weightsBuffer);
             imageProcessorShader.SetBuffer(kernelID, RotationAnglesID, rotationBuffer);
+            imageProcessorShader.SetBuffer(kernelID, UVOffsetsID, offsetBuffer);
             
             // Calculate dispatch dimensions
             imageProcessorShader.GetKernelThreadGroupSizes(kernelID, out uint threadGroupSizeX, out uint threadGroupSizeY, out uint threadGroupSizeZ);
@@ -896,6 +1148,7 @@ public class TextureBlender : MonoBehaviour
             // Return buffers to pool
             resources.ReturnBuffer(weightsBuffer);
             resources.ReturnBuffer(rotationBuffer);
+            resources.ReturnBuffer(offsetBuffer);
             resources.ReturnBuffer(outputBuffer);
         }
     }
@@ -917,7 +1170,8 @@ public class TextureBlender : MonoBehaviour
         Texture2DArray baseTextureArray,
         float[] weights,
         int textureCount,
-        float[] rotationsDegrees = null)
+        float[] rotationsDegrees = null,
+        Vector2[] offsets = null)
     {
         using (s_ResourceAllocation.Auto())
         {
@@ -931,7 +1185,10 @@ public class TextureBlender : MonoBehaviour
             // Prepare rotation angles (degrees to radians)
             float[] rotationAngles = PrepareRotationAngles(textureCount, rotationsDegrees);
             ComputeBuffer rotationBuffer = resources.GetOrCreateBuffer(rotationAngles.Length, sizeof(float));
-            rotationBuffer.SetData(rotationAngles);
+            rotationBuffer.SetData(rotationAngles);            // Prepare UV offsets (interleaved x,y pairs)
+            float[] uvOffsets = PrepareUVOffsets(textureCount, offsets);
+            ComputeBuffer offsetBuffer = resources.GetOrCreateBuffer(uvOffsets.Length, sizeof(float));
+            offsetBuffer.SetData(uvOffsets);
             
             // Create output buffer for OpenGL ES 3.0 compatibility
             int pixelCount = target.width * target.height;
@@ -949,6 +1206,7 @@ public class TextureBlender : MonoBehaviour
             imageProcessorShader.SetBuffer(kernelID, OutputBufferID, outputBuffer);
             imageProcessorShader.SetBuffer(kernelID, BlendValuesID, weightsBuffer);
             imageProcessorShader.SetBuffer(kernelID, RotationAnglesID, rotationBuffer);
+            imageProcessorShader.SetBuffer(kernelID, UVOffsetsID, offsetBuffer);
             
             // Calculate dispatch dimensions
             imageProcessorShader.GetKernelThreadGroupSizes(kernelID, out uint threadGroupSizeX, out uint threadGroupSizeY, out uint threadGroupSizeZ);
@@ -961,6 +1219,7 @@ public class TextureBlender : MonoBehaviour
             // Return buffers to pool
             resources.ReturnBuffer(weightsBuffer);
             resources.ReturnBuffer(rotationBuffer);
+            resources.ReturnBuffer(offsetBuffer);
             resources.ReturnBuffer(outputBuffer);
         }
     }
@@ -1012,6 +1271,9 @@ public class TextureBlender : MonoBehaviour
         
         // Clear rotation cache
         cachedZeroRotations?.Clear();
+        
+        // Clear offset cache
+        cachedZeroOffsets?.Clear();
         
         // Dispose resources
         resources?.Dispose();
