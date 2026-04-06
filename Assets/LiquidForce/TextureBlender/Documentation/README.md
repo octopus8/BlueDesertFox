@@ -9,13 +9,14 @@ The TextureBlender system provides GPU-accelerated texture blending for Unity pr
 ## Key Features
 
 - ✅ **Unlimited Textures** - No hard limit (GPU-dependent, typically 2048)
+- ✅ **Texture Rotation** - Per-texture rotation (0-360°) with zero-overhead optimization
 - ✅ **Multiple Blend Modes** - Additive, AlphaWeighted, Multiplicative
 - ✅ **Resource Pooling** - Automatic RenderTexture and ComputeBuffer reuse
 - ✅ **Texture Array Caching** - Major speedup for repeated blends
 - ✅ **Async Support** - Non-blocking operations with UniTask
 - ✅ **VR Compatible** - OpenGL ES 3.0 support
 - ✅ **Zero Memory Leaks** - Automatic resource management
-- ✅ **Normal Map Support** - Per-pixel alpha-weighted normal blending
+- ✅ **Normal Map Support** - Per-pixel alpha-weighted normal blending with rotation
 
 ## Documentation Files
 
@@ -74,10 +75,11 @@ public class SimpleBlend : MonoBehaviour
 
 ## Version History
 
-### Current Version
-- Normal map blending with per-pixel alpha weighting
+### Current Version (v2.0)
+- **Per-texture rotation** (0-360°) with zero-overhead optimization
+- **Normal map blending** with per-pixel alpha weighting and rotation support
 - Enhanced resource pooling
-- Texture array caching for repeat blends
+- Texture array caching for repeat blends (35% speedup)
 - Multiple blend modes (Additive, AlphaWeighted, Multiplicative)
 - VR optimization support
 

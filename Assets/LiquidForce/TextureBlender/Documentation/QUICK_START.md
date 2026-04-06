@@ -100,6 +100,10 @@ RenderTexture result = blender.BlendTextures(textures);
 float[] weights = { 0.5f, 0.3f, 0.2f };
 RenderTexture result = blender.BlendTextures(textures, weights);
 
+// With texture rotation (0-360 degrees)
+float[] rotations = { 0f, 45f, 90f };
+RenderTexture result = blender.BlendTextures(textures, weights, rotations);
+
 // Different blend mode
 RenderTexture result = blender.BlendTextures(
     textures, 
@@ -116,11 +120,14 @@ RenderTexture result = await blender.BlendTexturesAsync(
 // Blend to existing texture (fastest)
 blender.BlendToExistingTexture(existingRT, textures, weights);
 
-// Blend normal maps with per-pixel alpha
+// Blend normal maps with per-pixel alpha (IMPORTANT: Use same rotations!)
+float[] rotations = { 0f, 45f, 90f };
+RenderTexture baseResult = blender.BlendTextures(baseTextures, weights, rotations);
 RenderTexture normalResult = blender.BlendNormalsWithBaseAlpha(
     normalTextures,
     baseTextures,
-    weights);
+    weights,
+    rotations);  // Same rotations for visual coherence!
 
 // Return to pool when done
 blender.ReturnTexture(result);

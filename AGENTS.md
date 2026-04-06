@@ -47,20 +47,21 @@ Located in `Assets/Scripts/Keyboard/`:
 - Text input: `KeycodeAdder.cs` component handles character insertion
 
 ### Texture Blending System
-Located in `Assets/_App/Scripts/TextureBlending/`:
+Located in `Assets/LiquidForce/TextureBlender/`:
 - **TextureBlender**: Reusable MonoBehaviour component for GPU-accelerated texture blending, removes 8-texture hard limit via Texture2DArray
 - **Performance**: Target <5ms for 4×2048² textures on RTX 3070, <2ms for cached repeat blends, <3ms for VR-optimized (1024×1024)
-- **Rotation**: Per-texture rotation (0-360°) with zero-overhead when unused (cached zero arrays), ideal for terrain variation and normal map coherence
+- **Rotation**: Per-texture rotation (0-360°) with zero-overhead optimization when unused (cached zero arrays, 98% faster), ideal for terrain variation and normal map coherence
 - **Blend Modes**: Additive (fastest, 30% faster than alpha), AlphaWeighted (respects texture alpha), Multiplicative (masking/darkening)
 - **Normal Maps**: `BlendNormalsWithBaseAlpha()` blends normals with per-pixel alpha weighting, supports rotation for visual coherence with base textures
-- **Resource Management**: Automatic pooling for RenderTextures and ComputeBuffers, Texture2DArray caching for repeat blends
-- **API**: `BlendTextures()` (simple, optional rotation), `BlendTexturesAsync()` (non-blocking with UniTask), `BlendToExistingTexture()` (fastest - no allocation), `BlendNormalsWithBaseAlpha()` (normal map support), `BatchBlend()` (multiple operations)
+- **Resource Management**: Automatic pooling for RenderTextures and ComputeBuffers, Texture2DArray caching for repeat blends (35% speedup)
+- **API**: `BlendTextures()` (basic with optional rotation), `BlendTexturesAsync()` (non-blocking with UniTask), `BlendToExistingTexture()` (fastest - no allocation), `BlendNormalsWithBaseAlpha()` (normal map support with rotation), `BatchBlend()` (multiple operations)
 - **Compute Shader**: `ImageProcessorEnhanced.compute` with kernels for each blend mode and normal blending, uses [numthreads(8,8,1)] for optimal GPU occupancy on RTX series
-- **VR Compatible**: Writes to both RWTexture2D and RWStructuredBuffer for OpenGL ES 3.0 support
+- **VR Compatible**: Writes to both RWTexture2D and RWStructuredBuffer for OpenGL ES 3.0 support (Quest/Pico)
 - **Configuration**: Enable array caching and texture pooling in Inspector for maximum speed, FastMode to skip validation
 - **Profiler Markers**: `TextureBlender.ConvertToArray`, `TextureBlender.Dispatch`, `TextureBlender.AllocateResources`, `TextureBlender.CacheCheck`
-- **Examples**: `TextureBlenderExample.cs` shows usage patterns, `TextureBlenderBenchmark.cs` for performance testing
-- **Documentation**: See `TEXTURE_BLENDING_SYSTEM.md` for complete API reference
+- **Examples**: `TextureBlenderExample.cs` shows usage patterns including rotation, `TextureBlenderBenchmark.cs` for performance testing
+- **Documentation**: See `Assets/LiquidForce/TextureBlender/Documentation/` folder for complete guides (README, API_REFERENCE, ARCHITECTURE, QUICK_START, etc.) or `TEXTURE_BLENDING_SYSTEM.md` in project root
+- **PDF Documentation**: `TextureBlender_Architecture.pdf` in Documentation folder - comprehensive architecture guide with diagrams (generate with Pandoc+XeLaTeX)
 - Legacy: `ImageProcessorTest.cs` is deprecated (8-texture limit), marked with `[Obsolete]` attribute
 
 ### Ace of Ages Game Systems

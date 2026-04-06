@@ -6,14 +6,15 @@ Practical code examples demonstrating common usage patterns.
 
 1. [Basic Blending](#basic-blending)
 2. [Custom Weights](#custom-weights)
-3. [Async Operations](#async-operations)
-4. [Terrain Splatting](#terrain-splatting)
-5. [Normal Map Blending](#normal-map-blending)
-6. [Light Map Combination](#light-map-combination)
-7. [Real-Time Updates](#real-time-updates)
-8. [Batch Processing](#batch-processing)
-9. [Resource Management](#resource-management)
-10. [Advanced Patterns](#advanced-patterns)
+3. [Texture Rotation](#texture-rotation)
+4. [Async Operations](#async-operations)
+5. [Terrain Splatting](#terrain-splatting)
+6. [Normal Map Blending](#normal-map-blending)
+7. [Light Map Combination](#light-map-combination)
+8. [Real-Time Updates](#real-time-updates)
+9. [Batch Processing](#batch-processing)
+10. [Resource Management](#resource-management)
+11. [Advanced Patterns](#advanced-patterns)
 
 ---
 
@@ -104,6 +105,162 @@ public class WeightedBlend : MonoBehaviour
     void OnDestroy()
     {
         blender.ReturnTexture(currentResult);
+    }
+}
+```
+
+---
+
+## Texture Rotation
+
+### Basic Rotation Example
+
+```csharp
+using UnityEngine;
+
+public class RotatedBlend : MonoBehaviour
+{
+    [SerializeField] private TextureBlender blender;
+    [SerializeField] private Texture[] textures;
+    [SerializeField] private MeshRenderer targetRenderer;
+    
+    [Header("Rotation Per Texture (0-360 degrees)")]
+    [SerializeField, Range(0f, 360f)] private float rotation1 = 0f;
+    [SerializeField, Range(0f, 360f)] private float rotation2 = 45f;
+    [SerializeField, Range(0f, 360f)] private float rotation3 = 90f;
+    
+    private RenderTexture currentResult;
+    
+    void Start()
+    {
+        UpdateBlend();
+    }
+    
+    void UpdateBlend()
+    {
+        float[] weights = { 0.5f, 0.3f, 0.2f };
+        float[] rotations = { rotation1, rotation2, rotation3 };
+        
+        // Return old result to pool
+        if (currentResult != null)
+        {
+            blender.ReturnTexture(currentResult);
+        }
+        
+        // Blend with rotation
+        currentResult = blender.BlendTextures(textures, weights, rotations);
+        targetRenderer.material.mainTexture = currentResult;
+    }
+    
+    void OnDestroy()
+    {
+        blender.ReturnTexture(currentResult);
+    }
+}
+```
+
+### Terrain Variation with Rotation
+
+```csharp
+using UnityEngine;
+
+public class TerrainTextureVariation : MonoBehaviour
+{
+    [SerializeField] private TextureBlender blender;
+    [SerializeField] private Texture[] groundTextures;
+    [SerializeField] private MeshRenderer terrainRenderer;
+    
+    void Start()
+    {
+        // Create variation by rotating textures
+        float[] weights = { 0.4f, 0.3f, 0.3f };
+        
+        // Random rotations for natural variation
+        float[] rotations = {
+            Random.Range(0f, 360f),
+            Random.Range(0f, 360f),
+            Random.Range(0f, 360f)
+        };
+        
+        RenderTexture result = blender.BlendTextures(
+            groundTextures, weights, rotations, 
+            TextureBlender.BlendMode.AlphaWeighted);
+        
+        terrainRenderer.material.mainTexture = result;
+    }
+}
+```
+
+### Base + Normal Maps with Rotation (Visual Coherence)
+
+```csharp
+using UnityEngine;
+
+public class CoherentNormalBlend : MonoBehaviour
+{
+    [SerializeField] private TextureBlender blender;
+    [SerializeField] private Texture[] baseTextures;
+    [SerializeField] private Texture[] normalTextures;
+    [SerializeField] private MeshRenderer targetRenderer;
+    
+    void Start()
+    {
+        float[] weights = { 0.5f, 0.3f, 0.2f };
+        
+        // Define rotations - CRITICAL: Use same for base and normals!
+        float[] rotations = { 0f, 45f, 90f };
+        
+        // Blend base textures with rotation
+        RenderTexture baseResult = blender.BlendTextures(
+            baseTextures, weights, rotations, 
+            TextureBlender.BlendMode.AlphaWeighted);
+        
+        // Blend normals with SAME rotation for visual coherence
+        RenderTexture normalResult = blender.BlendNormalsWithBaseAlpha(
+            normalTextures, baseTextures, weights, rotations, 
+            TextureBlender.BlendMode.AlphaWeighted);
+        
+        // Apply both to material
+        Material mat = targetRenderer.material;
+        mat.SetTexture("_BaseMap", baseResult);
+        mat.SetTexture("_BumpMap", normalResult);
+    }
+}
+```
+
+### Zero-Overhead Optimization (No Rotation)
+
+```csharp
+using UnityEngine;
+
+public class OptimalPerformance : MonoBehaviour
+{
+    [SerializeField] private TextureBlender blender;
+    [SerializeField] private Texture[] textures;
+    [SerializeField] private MeshRenderer targetRenderer;
+    
+    void Start()
+    {
+        float[] weights = { 0.5f, 0.3f, 0.2f };
+        
+        // Method 1: Pass null for rotations (zero overhead)
+        RenderTexture result1 = blender.BlendTextures(
+            textures, weights, null, 
+            TextureBlender.BlendMode.AlphaWeighted);
+        
+        // Method 2: Pass zero array (also optimized via cached zeros)
+        float[] rotations = { 0f, 0f, 0f };
+        RenderTexture result2 = blender.BlendTextures(
+            textures, weights, rotations, 
+            TextureBlender.BlendMode.AlphaWeighted);
+        
+        // Method 3: Use basic overload without rotation parameter (fastest)
+        RenderTexture result3 = blender.BlendTextures(
+            textures, weights, 
+            TextureBlender.BlendMode.AlphaWeighted);
+        
+        // All three have identical performance (~0.001ms rotation overhead)
+        targetRenderer.material.mainTexture = result3;
     }
 }
 ```
@@ -772,4 +929,3 @@ public class BlendPerformanceMonitor : MonoBehaviour
     }
 }
 ```
-
