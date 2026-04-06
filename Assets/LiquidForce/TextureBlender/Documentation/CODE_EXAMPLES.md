@@ -113,6 +113,14 @@ public class WeightedBlend : MonoBehaviour
 
 ## Texture Rotation
 
+Rotate individual textures before blending for natural variation and pattern breaking. **UV coordinates automatically tile/wrap during rotation**, ensuring seamless results for repeating textures like terrain, bricks, or architectural patterns.
+
+**Key Features:**
+- Per-texture rotation (0-360°)
+- **Automatic tiling** - UV wrapping for out-of-bounds coordinates (no edge artifacts)
+- Zero-overhead when rotation is not used (98% faster)
+- Ideal for terrain and procedural texture generation
+
 ### Basic Rotation Example
 
 ```csharp

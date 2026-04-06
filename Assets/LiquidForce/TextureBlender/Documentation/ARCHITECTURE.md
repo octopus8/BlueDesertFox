@@ -275,6 +275,24 @@ Why both?
 - RWStructuredBuffer universally supported
 - Minimal overhead (same data, two writes)
 
+### Texture Sampling and Tiling
+
+**Custom Sampler with Wrap Mode:**
+```hlsl
+// Custom inline sampler for tiling behavior during rotation
+SamplerState sampler_linear_repeat;
+
+// Usage in kernels
+float4 sample = InputTexturesArray.SampleLevel(sampler_linear_repeat, float3(rotatedUV, i), 0);
+```
+
+**Tiling Behavior:**
+- `sampler_linear_repeat` uses Wrap address mode (AddressU/V = Wrap)
+- When rotation pushes UV coordinates outside [0,1], they automatically wrap/tile
+- Provides seamless tiling for rotated textures without manual UV clamping
+- Linear filtering ensures smooth interpolation between texels
+- Essential for terrain textures and repeating patterns with rotation
+
 ## Performance Optimizations
 
 ### 1. Kernel ID Caching
