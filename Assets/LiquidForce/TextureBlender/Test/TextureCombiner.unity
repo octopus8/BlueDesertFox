@@ -154,11 +154,15 @@ MonoBehaviour:
   - baseTexture: {fileID: 2800000, guid: de4c8791189002445b01a8403eaa05ad, type: 3}
     normalTexture: {fileID: 2800000, guid: 0863aa562dacf3742a407cd51a9cbdf1, type: 3}
     weight: 1
-    rotationDegrees: 19
+    rotationDegrees: 22.5
+    offsetX: 0.5
+    offsetY: 0.25
   - baseTexture: {fileID: 2800000, guid: 81151869f330e3646a88480dba77b7e4, type: 3}
     normalTexture: {fileID: 2800000, guid: 0863aa562dacf3742a407cd51a9cbdf1, type: 3}
-    weight: 1
-    rotationDegrees: 0
+    weight: 0.5
+    rotationDegrees: 45
+    offsetX: -0.125
+    offsetY: 0.125
   targetRenderer: {fileID: 560342784}
   baseMapPropertyName: _BaseMap
   normalMapPropertyName: _BumpMap
