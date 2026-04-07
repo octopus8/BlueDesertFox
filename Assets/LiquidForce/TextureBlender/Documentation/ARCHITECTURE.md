@@ -145,6 +145,20 @@ Texture2DArray array = new Texture2DArray(
     linear: false);  // sRGB space
 ```
 
+### Developer Notes
+**How is `TextureBlenderResources` used?**
+- It is used by methods in `TextureBlender` like `BlendTextures`, `BlendNormalsWithBaseAlpha`, and related methods.
+- Even when not blending to an existing texture, an output texture is created (`GetOrCreateRenderTexture`) and `BlendToExistingTexture` is called, which results in a call to `ExecuteBlend`.
+- Callstack
+```
+- TextureBlenderResources.GetOrCreateRenderTexture (RenderTextures; a start texture)
+- BlendToExistingTexture
+    - TextureBlenderResources.GetOrCreateTextureArray (tracked texture arrays; array of textures to blend)
+    - ExecuteBlend
+        - TextureBlenderResources.GetOrCreateBuffer (ComputeBuffer; weight, offset, rotation)
+        - Dispatch
+```
+
 ## Data Flow
 
 ### Standard Blend Operation
