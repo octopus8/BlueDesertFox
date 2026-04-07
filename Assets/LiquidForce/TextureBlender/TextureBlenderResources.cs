@@ -20,6 +20,11 @@ public class TextureBlenderResources : IDisposable
     // Configuration
     private int maxPoolSize;
     
+    
+    /// <summary>
+    /// Initializes the resource manager with optional pool size limit.
+    /// </summary>
+    /// <param name="maxPoolSize"></param>
     public TextureBlenderResources(int maxPoolSize = 5)
     {
         this.maxPoolSize = maxPoolSize;
@@ -27,6 +32,7 @@ public class TextureBlenderResources : IDisposable
         bufferPool = new Dictionary<int, Queue<ComputeBuffer>>();
         tempArrays = new List<Texture2DArray>();
     }
+    
     
     /// <summary>
     /// Preallocates RenderTextures for common sizes (speed optimization).
@@ -55,6 +61,7 @@ public class TextureBlenderResources : IDisposable
         }
     }
     
+    
     /// <summary>
     /// Preallocates ComputeBuffers for common sizes (speed optimization).
     /// </summary>
@@ -75,6 +82,7 @@ public class TextureBlenderResources : IDisposable
             bufferPool[elementCount].Enqueue(buffer);
         }
     }
+    
     
     /// <summary>
     /// Gets a RenderTexture from the pool or creates a new one if pool is empty.
@@ -106,6 +114,7 @@ public class TextureBlenderResources : IDisposable
         return newRT;
     }
     
+    
     /// <summary>
     /// Returns a RenderTexture to the pool for reuse.
     /// </summary>
@@ -130,6 +139,7 @@ public class TextureBlenderResources : IDisposable
         }
     }
     
+    
     /// <summary>
     /// Gets a ComputeBuffer from the pool or creates a new one.
     /// </summary>
@@ -149,6 +159,7 @@ public class TextureBlenderResources : IDisposable
         // Create new buffer if pool is empty
         return new ComputeBuffer(count, stride);
     }
+    
     
     /// <summary>
     /// Returns a ComputeBuffer to the pool for reuse.
@@ -174,6 +185,7 @@ public class TextureBlenderResources : IDisposable
         }
     }
     
+    
     /// <summary>
     /// Tracks a Texture2DArray for disposal when resources are cleaned up.
     /// </summary>
@@ -184,6 +196,7 @@ public class TextureBlenderResources : IDisposable
             tempArrays.Add(textureArray);
         }
     }
+    
     
     /// <summary>
     /// Cleans up all pooled resources.

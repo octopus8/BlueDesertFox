@@ -38,6 +38,7 @@ Optimization strategies and profiling techniques for maximum performance.
 - ✅ **Reuse RenderTextures** - Use `BlendToExistingTexture()` for updates
 - ✅ **Batch Similar Operations** - Use `BatchBlend()` for multiple blends
 - ✅ **Prewarm Pools** - Eliminate first-frame allocation costs
+- ✅ **Avoid Rotation/Offset When Possible** - Zero-overhead when null or all zeros (98% faster with cached arrays)
 
 ### Advanced Optimizations
 

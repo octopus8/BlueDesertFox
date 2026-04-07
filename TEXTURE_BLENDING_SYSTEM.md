@@ -3,17 +3,18 @@
 ## Overview
 The Texture Blending System provides a flexible, high-performance solution for blending multiple textures using GPU compute shaders. It removes the 8-texture limitation of the legacy system and adds support for multiple blend modes, texture rotation, resource pooling, and async operations.
 
-**Location**: `Assets/_App/Scripts/TextureBlending/`
+**Location**: `Assets/LiquidForce/TextureBlender/`
 
 ## Key Features
 - ✅ **Unlimited textures** - No hard limit (GPU-dependent, typically 2048)
 - ✅ **Texture rotation** - Per-texture rotation with zero-overhead optimization
+- ✅ **UV offset** - Per-texture UV panning/shifting with zero-overhead optimization
 - ✅ **Multiple blend modes** - Additive, AlphaWeighted, Multiplicative
 - ✅ **High performance** - <5ms for 4×2048² textures, <2ms cached
 - ✅ **Resource pooling** - Automatic RenderTexture and ComputeBuffer reuse
 - ✅ **Texture array caching** - Major speedup for repeated blends
 - ✅ **Async support** - Non-blocking operations with UniTask
-- ✅ **Normal map support** - Rotate normals with their base textures
+- ✅ **Normal map support** - Rotate and offset normals with their base textures
 - ✅ **VR compatible** - OpenGL ES 3.0 support maintained
 - ✅ **Clean API** - Simple one-line blending
 - ✅ **Zero memory leaks** - Automatic resource management
@@ -44,7 +45,7 @@ public class MyScript : MonoBehaviour
 ### Setup in Unity Editor
 1. Create empty GameObject: "Texture Blender"
 2. Add `TextureBlender` component
-3. Assign `ImageProcessorEnhanced.compute` shader
+3. Assign `TextureBlenderComputeShader.compute` shader
 4. Configure default output settings (2048x2048 recommended)
 5. Enable performance features:
    - ✓ Use Texture Pooling
@@ -72,10 +73,19 @@ public RenderTexture BlendTextures(
     float[] weights,              // Blend weights
     float[] rotationsDegrees,     // Rotation per texture (0-360 degrees)
     BlendMode mode = BlendMode.AlphaWeighted)
+
+// With rotation and UV offset support
+public RenderTexture BlendTextures(
+    Texture[] textures,           // Textures to blend (2 to unlimited)
+    float[] weights,              // Blend weights
+    float[] rotationsDegrees,     // Rotation per texture (0-360 degrees)
+    Vector2[] offsets,            // UV offsets per texture
+    BlendMode mode = BlendMode.AlphaWeighted)
 ```
 
 **Performance**: <5ms for 4×2048² textures, <2ms for cached repeat blends
 **Rotation Performance**: Zero overhead when all rotations are 0° (cached zero arrays)
+**Offset Performance**: Zero overhead when all offsets are zero (cached zero arrays)
 
 **Example**:
 ```csharp
@@ -89,6 +99,15 @@ RenderTexture result = blender.BlendTextures(myTextures, weights);
 // With rotation (0-360 degrees per texture)
 float[] rotations = { 0f, 45f, 90f };  // Rotate 2nd by 45°, 3rd by 90°
 RenderTexture result = blender.BlendTextures(myTextures, weights, rotations);
+
+// With UV offset (panning/shifting textures)
+Vector2[] offsets = { new Vector2(0.5f, 0.3f), Vector2.zero, new Vector2(0.2f, 0.8f) };
+RenderTexture result = blender.BlendTextures(myTextures, weights, null, offsets);
+
+// With both rotation and offset
+float[] rotations = { 0f, 45f, 90f };
+Vector2[] offsets = { new Vector2(0.5f, 0), Vector2.zero, new Vector2(0.25f, 0.25f) };
+RenderTexture result = blender.BlendTextures(myTextures, weights, rotations, offsets);
 
 // Different blend mode
 RenderTexture result = blender.BlendTextures(myTextures, null, BlendMode.Additive);
@@ -575,9 +594,9 @@ public class ProceduralWallTexture : MonoBehaviour
 
 ## Compute Shader Details
 
-### ImageProcessorEnhanced.compute
+### TextureBlenderComputeShader.compute
 
-**Location**: `Assets/Shaders/Compute/ImageProcessorEnhanced.compute`
+**Location**: `Assets/LiquidForce/TextureBlender/TextureBlenderComputeShader.compute`
 
 **Kernels**:
 - `BlendTexturesArrayAdditive` - Additive blending (fastest)

@@ -8,8 +8,8 @@
 
 ## ✅ All Phases Completed
 
-### Phase 1: Enhanced Compute Shader ✅
-**File**: `Assets/Shaders/Compute/ImageProcessorEnhanced.compute`
+### Phase 1: Texture Blender Compute Shader ✅
+**File**: `Assets/LiquidForce/TextureBlender/TextureBlenderComputeShader.compute`
 - ✅ Created three blend mode kernels (Additive, AlphaWeighted, Multiplicative)
 - ✅ Implemented Texture2DArray approach (removes 8-texture limit)
 - ✅ Optimized thread group size [8,8,1] for RTX GPUs
@@ -18,7 +18,7 @@
 - ✅ Performance optimization: register-based sampling, minimal branches
 
 ### Phase 2: TextureBlender Component ✅
-**File**: `Assets/_App/Scripts/TextureBlending/TextureBlender.cs`
+**File**: `Assets/LiquidForce/TextureBlender/TextureBlender.cs`
 - ✅ Main reusable MonoBehaviour component (511 lines)
 - ✅ Public API methods: BlendTextures(), BlendTexturesAsync(), BlendToExistingTexture(), BatchBlend()
 - ✅ Nested types: BlendMode enum, BlendRequest struct
@@ -206,7 +206,7 @@ All success criteria from the plan have been met:
 ### 2. Basic Testing
 1. Create GameObject: "Texture Blender Test"
 2. Add `TextureBlender` component
-3. Assign `ImageProcessorEnhanced.compute` shader
+3. Assign `TextureBlenderComputeShader.compute` shader
 4. Add `TextureBlenderExample` component
 5. Assign test textures
 6. Click Play

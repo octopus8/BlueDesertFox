@@ -7,39 +7,39 @@ All phases of the TEXTURE_BLENDING_PLAN.md have been successfully implemented.
 ## Files Created
 
 ### Core System
-1. **ImageProcessorEnhanced.compute** (`Assets/Shaders/Compute/`)
+1. **TextureBlenderComputeShader.compute** (`Assets/LiquidForce/TextureBlender/`)
    - Three blend mode kernels: Additive, AlphaWeighted, Multiplicative
    - Texture2DArray-based approach (removes 8-texture limit)
    - Optimized thread group size [8,8,1] for RTX GPUs
    - VR compatible (writes to both RWTexture2D and RWStructuredBuffer)
 
-2. **TextureBlender.cs** (`Assets/_App/Scripts/TextureBlending/`)
+2. **TextureBlender.cs** (`Assets/LiquidForce/TextureBlender/`)
    - Main reusable MonoBehaviour component
    - Public API: BlendTextures(), BlendTexturesAsync(), BlendToExistingTexture(), BatchBlend()
    - Nested types: BlendMode enum, BlendRequest struct
    - Resource pooling and Texture2DArray caching
    - Unity Profiler markers for performance tracking
 
-3. **TextureArrayBuilder.cs** (`Assets/_App/Scripts/TextureBlending/`)
+3. **TextureArrayBuilder.cs** (`Assets/LiquidForce/TextureBlender/`)
    - Static utility for Texture to Texture2DArray conversion
    - Fast path for uniform-sized textures
    - Hash function for caching
    - Handles size mismatches automatically
 
-4. **TextureBlenderResources.cs** (`Assets/_App/Scripts/TextureBlending/`)
+4. **TextureBlenderResources.cs** (`Assets/LiquidForce/TextureBlender/`)
    - Resource pool manager (RenderTextures and ComputeBuffers)
    - Automatic disposal and cleanup
    - Prewarm capabilities for common sizes
    - LRU-style pool management
 
 ### Examples & Testing
-5. **TextureBlenderExample.cs** (`Assets/_App/Scripts/TextureBlending/Examples/`)
+5. **TextureBlenderExample.cs** (`Assets/LiquidForce/TextureBlender/Examples/`)
    - Complete usage examples for all API methods
    - Demonstrates simple blending, custom weights, async operations
    - Performance testing with timing display
    - Shows proper resource cleanup
 
-6. **TextureBlenderBenchmark.cs** (`Assets/_App/Scripts/TextureBlending/Examples/`)
+6. **TextureBlenderBenchmark.cs** (`Assets/LiquidForce/TextureBlender/Examples/`)
    - Comprehensive performance testing component
    - Tests various texture counts (2, 4, 8, 16, 32)
    - Tests multiple resolutions (512, 1024, 2048, 4096)
@@ -151,7 +151,7 @@ blender.ReturnTexture(result);
 
 1. **Create Test Scene** (Optional)
    - Add TextureBlender GameObject with component
-   - Assign ImageProcessorEnhanced.compute shader
+   - Assign TextureBlenderComputeShader.compute shader
    - Add TextureBlenderExample or TextureBlenderBenchmark
    - Test with sample textures
 

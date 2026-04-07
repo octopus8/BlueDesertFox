@@ -104,6 +104,15 @@ RenderTexture result = blender.BlendTextures(textures, weights);
 float[] rotations = { 0f, 45f, 90f };
 RenderTexture result = blender.BlendTextures(textures, weights, rotations);
 
+// With UV offset (panning/shifting)
+Vector2[] offsets = { new Vector2(0.5f, 0.3f), Vector2.zero, new Vector2(0.2f, 0.8f) };
+RenderTexture result = blender.BlendTextures(textures, weights, null, offsets);
+
+// With rotation and offset combined
+float[] rotations = { 0f, 45f, 90f };
+Vector2[] offsets = { new Vector2(0.5f, 0), Vector2.zero, new Vector2(0.25f, 0.25f) };
+RenderTexture result = blender.BlendTextures(textures, weights, rotations, offsets);
+
 // Different blend mode
 RenderTexture result = blender.BlendTextures(
     textures, 

@@ -28,7 +28,7 @@ TextureBlender.cs (new)                    - Main reusable component
 ├── BlendRequest struct (nested)           - Encapsulates blend operation parameters
 └── Core functionality                     - Blending methods and resource management
 
-ImageProcessorEnhanced.compute (new)       - Enhanced compute shader
+TextureBlenderComputeShader.compute (new)  - Texture blender shader
 ├── BlendTexturesAdditive kernel           - Simple additive blending
 ├── BlendTexturesAlphaWeighted kernel      - Current alpha-weighted blending
 └── BlendTexturesMultiplicative kernel     - Multiplicative blending
@@ -86,7 +86,7 @@ public enum BlendMode
 
 ## Implementation Plan
 
-### Phase 1: Enhanced Compute Shader (ImageProcessorEnhanced.compute)
+### Phase 1: Texture Blender Compute Shader (TextureBlenderComputeShader.compute)
 
 **Goal**: Remove 8-texture hard limit by using TextureArray or runtime binding patterns
 
@@ -147,7 +147,7 @@ Keep current 8-slot approach but blend in batches:
 **Decision**: Use **Option A** for primary implementation, **Option B** as fallback for mismatched texture sizes.
 
 #### Tasks:
-1. **Create ImageProcessorEnhanced.compute**
+1. **Create TextureBlenderComputeShader.compute**
    - Implement `BlendTexturesArray` kernel using Texture2DArray
    - Implement blend mode variants:
      - `BlendTexturesArrayAdditive` - Simple weighted sum
@@ -168,7 +168,7 @@ Keep current 8-slot approach but blend in batches:
 
 #### Core Component Implementation
 
-**File**: `Assets/_App/Scripts/TextureBlending/TextureBlender.cs`
+**File**: `Assets/LiquidForce/TextureBlender/TextureBlender.cs`
 
 ```csharp
 using UnityEngine;
@@ -357,7 +357,7 @@ private float[] NormalizeWeights(Texture[] textures, float[] weights)
 
 #### Texture2DArray Conversion Utility
 
-**File**: `Assets/_App/Scripts/TextureBlending/TextureArrayBuilder.cs`
+**File**: `Assets/LiquidForce/TextureBlender/TextureArrayBuilder.cs`
 
 **CRITICAL: Color Space Handling** - Proper color space flags are essential for correct blending results.
 
@@ -430,7 +430,7 @@ public static class TextureArrayBuilder
 
 #### Resource Pool
 
-**File**: `Assets/_App/Scripts/TextureBlending/TextureBlenderResources.cs`
+**File**: `Assets/LiquidForce/TextureBlender/TextureBlenderResources.cs`
 
 ```csharp
 /// <summary>
@@ -543,7 +543,7 @@ void BlendTexturesArrayMultiplicative(uint3 id : SV_DispatchThreadID)
 
 ### Phase 5: Example Usage Component
 
-**File**: `Assets/_App/Scripts/TextureBlending/TextureBlenderExample.cs`
+**File**: `Assets/LiquidForce/TextureBlender/Examples/TextureBlenderExample.cs`
 
 ```csharp
 /// <summary>
@@ -660,29 +660,27 @@ Estimate for typical use case (blending 4 textures at 2048x2048):
 
 ```
 Assets/
-├── _App/
-│   └── Scripts/
-│       └── TextureBlending/
-│           ├── TextureBlender.cs                 # Main component (includes BlendMode enum and BlendRequest struct)
-│           ├── TextureBlenderResources.cs         # Resource pooling
-│           ├── TextureArrayBuilder.cs             # Texture2DArray conversion (CRITICAL: sRGB color space handling)
-│           └── Examples/
-│               └── TextureBlenderExample.cs       # Usage examples
-├── Shaders/
-│   └── Compute/
-│       └── ImageProcessorEnhanced.compute        # Enhanced shader (uses LinearToSRGB correctly)
+├── LiquidForce/
+│   └── TextureBlender/
+│       ├── TextureBlender.cs                     # Main component (includes BlendMode enum and BlendRequest struct)
+│       ├── TextureBlenderResources.cs             # Resource pooling
+│       ├── TextureArrayBuilder.cs                 # Texture2DArray conversion (CRITICAL: sRGB color space handling)
+│       ├── TextureBlenderComputeShader.compute    # Texture blender shader (uses LinearToSRGB correctly)
+│       ├── Examples/
+│       │   └── TextureBlenderExample.cs           # Usage examples
+│       └── Documentation/                         # Complete documentation
 └── Test Scenes/
     └── TextureBlending/
-        ├── TextureBlendingTests.unity            # Integration tests
+        ├── TextureBlendingTests.unity             # Integration tests
         └── TestAssets/
-            └── TestTextures/                      # Test texture assets
+            └── TestTextures/                       # Test texture assets
 ```
 
 ## Known Issues and Solutions
 
 ### Color Space Issue (RESOLVED)
 
-**Problem**: Orange textures appeared reddish when using `ImageProcessorEnhanced.compute`.
+**Problem**: Orange textures appeared reddish when using `TextureBlenderComputeShader.compute`.
 
 **Root Cause**: Incorrect color space flags in `TextureArrayBuilder.cs`:
 1. `Texture2DArray` was created with default `linear: true` flag (should be `linear: false` for sRGB)

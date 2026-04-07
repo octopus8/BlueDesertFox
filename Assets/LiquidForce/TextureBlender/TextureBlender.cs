@@ -30,6 +30,7 @@ public class TextureBlender : MonoBehaviour
         Multiplicative
     }
     
+    
     /// <summary>
     /// Encapsulates all parameters for a blend operation.
     /// </summary>
@@ -44,6 +45,7 @@ public class TextureBlender : MonoBehaviour
     }
     
     #endregion
+    
     
     #region Serialized Fields
     
@@ -62,6 +64,7 @@ public class TextureBlender : MonoBehaviour
     [SerializeField] private bool fastMode = false;  // Skip validation checks for maximum speed
     
     #endregion
+    
     
     #region Private Fields
     
@@ -105,6 +108,7 @@ public class TextureBlender : MonoBehaviour
     private static readonly ProfilerMarker s_CacheCheck = new ProfilerMarker("TextureBlender.CacheCheck");
     
     #endregion
+    
     
     #region Initialization
     
@@ -158,6 +162,7 @@ public class TextureBlender : MonoBehaviour
     
     #endregion
     
+    
     #region Public API
     
     /// <summary>
@@ -189,6 +194,7 @@ public class TextureBlender : MonoBehaviour
         
         return output;
     }
+    
     
     /// <summary>
     /// Blends multiple textures into a new RenderTexture with optional rotation per texture.
@@ -225,7 +231,7 @@ public class TextureBlender : MonoBehaviour
     
     /// <summary>
     /// Blends multiple textures into a new RenderTexture with optional rotation and UV offset per texture.
-    /// PERFORMANCE: Under 5ms for 4×2048² textures, under 2ms for cached repeat blends.
+    /// PERFORMANCE: Under 5ms for 4ï¿½2048ï¿½ textures, under 2ms for cached repeat blends.
     /// </summary>
     /// <param name="textures">Array of textures to blend (any count)</param>
     /// <param name="weights">Optional blend weights (null = equal weights)</param>
@@ -252,6 +258,8 @@ public class TextureBlender : MonoBehaviour
         BlendToExistingTexture(output, textures, weights, rotationsDegrees, offsets, mode);
         return output;
     }
+    
+    
     /// <summary>
     /// Blends textures asynchronously (non-blocking).
     /// Useful for loading screens or background processing.
@@ -281,6 +289,7 @@ public class TextureBlender : MonoBehaviour
         
         return output;
     }
+    
     
     /// <summary>
     /// Blends textures asynchronously (non-blocking) with optional rotation per texture.
@@ -340,6 +349,8 @@ public class TextureBlender : MonoBehaviour
         await UniTask.Yield(PlayerLoopTiming.Update, cancellationToken);
         return output;
     }
+    
+    
     /// <summary>
     /// Blends textures into an existing RenderTexture (no allocation).
     /// PERFORMANCE: Fastest option when reusing render targets.
@@ -387,6 +398,7 @@ public class TextureBlender : MonoBehaviour
             ExecuteBlend(target, textureArray, normalizedWeights, textures.Length, mode);
         }
     }
+    
     
     /// <summary>
     /// Blends textures into an existing RenderTexture with optional rotation per texture (no allocation).
@@ -480,6 +492,8 @@ public class TextureBlender : MonoBehaviour
             ExecuteBlend(target, textureArray, normalizedWeights, textures.Length, mode, rotationsDegrees, offsets);
         }
     }
+    
+    
     /// <summary>
     /// Executes multiple blend requests in a batch (efficient GPU usage).
     /// </summary>
@@ -515,6 +529,7 @@ public class TextureBlender : MonoBehaviour
         return results;
     }
     
+    
     /// <summary>
     /// Returns a RenderTexture to the pool for reuse (if pooling is enabled).
     /// Call this when done with a blended texture to avoid memory leaks.
@@ -531,6 +546,7 @@ public class TextureBlender : MonoBehaviour
         }
     }
     
+    
     /// <summary>
     /// Clears the texture array cache. Call this if textures have been modified.
     /// </summary>
@@ -546,6 +562,7 @@ public class TextureBlender : MonoBehaviour
             textureArrayCache.Clear();
         }
     }
+    
     
     /// <summary>
     /// Blends normal maps with per-pixel alpha weighting from base textures.
@@ -585,6 +602,7 @@ public class TextureBlender : MonoBehaviour
         
         return output;
     }
+    
     
     /// <summary>
     /// Blends normal maps with per-pixel alpha weighting from base textures with optional rotation.
@@ -665,6 +683,8 @@ public class TextureBlender : MonoBehaviour
         BlendNormalsWithBaseAlphaToExistingTexture(output, normalTextures, baseTextures, weights, rotationsDegrees, offsets, mode);
         return output;
     }
+    
+    
     /// <summary>
     /// Blends normal maps with per-pixel alpha weighting from base textures into an existing RenderTexture.
     /// PERFORMANCE: Fastest option for normal blending when reusing render targets.
@@ -721,6 +741,7 @@ public class TextureBlender : MonoBehaviour
             ExecuteNormalBlendWithBaseAlpha(target, normalTextureArray, baseTextureArray, normalizedWeights, normalTextures.Length);
         }
     }
+    
     
     /// <summary>
     /// Blends normal maps with per-pixel alpha weighting from base textures into an existing RenderTexture with optional rotation.
@@ -833,6 +854,7 @@ public class TextureBlender : MonoBehaviour
     }
     #endregion
     
+    
     #region Private Methods
     
     /// <summary>
@@ -867,6 +889,7 @@ public class TextureBlender : MonoBehaviour
         
         return true;
     }
+    
     
     /// <summary>
     /// Normalizes blend weights to ensure they sum to 1. If weights are null or empty, defaults to equal weights.
@@ -926,6 +949,7 @@ public class TextureBlender : MonoBehaviour
         return result;
     }
     
+    
     /// <summary>
     /// Checks if any meaningful rotation is present in the rotation array.
     /// Returns false if rotations is null or all values are effectively zero.
@@ -947,6 +971,7 @@ public class TextureBlender : MonoBehaviour
         
         return false;
     }
+    
     
     /// <summary>
     /// Prepares rotation angles in radians for GPU shader. Converts degrees to radians.
@@ -983,7 +1008,6 @@ public class TextureBlender : MonoBehaviour
     }
     
     
-   
     /// <summary>
     /// Checks if any meaningful UV offset is present in the offset array.
     /// Returns false if offsets is null or all values are effectively zero.
@@ -1003,6 +1027,8 @@ public class TextureBlender : MonoBehaviour
         }
         return false;
     }
+    
+    
     /// <summary>
     /// Prepares UV offsets for GPU shader as interleaved float array [x0, y0, x1, y1, ...].
     /// If offsets is null or all zeros, returns cached zero array for maximum speed.
@@ -1035,6 +1061,7 @@ public class TextureBlender : MonoBehaviour
         }
         return result;
     }
+    
     
     /// <summary>
     /// Gets a cached Texture2DArray for the given textures or creates a new one if not cached.
@@ -1262,8 +1289,12 @@ public class TextureBlender : MonoBehaviour
     
     #endregion
     
+    
     #region Cleanup
     
+    /// <summary>
+    /// Cleans up resources when the TextureBlender is destroyed. Clears caches and disposes of any pooled resources.
+    /// </summary>
     private void OnDestroy()
     {
         // Clear cache

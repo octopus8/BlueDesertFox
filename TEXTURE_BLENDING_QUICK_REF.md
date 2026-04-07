@@ -4,7 +4,7 @@
 
 1. Create GameObject: "TextureBlender"
 2. Add `TextureBlender` component
-3. Assign `ImageProcessorEnhanced.compute` shader (in Inspector)
+3. Assign `TextureBlenderComputeShader.compute` shader (in Inspector)
 4. Done!
 
 ## Basic Usage
