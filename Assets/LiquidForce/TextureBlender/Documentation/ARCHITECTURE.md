@@ -154,6 +154,7 @@ Texture2DArray array = new Texture2DArray(
 - TextureBlenderResources.GetOrCreateRenderTexture (RenderTextures; a start texture)
 - BlendToExistingTexture
     - TextureBlenderResources.GetOrCreateTextureArray (tracked texture arrays; array of textures to blend)
+        - TextureArrayBuilder.BuildFromTextures
     - ExecuteBlend
         - TextureBlenderResources.GetOrCreateBuffer (ComputeBuffer; weight, offset, rotation)
         - Dispatch
