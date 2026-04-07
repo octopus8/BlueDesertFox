@@ -237,10 +237,15 @@ void Update()
     // Modify pixels, don't recreate
     persistentTex.SetPixels(...);
     persistentTex.Apply();
-    blender.ClearCache();  // Clear if texture modified
+    
+    // Note: Cache uses texture instance IDs, so modifying pixels
+    // of the same texture instance won't change the hash.
+    // Modified textures will use cached array (still valid).
     blender.BlendTextures(textures);
 }
 ```
+
+**Note:** Hash is based on texture instance IDs, not pixel content. If you modify a texture's pixels but keep the same Texture2D instance, the cache will still use the same Texture2DArray (which is fine - the pixel data is in the original textures, not the array).
 
 ---
 

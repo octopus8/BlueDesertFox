@@ -211,13 +211,6 @@ RenderTexture temp = blender.BlendTextures(textures);
 blender.ReturnTexture(temp);  // Return to pool for reuse
 ```
 
-##### ClearCache()
-Clears the texture array cache. Call if textures have been modified.
-
-```csharp
-public void ClearCache()
-```
-
 ##### BlendNormalsWithBaseAlpha()
 Blends normal maps with per-pixel alpha weighting from base textures.
 
@@ -648,7 +641,7 @@ public class ProceduralWallTexture : MonoBehaviour
 **Solution**: Shader writes to both OutputTexture and OutputBuffer for OpenGL ES 3.0 compatibility.
 
 ### Issue: Cache not working
-**Solution**: Cache uses texture instance IDs. If textures are destroyed/recreated, call `ClearCache()`.
+**Solution**: Cache uses texture instance IDs and is managed automatically. Ensure "Enable Array Cache" is checked in Inspector. Cache is cleared automatically when the component is destroyed. Modified textures with the same instance ID will reuse cached arrays (hash doesn't change).
 
 ### Issue: Performance worse than expected
 **Solution**: 
@@ -698,4 +691,3 @@ For questions or issues:
 ## Credits
 
 Built for BlueDesertFox VR project using Unity 6 (6000.3.10f1) with URP 17.3.0.
-

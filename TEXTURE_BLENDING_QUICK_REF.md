@@ -192,13 +192,14 @@ void BlendNormalsWithBaseAlphaToExistingTexture(RenderTexture, Texture[] normals
 
 // Resource management
 void ReturnTexture(RenderTexture)
-void ClearCache()
 
 // Enums
 BlendMode.Additive
 BlendMode.AlphaWeighted
 BlendMode.Multiplicative
 ```
+
+**Note:** Cache management is automatic - no manual methods needed. Cache cleared on component destroy.
 
 ## Complete Documentation
 

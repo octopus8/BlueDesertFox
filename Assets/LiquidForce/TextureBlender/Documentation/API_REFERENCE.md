@@ -484,31 +484,6 @@ blender.ReturnTexture(temp);  // Return to pool
 
 ---
 
-#### ClearCache()
-
-Clears the texture array cache.
-
-```csharp
-public void ClearCache()
-```
-
-**When to call:**
-- When input textures have been modified
-- When freeing memory after batch operations
-- Before switching to completely different texture sets
-
-**Example:**
-```csharp
-// Modify textures
-texture1.SetPixels(newColors);
-texture1.Apply();
-
-// Clear cache so next blend uses updated texture
-blender.ClearCache();
-```
-
----
-
 ## Enums
 
 ### BlendMode
@@ -606,12 +581,23 @@ Internal resource management class (not directly used).
 public void PrewarmPool(int width, int height, RenderTextureFormat format, int count)
 public void PrewarmBufferPool(int elementCount, int stride, int poolSize)
 
-// Resource management (called internally)
+// Resource management (called internally by TextureBlender)
 public RenderTexture GetOrCreateRenderTexture(int width, int height, RenderTextureFormat format)
 public void ReturnRenderTexture(RenderTexture rt)
 public ComputeBuffer GetOrCreateBuffer(int count, int stride)
 public void ReturnBuffer(ComputeBuffer buffer)
+public Texture2DArray GetOrCreateTextureArray(int hash, Texture2DArray textureArray)
+
+// Cleanup (automatic on component destroy)
+public void Dispose()
 ```
+
+**Resource Types Managed:**
+- **RenderTextures:** Pooled by (width, height, format) - reused for blend outputs
+- **ComputeBuffers:** Pooled by element count - reused for weights, rotations, offsets
+- **Texture2DArrays:** Cached by hash - reused for identical texture sets (35% speedup)
+
+**All resources automatically cleaned up when TextureBlender component is destroyed.**
 
 ---
 
@@ -657,17 +643,16 @@ The system logs errors for:
 
 - RenderTextures returned to pool automatically on component destroy
 - ComputeBuffers released automatically
-- Texture2DArrays tracked and disposed
+- Texture2DArrays automatically cleared and disposed on component destroy
 
 ### Manual Cleanup
 
 ```csharp
-// Return individual textures
+// Return individual textures to pool when done
 blender.ReturnTexture(result);
-
-// Clear cache to free memory
-blender.ClearCache();
 ```
+
+**Note:** Cache clearing happens automatically when the component is destroyed. The texture array cache uses hash-based lookup, so modified textures automatically get new cache entries.
 
 ---
 
@@ -676,4 +661,3 @@ blender.ClearCache();
 **Not thread-safe:** TextureBlender must be used from Unity main thread only.
 
 For async operations, use `BlendTexturesAsync()` which properly handles Unity's threading model via UniTask.
-

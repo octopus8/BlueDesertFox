@@ -123,9 +123,6 @@ public class TextureBlenderBenchmark : MonoBehaviour
             weights[i] = 1f / textureCount;
         }
         
-        // Clear cache before first test
-//        textureBlender.ClearCache();
-        
         // Force garbage collection to avoid GC during benchmark
         System.GC.Collect();
         System.GC.WaitForPendingFinalizers();
