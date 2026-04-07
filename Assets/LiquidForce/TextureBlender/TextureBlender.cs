@@ -90,9 +90,6 @@ public class TextureBlender : MonoBehaviour
     private static readonly int TextureWidthID = Shader.PropertyToID("TextureWidth");
     private static readonly int TextureHeightID = Shader.PropertyToID("TextureHeight");
     
-    // Speed optimization: Cache Texture2DArray conversions
-    private Dictionary<int, Texture2DArray> textureArrayCache;
-    
     // Speed optimization: Cached zero-rotation arrays to avoid allocations when rotation is not used
     private Dictionary<int, float[]> cachedZeroRotations = new Dictionary<int, float[]>();
     private const float RotationEpsilon = 0.0001f;
@@ -152,12 +149,6 @@ public class TextureBlender : MonoBehaviour
         if (useTexturePooling)
         {
             resources.PrewarmPool(1024, 1024, outputFormat, 1);
-        }
-        
-        // Initialize texture array cache
-        if (enableArrayCache)
-        {
-            textureArrayCache = new Dictionary<int, Texture2DArray>();
         }
         
         // Set the initialized flag.
@@ -466,23 +457,6 @@ public class TextureBlender : MonoBehaviour
         else if (texture != null)
         {
             texture.Release();
-        }
-    }
-    
-    
-    /// <summary>
-    /// Clears the texture array cache. Call this if textures have been modified.
-    /// </summary>
-    public void ClearCache()
-    {
-        if (textureArrayCache != null)
-        {
-            foreach (var array in textureArrayCache.Values)
-            {
-                if (array != null)
-                    Destroy(array);
-            }
-            textureArrayCache.Clear();
         }
     }
     
@@ -907,27 +881,20 @@ public class TextureBlender : MonoBehaviour
     /// <returns></returns>
     private Texture2DArray GetOrCreateTextureArray(Texture[] textures, out int width, out int height)
     {
-        using (s_CacheCheck.Auto())
+        // Check cache first if enabled
+        if (enableArrayCache)
         {
-            // Check cache first if enabled
-            if (enableArrayCache)
+            using (s_CacheCheck.Auto())
             {
                 int hash = TextureArrayBuilder.ComputeTextureArrayHash(textures);
                 
-                if (textureArrayCache.ContainsKey(hash))
+                // Try to get from cache
+                Texture2DArray cachedArray = resources.GetOrCreateTextureArray(hash, null);
+                if (cachedArray != null)
                 {
-                    Texture2DArray cachedArray = textureArrayCache[hash];
-                    if (cachedArray != null)
-                    {
-                        width = cachedArray.width;
-                        height = cachedArray.height;
-                        return cachedArray;
-                    }
-                    else
-                    {
-                        // Remove invalid entry
-                        textureArrayCache.Remove(hash);
-                    }
+                    width = cachedArray.width;
+                    height = cachedArray.height;
+                    return cachedArray;
                 }
             }
         }
@@ -939,8 +906,7 @@ public class TextureBlender : MonoBehaviour
         if (enableArrayCache && textureArray != null)
         {
             int hash = TextureArrayBuilder.ComputeTextureArrayHash(textures);
-            textureArrayCache[hash] = textureArray;
-            resources.TrackTextureArray(textureArray);
+            resources.GetOrCreateTextureArray(hash, textureArray);
         }
         
         return textureArray;
@@ -1128,20 +1094,18 @@ public class TextureBlender : MonoBehaviour
     #region Cleanup
     
     /// <summary>
-    /// Cleans up resources when the TextureBlender is destroyed. Clears caches and disposes of any pooled resources.
+    /// Cleans up resources when the TextureBlender is destroyed.
+    /// Texture array cache is automatically cleared by resources.Dispose().
     /// </summary>
     private void OnDestroy()
     {
-        // Clear cache
-        ClearCache();
-        
         // Clear rotation cache
         cachedZeroRotations?.Clear();
         
         // Clear offset cache
         cachedZeroOffsets?.Clear();
         
-        // Dispose resources
+        // Dispose resources (includes clearing texture array cache)
         resources?.Dispose();
         
         isInitialized = false;

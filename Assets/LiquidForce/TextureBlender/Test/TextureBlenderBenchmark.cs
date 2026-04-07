@@ -124,7 +124,7 @@ public class TextureBlenderBenchmark : MonoBehaviour
         }
         
         // Clear cache before first test
-        textureBlender.ClearCache();
+//        textureBlender.ClearCache();
         
         // Force garbage collection to avoid GC during benchmark
         System.GC.Collect();
