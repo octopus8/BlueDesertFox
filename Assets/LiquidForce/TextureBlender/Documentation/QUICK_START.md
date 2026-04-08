@@ -24,7 +24,6 @@ Get up and running with TextureBlender in 5 minutes.
 ### Performance Settings
 - ✓ **Use Texture Pooling** (recommended)
 - **Max Pooled Textures**: 5
-- ✓ **Enable Array Cache** (recommended)
 - ☐ **Fast Mode** (only if inputs validated)
 
 ## Step 4: Basic Usage
@@ -77,8 +76,7 @@ Use the context menu on `TextureBlenderExample`:
 ### Issue: Slow performance
 **Solution**: 
 1. Enable "Use Texture Pooling"
-2. Enable "Enable Array Cache"
-3. Reduce output resolution for VR (1024×1024)
+2. Reduce output resolution for VR (1024×1024)
 
 ### Issue: Memory leaks
 **Solution**: Call `blender.ReturnTexture(result)` when done with blended texture
@@ -148,9 +146,8 @@ For VR applications:
 
 1. Set output resolution to **1024×1024**
 2. Enable **Use Texture Pooling**
-3. Enable **Enable Array Cache**
-4. Enable **Fast Mode** (if inputs validated)
-5. Use **BlendMode.Additive** when possible (30% faster)
+3. Enable **Fast Mode** (if inputs validated)
+4. Use **BlendMode.Additive** when possible (30% faster)
 
 Target: <3ms per blend on Quest 2
 

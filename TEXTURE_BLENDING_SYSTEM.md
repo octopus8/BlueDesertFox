@@ -49,8 +49,9 @@ public class MyScript : MonoBehaviour
 4. Configure default output settings (2048x2048 recommended)
 5. Enable performance features:
    - ✓ Use Texture Pooling
-   - ✓ Enable Array Cache
    - □ Fast Mode (skip validation)
+
+**Note:** Texture2DArray caching is always enabled automatically
 
 ## API Reference
 
@@ -393,10 +394,10 @@ public class ProceduralTerrainVariation : MonoBehaviour
 
 ### Performance Tips
 
-1. **Enable Array Caching** (Inspector: Enable Array Cache)
-   - Saves 1-2ms per repeat blend
-   - Automatically caches Texture2DArray conversions
-   - Cleared automatically when textures change
+1. **Texture2DArray Caching** (Always Enabled)
+   - Automatically saves 1-2ms per repeat blend
+   - Caches Texture2DArray conversions based on texture instance IDs
+   - Cleared automatically on component destroy
 
 2. **Use Texture Pooling** (Inspector: Use Texture Pooling)
    - Saves 0.5-1ms by avoiding RenderTexture allocation
@@ -623,7 +624,7 @@ public class ProceduralWallTexture : MonoBehaviour
 ## Troubleshooting
 
 ### Issue: Slow first blend
-**Solution**: First blend includes Texture2DArray conversion (~1-2ms). Enable Array Cache for instant repeat blends.
+**Solution**: First blend includes Texture2DArray conversion (~1-2ms). Repeat blends use cache automatically (always enabled).
 
 ### Issue: Memory leaks
 **Solution**: Always call `ReturnTexture()` when done, or enable Texture Pooling.
@@ -641,7 +642,7 @@ public class ProceduralWallTexture : MonoBehaviour
 **Solution**: Shader writes to both OutputTexture and OutputBuffer for OpenGL ES 3.0 compatibility.
 
 ### Issue: Cache not working
-**Solution**: Cache uses texture instance IDs and is managed automatically. Ensure "Enable Array Cache" is checked in Inspector. Cache is cleared automatically when the component is destroyed. Modified textures with the same instance ID will reuse cached arrays (hash doesn't change).
+**Solution**: Cache uses texture instance IDs and is always enabled. Cache is cleared automatically when the component is destroyed. Modified textures with the same instance ID will reuse cached arrays (hash doesn't change).
 
 ### Issue: Performance worse than expected
 **Solution**: 

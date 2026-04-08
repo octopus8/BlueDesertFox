@@ -60,7 +60,6 @@ public class TextureBlender : MonoBehaviour
     [Header("Performance Settings - Speed Priority")]
     [SerializeField] private bool useTexturePooling = true;
     [SerializeField] private int maxPooledTextures = 5;
-    [SerializeField] private bool enableArrayCache = true;  // Cache Texture2DArray for repeat blends
     [SerializeField] private bool fastMode = false;  // Skip validation checks for maximum speed
     
     #endregion
@@ -236,85 +235,6 @@ public class TextureBlender : MonoBehaviour
     
     
     /// <summary>
-    /// Blends textures asynchronously (non-blocking).
-    /// Useful for loading screens or background processing.
-    /// </summary>
-    /// <param name="textures">Array of textures to blend</param>
-    /// <param name="weights">Optional blend weights (null = equal weights)</param>
-    /// <param name="mode">Blend mode to use</param>
-    /// <param name="cancellationToken">Cancellation token for async operation</param>
-    /// <returns>UniTask that resolves to blended RenderTexture</returns>
-    public async UniTask<RenderTexture> BlendTexturesAsync(
-        Texture[] textures, 
-        float[] weights = null, 
-        BlendMode mode = BlendMode.AlphaWeighted,
-        CancellationToken cancellationToken = default)
-    {
-        return await BlendTexturesAsync(textures, weights, null, null, mode, cancellationToken);
-    }
-    
-    
-    /// <summary>
-    /// Blends textures asynchronously (non-blocking) with optional rotation per texture.
-    /// Useful for loading screens or background processing.
-    /// </summary>
-    /// <param name="textures">Array of textures to blend</param>
-    /// <param name="weights">Optional blend weights</param>
-    /// <param name="rotationsDegrees">Optional rotation per texture (0-360°)</param>
-    /// <param name="mode">Blend mode to use</param>
-    /// <param name="cancellationToken">Cancellation token for async operation</param>
-    /// <returns>UniTask that resolves to blended RenderTexture</returns>
-    public async UniTask<RenderTexture> BlendTexturesAsync(
-        Texture[] textures,
-        float[] weights,
-        float[] rotationsDegrees,
-        BlendMode mode = BlendMode.AlphaWeighted,
-        CancellationToken cancellationToken = default)
-    {
-        return await BlendTexturesAsync(textures, weights, rotationsDegrees, null, mode, cancellationToken);
-    }
-    
-    
-    /// <summary>
-    /// Blends textures asynchronously (non-blocking) with optional rotation and UV offset per texture.
-    /// Useful for loading screens or background processing.
-    /// </summary>
-    /// <param name="textures">Array of textures to blend</param>
-    /// <param name="weights">Optional blend weights</param>
-    /// <param name="rotationsDegrees">Optional rotation per texture (0-360°)</param>
-    /// <param name="offsets">Optional UV offsets per texture (automatically tiles/wraps)</param>
-    /// <param name="mode">Blend mode to use</param>
-    /// <param name="cancellationToken">Cancellation token for async operation</param>
-    /// <returns>UniTask that resolves to blended RenderTexture</returns>
-    public async UniTask<RenderTexture> BlendTexturesAsync(
-        Texture[] textures,
-        float[] weights,
-        float[] rotationsDegrees,
-        Vector2[] offsets,
-        BlendMode mode = BlendMode.AlphaWeighted,
-        CancellationToken cancellationToken = default)
-    {
-        if (!isInitialized)
-            Initialize();
-        
-        if (!ValidateInputs(textures))
-            return null;
-
-        // Create output RenderTexture
-        RenderTexture output = useTexturePooling
-            ? resources.GetOrCreateRenderTexture(defaultOutputWidth, defaultOutputHeight, outputFormat)
-            : CreateRenderTexture(defaultOutputWidth, defaultOutputHeight);
-        
-        // Blend to the output texture with rotation and offset
-        BlendToExistingTexture(output, textures, weights, rotationsDegrees, offsets, mode);
-        
-        // Yield to next frame for frame pacing
-        await UniTask.Yield(PlayerLoopTiming.Update, cancellationToken);
-        return output;
-    }
-    
-    
-    /// <summary>
     /// Blends textures into an existing RenderTexture (no allocation).
     /// PERFORMANCE: Fastest option when reusing render targets.
     /// </summary>
@@ -387,13 +307,13 @@ public class TextureBlender : MonoBehaviour
             ? PrepareWeightsForAlphaMode(textures, weights)
             : NormalizeWeights(textures, weights);
         
-        // Convert textures to Texture2DArray (with caching)
+        // Convert textures to Texture2DArray (with caching).
+        // The texture array needs to be converted to a Texture2DArray so they can be passed to the compute shader. 
         Texture2DArray textureArray;
         using (s_TextureArrayConversion.Auto())
         {
             textureArray = GetOrCreateTextureArray(textures, out _, out _);
         }
-        
         if (textureArray == null)
         {
             Debug.LogError("TextureBlender: Failed to create Texture2DArray!");
@@ -871,31 +791,21 @@ public class TextureBlender : MonoBehaviour
         return result;
     }
     
-    
-    /// <summary>
-    /// Gets a cached Texture2DArray for the given textures or creates a new one if not cached.
-    /// </summary>
-    /// <param name="textures"></param>
-    /// <param name="width"></param>
-    /// <param name="height"></param>
-    /// <returns></returns>
+
     private Texture2DArray GetOrCreateTextureArray(Texture[] textures, out int width, out int height)
     {
-        // Check cache first if enabled
-        if (enableArrayCache)
+        // Check cache first
+        using (s_CacheCheck.Auto())
         {
-            using (s_CacheCheck.Auto())
+            int hash = TextureArrayBuilder.ComputeTextureArrayHash(textures);
+            
+            // Try to get from cache
+            Texture2DArray cachedArray = resources.GetOrCreateTextureArray(hash, null);
+            if (cachedArray != null)
             {
-                int hash = TextureArrayBuilder.ComputeTextureArrayHash(textures);
-                
-                // Try to get from cache
-                Texture2DArray cachedArray = resources.GetOrCreateTextureArray(hash, null);
-                if (cachedArray != null)
-                {
-                    width = cachedArray.width;
-                    height = cachedArray.height;
-                    return cachedArray;
-                }
+                width = cachedArray.width;
+                height = cachedArray.height;
+                return cachedArray;
             }
         }
         
@@ -903,7 +813,7 @@ public class TextureBlender : MonoBehaviour
         Texture2DArray textureArray = TextureArrayBuilder.BuildFromTextures(textures, out width, out height, false);
         
         // Cache for future use
-        if (enableArrayCache && textureArray != null)
+        if (textureArray != null)
         {
             int hash = TextureArrayBuilder.ComputeTextureArrayHash(textures);
             resources.GetOrCreateTextureArray(hash, textureArray);

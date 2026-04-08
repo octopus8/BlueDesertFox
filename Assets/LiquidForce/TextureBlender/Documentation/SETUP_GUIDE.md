@@ -104,7 +104,6 @@ Default Output Settings:
 Performance Settings:
   Use Texture Pooling: ✓
   Max Pooled Textures: 5
-  Enable Array Cache: ✓
   Fast Mode: ☐ (leave unchecked initially)
 ```
 
@@ -152,17 +151,13 @@ Performance Settings:
 - **High Performance:** 10
 - **Memory per texture:** ~16MB for 2048×2048 ARGB32
 
-**Enable Array Cache**
-- **Default:** ✓ Enabled
-- **When to disable:** If textures change frequently
-- **Benefit:** Saves 1-2ms on repeat blends
-- **Memory:** ~64MB per unique texture set
-
 **Fast Mode**
 - **Default:** ☐ Disabled
 - **When to enable:** Only if inputs are validated elsewhere
 - **Benefit:** Skips null checks (~0.1ms)
 - **Risk:** Crashes if given invalid inputs
+
+**Note:** Texture2DArray caching is always enabled (saves 1-2ms on repeat blends, ~64MB per unique texture set).
 
 ---
 
@@ -367,7 +362,6 @@ Default Output Width: 1024
 Default Output Height: 1024
 Use Texture Pooling: ✓
 Max Pooled Textures: 3
-Enable Array Cache: ✓
 Fast Mode: ✓
 
 // Code:
@@ -388,7 +382,6 @@ Default Output Height: 4096
 Output Format: ARGBFloat  // HDR
 Use Texture Pooling: ✓
 Max Pooled Textures: 10
-Enable Array Cache: ✓
 Fast Mode: ☐
 
 // Code:
@@ -408,7 +401,6 @@ Default Output Width: 2048
 Default Output Height: 2048
 Use Texture Pooling: ✓
 Max Pooled Textures: 5
-Enable Array Cache: ✓
 Fast Mode: ☐
 
 // Code:
@@ -569,9 +561,10 @@ var result = TextureBlenderManager.Instance.BlendTextures(textures);
 
 **Solution:**
 1. Enable Texture Pooling
-2. Enable Array Cache
-3. Check output resolution (lower for VR)
-4. Run Performance Test to benchmark
+2. Check output resolution (lower for VR)
+3. Run Performance Test to benchmark
+
+**Note:** Texture2DArray caching is always enabled automatically.
 
 ---
 

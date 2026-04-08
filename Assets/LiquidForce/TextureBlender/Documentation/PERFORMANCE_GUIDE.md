@@ -28,9 +28,10 @@ Optimization strategies and profiling techniques for maximum performance.
 ### Essential Optimizations (Always Do)
 
 - ✅ **Enable Texture Pooling** - Saves 0.5-1ms per blend
-- ✅ **Enable Array Cache** - Saves 1-2ms on repeat blends
 - ✅ **Set Appropriate Resolution** - Use 1024×1024 for VR
 - ✅ **Call ReturnTexture()** - Prevents memory leaks
+
+**Note:** Texture2DArray caching is always enabled (saves 1-2ms on repeat blends)
 
 ### High-Impact Optimizations
 
@@ -59,7 +60,6 @@ Default Output Width: 1024
 Default Output Height: 1024
 Use Texture Pooling: ✓
 Max Pooled Textures: 3
-Enable Array Cache: ✓
 Fast Mode: ✓
 
 // Code
@@ -84,7 +84,6 @@ Default Output Width: 2048
 Default Output Height: 2048
 Use Texture Pooling: ✓
 Max Pooled Textures: 5
-Enable Array Cache: ✓
 Fast Mode: ☐
 
 // Code
@@ -109,7 +108,6 @@ Default Output Width: 2048
 Default Output Height: 2048
 Use Texture Pooling: ✓
 Max Pooled Textures: 10
-Enable Array Cache: ✓
 Fast Mode: ☐
 
 // Code
@@ -135,7 +133,6 @@ Default Output Width: 1024
 Default Output Height: 1024
 Use Texture Pooling: ✓
 Max Pooled Textures: 20
-Enable Array Cache: ✓
 Fast Mode: ✓
 
 // Code
@@ -519,7 +516,7 @@ void RunBenchmark()
     
     Debug.Log($"Average blend time: {avgTime:F3}ms over {iterations} iterations");
     Debug.Log($"Textures: {textures.Length}, Resolution: {textures[0].width}×{textures[0].height}");
-    Debug.Log($"Mode: {mode}, Pooling: {usePooling}, Caching: {enableCache}");
+    Debug.Log($"Mode: {mode}, Pooling: {usePooling}");
 }
 ```
 
@@ -529,25 +526,26 @@ void RunBenchmark()
 
 ### Priority 1: Must Do
 1. Enable texture pooling
-2. Enable array caching
-3. Return textures to pool
-4. Use appropriate resolution
+2. Return textures to pool
+3. Use appropriate resolution
+
+**Note:** Texture2DArray caching is always enabled automatically
 
 ### Priority 2: High Impact
-5. Use Additive mode when possible
-6. Reuse RenderTextures
-7. Prewarm pools
+4. Use Additive mode when possible
+5. Reuse RenderTextures
+6. Prewarm pools
 
 ### Priority 3: Fine Tuning
-8. Uniform texture sizes
-9. Batch operations
-10. Enable Fast Mode
+7. Uniform texture sizes
+8. Batch operations
+9. Enable Fast Mode
 
 ### Priority 4: Extreme Cases
-11. Persistent RenderTextures
-12. Weight array caching
-13. Frame amortization
-14. Async operations
+10. Persistent RenderTextures
+11. Weight array caching
+12. Frame amortization
+13. Async operations
 
 ---
 

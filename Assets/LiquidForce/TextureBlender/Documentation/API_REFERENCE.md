@@ -552,8 +552,9 @@ public struct BlendRequest
 
 - **Use Texture Pooling** - Enable RenderTexture pooling (recommended: true)
 - **Max Pooled Textures** - Maximum textures in pool (default: 5)
-- **Enable Array Cache** - Cache Texture2DArray conversions (recommended: true)
 - **Fast Mode** - Skip validation checks (use with caution)
+
+**Note:** Texture2DArray caching is always enabled for optimal performance.
 
 ---
 

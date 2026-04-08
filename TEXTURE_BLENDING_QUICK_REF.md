@@ -106,7 +106,7 @@ result.Release();
 
 ## Performance Tips
 
-⚡ **Enable Array Cache** - 1-2ms speedup for repeat blends
+⚡ **Texture2DArray Caching** - Always enabled (1-2ms speedup for repeat blends)
 ⚡ **Use Texture Pooling** - 0.5-1ms speedup (avoid allocation)
 ⚡ **BlendToExistingTexture()** - Fastest when updating frequently
 ⚡ **Additive Mode** - 30% faster than AlphaWeighted
@@ -118,14 +118,14 @@ result.Release();
 
 ### Recommended Settings (High Performance)
 - ✅ Use Texture Pooling
-- ✅ Enable Array Cache
 - Max Pooled Textures: 5-10
 - □ Fast Mode (enable after validation)
+
+**Note:** Texture2DArray caching is always enabled automatically
 
 ### VR Settings
 - Default Output Width/Height: 1024
 - ✅ Use Texture Pooling
-- ✅ Enable Array Cache
 - ✅ Fast Mode
 
 ## Performance Targets
@@ -156,7 +156,7 @@ result.Release();
 **Solution**: Check all textures assigned (nulls become transparent black).
 
 **Problem**: Performance worse than expected
-**Solution**: Enable Array Cache + Texture Pooling, use Fast Mode, check Profiler.
+**Solution**: Enable Texture Pooling, use Fast Mode, check Profiler. (Array caching is always enabled)
 
 ## Profiler Markers
 

@@ -59,7 +59,6 @@ private int defaultOutputHeight = 2048;
 private RenderTextureFormat outputFormat = ARGB32;
 private bool useTexturePooling = true;
 private int maxPooledTextures = 5;
-private bool enableArrayCache = true;
 private bool fastMode = false;
 
 // Runtime state

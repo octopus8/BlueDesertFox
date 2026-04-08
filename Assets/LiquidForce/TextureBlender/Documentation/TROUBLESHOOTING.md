@@ -104,8 +104,9 @@ Default Output Height: 1024  // Was 2048
 ```csharp
 // In Inspector:
 Use Texture Pooling: ✓
-Enable Array Cache: ✓
 Fast Mode: ✓ (if inputs validated)
+
+// Note: Texture2DArray caching is always enabled
 ```
 
 **Step 3: Use Faster Blend Mode**
@@ -119,8 +120,8 @@ var result = blender.BlendTextures(
 
 **Step 4: Check Profiler Markers**
 ```
-TextureBlender.ConvertToArray > 2ms?
-→ Array not cached, ensure Enable Array Cache = ✓
+TextureBlender.ConvertToArray > 2ms consistently?
+→ Check if textures are changing (cache hit requires same instances)
 
 TextureBlender.AllocateResources > 0.5ms?
 → Pool misses, increase Max Pooled Textures
@@ -194,25 +195,16 @@ void OnDestroy()
 - Second blend: 5ms (should be ~2ms)
 - `TextureBlender.ConvertToArray` always shows time
 
+**Note:** Texture2DArray caching is always enabled automatically.
+
 **Diagnostic:**
 ```csharp
-// Check Inspector:
-Enable Array Cache: ✓  // Must be checked
-
 // Verify textures aren't changing
 // Cache uses texture instance IDs
 // If textures recreated, cache misses
 ```
 
-**Solutions:**
-
-**Solution 1: Ensure Cache Enabled**
-```csharp
-// In Inspector, enable:
-Enable Array Cache: ✓
-```
-
-**Solution 2: Don't Recreate Textures**
+**Solution: Don't Recreate Textures**
 ```csharp
 // BAD - Creates new texture each frame
 void Update()
@@ -513,13 +505,11 @@ public class TextureBlenderValidator : MonoBehaviour
         
         // Check settings
         Debug.Log($"Pooling: {blender.useTexturePooling}");  // Private
-        Debug.Log($"Caching: {blender.enableArrayCache}");   // Private
         
         // Recommend Inspector check instead
         Debug.Log("Check Inspector for:");
         Debug.Log("  - Image Processor Shader assigned");
         Debug.Log("  - Use Texture Pooling enabled");
-        Debug.Log("  - Enable Array Cache enabled");
     }
 }
 ```

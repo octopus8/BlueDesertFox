@@ -57,7 +57,7 @@ Located in `Assets/LiquidForce/TextureBlender/`:
 `- **API**: `BlendTextures()` (basic with optional rotation), `BlendTextures(..., rotations, offsets)` (full control with rotation and UV offset), `BlendTexturesAsync()` (non-blocking with UniTask), `BlendToExistingTexture()` (fastest - no allocation), `BlendNormalsWithBaseAlpha()` (normal map support with rotation), `BatchBlend()` (multiple operations)
 - **Compute Shader**: `TextureBlenderComputeShader.compute` with kernels for each blend mode and normal blending, uses [numthreads(8,8,1)] for optimal GPU occupancy on RTX series, custom sampler (`sampler_linear_repeat`) with Wrap mode for seamless UV tiling during rotation
 - **VR Compatible**: Writes to both RWTexture2D and RWStructuredBuffer for OpenGL ES 3.0 support (Quest/Pico)
-- **Configuration**: Enable array caching and texture pooling in Inspector for maximum speed, FastMode to skip validation
+- **Configuration**: Enable texture pooling in Inspector for maximum speed, FastMode to skip validation (Texture2DArray caching is always enabled)
 - **Profiler Markers**: `TextureBlender.ConvertToArray`, `TextureBlender.Dispatch`, `TextureBlender.AllocateResources`, `TextureBlender.CacheCheck`
 - **Examples**: `TextureBlenderExample.cs` shows usage patterns including rotation, `TextureBlenderBenchmark.cs` for performance testing
 - **Documentation**: See `Assets/LiquidForce/TextureBlender/Documentation/` folder for complete guides (README, API_REFERENCE, ARCHITECTURE, QUICK_START, etc.) or `TEXTURE_BLENDING_SYSTEM.md` in project root
