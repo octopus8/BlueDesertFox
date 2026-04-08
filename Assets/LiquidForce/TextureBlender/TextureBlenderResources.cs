@@ -87,6 +87,7 @@ public class TextureBlenderResources : IDisposable
     /// <summary>
     /// Gets a RenderTexture from the pool or creates a new one if pool is empty.
     /// Fast retrieval with pooling (avoids allocations).
+    /// Pooled textures are cleared to transparent to avoid artifacts from previous use.
     /// </summary>
     public RenderTexture GetOrCreateRenderTexture(int width, int height, RenderTextureFormat format)
     {
@@ -99,6 +100,12 @@ public class TextureBlenderResources : IDisposable
             // Ensure texture is still valid
             if (rt != null && rt.IsCreated())
             {
+                // Clear to transparent to avoid artifacts from previous use
+                RenderTexture previous = RenderTexture.active;
+                RenderTexture.active = rt;
+                GL.Clear(true, true, Color.clear);
+                RenderTexture.active = previous;
+                
                 return rt;
             }
             else if (rt != null)
@@ -107,7 +114,7 @@ public class TextureBlenderResources : IDisposable
             }
         }
         
-        // Create new RenderTexture if pool is empty
+        // Create new RenderTexture if pool is empty (already cleared)
         RenderTexture newRT = new RenderTexture(width, height, 0, format);
         newRT.enableRandomWrite = true;
         newRT.Create();
