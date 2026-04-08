@@ -187,20 +187,27 @@ public class TextureBlenderResources : IDisposable
     
     
     /// <summary>
-    /// Gets a cached Texture2DArray or creates a new one if not in cache.
+    /// Gets a cached Texture2DArray or creates a new one from the provided textures.
+    /// Handles cache lookup, texture array creation, and caching internally.
     /// PERFORMANCE: Cache provides 35% speedup for repeat blends.
     /// </summary>
-    /// <param name="hash">Hash key for the texture array</param>
-    /// <param name="textureArray">The texture array to cache if not found</param>
-    /// <returns>Cached or newly cached Texture2DArray</returns>
-    public Texture2DArray GetOrCreateTextureArray(int hash, Texture2DArray textureArray)
+    /// <param name="textures">Array of textures to convert to Texture2DArray</param>
+    /// <param name="width">Output width of the texture array</param>
+    /// <param name="height">Output height of the texture array</param>
+    /// <returns>Cached or newly created Texture2DArray</returns>
+    public Texture2DArray GetOrCreateTextureArray(Texture[] textures, out int width, out int height)
     {
+        // Compute hash for cache lookup
+        int hash = TextureArrayBuilder.ComputeTextureArrayHash(textures);
+        
         // Check cache first
         if (textureArrayCache.ContainsKey(hash))
         {
             Texture2DArray cachedArray = textureArrayCache[hash];
             if (cachedArray != null)
             {
+                width = cachedArray.width;
+                height = cachedArray.height;
                 return cachedArray;
             }
             else
@@ -210,7 +217,10 @@ public class TextureBlenderResources : IDisposable
             }
         }
         
-        // Cache the new array
+        // Not in cache - create new texture array
+        Texture2DArray textureArray = TextureArrayBuilder.BuildFromTextures(textures, out width, out height, false);
+        
+        // Cache for future use
         if (textureArray != null)
         {
             textureArrayCache[hash] = textureArray;

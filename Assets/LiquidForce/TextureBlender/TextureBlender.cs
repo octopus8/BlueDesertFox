@@ -312,7 +312,7 @@ public class TextureBlender : MonoBehaviour
         Texture2DArray textureArray;
         using (s_TextureArrayConversion.Auto())
         {
-            textureArray = GetOrCreateTextureArray(textures, out _, out _);
+            textureArray = resources.GetOrCreateTextureArray(textures, out _, out _);
         }
         if (textureArray == null)
         {
@@ -560,8 +560,8 @@ public class TextureBlender : MonoBehaviour
         Texture2DArray baseTextureArray;
         using (s_TextureArrayConversion.Auto())
         {
-            normalTextureArray = GetOrCreateTextureArray(normalTextures, out _, out _);
-            baseTextureArray = GetOrCreateTextureArray(baseTextures, out _, out _);
+            normalTextureArray = resources.GetOrCreateTextureArray(normalTextures, out _, out _);
+            baseTextureArray = resources.GetOrCreateTextureArray(baseTextures, out _, out _);
         }
         
         if (normalTextureArray == null || baseTextureArray == null)
@@ -792,37 +792,6 @@ public class TextureBlender : MonoBehaviour
     }
     
 
-    private Texture2DArray GetOrCreateTextureArray(Texture[] textures, out int width, out int height)
-    {
-        // Check cache first
-        using (s_CacheCheck.Auto())
-        {
-            int hash = TextureArrayBuilder.ComputeTextureArrayHash(textures);
-            
-            // Try to get from cache
-            Texture2DArray cachedArray = resources.GetOrCreateTextureArray(hash, null);
-            if (cachedArray != null)
-            {
-                width = cachedArray.width;
-                height = cachedArray.height;
-                return cachedArray;
-            }
-        }
-        
-        // Create new texture array
-        Texture2DArray textureArray = TextureArrayBuilder.BuildFromTextures(textures, out width, out height, false);
-        
-        // Cache for future use
-        if (textureArray != null)
-        {
-            int hash = TextureArrayBuilder.ComputeTextureArrayHash(textures);
-            resources.GetOrCreateTextureArray(hash, textureArray);
-        }
-        
-        return textureArray;
-    }
-    
-    
     /// <summary>
     /// Executes the blend operation by dispatching the appropriate compute shader kernel based on the blend mode.
     /// </summary>
