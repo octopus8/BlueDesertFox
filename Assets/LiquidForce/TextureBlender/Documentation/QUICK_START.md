@@ -43,8 +43,8 @@ public class MyTextureBlender : MonoBehaviour
     
     void Start()
     {
-        // Blend with equal weights
-        RenderTexture result = blender.BlendTextures(texturesToBlend);
+        // Blend with equal weights (target = null creates new texture)
+        RenderTexture result = blender.BlendTextures(null, texturesToBlend, null);
         
         // Apply to material
         targetRenderer.material.mainTexture = result;
@@ -91,28 +91,31 @@ Use the context menu on `TextureBlenderExample`:
 ## Quick Reference: Key Methods
 
 ```csharp
-// Simple blend
-RenderTexture result = blender.BlendTextures(textures);
+// Simple blend (creates new texture)
+RenderTexture result = blender.BlendTextures(null, textures, weights);
 
-// Custom weights
-float[] weights = { 0.5f, 0.3f, 0.2f };
-RenderTexture result = blender.BlendTextures(textures, weights);
+// Blend to existing texture (fastest - no allocation)
+RenderTexture persistentRT = new RenderTexture(2048, 2048, 0);
+persistentRT.enableRandomWrite = true;
+persistentRT.Create();
+blender.BlendTextures(persistentRT, textures, weights);  // Reuse target
 
 // With texture rotation (0-360 degrees)
 float[] rotations = { 0f, 45f, 90f };
-RenderTexture result = blender.BlendTextures(textures, weights, rotations);
+RenderTexture result = blender.BlendTextures(null, textures, weights, rotations);
 
 // With UV offset (panning/shifting)
 Vector2[] offsets = { new Vector2(0.5f, 0.3f), Vector2.zero, new Vector2(0.2f, 0.8f) };
-RenderTexture result = blender.BlendTextures(textures, weights, null, offsets);
+RenderTexture result = blender.BlendTextures(null, textures, weights, null, offsets);
 
 // With rotation and offset combined
 float[] rotations = { 0f, 45f, 90f };
 Vector2[] offsets = { new Vector2(0.5f, 0), Vector2.zero, new Vector2(0.25f, 0.25f) };
-RenderTexture result = blender.BlendTextures(textures, weights, rotations, offsets);
+RenderTexture result = blender.BlendTextures(null, textures, weights, rotations, offsets);
 
 // Different blend mode
 RenderTexture result = blender.BlendTextures(
+    null,
     textures, 
     weights, 
     TextureBlender.BlendMode.Additive);
@@ -124,12 +127,9 @@ RenderTexture result = await blender.BlendTexturesAsync(
     BlendMode.AlphaWeighted,
     cancellationToken);
 
-// Blend to existing texture (fastest)
-blender.BlendToExistingTexture(existingRT, textures, weights);
-
 // Blend normal maps with per-pixel alpha (IMPORTANT: Use same rotations!)
 float[] rotations = { 0f, 45f, 90f };
-RenderTexture baseResult = blender.BlendTextures(baseTextures, weights, rotations);
+RenderTexture baseResult = blender.BlendTextures(null, baseTextures, weights, rotations);
 RenderTexture normalResult = blender.BlendNormalsWithBaseAlpha(
     normalTextures,
     baseTextures,
@@ -150,4 +150,3 @@ For VR applications:
 4. Use **BlendMode.Additive** when possible (30% faster)
 
 Target: <3ms per blend on Quest 2
-

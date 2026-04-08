@@ -142,12 +142,11 @@ public class TextureBlenderExample : MonoBehaviour
             return;
         }
         
-        await ExampleCommonBlend();
+        ExampleCommonBlend();
         
         // Uncomment to run other examples:
         // await Example2_CustomWeightsAndMode();
         // await Example3_AsyncBlend();
-        // await Example4_BlendToExistingTexture();
         // await Example5_BatchBlending();
     }
     
@@ -167,7 +166,7 @@ public class TextureBlenderExample : MonoBehaviour
     
     
     /// <summary>
-    /// Extracts separate arrays for base textures, normal textures, weights, and rotations from textureLayers.
+    /// Extracts separate arrays for base textures, normal textures, weights, and rotations from TextureLayers.
     /// Substitutes flatNormalMap for any null normal textures.
     /// </summary>
     private void GetTextureArrays(out Texture[] baseTextures, out Texture[] normalTextures, out float[] weights, out float[] rotations, out Vector2[] offsets)
@@ -200,7 +199,7 @@ public class TextureBlenderExample : MonoBehaviour
     /// levels of transparency. The blended results are then applied to the target material, and performance metrics are logged
     /// and optionally displayed on screen. This example serves as a common use case.
     /// </summary>
-    private async UniTask ExampleCommonBlend()
+    private void ExampleCommonBlend()
     {
         Debug.Log("Example 1: Simple blend with per-pixel alpha-weighted normals");
         
@@ -214,7 +213,7 @@ public class TextureBlenderExample : MonoBehaviour
         
         // Blend base textures
         var baseStartTime = Time.realtimeSinceStartup;
-        currentBaseResult = textureBlender.BlendTextures(baseTextures, weights, rotations, offsets, blendMode);
+        currentBaseResult = textureBlender.BlendTextures(null, baseTextures, weights, rotations, offsets, blendMode);
         lastBaseBlendTime = (Time.realtimeSinceStartup - baseStartTime) * 1000f;
         
         // Blend normal textures with per-pixel base alpha modulation and rotation
@@ -233,9 +232,6 @@ public class TextureBlenderExample : MonoBehaviour
         
         // Update the performance display.
         UpdatePerformanceDisplay();
-        
-        // End UniTask.
-        await UniTask.Yield();
     }
     
     
@@ -253,7 +249,7 @@ public class TextureBlenderExample : MonoBehaviour
         
         // Blend base textures
         var baseStartTime = Time.realtimeSinceStartup;
-        currentBaseResult = textureBlender.BlendTextures(baseTextures, weights, rotations, offsets, blendMode);
+        currentBaseResult = textureBlender.BlendTextures(null, baseTextures, weights, rotations, offsets, blendMode);
         lastBaseBlendTime = (Time.realtimeSinceStartup - baseStartTime) * 1000f;
         
         // Blend normal textures with per-pixel base alpha modulation and rotation
@@ -272,57 +268,7 @@ public class TextureBlenderExample : MonoBehaviour
         
         await UniTask.Yield();
     }
-    
-    
-    /// <summary>
-    /// Example 4: Blend to existing texture (no allocation)
-    /// </summary>
-    private async UniTask Example4_BlendToExistingTexture()
-    {
-        Debug.Log("Example 4: Blend to existing texture (no allocation)");
-        
-        // Extract texture arrays
-        GetTextureArrays(out Texture[] baseTextures, out Texture[] normalTextures, out float[] weights, out float[] rotations, out Vector2[] offsets);
-        
-        // Create or reuse existing RenderTextures
-        if (currentBaseResult == null)
-        {
-            currentBaseResult = new RenderTexture(2048, 2048, 0, RenderTextureFormat.ARGB32);
-            currentBaseResult.enableRandomWrite = true;
-            currentBaseResult.Create();
-        }
-        
-        if (currentNormalResult == null)
-        {
-            currentNormalResult = new RenderTexture(2048, 2048, 0, RenderTextureFormat.ARGB32);
-            currentNormalResult.enableRandomWrite = true;
-            currentNormalResult.Create();
-        }
-        
-        var totalStartTime = Time.realtimeSinceStartup;
-        
-        // Blend base textures
-        var baseStartTime = Time.realtimeSinceStartup;
-        textureBlender.BlendToExistingTexture(currentBaseResult, baseTextures, weights, rotations, offsets, blendMode);
-        lastBaseBlendTime = (Time.realtimeSinceStartup - baseStartTime) * 1000f;
-        
-        // Blend normal textures with per-pixel base alpha modulation and rotation
-        var normalStartTime = Time.realtimeSinceStartup;
-        textureBlender.BlendNormalsWithBaseAlphaToExistingTexture(currentNormalResult, normalTextures, baseTextures, weights, rotations, offsets, blendMode);
-        lastNormalBlendTime = (Time.realtimeSinceStartup - normalStartTime) * 1000f;
-        
-        lastTotalBlendTime = (Time.realtimeSinceStartup - totalStartTime) * 1000f;
-        
-        // Apply to renderer
-        ApplyTexturesToMaterial();
-        
-        Debug.Log($"Blend to existing completed - Base: {lastBaseBlendTime:F2}ms, Normal (per-pixel alpha): {lastNormalBlendTime:F2}ms, Total: {lastTotalBlendTime:F2}ms (no allocation overhead)");
-        
-        UpdatePerformanceDisplay();
-        
-        await UniTask.Yield();
-    }
-    
+
     
     /// <summary>
     /// Example 5: Batch blending multiple texture sets
@@ -421,7 +367,7 @@ public class TextureBlenderExample : MonoBehaviour
         
         // First blend (includes array conversion) - Base
         var baseStartTime = Time.realtimeSinceStartup;
-        var baseResult = textureBlender.BlendTextures(baseTextures, weights, rotations, offsets, blendMode);
+        var baseResult = textureBlender.BlendTextures(null, baseTextures, weights, rotations, offsets, blendMode);
         var firstBaseBlendTime = (Time.realtimeSinceStartup - baseStartTime) * 1000f;
         
         // First blend (includes array conversion) - Normal with per-pixel alpha
@@ -441,7 +387,7 @@ public class TextureBlenderExample : MonoBehaviour
         totalStartTime = Time.realtimeSinceStartup;
         
         baseStartTime = Time.realtimeSinceStartup;
-        baseResult = textureBlender.BlendTextures(baseTextures, weights, rotations, offsets, blendMode);
+        baseResult = textureBlender.BlendTextures(null, baseTextures, weights, rotations, offsets, blendMode);
         var secondBaseBlendTime = (Time.realtimeSinceStartup - baseStartTime) * 1000f;
         
         normalStartTime = Time.realtimeSinceStartup;

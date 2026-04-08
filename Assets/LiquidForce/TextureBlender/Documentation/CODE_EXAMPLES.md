@@ -254,18 +254,18 @@ public class OptimalPerformance : MonoBehaviour
         
         // Method 1: Pass null for rotations (zero overhead)
         RenderTexture result1 = blender.BlendTextures(
-            textures, weights, null, 
+            null, textures, weights, null, null,
             TextureBlender.BlendMode.AlphaWeighted);
         
         // Method 2: Pass zero array (also optimized via cached zeros)
         float[] rotations = { 0f, 0f, 0f };
         RenderTexture result2 = blender.BlendTextures(
-            textures, weights, rotations, 
+            null, textures, weights, rotations, null,
             TextureBlender.BlendMode.AlphaWeighted);
         
         // Method 3: Use basic overload without rotation parameter (fastest)
         RenderTexture result3 = blender.BlendTextures(
-            textures, weights, 
+            null, textures, weights,
             TextureBlender.BlendMode.AlphaWeighted);
         
         // All three have identical performance (~0.001ms rotation overhead)
@@ -462,8 +462,8 @@ public class OffsetBlend : MonoBehaviour
         {
             blender.ReturnTexture(currentResult);
         }
-        // Blend with UV offset
-        currentResult = blender.BlendTextures(textures, weights, null, offsets);
+        // Blend with UV offset (null target = create new)
+        currentResult = blender.BlendTextures(null, textures, weights, null, offsets);
         targetRenderer.material.mainTexture = currentResult;
     }
     void OnDestroy()
@@ -497,8 +497,8 @@ public class ScrollingTexture : MonoBehaviour
         {
             blender.ReturnTexture(waterTexture);
         }
-        // Create new blended texture with animated offsets
-        waterTexture = blender.BlendTextures(waterTextures, weights, null, offsets);
+        // Create new blended texture with animated offsets (null target = create new)
+        waterTexture = blender.BlendTextures(null, waterTextures, weights, null, offsets);
         waterRenderer.material.mainTexture = waterTexture;
     }
     void OnDestroy()
@@ -530,8 +530,9 @@ public class TerrainWithOffsetAndRotation : MonoBehaviour
             new Vector2(0.7f, 0.1f),
             new Vector2(0.4f, 0.8f)
         };
-        // Blend with both rotation and offset
+        // Blend with both rotation and offset (null target = create new)
         RenderTexture result = blender.BlendTextures(
+            null,
             terrainTextures, 
             weights, 
             rotations, 
@@ -1025,7 +1026,7 @@ public class BlendPerformanceMonitor : MonoBehaviour
     {
         var startTime = Time.realtimeSinceStartup;
         
-        var result = blender.BlendTextures(textures);
+        var result = blender.BlendTextures(null, textures, null);
         
         var blendTime = (Time.realtimeSinceStartup - startTime) * 1000f;
         

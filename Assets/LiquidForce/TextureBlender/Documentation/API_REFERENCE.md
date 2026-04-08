@@ -12,19 +12,21 @@ Main component for GPU-accelerated texture blending.
 
 #### BlendTextures()
 
-Blends multiple textures into a new RenderTexture.
+Blends multiple textures into a RenderTexture. If target is null, creates a new one.
 
 **Basic Blend:**
 ```csharp
 public RenderTexture BlendTextures(
+    RenderTexture target,
     Texture[] textures,
-    float[] weights = null,
+    float[] weights,
     BlendMode mode = BlendMode.AlphaWeighted)
 ```
 
 **With Rotation:**
 ```csharp
 public RenderTexture BlendTextures(
+    RenderTexture target,
     Texture[] textures,
     float[] weights,
     float[] rotationsDegrees,
@@ -34,6 +36,7 @@ public RenderTexture BlendTextures(
 **With Rotation and UV Offset:**
 ```csharp
 public RenderTexture BlendTextures(
+    RenderTexture target,
     Texture[] textures,
     float[] weights,
     float[] rotationsDegrees,
@@ -42,18 +45,20 @@ public RenderTexture BlendTextures(
 ```
 
 **Parameters:**
+- `target` - RenderTexture to blend into (null = create new from pool)
 - `textures` - Array of textures to blend (any count)
-- `weights` - Optional blend weights (null = equal weights)
+- `weights` - Blend weights (null = equal weights)
 - `rotationsDegrees` - Optional rotation per texture (0-360°, null = no rotation)
 - `offsets` - Optional UV offsets per texture (null = no offset, automatically tiles/wraps)
 - `mode` - Blend mode to use (default: AlphaWeighted)
 
-**Returns:** New RenderTexture with blended result
+**Returns:** The target RenderTexture (or newly created one if target was null)
 
 **Performance:** 
 - <5ms for 4×2048² textures, <2ms for cached repeat blends
 - Zero overhead when rotation is 0° or null (cached zero arrays, 98% faster)
 - Zero overhead when offset is zero or null (cached zero arrays, 98% faster)
+- Fastest when reusing same target (no allocation)
 
 **Transformation Order:**
 1. UV offset applied first (pans the texture)
@@ -62,28 +67,31 @@ public RenderTexture BlendTextures(
 
 **Example:**
 ```csharp
-// Equal weights
-RenderTexture result = blender.BlendTextures(myTextures);
+// Create new texture (target = null)
+RenderTexture result = blender.BlendTextures(null, myTextures, null);
 
-// Custom weights
+// With custom weights
 float[] weights = { 0.5f, 0.3f, 0.2f };
-RenderTexture result = blender.BlendTextures(myTextures, weights);
+RenderTexture result = blender.BlendTextures(null, myTextures, weights);
 
 // With rotation (0-360 degrees per texture)
 float[] rotations = { 0f, 45f, 90f };
-RenderTexture result = blender.BlendTextures(myTextures, weights, rotations);
+RenderTexture result = blender.BlendTextures(null, myTextures, weights, rotations);
 
 // With rotation and offset (full control)
 float[] rotations = { 0f, 45f, 90f };
 Vector2[] offsets = { new Vector2(0.5f, 0), Vector2.zero, new Vector2(0.25f, 0.25f) };
-RenderTexture result = blender.BlendTextures(myTextures, weights, rotations, offsets);
+RenderTexture result = blender.BlendTextures(null, myTextures, weights, rotations, offsets);
 
-// With offset only (pass null for rotations)
-Vector2[] offsets = { new Vector2(0.5f, 0.3f), Vector2.zero, new Vector2(0.2f, 0.8f) };
-RenderTexture result = blender.BlendTextures(myTextures, weights, null, offsets);
+// Blend to existing texture (fastest - no allocation)
+RenderTexture persistentRT = new RenderTexture(2048, 2048, 0);
+persistentRT.enableRandomWrite = true;
+persistentRT.Create();
+blender.BlendTextures(persistentRT, myTextures, weights);  // Reuse same target
 
-// Different mode
+// Different blend mode
 RenderTexture result = blender.BlendTextures(
+    null,
     myTextures, 
     weights, 
     BlendMode.Additive);
@@ -181,75 +189,6 @@ private async void BlendAsyncWithOffset()
 
 ---
 
-#### BlendToExistingTexture()
-
-Blends textures into an existing RenderTexture (no allocation).
-
-**Basic Blend:**
-```csharp
-public void BlendToExistingTexture(
-    RenderTexture target, 
-    Texture[] textures, 
-    float[] weights, 
-    BlendMode mode = BlendMode.AlphaWeighted)
-```
-
-**With Rotation:**
-```csharp
-public void BlendToExistingTexture(
-    RenderTexture target,
-    Texture[] textures,
-    float[] weights,
-    float[] rotationsDegrees,
-    BlendMode mode = BlendMode.AlphaWeighted)
-```
-
-**With Rotation and UV Offset:**
-```csharp
-public void BlendToExistingTexture(
-    RenderTexture target,
-    Texture[] textures,
-    float[] weights,
-    float[] rotationsDegrees,
-    Vector2[] offsets,
-    BlendMode mode = BlendMode.AlphaWeighted)
-```
-
-**Parameters:**
-- `target` - Existing RenderTexture to blend into
-- `textures` - Array of textures to blend
-- `weights` - Blend weights (required)
-- `rotationsDegrees` - Optional rotation per texture (0-360°, null = no rotation)
-- `offsets` - Optional UV offsets per texture (null = no offset, automatically tiles/wraps)
-- `mode` - Blend mode to use
-
-**Performance:** Fastest option when reusing render targets
-
-**Example:**
-```csharp
-// Create once
-RenderTexture reusableTarget = new RenderTexture(2048, 2048, 0);
-reusableTarget.enableRandomWrite = true;
-reusableTarget.Create();
-
-// Blend multiple times (no allocation)
-blender.BlendToExistingTexture(reusableTarget, textures1, weights);
-// ... use result ...
-
-blender.BlendToExistingTexture(reusableTarget, textures2, weights);
-// ... use result ...
-
-// With rotation
-float[] rotations = { 0f, 45f, 90f };
-blender.BlendToExistingTexture(reusableTarget, textures3, weights, rotations);
-
-// With rotation and offset
-Vector2[] offsets = { new Vector2(0.5f, 0), Vector2.zero, new Vector2(0.25f, 0.25f) };
-blender.BlendToExistingTexture(reusableTarget, textures4, weights, rotations, offsets);
-```
-
----
-
 #### BlendNormalsWithBaseAlpha()
 
 Blends normal maps with per-pixel alpha weighting from base textures.
@@ -312,7 +251,7 @@ float[] rotations = { 0f, 45f, 90f };
 
 // Blend base textures
 RenderTexture baseMap = blender.BlendTextures(
-    baseTextures, weights, rotations, BlendMode.AlphaWeighted);
+    null, baseTextures, weights, rotations, BlendMode.AlphaWeighted);
 
 // Blend normals with SAME rotation
 RenderTexture normalMap = blender.BlendNormalsWithBaseAlpha(
@@ -328,7 +267,7 @@ Vector2[] offsets = { new Vector2(0.5f, 0), Vector2.zero, new Vector2(0.25f, 0.2
 
 // Blend base textures
 RenderTexture baseMap = blender.BlendTextures(
-    baseTextures, weights, rotations, offsets, BlendMode.AlphaWeighted);
+    null, baseTextures, weights, rotations, offsets, BlendMode.AlphaWeighted);
 
 // Blend normals with SAME rotation and offset
 RenderTexture normalMap = blender.BlendNormalsWithBaseAlpha(
@@ -343,7 +282,7 @@ material.SetTexture("_BumpMap", normalMap);
 
 #### BlendNormalsWithBaseAlphaToExistingTexture()
 
-Blends normal maps into existing RenderTexture with per-pixel alpha weighting.
+Blends normal maps into an existing RenderTexture with per-pixel alpha weighting from base textures.
 
 **Basic Blend:**
 ```csharp
@@ -403,19 +342,19 @@ normalTarget.Create();
 float[] weights = { 0.5f, 0.3f, 0.2f };
 
 // Basic blend
-blender.BlendToExistingTexture(baseTarget, baseTextures, weights);
+blender.BlendTextures(baseTarget, baseTextures, weights);
 blender.BlendNormalsWithBaseAlphaToExistingTexture(
     normalTarget, normalTextures, baseTextures, weights);
 
 // With rotation - MUST match between base and normal!
 float[] rotations = { 0f, 45f, 90f };
-blender.BlendToExistingTexture(baseTarget, baseTextures, weights, rotations);
+blender.BlendTextures(baseTarget, baseTextures, weights, rotations);
 blender.BlendNormalsWithBaseAlphaToExistingTexture(
     normalTarget, normalTextures, baseTextures, weights, rotations);
 
 // With rotation and offset - MUST match!
 Vector2[] offsets = { new Vector2(0.5f, 0), Vector2.zero, new Vector2(0.25f, 0.25f) };
-blender.BlendToExistingTexture(baseTarget, baseTextures, weights, rotations, offsets);
+blender.BlendTextures(baseTarget, baseTextures, weights, rotations, offsets);
 blender.BlendNormalsWithBaseAlphaToExistingTexture(
     normalTarget, normalTextures, baseTextures, weights, rotations, offsets);
 ```

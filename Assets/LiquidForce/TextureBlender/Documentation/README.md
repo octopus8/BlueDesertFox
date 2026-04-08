@@ -6,6 +6,26 @@ The TextureBlender system provides GPU-accelerated texture blending for Unity pr
 
 **Performance Target**: <5ms for 4×2048² textures on RTX 3070, <2ms for cached repeat blends
 
+## ⚠️ Version 3.0 Breaking Changes
+
+**If upgrading from v2.x:** The API has changed significantly. See [Migration Guide](MIGRATION_V2_TO_V3.md) for upgrade instructions.
+
+**Key Changes:**
+- `BlendTextures()` now takes `RenderTexture target` as **first parameter**
+- `BlendToExistingTexture()` **removed** (use `BlendTextures(target, ...)` instead)
+- `weights` parameter no longer has default value (pass `null` for equal weights)
+
+**Quick Migration:**
+```csharp
+// OLD v2.x:
+RenderTexture result = blender.BlendTextures(textures, weights);
+blender.BlendToExistingTexture(existingRT, textures, weights);
+
+// NEW v3.0:
+RenderTexture result = blender.BlendTextures(null, textures, weights);
+RenderTexture same = blender.BlendTextures(existingRT, textures, weights);
+```
+
 ## Key Features
 
 - ✅ **Unlimited Textures** - No hard limit (GPU-dependent, typically 2048)
@@ -49,8 +69,8 @@ public class SimpleBlend : MonoBehaviour
     
     void Start()
     {
-        // Blend textures with equal weights
-        RenderTexture result = blender.BlendTextures(textures);
+        // Blend textures with equal weights (target=null creates new)
+        RenderTexture result = blender.BlendTextures(null, textures, null);
         
         // Apply to material
         target.material.mainTexture = result;
@@ -77,18 +97,36 @@ public class SimpleBlend : MonoBehaviour
 
 ## Version History
 
-### Current Version (v2.0)
-- **Per-texture rotation** (0-360°) with zero-overhead optimization
-- **Per-texture UV offset** with zero-overhead optimization and automatic tiling
-- **Seamless tiling** during rotation and offset with Wrap sampler mode
-- **Normal map blending** with per-pixel alpha weighting and rotation/offset support
+### Current Version (v3.0.0) ⚠️ BREAKING CHANGES
+
+**Major API Refactoring:**
+- **BREAKING**: `BlendTextures()` now takes `RenderTexture target` as first parameter
+- **BREAKING**: `BlendToExistingTexture()` removed (use `BlendTextures(target, ...)` instead)
+- **BREAKING**: `weights` parameter no longer has default value in main overload
+- **Benefit**: Unified API, single method for both create-new and blend-to-existing
+- **Migration Required**: See [MIGRATION_V2_TO_V3.md](MIGRATION_V2_TO_V3.md)
+
+**Other Improvements:**
+- Architectural improvements: Texture array building encapsulated in TextureBlenderResources
+- Simplified configuration: Texture2DArray caching always enabled (removed toggle)
+- Better architecture: Resources class owns complete lifecycle
+- Consistent API pattern: All GetOrCreate* methods follow same pattern
+
+**Features (Unchanged from v2.1):**
+- Per-texture rotation (0-360°) with zero-overhead optimization
+- Per-texture UV offset with zero-overhead optimization and automatic tiling
+- Seamless tiling during rotation and offset with Wrap sampler mode
+- Normal map blending with per-pixel alpha weighting and rotation/offset support
 - Enhanced resource pooling
-- Texture array caching for repeat blends (35% speedup)
+- Texture array caching for repeat blends (35% speedup, always enabled)
 - Multiple blend modes (Additive, AlphaWeighted, Multiplicative)
 - VR optimization support
 
-### Legacy
-- `ImageProcessorTest.cs` - Deprecated (8-texture limit), marked with `[Obsolete]` attribute
+### Previous Versions
+- **v2.1.1**: Texture array builder encapsulation (non-breaking)
+- **v2.1.0**: Removed enableArrayCache toggle (non-breaking)
+- **v2.0**: Initial rotation and offset support, normal map blending
+- **v1.0**: Legacy `ImageProcessorTest.cs` (deprecated - 8-texture limit)
 
 ## Support
 
@@ -101,4 +139,3 @@ For questions or issues:
 ## License
 
 Part of BlueDesertFox VR project.
-

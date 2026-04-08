@@ -176,7 +176,7 @@ void Start()
 
 void UpdateTexture()
 {
-    blender.BlendToExistingTexture(persistentRT, textures, weights);
+    blender.BlendTextures(persistentRT, textures, weights);
     material.mainTexture = persistentRT;
 }
 
@@ -212,7 +212,7 @@ void Update()
     Texture2D newTex = new Texture2D(512, 512);
     // ... fill texture
     textures[0] = newTex;  // New instance ID = cache miss
-    blender.BlendTextures(textures);
+    blender.BlendTextures(null, textures, null);
 }
 
 // GOOD - Reuse same texture

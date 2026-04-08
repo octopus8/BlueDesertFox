@@ -160,81 +160,6 @@ public class TextureBlender : MonoBehaviour
     #region Public API
     
     /// <summary>
-    /// Blends multiple textures into a new RenderTexture.
-    /// PERFORMANCE: Under 5ms for 4×2048² textures, under 2ms for cached repeat blends.
-    /// </summary>
-    /// <param name="textures">Array of textures to blend (any count)</param>
-    /// <param name="weights">Optional blend weights (null = equal weights)</param>
-    /// <param name="mode">Blend mode to use</param>
-    /// <returns>New RenderTexture with blended result</returns>
-    public RenderTexture BlendTextures(
-        Texture[] textures, 
-        float[] weights = null, 
-        BlendMode mode = BlendMode.AlphaWeighted)
-    {
-        return BlendTextures(textures, weights, null, null, mode);
-    }
-    
-    
-    /// <summary>
-    /// Blends multiple textures into a new RenderTexture with optional rotation per texture.
-    /// PERFORMANCE: Under 5ms for 4×2048² textures, under 2ms for cached repeat blends.
-    /// Zero overhead when all rotations are 0° or null (cached zero arrays, 98% faster).
-    /// </summary>
-    /// <param name="textures">Array of textures to blend (any count)</param>
-    /// <param name="weights">Optional blend weights (null = equal weights)</param>
-    /// <param name="rotationsDegrees">Optional rotation angles in degrees for each texture (null = no rotation)</param>
-    /// <param name="mode">Blend mode to use</param>
-    /// <returns>New RenderTexture with blended result</returns>
-    public RenderTexture BlendTextures(
-        Texture[] textures,
-        float[] weights,
-        float[] rotationsDegrees,
-        BlendMode mode = BlendMode.AlphaWeighted)
-    {
-        return BlendTextures(textures, weights, rotationsDegrees, null, mode);
-    }
-    
-    
-    /// <summary>
-    /// Blends multiple textures into a new RenderTexture with optional rotation and UV offset per texture.
-    /// PERFORMANCE: Under 5ms for 4×2048² textures, under 2ms for cached repeat blends.
-    /// Zero overhead when rotations/offsets are 0° or null (cached zero arrays, 98% faster).
-    /// </summary>
-    /// <param name="textures">Array of textures to blend (any count)</param>
-    /// <param name="weights">Optional blend weights (null = equal weights)</param>
-    /// <param name="rotationsDegrees">Optional rotation angles in degrees for each texture (null = no rotation)</param>
-    /// <param name="offsets">Optional UV offsets for each texture (null = no offset, automatically tiles/wraps)</param>
-    /// <param name="mode">Blend mode to use</param>
-    /// <returns>New RenderTexture with blended result</returns>
-    /// <remarks>
-    /// Transformation order: 1) UV offset applied first (pans texture), 2) Rotation applied second (rotates around center), 3) Automatic tiling/wrapping at boundaries.
-    /// </remarks>
-    public RenderTexture BlendTextures(
-        Texture[] textures,
-        float[] weights,
-        float[] rotationsDegrees,
-        Vector2[] offsets,
-        BlendMode mode = BlendMode.AlphaWeighted)
-    {
-        if (!isInitialized)
-            Initialize();
-        
-        if (!ValidateInputs(textures))
-            return null;
-
-        // Create output RenderTexture
-        RenderTexture output = useTexturePooling
-            ? resources.GetOrCreateRenderTexture(defaultOutputWidth, defaultOutputHeight, outputFormat)
-            : CreateRenderTexture(defaultOutputWidth, defaultOutputHeight);
-        
-        // Blend to the output texture
-        BlendToExistingTexture(output, textures, weights, rotationsDegrees, offsets, mode);
-        return output;
-    }
-    
-    
-    /// <summary>
     /// Blends textures into an existing RenderTexture (no allocation).
     /// PERFORMANCE: Fastest option when reusing render targets.
     /// </summary>
@@ -242,13 +167,13 @@ public class TextureBlender : MonoBehaviour
     /// <param name="textures">Array of textures to blend</param>
     /// <param name="weights">Blend weights</param>
     /// <param name="mode">Blend mode to use</param>
-    public void BlendToExistingTexture(
+    public RenderTexture BlendTextures(
         RenderTexture target, 
         Texture[] textures, 
         float[] weights, 
         BlendMode mode = BlendMode.AlphaWeighted)
     {
-        BlendToExistingTexture(target, textures, weights, null, null, mode);
+        return BlendTextures(target, textures, weights, null, null, mode);
     }
     
     
@@ -261,20 +186,21 @@ public class TextureBlender : MonoBehaviour
     /// <param name="weights">Blend weights</param>
     /// <param name="rotationsDegrees">Optional rotation per texture (0-360°, null = no rotation)</param>
     /// <param name="mode">Blend mode to use</param>
-    public void BlendToExistingTexture(
+    public RenderTexture BlendTextures(
         RenderTexture target,
         Texture[] textures,
         float[] weights,
         float[] rotationsDegrees,
         BlendMode mode = BlendMode.AlphaWeighted)
     {
-        BlendToExistingTexture(target, textures, weights, rotationsDegrees, null, mode);
+        return BlendTextures(target, textures, weights, rotationsDegrees, null, mode);
     }
     
     
     /// <summary>
     /// Blends textures into an existing RenderTexture with optional rotation and UV offset per texture (no allocation).
     /// PERFORMANCE: Fastest option when reusing render targets.
+    /// Note: If the target is null, a target texture is created.
     /// </summary>
     /// <param name="target">Existing RenderTexture to blend into</param>
     /// <param name="textures">Array of textures to blend</param>
@@ -282,7 +208,7 @@ public class TextureBlender : MonoBehaviour
     /// <param name="rotationsDegrees">Optional rotation per texture (0-360°, null = no rotation)</param>
     /// <param name="offsets">Optional UV offsets per texture (null = no offset, automatically tiles/wraps)</param>
     /// <param name="mode">Blend mode to use</param>
-    public void BlendToExistingTexture(
+    public RenderTexture BlendTextures(
         RenderTexture target,
         Texture[] textures,
         float[] weights,
@@ -292,15 +218,17 @@ public class TextureBlender : MonoBehaviour
     {
         if (!isInitialized)
             Initialize();
-        
+
+        // If no target is specified, then create one.
         if (target == null)
         {
-            Debug.LogError("TextureBlender: Target RenderTexture is null!");
-            return;
+            target = useTexturePooling
+                ? resources.GetOrCreateRenderTexture(defaultOutputWidth, defaultOutputHeight, outputFormat)
+                : CreateRenderTexture(defaultOutputWidth, defaultOutputHeight);
         }
         
         if (!ValidateInputs(textures))
-            return;
+            return null;
         
         // Normalize weights
         float[] normalizedWeights = mode == BlendMode.AlphaWeighted
@@ -317,7 +245,7 @@ public class TextureBlender : MonoBehaviour
         if (textureArray == null)
         {
             Debug.LogError("TextureBlender: Failed to create Texture2DArray!");
-            return;
+            return null;
         }
         
         // Execute blend operation with rotation and offset
@@ -325,6 +253,8 @@ public class TextureBlender : MonoBehaviour
         {
             ExecuteBlend(target, textureArray, normalizedWeights, textures.Length, mode, rotationsDegrees, offsets);
         }
+
+        return target;
     }
     
     
@@ -355,7 +285,7 @@ public class TextureBlender : MonoBehaviour
             }
             
             // Execute blend
-            BlendToExistingTexture(output, request.inputTextures, request.blendWeights, request.blendMode);
+            BlendTextures(output, request.inputTextures, request.blendWeights, request.blendMode);
             
             results[i] = output;
         }

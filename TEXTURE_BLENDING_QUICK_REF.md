@@ -175,20 +175,20 @@ See these files for complete examples:
 ## API Quick Reference
 
 ```csharp
-// Main methods
-RenderTexture BlendTextures(Texture[], float[], BlendMode)
-RenderTexture BlendTextures(Texture[], float[], float[] rotationsDegrees, BlendMode)  // NEW!
-UniTask<RenderTexture> BlendTexturesAsync(Texture[], float[], BlendMode, CancellationToken)
-UniTask<RenderTexture> BlendTexturesAsync(Texture[], float[], float[] rotationsDegrees, BlendMode, CancellationToken)  // NEW!
-void BlendToExistingTexture(RenderTexture, Texture[], float[], BlendMode)
-void BlendToExistingTexture(RenderTexture, Texture[], float[], float[] rotationsDegrees, BlendMode)  // NEW!
+// Main methods (v3.0 - unified API)
+RenderTexture BlendTextures(RenderTexture target, Texture[], float[], BlendMode)
+RenderTexture BlendTextures(RenderTexture target, Texture[], float[], float[] rotationsDegrees, BlendMode)
+RenderTexture BlendTextures(RenderTexture target, Texture[], float[], float[] rotationsDegrees, Vector2[] offsets, BlendMode)
+UniTask<RenderTexture> BlendTexturesAsync(RenderTexture target, Texture[], float[], BlendMode, CancellationToken)
 RenderTexture[] BatchBlend(BlendRequest[])
 
-// Normal map blending (NEW!)
+// Normal map blending
 RenderTexture BlendNormalsWithBaseAlpha(Texture[] normals, Texture[] bases, float[], BlendMode)
 RenderTexture BlendNormalsWithBaseAlpha(Texture[] normals, Texture[] bases, float[], float[] rotationsDegrees, BlendMode)
+RenderTexture BlendNormalsWithBaseAlpha(Texture[] normals, Texture[] bases, float[], float[] rotationsDegrees, Vector2[] offsets, BlendMode)
 void BlendNormalsWithBaseAlphaToExistingTexture(RenderTexture, Texture[] normals, Texture[] bases, float[], BlendMode)
 void BlendNormalsWithBaseAlphaToExistingTexture(RenderTexture, Texture[] normals, Texture[] bases, float[], float[] rotationsDegrees, BlendMode)
+void BlendNormalsWithBaseAlphaToExistingTexture(RenderTexture, Texture[] normals, Texture[] bases, float[], float[] rotationsDegrees, Vector2[] offsets, BlendMode)
 
 // Resource management
 void ReturnTexture(RenderTexture)

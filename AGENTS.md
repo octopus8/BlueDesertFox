@@ -54,7 +54,8 @@ Located in `Assets/LiquidForce/TextureBlender/`:
 - **Blend Modes**: Additive (fastest, 30% faster than alpha), AlphaWeighted (respects texture alpha), Multiplicative (masking/darkening)
 - **Normal Maps**: `BlendNormalsWithBaseAlpha()` blends normals with per-pixel alpha weighting, supports rotation for visual coherence with base textures
 - **Resource Management**: Automatic pooling for RenderTextures and ComputeBuffers, Texture2DArray caching for repeat blends (35% speedup)
-`- **API**: `BlendTextures()` (basic with optional rotation), `BlendTextures(..., rotations, offsets)` (full control with rotation and UV offset), `BlendTexturesAsync()` (non-blocking with UniTask), `BlendToExistingTexture()` (fastest - no allocation), `BlendNormalsWithBaseAlpha()` (normal map support with rotation), `BatchBlend()` (multiple operations)
+- **API (v3.0)**: `BlendTextures(target, textures, weights, ...)` (unified API - pass null for target to create new, pass RenderTexture to reuse), supports optional rotation/offset parameters, `BlendTexturesAsync()` (non-blocking with UniTask), `BlendNormalsWithBaseAlpha()` (normal map support with rotation), `BatchBlend()` (multiple operations)
+- **Breaking Change (v3.0)**: `BlendToExistingTexture()` removed - use `BlendTextures(target, ...)` instead (target as first parameter)
 - **Compute Shader**: `TextureBlenderComputeShader.compute` with kernels for each blend mode and normal blending, uses [numthreads(8,8,1)] for optimal GPU occupancy on RTX series, custom sampler (`sampler_linear_repeat`) with Wrap mode for seamless UV tiling during rotation
 - **VR Compatible**: Writes to both RWTexture2D and RWStructuredBuffer for OpenGL ES 3.0 support (Quest/Pico)
 - **Configuration**: Enable texture pooling in Inspector for maximum speed, FastMode to skip validation (Texture2DArray caching is always enabled)

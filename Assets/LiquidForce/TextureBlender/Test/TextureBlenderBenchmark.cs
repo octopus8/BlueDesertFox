@@ -129,7 +129,7 @@ public class TextureBlenderBenchmark : MonoBehaviour
         
         // Measure uncached performance
         Stopwatch sw = Stopwatch.StartNew();
-        RenderTexture result1 = textureBlender.BlendTextures(textures, weights, mode);
+        RenderTexture result1 = textureBlender.BlendTextures(null, textures, weights, mode);
         sw.Stop();
         float uncachedTime = sw.ElapsedMilliseconds + (sw.ElapsedTicks % 10000) / 10000f;
         
@@ -143,7 +143,7 @@ public class TextureBlenderBenchmark : MonoBehaviour
         if (testCachedPerformance)
         {
             sw.Restart();
-            RenderTexture result2 = textureBlender.BlendTextures(textures, weights, mode);
+            RenderTexture result2 = textureBlender.BlendTextures(null, textures, weights, mode);
             sw.Stop();
             cachedTime = sw.ElapsedMilliseconds + (sw.ElapsedTicks % 10000) / 10000f;
             

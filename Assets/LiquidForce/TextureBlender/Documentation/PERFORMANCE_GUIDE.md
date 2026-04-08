@@ -379,7 +379,7 @@ void Update()
 ```csharp
 void Update()
 {
-    var result = blender.BlendTextures(textures);
+    var result = blender.BlendTextures(null, textures, weights);
     material.mainTexture = result;
     blender.ReturnTexture(result);
 }
@@ -398,7 +398,7 @@ void Start()
 
 void Update()
 {
-    blender.BlendToExistingTexture(persistentRT, textures, weights);
+    blender.BlendTextures(persistentRT, textures, weights);
     material.mainTexture = persistentRT;
     // No allocation, no return needed
 }

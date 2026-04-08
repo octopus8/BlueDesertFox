@@ -676,7 +676,7 @@ public class MyNewCode : MonoBehaviour
     {
         // Unlimited textures, automatic resource management, optional rotation
         float[] rotations = { 0f, 45f, 90f };
-        RenderTexture result = blender.BlendTextures(myTextures, myWeights, rotations);
+        RenderTexture result = blender.BlendTextures(null, myTextures, myWeights, rotations, null);
     }
 }
 ```

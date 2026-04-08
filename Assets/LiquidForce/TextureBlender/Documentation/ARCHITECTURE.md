@@ -23,7 +23,7 @@ The TextureBlender system consists of three main components working together:
 │ - ComputeBuffer     │              │ - Hash computation    │
 │   Pooling           │              │ - Size normalization  │
 │ - Texture2DArray    │              │                       │
-│   Tracking          │              │                       │
+│   Caching           │              │                       │
 └─────────────────────┘              └───────────────────────┘
          │
          │ Uses
@@ -144,14 +144,10 @@ Texture2DArray array = new Texture2DArray(
 
 ### Developer Notes
 **How is `TextureBlenderResources` used?**
-- It is used by methods in `TextureBlender` like `BlendTextures`, `BlendNormalsWithBaseAlpha`, and related methods.
-- Even when not blending to an existing texture, an output texture is created (`GetOrCreateRenderTexture`) and `BlendToExistingTexture` is called, which results in a call to `ExecuteBlend`.
-- Callstack
 ```
-- TextureBlenderResources.GetOrCreateRenderTexture (RenderTextures; a start texture)
-- BlendToExistingTexture
+- BlendTextures
+    - TextureBlenderResources.GetOrCreateRenderTexture (RenderTextures; a start texture)
     - TextureBlenderResources.GetOrCreateTextureArray (tracked texture arrays; array of textures to blend)
-        - TextureArrayBuilder.BuildFromTextures
     - ExecuteBlend
         - TextureBlenderResources.GetOrCreateBuffer (ComputeBuffer; weight, offset, rotation)
         - Dispatch
@@ -195,22 +191,37 @@ Texture2DArray array = new Texture2DArray(
 
 **Texture Array Cache:**
 ```csharp
-// Managed by TextureBlenderResources
-// Cache key = hash of texture instance IDs
-int hash = ComputeTextureArrayHash(textures);
+// Managed by TextureBlenderResources (owns complete lifecycle)
+// TextureBlender simply delegates to resources
 
-// TextureBlender delegates to resources
-Texture2DArray cachedArray = resources.GetOrCreateTextureArray(hash, null);
-if (cachedArray != null)
+// In TextureBlender:
+Texture2DArray textureArray = resources.GetOrCreateTextureArray(textures, out width, out height);
+
+// Inside TextureBlenderResources.GetOrCreateTextureArray():
+// 1. Compute hash from texture instance IDs
+int hash = TextureArrayBuilder.ComputeTextureArrayHash(textures);
+
+// 2. Check cache
+if (textureArrayCache.ContainsKey(hash))
 {
     return cachedArray;  // Cache hit: ~0ms
 }
 
-// Cache miss - build and store
-Texture2DArray newArray = BuildFromTextures(textures);  // ~1-2ms
-resources.GetOrCreateTextureArray(hash, newArray);  // Add to cache
+// 3. Cache miss - build new array
+Texture2DArray newArray = TextureArrayBuilder.BuildFromTextures(textures, out w, out h, false);  // ~1-2ms
+
+// 4. Store in cache
+textureArrayCache[hash] = newArray;
+
+// 5. Return
 return newArray;
 ```
+
+**Architecture Pattern:**
+- TextureBlenderResources owns the complete lifecycle (check → build → cache → return)
+- TextureBlender doesn't know about TextureArrayBuilder or hashing
+- Follows same pattern as GetOrCreateRenderTexture() and GetOrCreateBuffer()
+- Single Responsibility: Resources manages all resource pooling/caching
 
 **Cache Invalidation:**
 - Automatic: Component destroyed (via Dispose())
@@ -221,6 +232,7 @@ return newArray;
 - 35% speedup for repeat blends with same texture set
 - Eliminates expensive Texture2DArray conversion
 - Automatic cleanup on component destroy
+- Always enabled (no configuration needed)
 
 ## Compute Shader Architecture
 
