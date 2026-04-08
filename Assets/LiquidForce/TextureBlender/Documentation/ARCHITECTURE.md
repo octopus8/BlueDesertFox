@@ -145,7 +145,7 @@ Texture2DArray array = new Texture2DArray(
 ### Developer Notes
 **How is `TextureBlenderResources` used?**
 ```
-- BlendTextures
+- TextureBlender.BlendTextures
     - TextureBlenderResources.GetOrCreateRenderTexture (RenderTextures; a start texture)
     - TextureBlenderResources.GetOrCreateTextureArray (tracked texture arrays; array of textures to blend)
     - ExecuteBlend
