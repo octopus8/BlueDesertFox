@@ -94,9 +94,6 @@ public class TextureBlenderExample : MonoBehaviour
     /// <summary> Current blended normal texture. </summary>
     private RenderTexture currentNormalResult;
     
-    /// <summary> Reusable flat normal map texture (1x1) used when a TextureLayer's normalTexture is null. </summary>
-    private Texture2D flatNormalMap;
-    
     /// <summary> Performance metrics for the last blend operation. These are updated after each blend and can be displayed on screen or logged. </summary>
     private float lastBaseBlendTime;
     
@@ -106,20 +103,6 @@ public class TextureBlenderExample : MonoBehaviour
     /// <summary> Performance metric for the total time taken by the last blend operation, including both base and normal blending. This is useful for understanding the overall cost of blending all textures together, especially when using per-pixel alpha modulation for normals, which can significantly increase the total time. This metric can be displayed on screen or logged to the console for performance analysis. </summary>
     private float lastTotalBlendTime;
 
-    
-    /// <summary>
-    /// Initializes the example by creating a reusable flat normal map. This flat normal map is used for any texture layer
-    /// that does not have a normal texture assigned, ensuring that those layers do not affect the normal blending result.
-    /// The flat normal is represented as a 1x1 texture with a color value of (0.5, 0.5, 1.0) in tangent space, which corresponds
-    /// to no change in the normal direction when blended. This setup allows the example to demonstrate blending with and without
-    /// normal maps seamlessly, and ensures that the TextureBlender can handle cases where some layers only contribute base textures without normals.
-    /// </summary>
-    private void Awake()
-    {
-        // Create reusable flat normal map (tangent space: 0.5, 0.5, 1.0 = no normal change)
-        CreateFlatNormalMap();
-    }
-    
     
     /// <summary>
     /// Starts the blending process by running through various examples of how to use TextureBlender. Each example demonstrates
@@ -152,22 +135,8 @@ public class TextureBlenderExample : MonoBehaviour
     
     
     /// <summary>
-    /// Creates a 1x1 flat normal map for use when TextureLayer.normalTexture is null.
-    /// Flat normal in tangent space is (0.5, 0.5, 1.0) normalized.
-    /// </summary>
-    private void CreateFlatNormalMap()
-    {
-        flatNormalMap = new Texture2D(1, 1, TextureFormat.RGB24, false, true); // linear = true for normal maps
-        Color flatNormal = new Color(0.5f, 0.5f, 1f, 1f); // Tangent space flat normal
-        flatNormalMap.SetPixel(0, 0, flatNormal);
-        flatNormalMap.Apply();
-        flatNormalMap.name = "FlatNormalMap";
-    }
-    
-    
-    /// <summary>
     /// Extracts separate arrays for base textures, normal textures, weights, and rotations from TextureLayers.
-    /// Substitutes flatNormalMap for any null normal textures.
+    /// Null normal textures are automatically handled by TextureBlender.
     /// </summary>
     private void GetTextureArrays(out Texture[] baseTextures, out Texture[] normalTextures, out float[] weights, out float[] rotations, out Vector2[] offsets)
     {
@@ -181,9 +150,7 @@ public class TextureBlenderExample : MonoBehaviour
         for (int i = 0; i < count; i++)
         {
             baseTextures[i] = textureLayers[i].baseTexture;
-            normalTextures[i] = textureLayers[i].normalTexture != null 
-                ? textureLayers[i].normalTexture 
-                : flatNormalMap;
+            normalTextures[i] = textureLayers[i].normalTexture;  // No need for null check - handled by TextureBlender
             weights[i] = textureLayers[i].weight;
             rotations[i] = textureLayers[i].rotationDegrees;
             offsets[i] = new Vector2(textureLayers[i].offsetX, textureLayers[i].offsetY);
@@ -451,20 +418,13 @@ public class TextureBlenderExample : MonoBehaviour
     }
     
     /// <summary>
-    /// Cleans up resources when the component is destroyed. This includes destroying the flat normal map texture and returning
+    /// Cleans up resources when the component is destroyed. This includes returning
     /// any blended textures to the pool if they were created. This ensures that there are no memory leaks and that resources
     /// are properly released when the component is removed from the scene or when the application is closed. It's important
     /// to clean up RenderTextures and other GPU resources to avoid unnecessary memory usage and potential performance issues.
     /// </summary>
     private void OnDestroy()
     {
-        // Clean up flat normal map
-        if (flatNormalMap != null)
-        {
-            Destroy(flatNormalMap);
-            flatNormalMap = null;
-        }
-        
         // Return blended base texture to pool.
         if (currentBaseResult != null)
         {

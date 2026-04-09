@@ -546,9 +546,50 @@ public class TerrainWithOffsetAndRotation : MonoBehaviour
 1. **Offset** applied first (pans the texture)
 2. **Rotation** applied second (rotates around center after offset)
 3. **Tiling/Wrapping** handled automatically by sampler
+
 ---
 
 ## Normal Map Blending
+
+### Null Normal Texture Handling (Automatic)
+
+TextureBlender automatically handles null normal textures by substituting a flat normal map. No manual setup required!
+
+```csharp
+using UnityEngine;
+
+public class AutoNullHandling : MonoBehaviour
+{
+    [SerializeField] private TextureBlender blender;
+    [SerializeField] private Texture[] baseTextures;
+    [SerializeField] private Texture[] normalTextures;  // Some can be null!
+    [SerializeField] private MeshRenderer targetRenderer;
+    
+    void Start()
+    {
+        float[] weights = { 0.5f, 0.3f, 0.2f };
+        
+        // Even if normalTextures contains nulls, it works automatically!
+        // Null entries are replaced with flat normals (no normal change)
+        RenderTexture baseResult = blender.BlendTextures(
+            null, baseTextures, weights);
+        
+        RenderTexture normalResult = blender.BlendNormalsWithBaseAlpha(
+            normalTextures,  // Can contain nulls - handled automatically!
+            baseTextures,
+            weights);
+        
+        // Apply both
+        Material mat = targetRenderer.material;
+        mat.SetTexture("_BaseMap", baseResult);
+        mat.SetTexture("_BumpMap", normalResult);
+    }
+}
+```
+
+**Use Case:** When only some terrain layers have normal maps, or when procedurally generating textures where normals are optional.
+
+---
 
 ### Terrain Normal Maps with Per-Pixel Alpha
 

@@ -135,7 +135,7 @@ public RenderTexture BlendNormalsWithBaseAlpha(
 ```
 
 **Parameters:**
-- `normalTextures` - Array of normal map textures
+- `normalTextures` - Array of normal map textures (null entries automatically replaced with flat normals)
 - `baseTextures` - Array of base textures (alpha used for per-pixel weighting)
 - `weights` - Blend weights for each layer
 - `rotationsDegrees` - Optional rotation per texture (0-360°) - **MUST match base texture rotations!**
@@ -230,7 +230,7 @@ public void BlendNormalsWithBaseAlphaToExistingTexture(
 
 **Parameters:**
 - `target` - Existing RenderTexture to blend into
-- `normalTextures` - Array of normal maps
+- `normalTextures` - Array of normal maps (null entries automatically replaced with flat normals)
 - `baseTextures` - Array of base textures for alpha weighting
 - `weights` - Blend weights (required)
 - `rotationsDegrees` - Optional rotation per texture (0-360°, null = no rotation) - **MUST match base texture rotations!**
@@ -518,8 +518,8 @@ blender.ReturnTexture(result);
 
 ---
 
-## Thread Safety
+**Thread Safety**
 
 **Not thread-safe:** TextureBlender must be used from Unity main thread only.
 
-For async operations, use `BlendTexturesAsync()` which properly handles Unity's threading model via UniTask.
+For async operations, use UniTask integration with proper Unity threading patterns.

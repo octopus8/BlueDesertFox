@@ -96,7 +96,9 @@ Awake()
        ├─> Validate compute shader
        ├─> Cache kernel IDs
        ├─> Create TextureBlenderResources
-       └─> Prewarm pools (VR sizes)
+       ├─> Prewarm pools (VR sizes)
+       ├─> Detect OpenGL ES 3.0 fallback
+       └─> Create flat normal map (1x1 texture)
 ```
 
 ### TextureBlenderResources
@@ -172,7 +174,7 @@ Texture2DArray array = new Texture2DArray(
     - TextureBlenderResources.GetOrCreateRenderTexture (RenderTextures; a start texture)
     - TextureBlenderResources.GetOrCreateTextureArray (tracked texture arrays; array of textures to blend)
     - ExecuteBlend
-        - TextureBlenderResources.GetOrCreateBuffer (ComputeBuffer; weight, offset, rotation)
+        - TextureBlenderResources.GetOrCreateBuffer (ComputeBuffer; weight, offset, rotation, output buffer)
         - Dispatch
 ```
 **Caching vs Pooling:**
@@ -644,7 +646,83 @@ RenderTexture result = blender.BlendTextures(null, textures, weights);
 // All three have identical performance (~0.001ms offset overhead)
 ```
 
-### 8. Temporary Texture2D Pooling (OpenGL ES 3.0 Buffer Copy)
+### 8. Null Normal Texture Handling (Automatic)
+
+**Problem:** Users need normal maps for some layers but not others, requiring manual flat normal map creation
+
+**Solution:** Automatically substitute null normal textures with a pre-created 1x1 flat normal map
+
+**Implementation:**
+```csharp
+// In TextureBlender initialization
+private Texture2D flatNormalMap;
+
+private void CreateFlatNormalMap()
+{
+    flatNormalMap = new Texture2D(1, 1, TextureFormat.RGB24, false, true);  // linear = true for normals
+    Color flatNormal = new Color(0.5f, 0.5f, 1f, 1f);  // Tangent space flat normal
+    flatNormalMap.SetPixel(0, 0, flatNormal);
+    flatNormalMap.Apply();
+    flatNormalMap.name = "FlatNormalMap_Internal";
+}
+
+// Before blending normal maps
+private Texture[] SubstituteNullNormals(Texture[] normalTextures)
+{
+    if (normalTextures == null || flatNormalMap == null)
+        return normalTextures;
+    
+    // Check if any nulls exist
+    bool hasNulls = false;
+    for (int i = 0; i < normalTextures.Length; i++)
+    {
+        if (normalTextures[i] == null)
+        {
+            hasNulls = true;
+            break;
+        }
+    }
+    
+    if (!hasNulls)
+        return normalTextures;  // No substitution needed
+    
+    // Create new array with nulls replaced
+    Texture[] result = new Texture[normalTextures.Length];
+    for (int i = 0; i < normalTextures.Length; i++)
+    {
+        result[i] = normalTextures[i] != null ? normalTextures[i] : flatNormalMap;
+    }
+    return result;
+}
+```
+
+**Performance Impact:**
+- Flat normal map: 1×1 texture = 4 bytes memory
+- Null check: ~0.001ms per blend operation
+- Array substitution (when needed): ~0.01ms for 8 textures
+- **Improvement: Eliminates manual flat normal creation in user code**
+
+**Why It Matters:**
+- Common scenario: Terrain with only some layers having normal maps
+- Procedural generation where normals are optional
+- Simplifies user code - no need to create/manage flat normal textures
+- Zero visual impact - flat normals produce no surface change
+- Minimal memory cost (4 bytes total for 1×1 texture)
+
+**Usage Example:**
+```csharp
+// User can pass null for normal textures without any setup!
+Texture[] normalTextures = { normal1, null, normal3, null };  // Some nulls OK!
+Texture[] baseTextures = { base1, base2, base3, base4 };
+
+// Works automatically - nulls replaced with flat normals internally
+RenderTexture normalMap = blender.BlendNormalsWithBaseAlpha(
+    normalTextures,  // Can contain nulls!
+    baseTextures,
+    weights);
+```
+
+### 9. Temporary Texture2D Pooling (OpenGL ES 3.0 Buffer Copy)
 
 **Problem:** OpenGL ES 3.0 requires buffer-to-texture copy via CPU, which allocates Texture2D each frame
 

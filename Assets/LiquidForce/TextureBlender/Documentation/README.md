@@ -37,6 +37,7 @@ RenderTexture same = blender.BlendTextures(existingRT, textures, weights);
 - ✅ **VR Compatible** - OpenGL ES 3.0 with automatic fallback (Quest/Pico) ✅ FIXED April 2026
 - ✅ **Zero Memory Leaks** - Automatic resource management
 - ✅ **Normal Map Support** - Per-pixel alpha-weighted normal blending with rotation and offset
+- ✅ **Automatic Null Normal Handling** - Pass null normal textures without manual setup
 - ✅ **Seamless Tiling** - Automatic UV wrapping during rotation and offset for continuous textures
 
 ## Documentation Files

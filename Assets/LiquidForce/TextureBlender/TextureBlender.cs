@@ -104,6 +104,9 @@ public class TextureBlender : MonoBehaviour
     // Platform compatibility (cached at initialization)
     private bool requiresBufferCopyFallback = false;
     
+    // Null normal texture handling
+    private Texture2D flatNormalMap;
+    
     // Profiler markers for performance tracking
     private static readonly ProfilerMarker s_TextureArrayConversion = new ProfilerMarker("TextureBlender.ConvertToArray");
     private static readonly ProfilerMarker s_ShaderDispatch = new ProfilerMarker("TextureBlender.Dispatch");
@@ -167,8 +170,62 @@ public class TextureBlender : MonoBehaviour
             Debug.Log("TextureBlender: OpenGL ES 3.0 detected - using buffer copy fallback for VR compatibility");
         }
         
+        // Create reusable flat normal map for null normal texture substitution
+        CreateFlatNormalMap();
+        
         // Set the initialized flag.
         isInitialized = true;
+    }
+    
+    
+    /// <summary>
+    /// Creates a 1x1 flat normal map for substituting null normal textures.
+    /// Flat normal in tangent space is (0.5, 0.5, 1.0) which represents no normal change.
+    /// </summary>
+    private void CreateFlatNormalMap()
+    {
+        flatNormalMap = new Texture2D(1, 1, TextureFormat.RGB24, false, true); // linear = true for normal maps
+        Color flatNormal = new Color(0.5f, 0.5f, 1f, 1f); // Tangent space flat normal
+        flatNormalMap.SetPixel(0, 0, flatNormal);
+        flatNormalMap.Apply();
+        flatNormalMap.name = "FlatNormalMap_Internal";
+    }
+    
+    
+    /// <summary>
+    /// Substitutes null normal textures with a flat normal map.
+    /// This allows users to pass null normal textures without manual handling.
+    /// Returns a new array with null entries replaced by flatNormalMap.
+    /// </summary>
+    /// <param name="normalTextures">Array of normal textures (may contain nulls)</param>
+    /// <returns>New array with nulls replaced by flatNormalMap</returns>
+    private Texture[] SubstituteNullNormals(Texture[] normalTextures)
+    {
+        if (normalTextures == null || flatNormalMap == null)
+            return normalTextures;
+        
+        bool hasNulls = false;
+        for (int i = 0; i < normalTextures.Length; i++)
+        {
+            if (normalTextures[i] == null)
+            {
+                hasNulls = true;
+                break;
+            }
+        }
+        
+        // If no nulls, return original array
+        if (!hasNulls)
+            return normalTextures;
+        
+        // Create new array with nulls replaced
+        Texture[] result = new Texture[normalTextures.Length];
+        for (int i = 0; i < normalTextures.Length; i++)
+        {
+            result[i] = normalTextures[i] != null ? normalTextures[i] : flatNormalMap;
+        }
+        
+        return result;
     }
     
     #endregion
@@ -487,6 +544,9 @@ public class TextureBlender : MonoBehaviour
             Debug.LogError("TextureBlender: Target RenderTexture is null!");
             return;
         }
+        
+        // Substitute null normal textures with flat normals
+        normalTextures = SubstituteNullNormals(normalTextures);
         
         if (!ValidateInputs(normalTextures) || !ValidateInputs(baseTextures))
             return;
@@ -831,6 +891,7 @@ public class TextureBlender : MonoBehaviour
     /// <param name="weights">Normalized blend weights for each texture</param>
     /// <param name="textureCount">Number of textures in the arrays</param>
     /// <param name="rotationsDegrees">Optional rotation angles in degrees for each texture (null = no rotation)</param>
+    /// <param name="offsets">Optional UV offsets for each texture (null = no offset)</param>
     private void ExecuteNormalBlendWithBaseAlpha(
         RenderTexture target,
         Texture2DArray normalTextureArray,
@@ -977,6 +1038,13 @@ public class TextureBlender : MonoBehaviour
         
         // Clear offset cache
         cachedZeroOffsets?.Clear();
+        
+        // Clean up flat normal map
+        if (flatNormalMap != null)
+        {
+            Destroy(flatNormalMap);
+            flatNormalMap = null;
+        }
         
         // Dispose resources (includes clearing texture array cache)
         resources?.Dispose();

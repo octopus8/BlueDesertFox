@@ -81,6 +81,9 @@ Use the context menu on `TextureBlenderExample`:
 ### Issue: Memory leaks
 **Solution**: Call `blender.ReturnTexture(result)` when done with blended texture
 
+### Issue: Some textures don't have normal maps
+**Solution**: No worries! Pass null for normal textures you don't have - TextureBlender automatically handles this with flat normals (no visual change to those layers).
+
 ## Next Steps
 
 - Read **[API Reference](API_REFERENCE.md)** for all methods
