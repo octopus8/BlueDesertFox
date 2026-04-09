@@ -435,9 +435,13 @@ public void PrewarmBufferPool(int elementCount, int stride, int poolSize)
 // Resource management (called internally by TextureBlender)
 public RenderTexture GetOrCreateRenderTexture(int width, int height, RenderTextureFormat format)
 public void ReturnRenderTexture(RenderTexture rt)
-public ComputeBuffer GetOrCreateBuffer(int count, int stride)
+public ComputeBuffer GetOrCreateComputeBuffer(int count, int stride)
 public void ReturnBuffer(ComputeBuffer buffer)
-public Texture2DArray GetOrCreateTextureArray(int hash, Texture2DArray textureArray)
+public Texture2DArray GetOrCreateTextureArray(Texture[] textures, out int width, out int height)
+
+// OpenGL ES 3.0 temp texture management (NEW v3.0.1)
+public Texture2D GetOrCreateTempTexture(int width, int height)
+public void ReturnTempTexture(Texture2D texture)
 
 // Cleanup (automatic on component destroy)
 public void Dispose()
@@ -447,6 +451,13 @@ public void Dispose()
 - **RenderTextures:** Pooled by (width, height, format) - reused for blend outputs
 - **ComputeBuffers:** Pooled by element count - reused for weights, rotations, offsets
 - **Texture2DArrays:** Cached by hash - reused for identical texture sets (35% speedup)
+- **Temp Texture2Ds:** Pooled by (width, height) - reused for OpenGL ES 3.0 buffer copies (v3.0.1+)
+
+**Platform-Specific Behavior:**
+- **Desktop/Vulkan**: Only RenderTexture, ComputeBuffer, and Texture2DArray pools used
+- **Quest 2 (OpenGL ES 3.0)**: All pools used, including temp texture pool
+- **Quest 3/Pro (Vulkan)**: Only RenderTexture, ComputeBuffer, and Texture2DArray pools used
+- **Quest 3/Pro (OpenGL ES 3.0)**: All pools used if Vulkan unavailable
 
 **All resources automatically cleaned up when TextureBlender component is destroyed.**
 
