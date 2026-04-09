@@ -158,18 +158,18 @@ public struct ScrollOffset : IComponentData
 }
 
 /// <summary>
-/// Singleton configuration for terrain auto-scrolling.
+/// Singleton component that provides scroll direction and speed for terrain auto-scrolling.
+/// Direction is expected to be pre-normalized. Speed is in units per second.
 /// </summary>
-public struct ScrollConfig : IComponentData
+public struct ScrollVelocity : IComponentData
 {
     /// <summary>
-    /// If true, terrain automatically scrolls in the direction the player is facing (XZ plane).
+    /// Normalized direction vector for scrolling (expected to be pre-normalized by provider system).
     /// </summary>
-    public bool enabled;
+    public float3 direction;
     
     /// <summary>
-    /// Speed of terrain scrolling in units per second (e.g., 5.0 = 5 m/s forward).
-    /// The scroll direction is determined by the player's forward direction projected onto XZ plane.
+    /// Speed of scrolling in units per second. Set to 0 to disable scrolling.
     /// </summary>
-    public float scrollSpeed;
+    public float speed;
 }

@@ -15,17 +15,11 @@ partial struct SplineFollowerSystem : ISystem
     {
         if (useJobs)
         {
-            // Calculate scroll velocity from terrain scrolling system
+            // Get scroll velocity from terrain scrolling system
             float3 scrollVelocity = float3.zero;
-            if (SystemAPI.TryGetSingleton<ScrollConfig>(out var scrollConfig) && 
-                SystemAPI.TryGetSingleton<ScrollOffset>(out var scrollOffset))
+            if (SystemAPI.TryGetSingleton<ScrollVelocity>(out var scrollVel))
             {
-                if (scrollConfig.enabled && scrollConfig.scrollSpeed > 0f)
-                {
-                    // Calculate scroll direction from accumulated offset
-                    float3 scrollDirection = math.normalizesafe(scrollOffset.accumulatedOffset);
-                    scrollVelocity = scrollDirection * scrollConfig.scrollSpeed;
-                }
+                scrollVelocity = scrollVel.direction * scrollVel.speed;
             }
             
             SplineFollowerJob splineFollowerJob = new SplineFollowerJob

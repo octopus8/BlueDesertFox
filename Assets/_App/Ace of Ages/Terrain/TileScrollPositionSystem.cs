@@ -16,7 +16,6 @@ public partial struct TileScrollPositionSystem : ISystem
     [BurstCompile]
     public void OnCreate(ref SystemState state)
     {
-        state.RequireForUpdate<ScrollConfig>();
         state.RequireForUpdate<ScrollOffset>();
         state.RequireForUpdate<TerrainTileConfig>();
     }
@@ -24,11 +23,6 @@ public partial struct TileScrollPositionSystem : ISystem
     [BurstCompile]
     public void OnUpdate(ref SystemState state)
     {
-        var config = SystemAPI.GetSingleton<ScrollConfig>();
-        
-        if (!config.enabled)
-            return;
-        
         var scrollOffset = SystemAPI.GetSingleton<ScrollOffset>();
         var tileConfig = SystemAPI.GetSingleton<TerrainTileConfig>();
         

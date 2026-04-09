@@ -33,17 +33,11 @@ partial struct FormationMovementSystem : ISystem
         float viewDistance = config.viewDistance;
         float deltaTime = SystemAPI.Time.DeltaTime;
         
-        // Calculate scroll velocity from terrain scrolling system
+        // Get scroll velocity from terrain scrolling system
         float3 scrollVelocity = float3.zero;
-        if (SystemAPI.TryGetSingleton<ScrollConfig>(out var scrollConfig) && 
-            SystemAPI.TryGetSingleton<ScrollOffset>(out var scrollOffset))
+        if (SystemAPI.TryGetSingleton<ScrollVelocity>(out var scrollVel))
         {
-            if (scrollConfig.enabled && scrollConfig.scrollSpeed > 0f)
-            {
-                // Calculate scroll direction from accumulated offset
-                float3 scrollDirection = math.normalizesafe(scrollOffset.accumulatedOffset);
-                scrollVelocity = scrollDirection * scrollConfig.scrollSpeed;
-            }
+            scrollVelocity = scrollVel.direction * scrollVel.speed;
         }
         
         // Schedule Burst-compiled job for movement calculations

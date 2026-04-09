@@ -118,11 +118,11 @@ public class TerrainConfigAuthoring : MonoBehaviour
                 lowDetailPhysicsLayer = authoring.lowDetailPhysicsLayer
             });
             
-            // Create scroll config singleton
-            AddComponent(entity, new ScrollConfig
+            // Create scroll velocity singleton (starts inactive)
+            AddComponent(entity, new ScrollVelocity
             {
-                enabled = authoring.scrollEnabled,
-                scrollSpeed = authoring.scrollSpeed
+                direction = float3.zero,
+                speed = 0f
             });
             
             // Create scroll offset singleton (starts at zero)
