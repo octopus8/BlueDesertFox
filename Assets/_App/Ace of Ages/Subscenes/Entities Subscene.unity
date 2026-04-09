@@ -5502,6 +5502,7 @@ GameObject:
   - component: {fileID: 1528308291}
   - component: {fileID: 1528308290}
   - component: {fileID: 1528308292}
+  - component: {fileID: 1528308293}
   m_Layer: 0
   m_Name: Terrain Config
   m_TagString: Untagged
@@ -5564,12 +5565,25 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1528308289}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 2271a8931a0b4353ba1f193fc287433a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ConstantScrollVelocityAuthoring
   direction: {x: 1, y: 0, z: 1}
+  speed: 50
+--- !u!114 &1528308293
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1528308289}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ea650e9e97214c68a8aab550673cff51, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerScrollVelocityAuthoring
   speed: 50
 --- !u!1 &1730959682
 GameObject:

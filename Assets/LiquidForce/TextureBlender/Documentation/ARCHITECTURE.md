@@ -138,7 +138,7 @@ Dictionary<(int, int), Queue<Texture2D>> tempTexturePool;
 **Responsibilities:**
 1. Convert Texture[] to Texture2DArray
 2. Handle size mismatches
-3. Replace null textures with black
+3. Replace null textures with clear black
 4. Compute cache keys
 
 **Optimization Paths:**
