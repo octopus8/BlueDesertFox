@@ -54,12 +54,12 @@ Located in `Assets/LiquidForce/TextureBlender/`:
 - **Blend Modes**: Additive (fastest, 30% faster than alpha), AlphaWeighted (respects texture alpha), Multiplicative (masking/darkening)
 - **Normal Maps**: `BlendNormalsWithBaseAlpha()` blends normals with per-pixel alpha weighting, supports rotation for visual coherence with base textures
 - **Resource Management**: Automatic pooling for RenderTextures and ComputeBuffers, Texture2DArray caching for repeat blends (35% speedup)
-- **API (v3.0)**: `BlendTextures(target, textures, weights, ...)` (unified API - pass null for target to create new, pass RenderTexture to reuse), supports optional rotation/offset parameters, `BlendTexturesAsync()` (non-blocking with UniTask), `BlendNormalsWithBaseAlpha()` (normal map support with rotation), `BatchBlend()` (multiple operations)
+- **API (v3.0)**: `BlendTextures(target, textures, weights, ...)` (unified API - pass null for target to create new, pass RenderTexture to reuse), supports optional rotation/offset parameters, `BlendNormalsWithBaseAlpha()` (normal map support with rotation), `BatchBlend()` (multiple operations)
 - **Breaking Change (v3.0)**: `BlendToExistingTexture()` removed - use `BlendTextures(target, ...)` instead (target as first parameter)
 - **Compute Shader**: `TextureBlenderComputeShader.compute` with kernels for each blend mode and normal blending, uses [numthreads(8,8,1)] for optimal GPU occupancy on RTX series, custom sampler (`sampler_linear_repeat`) with Wrap mode for seamless UV tiling during rotation
-- **VR Compatible**: Writes to both RWTexture2D and RWStructuredBuffer for OpenGL ES 3.0 support (Quest/Pico)
+- **VR Compatible**: ✅ **FIXED (April 2026)** - Fully functional on all VR platforms. Quest 3/Pro/Pico 4+ recommended to use Vulkan (full performance, no overhead). Quest 2 and OpenGL ES 3.0 devices automatically use buffer copy fallback (adds 2-5ms overhead). Use `forceBufferCopyPath` debug flag to test fallback path in Editor.
 - **Configuration**: Enable texture pooling in Inspector for maximum speed, FastMode to skip validation (Texture2DArray caching is always enabled)
-- **Profiler Markers**: `TextureBlender.ConvertToArray`, `TextureBlender.Dispatch`, `TextureBlender.AllocateResources`, `TextureBlender.CacheCheck`
+- **Profiler Markers**: `TextureBlender.ConvertToArray`, `TextureBlender.Dispatch`, `TextureBlender.AllocateResources`, `TextureBlender.CacheCheck`, `TextureBlender.BufferCopy` (OpenGL ES 3.0 only)
 - **Examples**: `TextureBlenderExample.cs` shows usage patterns including rotation, `TextureBlenderBenchmark.cs` for performance testing
 - **Documentation**: See `Assets/LiquidForce/TextureBlender/Documentation/` folder for complete guides (README, API_REFERENCE, ARCHITECTURE, QUICK_START, etc.) or `TEXTURE_BLENDING_SYSTEM.md` in project root
 - **PDF Documentation**: `TextureBlender_Architecture.pdf` in Documentation folder - comprehensive architecture guide with diagrams (generate with Pandoc+XeLaTeX)

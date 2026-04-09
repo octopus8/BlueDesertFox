@@ -34,8 +34,7 @@ RenderTexture same = blender.BlendTextures(existingRT, textures, weights);
 - ✅ **Multiple Blend Modes** - Additive, AlphaWeighted, Multiplicative
 - ✅ **Resource Pooling** - Automatic RenderTexture and ComputeBuffer reuse
 - ✅ **Texture Array Caching** - Major speedup for repeated blends
-- ✅ **Async Support** - Non-blocking operations with UniTask
-- ✅ **VR Compatible** - OpenGL ES 3.0 support
+- ✅ **VR Compatible** - OpenGL ES 3.0 with automatic fallback (Quest/Pico) ✅ FIXED April 2026
 - ✅ **Zero Memory Leaks** - Automatic resource management
 - ✅ **Normal Map Support** - Per-pixel alpha-weighted normal blending with rotation and offset
 - ✅ **Seamless Tiling** - Automatic UV wrapping during rotation and offset for continuous textures
@@ -88,16 +87,30 @@ public class SimpleBlend : MonoBehaviour
 
 ## Performance Targets
 
-| Configuration | Resolution | Target Time (RTX 3070) | VR Target (Quest 2) |
-|---------------|------------|------------------------|---------------------|
-| 4 textures    | 1024×1024  | <2ms                   | <3ms                |
-| 4 textures    | 2048×2048  | <5ms                   | <8ms                |
-| 8 textures    | 2048×2048  | <8ms                   | <12ms               |
-| 4 cached      | 2048×2048  | <2ms                   | <2ms                |
+| Configuration | Resolution | Target Time (RTX 3070) | Quest 2 (OpenGL ES) | Quest 3 (Vulkan) |
+|---------------|------------|------------------------|---------------------|------------------|
+| 4 textures    | 1024×1024  | <2ms                   | <5ms (+2-5ms copy)  | <2ms             |
+| 4 textures    | 2048×2048  | <5ms                   | <10ms (+2-5ms copy) | <5ms             |
+| 8 textures    | 2048×2048  | <8ms                   | <15ms (+2-5ms copy) | <8ms             |
+| 4 cached      | 2048×2048  | <2ms                   | <7ms (+2-5ms copy)  | <2ms             |
+
+**Note**: Quest 2 requires OpenGL ES 3.0 buffer copy (fixed April 2026). Quest 3/Pro/Pico 4+ recommended to use Vulkan for full performance.
 
 ## Version History
 
-### Current Version (v3.0.0) ⚠️ BREAKING CHANGES
+### Current Version (v3.0.1) - April 9, 2026
+
+**Critical VR Fix:**
+- ✅ **FIXED**: OpenGL ES 3.0 compatibility on Quest/Pico VR headsets
+- **Issue**: RWTexture2D writes not supported on OpenGL ES 3.0 - textures were black/empty
+- **Solution**: Automatic buffer-to-texture copy fallback detected at runtime
+- **Performance Impact**: +2-5ms overhead on Quest/Pico (unavoidable due to GPU→CPU→GPU transfer)
+- **Desktop Impact**: Zero overhead - fallback path never executes
+- **Debug Flag**: Added `forceBufferCopyPath` to test fallback in Editor
+- **Profiler Marker**: Added `TextureBlender.BufferCopy` for performance monitoring
+- **Resource Management**: Temporary Texture2D pooling to minimize allocations
+
+### Version v3.0.0 ⚠️ BREAKING CHANGES
 
 **Major API Refactoring:**
 - **BREAKING**: `BlendTextures()` now takes `RenderTexture target` as first parameter

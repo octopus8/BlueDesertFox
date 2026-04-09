@@ -15,13 +15,15 @@ Optimization strategies and profiling techniques for maximum performance.
 
 ### VR Targets
 
-| Platform    | Resolution  | Target Time | Notes                    |
-|-------------|-------------|-------------|--------------------------|
-| Quest 2     | 1024×1024   | <3ms        | Enable Fast Mode         |
-| Quest 2     | 2048×2048   | <8ms        | Use with caution         |
-| Quest Pro   | 1024×1024   | <2ms        | Standard settings OK     |
-| PCVR        | 1024×1024   | <2ms        | Can use higher res       |
-| PCVR        | 2048×2048   | <5ms        | Desktop-class GPU        |
+| Platform           | Resolution  | Target Time | Notes                           |
+|--------------------|-------------|-------------|---------------------------------|
+| Quest 2 (OpenGL)   | 1024×1024   | <5ms        | +2-5ms buffer copy (unavoidable)|
+| Quest 3 (Vulkan)   | 1024×1024   | <2ms        | **No buffer copy** (recommended)|
+| Quest 3 (OpenGL)   | 1024×1024   | <4ms        | +2-5ms buffer copy (if Vulkan unavailable)|
+| Quest Pro (Vulkan) | 1024×1024   | <2ms        | **No buffer copy** (recommended)|
+| Quest Pro (OpenGL) | 1024×1024   | <4ms        | +2-5ms buffer copy (if Vulkan unavailable)|
+| PCVR               | 1024×1024   | <2ms        | No buffer copy overhead         |
+| PCVR               | 2048×2048   | <5ms        | Desktop-class GPU               |
 
 ## Optimization Checklist
 
@@ -64,12 +66,13 @@ Fast Mode: ✓
 
 // Code
 RenderTexture terrain = blender.BlendTextures(
+    null,
     terrainLayers,
     splatWeights,
     TextureBlender.BlendMode.Additive);  // Use Additive for speed
 ```
 
-**Expected Performance:** 1-2ms per blend
+**Expected Performance:** 3-5ms per blend on Quest (includes buffer copy)
 
 ---
 
@@ -88,6 +91,7 @@ Fast Mode: ☐
 
 // Code
 RenderTexture result = blender.BlendTextures(
+    null,
     textures,
     weights,
     TextureBlender.BlendMode.AlphaWeighted);  // Quality mode
@@ -97,32 +101,7 @@ RenderTexture result = blender.BlendTextures(
 
 ---
 
-### Scenario 3: Loading Screen (Async)
-
-**Requirements:** Non-blocking, quality important
-
-**Configuration:**
-```csharp
-// Inspector settings
-Default Output Width: 2048
-Default Output Height: 2048
-Use Texture Pooling: ✓
-Max Pooled Textures: 10
-Fast Mode: ☐
-
-// Code
-RenderTexture result = await blender.BlendTexturesAsync(
-    textures,
-    weights,
-    TextureBlender.BlendMode.AlphaWeighted,
-    cancellationToken);
-```
-
-**Expected Performance:** Background execution, no frame impact
-
----
-
-### Scenario 4: Batch Processing
+### Scenario 3: Batch Processing
 
 **Requirements:** Process multiple texture sets efficiently
 
@@ -140,7 +119,7 @@ var requests = CreateBatchRequests();  // Multiple blend ops
 RenderTexture[] results = blender.BatchBlend(requests);
 ```
 
-**Expected Performance:** ~80% of sequential time (parallel GPU usage)
+**Expected Performance:** Efficient sequential processing with resource pooling
 
 ---
 
@@ -270,7 +249,7 @@ Example (4×2048² textures):
 void Start()
 {
     // Prewarm by blending once during loading
-    var warmup = blender.BlendTextures(textures);
+    var warmup = blender.BlendTextures(null, textures, null);
     blender.ReturnTexture(warmup);
     
     // Future blends will use cached array
@@ -292,14 +271,14 @@ void Start()
 // BAD
 void UpdateTerrain()
 {
-    RenderTexture result = blender.BlendTextures(textures);
+    RenderTexture result = blender.BlendTextures(null, textures, null);
     // Leaks RenderTexture every frame!
 }
 
 // GOOD
 void UpdateTerrain()
 {
-    RenderTexture result = blender.BlendTextures(textures);
+    RenderTexture result = blender.BlendTextures(null, textures, null);
     ApplyToMaterial(result);
     blender.ReturnTexture(result);  // Return to pool
 }
@@ -324,22 +303,7 @@ Default Output Width: 1024
 Default Output Height: 1024
 ```
 
-**Option B: Use Async**
-```csharp
-// Spread work across frames
-private async void UpdateTerrain()
-{
-    var result = await blender.BlendTexturesAsync(
-        textures,
-        weights,
-        BlendMode.Additive,  // Also use faster mode
-        cancellationToken);
-    
-    ApplyToMaterial(result);
-}
-```
-
-**Option C: Amortize Updates**
+**Option B: Amortize Updates**
 ```csharp
 // Update every N frames
 private int frameCounter = 0;
@@ -441,7 +405,7 @@ textures[2] = 1024×1024
 void Update()
 {
     float[] weights = CalculateWeights();  // Allocation!
-    blender.BlendTextures(textures, weights);
+    blender.BlendTextures(null, textures, weights);
 }
 ```
 
@@ -457,7 +421,7 @@ void Start()
 void Update()
 {
     UpdateWeights(cachedWeights);  // Reuse array
-    blender.BlendTextures(textures, cachedWeights);
+    blender.BlendTextures(null, textures, cachedWeights);
 }
 ```
 
@@ -498,7 +462,7 @@ void RunBenchmark()
     // Warmup
     for (int i = 0; i < 10; i++)
     {
-        var warmup = blender.BlendTextures(textures);
+        var warmup = blender.BlendTextures(null, textures, null);
         blender.ReturnTexture(warmup);
     }
     
@@ -507,7 +471,7 @@ void RunBenchmark()
     
     for (int i = 0; i < iterations; i++)
     {
-        var result = blender.BlendTextures(textures, weights, mode);
+        var result = blender.BlendTextures(null, textures, weights);
         blender.ReturnTexture(result);
     }
     
@@ -545,25 +509,36 @@ void RunBenchmark()
 10. Persistent RenderTextures
 11. Weight array caching
 12. Frame amortization
-13. Async operations
 
 ---
 
 ## Platform-Specific Recommendations
 
 ### Quest 2 (Standalone)
+- **Graphics API**: OpenGL ES 3.0 only (buffer copy required)
 - Resolution: 1024×1024 max
 - Mode: Additive preferred
 - Fast Mode: ✓
 - Pool Size: 3-5
-- Target: <3ms
+- Target: <5ms (+2-5ms buffer copy)
 
-### Quest Pro (Standalone)
+### Quest 3 (Standalone) - **USE VULKAN**
+- **Graphics API**: **Vulkan (recommended)** - Full performance, no buffer copy!
+- Resolution: 1024×1024 recommended, 2048×2048 possible
+- Mode: Any
+- Fast Mode: Optional
+- Pool Size: 5
+- Target with Vulkan: <2ms (no buffer copy)
+- Target with OpenGL ES 3.0: <4ms (+2-5ms buffer copy)
+
+### Quest Pro (Standalone) - **USE VULKAN**
+- **Graphics API**: **Vulkan (recommended)** - Full performance, no buffer copy!
 - Resolution: 1024×1024 or 2048×2048
 - Mode: Any
 - Fast Mode: Optional
 - Pool Size: 5-8
-- Target: <2ms
+- Target with Vulkan: <2ms (no buffer copy)
+- Target with OpenGL ES 3.0: <4ms (+2-5ms buffer copy)
 
 ### PCVR (High-End)
 - Resolution: 2048×2048

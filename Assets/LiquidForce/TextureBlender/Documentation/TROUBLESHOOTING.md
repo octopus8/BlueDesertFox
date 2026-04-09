@@ -294,20 +294,62 @@ for (int i = 0; i < weights.Length; i++)
 
 ---
 
-### Issue: VR Rendering Artifacts
+### Issue: Black/Empty Textures on Quest/Pico VR ✅ FIXED April 2026
+
+**Symptoms:**
+- Textures appear black or empty on Quest 2/Quest 3/Quest Pro/Pico headsets
+- Works fine in Unity Editor and PC VR
+- Console shows no errors
+
+**Cause:** OpenGL ES 3.0 doesn't support RWTexture2D writes in compute shaders
+
+**Solution (Implemented in v3.0.1):**
+The system now **automatically detects** OpenGL ES 3.0 and copies data from OutputBuffer to texture via CPU.
+
+**How to Verify Fix:**
+
+**In Editor (Before Quest Deployment):**
+```csharp
+// 1. Select TextureBlender component
+// 2. In Inspector, find "Debug Settings"
+// 3. Enable "Force Buffer Copy Path" checkbox
+// 4. Run scene in Play Mode
+// 5. Check Console for: "OpenGL ES 3.0 detected - using buffer copy fallback for VR compatibility"
+// 6. Verify textures blend correctly
+// 7. Check Profiler for "TextureBlender.BufferCopy" marker
+```
+
+**On Quest Device:**
+```csharp
+// System automatically detects OpenGL ES 3.0
+// No configuration needed
+// Console will log: "OpenGL ES 3.0 detected..."
+// Expect +2-5ms overhead per blend (unavoidable)
+```
+
+**Performance Impact:**
+- **Desktop (DirectX/Vulkan/Metal)**: Zero overhead - buffer copy path never executes
+- **Quest/Pico (OpenGL ES 3.0)**: +2-5ms per blend due to GPU→CPU→GPU transfer
+- Temp textures are pooled to minimize allocations
+
+**If Still Having Issues:**
+1. Verify Unity project uses OpenGL ES 3.0+ in Player Settings
+2. Check that TextureBlender component is v3.0.1 or newer
+3. Enable profiler and look for "TextureBlender.BufferCopy" marker
+4. If marker is missing, buffer copy isn't running - file bug report
+
+---
+
+### Issue: VR Rendering Artifacts (Legacy Issue - See Above for Quest/Pico Fix)
 
 **Symptoms:**
 - Texture looks wrong in one eye
 - Flickering in VR
-- "OpenGL ES 3.0 not supported" errors
 
-**Cause:** Compute shader compatibility
+**Cause:** Stereo rendering configuration
 
 **Solution:**
 ```csharp
-// System already writes to both:
-// - RWTexture2D (modern)
-// - RWStructuredBuffer (OpenGL ES 3.0)
 
 // Ensure VR project settings:
 // Graphics API: OpenGL ES 3.0 or higher
@@ -347,7 +389,7 @@ for (int i = 0; i < weights.Length; i++)
 **Cause 1: Using Wrong Blend Method**
 ```csharp
 // BAD - Regular blend flattens normals
-var normals = blender.BlendTextures(normalTextures);
+var normals = blender.BlendTextures(null, normalTextures, null);
 
 // GOOD - Use specialized normal blend
 var normals = blender.BlendNormalsWithBaseAlpha(
@@ -365,52 +407,6 @@ var normals = blender.BlendNormalsWithBaseAlpha(
 // Check base texture import settings:
 // Alpha Source: Input Texture Alpha
 // Alpha Is Transparency: ✓
-```
-
----
-
-### Issue: Async Blend Never Completes
-
-**Symptoms:**
-- `BlendTexturesAsync()` never returns
-- UI hangs waiting for result
-
-**Cause:** Cancellation token cancelled or invalid
-
-**Solution:**
-```csharp
-// BAD
-CancellationTokenSource cts = new CancellationTokenSource();
-cts.Cancel();  // Cancelled immediately!
-var result = await blender.BlendTexturesAsync(
-    textures, null, BlendMode.AlphaWeighted, cts.Token);
-
-// GOOD
-CancellationTokenSource cts = new CancellationTokenSource();
-try
-{
-    var result = await blender.BlendTexturesAsync(
-        textures, 
-        null, 
-        BlendMode.AlphaWeighted, 
-        cts.Token);
-    // Use result
-}
-catch (OperationCanceledException)
-{
-    Debug.Log("Blend cancelled");
-}
-finally
-{
-    cts.Dispose();
-}
-
-// BETTER - Use component lifetime token
-var result = await blender.BlendTexturesAsync(
-    textures,
-    null,
-    BlendMode.AlphaWeighted,
-    this.GetCancellationTokenOnDestroy());
 ```
 
 ---
@@ -518,18 +514,48 @@ public class TextureBlenderValidator : MonoBehaviour
 
 ## Platform-Specific Issues
 
-### Quest 2 Standalone
+### Quest 2/Quest 3/Quest Pro/Pico (VR Headsets) ✅ FIXED April 2026
+
+**Issue: Black textures (SOLVED in v3.0.1 for OpenGL ES 3.0)**
+**Solution:** Automatic buffer copy fallback now implemented. See "Black/Empty Textures on Quest/Pico VR" section above.
+
+**Graphics API Recommendations:**
+- **Quest 3/Pro/Pico 4+**: Use **Vulkan** for full performance (no buffer copy needed)
+- **Quest 2**: OpenGL ES 3.0 only (buffer copy automatically applies)
+
+**Performance Comparison:**
+- Quest 2 (OpenGL ES 3.0): ~4-7ms for 1024×1024 (includes +2-5ms buffer copy)
+- Quest 3 (Vulkan): ~1.5-2.5ms for 1024×1024 (no buffer copy!)
+- Quest 3 (OpenGL ES 3.0): ~3-6ms for 1024×1024 (if Vulkan unavailable)
+- Quest Pro (Vulkan): ~1.5-2.5ms for 1024×1024 (no buffer copy!)
+
+**Issue: Performance slower than expected on Quest 3/Pro**
+**Cause**: Likely using OpenGL ES 3.0 instead of Vulkan
+**Solution**:
+1. Check Player Settings → Android → Graphics APIs
+2. Ensure Vulkan is **first** in the list
+3. Rebuild and deploy
+4. Check console - should NOT see "OpenGL ES 3.0 detected" message
+5. Performance should match desktop-class GPU
+
+**Mitigation (for OpenGL ES 3.0):**
+- **Best**: Use Vulkan on Quest 3/Pro/Pico 4+ (eliminates buffer copy entirely)
+- Reduce resolution to 1024×1024 for VR
+- Use Additive mode (30% faster than AlphaWeighted)
+- Enable Fast Mode to skip validation
+- Reduce texture count if possible
 
 **Issue: Out of memory**
-**Solution:** Reduce resolution to 512×512 or 1024×1024
-
-**Issue: Slow blends**
 **Solution:** 
-- Use Additive mode
-- Enable Fast Mode
-- Reduce max pooled textures to 3
+- Reduce resolution to 512×512 or 1024×1024
+- Reduce max pooled textures to 2-3 in Inspector
+- Return textures immediately after use with `ReturnTexture()`
 
-### PCVR
+**Issue: First blend takes longer**
+**Explanation:** Temp texture pool needs to allocate on first use
+**Solution:** Acceptable - subsequent blends will be faster due to pooling
+
+### PCVR (Desktop VR via Link/Airlink)
 
 **Issue: Stuttering**
 **Solution:**

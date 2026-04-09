@@ -167,7 +167,6 @@ MonoBehaviour:
   baseMapPropertyName: _BaseMap
   normalMapPropertyName: _BumpMap
   blendMode: 1
-  useAsyncBlending: 0
   showPerformanceStats: 1
   performanceText: {fileID: 0}
 --- !u!114 &300810099
@@ -188,8 +187,8 @@ MonoBehaviour:
   outputFormat: 0
   useTexturePooling: 1
   maxPooledTextures: 5
-  enableArrayCache: 1
   fastMode: 0
+  forceBufferCopyPath: 0
 --- !u!4 &300810100
 Transform:
   m_ObjectHideFlags: 0

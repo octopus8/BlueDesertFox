@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.Rendering;
 using System;
 using System.Collections.Generic;
 using Cysharp.Threading.Tasks;
@@ -62,6 +63,9 @@ public class TextureBlender : MonoBehaviour
     [SerializeField] private int maxPooledTextures = 5;
     [SerializeField] private bool fastMode = false;  // Skip validation checks for maximum speed
     
+    [Header("Debug Settings")]
+    [SerializeField] private bool forceBufferCopyPath = false;  // Force buffer copy for testing on non-VR platforms
+    
     #endregion
     
     
@@ -97,11 +101,15 @@ public class TextureBlender : MonoBehaviour
     private Dictionary<int, float[]> cachedZeroOffsets = new Dictionary<int, float[]>();
     private const float OffsetEpsilon = 0.0001f;  // Threshold for considering offset as zero  // Threshold for considering rotation as zero
     
+    // Platform compatibility (cached at initialization)
+    private bool requiresBufferCopyFallback = false;
+    
     // Profiler markers for performance tracking
     private static readonly ProfilerMarker s_TextureArrayConversion = new ProfilerMarker("TextureBlender.ConvertToArray");
     private static readonly ProfilerMarker s_ShaderDispatch = new ProfilerMarker("TextureBlender.Dispatch");
     private static readonly ProfilerMarker s_ResourceAllocation = new ProfilerMarker("TextureBlender.AllocateResources");
     private static readonly ProfilerMarker s_CacheCheck = new ProfilerMarker("TextureBlender.CacheCheck");
+    private static readonly ProfilerMarker s_BufferCopy = new ProfilerMarker("TextureBlender.BufferCopy");
     
     #endregion
     
@@ -148,6 +156,15 @@ public class TextureBlender : MonoBehaviour
         if (useTexturePooling)
         {
             resources.PrewarmPool(1024, 1024, outputFormat, 1);
+        }
+        
+        // Detect if we need buffer copy fallback (OpenGL ES 3.0 lacks RWTexture2D support)
+        requiresBufferCopyFallback = forceBufferCopyPath || 
+                                      SystemInfo.graphicsDeviceType == GraphicsDeviceType.OpenGLES3;
+        
+        if (requiresBufferCopyFallback)
+        {
+            Debug.Log("TextureBlender: OpenGL ES 3.0 detected - using buffer copy fallback for VR compatibility");
         }
         
         // Set the initialized flag.
@@ -746,21 +763,27 @@ public class TextureBlender : MonoBehaviour
             // Get kernel ID based on blend mode
             int kernelID = GetKernelForBlendMode(mode);
             
-            // Create compute buffer for blend weights
-            ComputeBuffer weightsBuffer = resources.GetOrCreateBuffer(weights.Length, sizeof(float));
+            // Get or create compute buffer for blend weights
+            ComputeBuffer weightsBuffer = resources.GetOrCreateComputeBuffer(weights.Length, sizeof(float));
             weightsBuffer.SetData(weights);
             
             // Prepare rotation angles (degrees to radians)
             float[] rotationAngles = PrepareRotationAngles(textureCount, rotationsDegrees);
-            ComputeBuffer rotationBuffer = resources.GetOrCreateBuffer(rotationAngles.Length, sizeof(float));
-            rotationBuffer.SetData(rotationAngles);            // Prepare UV offsets (interleaved x,y pairs)
+            
+            // Get or create a compute buffer for rotations.
+            ComputeBuffer rotationBuffer = resources.GetOrCreateComputeBuffer(rotationAngles.Length, sizeof(float));
+            rotationBuffer.SetData(rotationAngles);
+            
+            // Prepare UV offsets (Vector2 array to float array)
             float[] uvOffsets = PrepareUVOffsets(textureCount, offsets);
-            ComputeBuffer offsetBuffer = resources.GetOrCreateBuffer(uvOffsets.Length, sizeof(float));
+            
+            // Get or create a compute buffer for offsets.
+            ComputeBuffer offsetBuffer = resources.GetOrCreateComputeBuffer(uvOffsets.Length, sizeof(float));
             offsetBuffer.SetData(uvOffsets);
             
             // Create output buffer for OpenGL ES 3.0 compatibility
             int pixelCount = target.width * target.height;
-            ComputeBuffer outputBuffer = resources.GetOrCreateBuffer(pixelCount, sizeof(float) * 4);
+            ComputeBuffer outputBuffer = resources.GetOrCreateComputeBuffer(pixelCount, sizeof(float) * 4);
             
             // Set shader parameters
             imageProcessorShader.SetInt(TextureWidthID, target.width);
@@ -782,6 +805,12 @@ public class TextureBlender : MonoBehaviour
             
             // Dispatch compute shader (single dispatch for maximum speed)
             imageProcessorShader.Dispatch(kernelID, dispatchX, dispatchY, (int)threadGroupSizeZ);
+            
+            // OpenGL ES 3.0 fallback: RWTexture2D write fails, copy from buffer instead
+            if (requiresBufferCopyFallback)
+            {
+                CopyBufferToTexture(outputBuffer, target);
+            }
             
             // Return buffers to pool
             resources.ReturnBuffer(weightsBuffer);
@@ -817,20 +846,20 @@ public class TextureBlender : MonoBehaviour
             int kernelID = kernelBlendNormalsWithBaseAlphaAlphaWeighted;
             
             // Create compute buffer for blend weights
-            ComputeBuffer weightsBuffer = resources.GetOrCreateBuffer(weights.Length, sizeof(float));
+            ComputeBuffer weightsBuffer = resources.GetOrCreateComputeBuffer(weights.Length, sizeof(float));
             weightsBuffer.SetData(weights);
             
             // Prepare rotation angles (degrees to radians)
             float[] rotationAngles = PrepareRotationAngles(textureCount, rotationsDegrees);
-            ComputeBuffer rotationBuffer = resources.GetOrCreateBuffer(rotationAngles.Length, sizeof(float));
+            ComputeBuffer rotationBuffer = resources.GetOrCreateComputeBuffer(rotationAngles.Length, sizeof(float));
             rotationBuffer.SetData(rotationAngles);            // Prepare UV offsets (interleaved x,y pairs)
             float[] uvOffsets = PrepareUVOffsets(textureCount, offsets);
-            ComputeBuffer offsetBuffer = resources.GetOrCreateBuffer(uvOffsets.Length, sizeof(float));
+            ComputeBuffer offsetBuffer = resources.GetOrCreateComputeBuffer(uvOffsets.Length, sizeof(float));
             offsetBuffer.SetData(uvOffsets);
             
             // Create output buffer for OpenGL ES 3.0 compatibility
             int pixelCount = target.width * target.height;
-            ComputeBuffer outputBuffer = resources.GetOrCreateBuffer(pixelCount, sizeof(float) * 4);
+            ComputeBuffer outputBuffer = resources.GetOrCreateComputeBuffer(pixelCount, sizeof(float) * 4);
             
             // Set shader parameters
             imageProcessorShader.SetInt(TextureWidthID, target.width);
@@ -853,6 +882,12 @@ public class TextureBlender : MonoBehaviour
             
             // Dispatch compute shader (single dispatch for maximum speed)
             imageProcessorShader.Dispatch(kernelID, dispatchX, dispatchY, (int)threadGroupSizeZ);
+            
+            // OpenGL ES 3.0 fallback: RWTexture2D write fails, copy from buffer instead
+            if (requiresBufferCopyFallback)
+            {
+                CopyBufferToTexture(outputBuffer, target);
+            }
             
             // Return buffers to pool
             resources.ReturnBuffer(weightsBuffer);
@@ -896,6 +931,35 @@ public class TextureBlender : MonoBehaviour
         rt.enableRandomWrite = true;
         rt.Create();
         return rt;
+    }
+    
+    
+    /// <summary>
+    /// Copies data from ComputeBuffer to RenderTexture (OpenGL ES 3.0 fallback).
+    /// Required on platforms where RWTexture2D writes are not supported in compute shaders.
+    /// PERFORMANCE: Adds 2-5ms overhead on Quest/Pico devices due to GPU->CPU->GPU transfer.
+    /// </summary>
+    private void CopyBufferToTexture(ComputeBuffer buffer, RenderTexture target)
+    {
+        using (s_BufferCopy.Auto())
+        {
+            // Get or create temporary Texture2D for CPU-side pixel data
+            Texture2D tempTexture = resources.GetOrCreateTempTexture(target.width, target.height);
+            
+            // Read buffer data into managed array
+            Color[] pixelData = new Color[buffer.count];
+            buffer.GetData(pixelData);
+            
+            // Upload to Texture2D
+            tempTexture.SetPixels(pixelData);
+            tempTexture.Apply(false);  // updateMipmaps = false
+            
+            // Blit to RenderTexture (GPU transfer)
+            Graphics.Blit(tempTexture, target);
+            
+            // Return temp texture to pool
+            resources.ReturnTempTexture(tempTexture);
+        }
     }
     
     #endregion

@@ -1,9 +1,9 @@
 # Texture Blending System - API Reference
 
 ## Overview
-The Texture Blending System provides a flexible, high-performance solution for blending multiple textures using GPU compute shaders. It removes the 8-texture limitation of the legacy system and adds support for multiple blend modes, texture rotation, resource pooling, and async operations.
+The Texture Blending System provides a flexible, high-performance solution for blending multiple textures using GPU compute shaders. It removes the 8-texture limitation of the legacy system and adds support for multiple blend modes, texture rotation, and resource pooling.
 
-**Location**: `Assets/LiquidForce/TextureBlender/`
+**Location**: Relative to project root: `Assets/LiquidForce/TextureBlender/`
 
 ## Key Features
 - ✅ **Unlimited textures** - No hard limit (GPU-dependent, typically 2048)
@@ -13,9 +13,8 @@ The Texture Blending System provides a flexible, high-performance solution for b
 - ✅ **High performance** - <5ms for 4×2048² textures, <2ms cached
 - ✅ **Resource pooling** - Automatic RenderTexture and ComputeBuffer reuse
 - ✅ **Texture array caching** - Major speedup for repeated blends
-- ✅ **Async support** - Non-blocking operations with UniTask
 - ✅ **Normal map support** - Rotate and offset normals with their base textures
-- ✅ **VR compatible** - OpenGL ES 3.0 support maintained
+- ✅ **VR compatible** - OpenGL ES 3.0 support with automatic fallback (Quest/Pico)
 - ✅ **Clean API** - Simple one-line blending
 - ✅ **Zero memory leaks** - Automatic resource management
 
@@ -33,8 +32,8 @@ public class MyScript : MonoBehaviour
     
     private void Start()
     {
-        // Simple one-line blend
-        RenderTexture result = textureBlender.BlendTextures(texturesToBlend);
+        // Simple one-line blend (target=null creates new RenderTexture)
+        RenderTexture result = textureBlender.BlendTextures(null, texturesToBlend, null);
         
         // Apply to material
         targetRenderer.material.mainTexture = result;
@@ -60,16 +59,19 @@ public class MyScript : MonoBehaviour
 #### Public Methods
 
 ##### BlendTextures()
-Blends multiple textures into a new RenderTexture.
+Blends multiple textures. Pass null for target to create new RenderTexture, or pass existing RenderTexture to blend into it.
 
 ```csharp
+// Create new RenderTexture
 public RenderTexture BlendTextures(
+    RenderTexture target,         // null = create new, or pass existing RenderTexture
     Texture[] textures,           // Textures to blend (2 to unlimited)
-    float[] weights = null,       // Optional blend weights (null = equal)
+    float[] weights,              // Blend weights (null = equal)
     BlendMode mode = BlendMode.AlphaWeighted)
 
 // With rotation support
 public RenderTexture BlendTextures(
+    RenderTexture target,         // null = create new, or pass existing RenderTexture
     Texture[] textures,           // Textures to blend (2 to unlimited)
     float[] weights,              // Blend weights
     float[] rotationsDegrees,     // Rotation per texture (0-360 degrees)
@@ -77,6 +79,7 @@ public RenderTexture BlendTextures(
 
 // With rotation and UV offset support
 public RenderTexture BlendTextures(
+    RenderTexture target,         // null = create new, or pass existing RenderTexture
     Texture[] textures,           // Textures to blend (2 to unlimited)
     float[] weights,              // Blend weights
     float[] rotationsDegrees,     // Rotation per texture (0-360 degrees)
@@ -90,60 +93,35 @@ public RenderTexture BlendTextures(
 
 **Example**:
 ```csharp
-// Equal weights, alpha-weighted blending
-RenderTexture result = blender.BlendTextures(myTextures);
+// Equal weights, alpha-weighted blending (creates new RenderTexture)
+RenderTexture result = blender.BlendTextures(null, myTextures, null);
 
 // Custom weights
 float[] weights = { 0.5f, 0.3f, 0.2f };
-RenderTexture result = blender.BlendTextures(myTextures, weights);
+RenderTexture result = blender.BlendTextures(null, myTextures, weights);
 
 // With rotation (0-360 degrees per texture)
 float[] rotations = { 0f, 45f, 90f };  // Rotate 2nd by 45°, 3rd by 90°
-RenderTexture result = blender.BlendTextures(myTextures, weights, rotations);
+RenderTexture result = blender.BlendTextures(null, myTextures, weights, rotations);
 
 // With UV offset (panning/shifting textures)
 Vector2[] offsets = { new Vector2(0.5f, 0.3f), Vector2.zero, new Vector2(0.2f, 0.8f) };
-RenderTexture result = blender.BlendTextures(myTextures, weights, null, offsets);
+RenderTexture result = blender.BlendTextures(null, myTextures, weights, null, offsets);
 
 // With both rotation and offset
 float[] rotations = { 0f, 45f, 90f };
 Vector2[] offsets = { new Vector2(0.5f, 0), Vector2.zero, new Vector2(0.25f, 0.25f) };
-RenderTexture result = blender.BlendTextures(myTextures, weights, rotations, offsets);
+RenderTexture result = blender.BlendTextures(null, myTextures, weights, rotations, offsets);
 
 // Different blend mode
-RenderTexture result = blender.BlendTextures(myTextures, null, BlendMode.Additive);
+RenderTexture result = blender.BlendTextures(null, myTextures, null, BlendMode.Additive);
 ```
 
-##### BlendTexturesAsync()
-Async blend operation (non-blocking).
-
-```csharp
-public async UniTask<RenderTexture> BlendTexturesAsync(
-    Texture[] textures,
-    float[] weights = null,
-    BlendMode mode = BlendMode.AlphaWeighted,
-    CancellationToken cancellationToken = default)
-```
-
-**Example**:
-```csharp
-private async void Start()
-{
-    RenderTexture result = await blender.BlendTexturesAsync(
-        myTextures,
-        myWeights,
-        BlendMode.AlphaWeighted,
-        this.GetCancellationTokenOnDestroy());
-    
-    targetRenderer.material.mainTexture = result;
-}
-```
-
-##### BlendToExistingTexture()
+##### BlendTextures() - To Existing Texture
 Blends into existing RenderTexture (fastest - no allocation).
 
 ```csharp
-public void BlendToExistingTexture(
+public RenderTexture BlendTextures(
     RenderTexture target,
     Texture[] textures,
     float[] weights,
@@ -160,9 +138,9 @@ reusableTarget.enableRandomWrite = true;
 reusableTarget.Create();
 
 // Blend multiple times (no allocation)
-blender.BlendToExistingTexture(reusableTarget, textures1, weights);
+blender.BlendTextures(reusableTarget, textures1, weights);
 // ... use result ...
-blender.BlendToExistingTexture(reusableTarget, textures2, weights);
+blender.BlendTextures(reusableTarget, textures2, weights);
 // ... use result ...
 ```
 
@@ -207,7 +185,7 @@ public void ReturnTexture(RenderTexture texture)
 
 **Example**:
 ```csharp
-RenderTexture temp = blender.BlendTextures(textures);
+RenderTexture temp = blender.BlendTextures(null, textures, null);
 // ... use texture ...
 blender.ReturnTexture(temp);  // Return to pool for reuse
 ```
@@ -374,7 +352,7 @@ public class ProceduralTerrainVariation : MonoBehaviour
         }
         
         // Blend with rotation
-        return blender.BlendTextures(grassTextures, weights, rotations);
+        return blender.BlendTextures(null, grassTextures, weights, rotations);
     }
 }
 ```
@@ -382,15 +360,18 @@ public class ProceduralTerrainVariation : MonoBehaviour
 ## Performance Guide
 
 ### Target Performance
-| Texture Count | Resolution  | Target (RTX 3070) | VR (Quest 2) | With Rotation |
-|---------------|-------------|-------------------|--------------|---------------|
-| 4             | 1024x1024   | <2ms              | <3ms         | <2.1ms        |
-| 4             | 2048x2048   | <5ms              | <8ms         | <5.1ms        |
-| 8             | 2048x2048   | <8ms              | <12ms        | <8.1ms        |
-| 16            | 2048x2048   | <10ms             | <16ms        | <10.1ms       |
-| 4 (cached)    | 2048x2048   | <2ms              | <2ms         | <2ms          |
+| Texture Count | Resolution  | Desktop (RTX 3070) | Quest 2 (OpenGL ES) | Quest 3 (Vulkan) | Quest 3 (OpenGL) |
+|---------------|-------------|--------------------|--------------------|------------------|------------------|
+| 4             | 1024x1024   | <2ms               | <5ms (+copy)       | <2ms             | <4ms (+copy)     |
+| 4             | 2048x2048   | <5ms               | <10ms (+copy)      | <5ms             | <9ms (+copy)     |
+| 8             | 2048x2048   | <8ms               | <15ms (+copy)      | <8ms             | <13ms (+copy)    |
+| 16            | 2048x2048   | <10ms              | <17ms (+copy)      | <10ms            | <15ms (+copy)    |
+| 4 (cached)    | 2048x2048   | <2ms               | <7ms (+copy)       | <2ms             | <6ms (+copy)     |
 
-**Note**: Rotation adds negligible overhead due to GPU-accelerated sampling.
+**Note**: 
+- **Quest 2**: OpenGL ES 3.0 only, requires buffer copy (+2-5ms overhead) ✅ FIXED April 2026
+- **Quest 3/Pro/Pico 4+**: **Use Vulkan for full performance** (no buffer copy), falls back to OpenGL ES 3.0 if needed
+- Rotation adds negligible overhead due to GPU-accelerated sampling
 
 ### Performance Tips
 
@@ -403,8 +384,8 @@ public class ProceduralTerrainVariation : MonoBehaviour
    - Saves 0.5-1ms by avoiding RenderTexture allocation
    - Set Max Pooled Textures to 5-10 for best results
 
-3. **BlendToExistingTexture() for Updates**
-   - Fastest method - no allocation overhead
+3. **BlendTextures() for Updates**
+   - Fastest method when blending to existing target
    - Perfect for real-time parameter tweaking
 
 4. **Fast Mode** (Inspector: Fast Mode)
@@ -506,24 +487,47 @@ public class TerrainTextureBlenderWithRotation : MonoBehaviour
 }
 ```
 
-### Example 2: Loading Screen with Async Blending
+### Example 2: Batch Processing for Multiple Materials
 ```csharp
-public class LoadingScreenBlender : MonoBehaviour
+public class MultipleMaterialBlender : MonoBehaviour
 {
     [SerializeField] private TextureBlender blender;
-    [SerializeField] private Texture[] loadingTextures;
-    [SerializeField] private UnityEngine.UI.Image loadingImage;
+    [SerializeField] private Texture[] wallTextures;
+    [SerializeField] private Texture[] floorTextures;
+    [SerializeField] private MeshRenderer wallRenderer;
+    [SerializeField] private MeshRenderer floorRenderer;
     
-    private async void Start()
+    private void Start()
     {
-        // Non-blocking blend during loading
-        RenderTexture result = await blender.BlendTexturesAsync(
-            loadingTextures,
-            cancellationToken: this.GetCancellationTokenOnDestroy());
+        // Create batch request for multiple blends
+        var requests = new TextureBlender.BlendRequest[]
+        {
+            new TextureBlender.BlendRequest
+            {
+                inputTextures = wallTextures,
+                blendWeights = null,  // Equal weights
+                blendMode = TextureBlender.BlendMode.AlphaWeighted,
+                targetOutput = null,
+                outputWidth = 2048,
+                outputHeight = 2048
+            },
+            new TextureBlender.BlendRequest
+            {
+                inputTextures = floorTextures,
+                blendWeights = null,
+                blendMode = TextureBlender.BlendMode.Additive,
+                targetOutput = null,
+                outputWidth = 2048,
+                outputHeight = 2048
+            }
+        };
         
-        // Convert to Sprite for UI
-        Sprite sprite = RenderTextureToSprite(result);
-        loadingImage.sprite = sprite;
+        // Execute batch (efficient sequential processing)
+        RenderTexture[] results = blender.BatchBlend(requests);
+        
+        // Apply results
+        wallRenderer.material.mainTexture = results[0];
+        floorRenderer.material.mainTexture = results[1];
     }
 }
 ```
@@ -541,14 +545,14 @@ public class BlendPerformanceTester : MonoBehaviour
         var sw = System.Diagnostics.Stopwatch.StartNew();
         
         // First blend (uncached)
-        var result = blender.BlendTextures(testTextures);
+        var result = blender.BlendTextures(null, testTextures, null);
         var firstTime = sw.ElapsedMilliseconds;
         
         blender.ReturnTexture(result);
         
         // Second blend (cached)
         sw.Restart();
-        result = blender.BlendTextures(testTextures);
+        result = blender.BlendTextures(null, testTextures, null);
         var cachedTime = sw.ElapsedMilliseconds;
         
         Debug.Log($"First: {firstTime}ms, Cached: {cachedTime}ms, Speedup: {firstTime/(float)cachedTime:F2}x");
@@ -573,7 +577,7 @@ public class ProceduralWallTexture : MonoBehaviour
         
         // Blend base textures
         RenderTexture baseResult = blender.BlendTextures(
-            brickTextures, weights, rotations, TextureBlender.BlendMode.AlphaWeighted);
+            null, brickTextures, weights, rotations, null, TextureBlender.BlendMode.AlphaWeighted);
         
         // Blend normals with SAME rotations
         RenderTexture normalResult = blender.BlendNormalsWithBaseAlpha(
@@ -590,7 +594,7 @@ public class ProceduralWallTexture : MonoBehaviour
 
 ### TextureBlenderComputeShader.compute
 
-**Location**: `Assets/LiquidForce/TextureBlender/TextureBlenderComputeShader.compute`
+**Location**: `TextureBlenderComputeShader.compute` (same directory as TextureBlender.cs)
 
 **Kernels**:
 - `BlendTexturesArrayAdditive` - Additive blending (fastest)
@@ -638,8 +642,8 @@ public class ProceduralWallTexture : MonoBehaviour
 ### Issue: Normal maps don't match base texture rotation
 **Solution**: Always use the SAME rotation array for both BlendTextures() and BlendNormalsWithBaseAlpha().
 
-### Issue: GPU errors in VR
-**Solution**: Shader writes to both OutputTexture and OutputBuffer for OpenGL ES 3.0 compatibility.
+### Issue: Black textures on Quest/Pico VR headsets
+**Solution (FIXED April 2026)**: OpenGL ES 3.0 now uses automatic buffer copy fallback. System detects platform and copies OutputBuffer to texture via CPU (adds 2-5ms overhead). Use `forceBufferCopyPath` debug flag in Inspector to test fallback path in Editor.
 
 ### Issue: Cache not working
 **Solution**: Cache uses texture instance IDs and is always enabled. Cache is cleared automatically when the component is destroyed. Modified textures with the same instance ID will reuse cached arrays (hash doesn't change).

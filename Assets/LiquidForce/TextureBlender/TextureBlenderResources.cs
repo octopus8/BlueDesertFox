@@ -17,6 +17,9 @@ public class TextureBlenderResources : IDisposable
     // Texture array cache keyed by hash for repeat blends (35% speedup)
     private Dictionary<int, Texture2DArray> textureArrayCache;
     
+    // Temporary Texture2D pool for OpenGL ES 3.0 buffer copies
+    private Dictionary<(int, int), Queue<Texture2D>> tempTexturePool;
+    
     // Configuration
     private int maxPoolSize;
     
@@ -31,6 +34,7 @@ public class TextureBlenderResources : IDisposable
         renderTexturePool = new Dictionary<(int, int, RenderTextureFormat), Queue<RenderTexture>>();
         bufferPool = new Dictionary<int, Queue<ComputeBuffer>>();
         textureArrayCache = new Dictionary<int, Texture2DArray>();
+        tempTexturePool = new Dictionary<(int, int), Queue<Texture2D>>();
     }
     
     
@@ -150,7 +154,7 @@ public class TextureBlenderResources : IDisposable
     /// <summary>
     /// Gets a ComputeBuffer from the pool or creates a new one.
     /// </summary>
-    public ComputeBuffer GetOrCreateBuffer(int count, int stride)
+    public ComputeBuffer GetOrCreateComputeBuffer(int count, int stride)
     {
         if (bufferPool.ContainsKey(count) && bufferPool[count].Count > 0)
         {
@@ -238,6 +242,56 @@ public class TextureBlenderResources : IDisposable
     
     
     /// <summary>
+    /// Gets a temporary Texture2D from pool for buffer-to-texture copy operations.
+    /// Used on OpenGL ES 3.0 platforms where RWTexture2D is not supported.
+    /// </summary>
+    public Texture2D GetOrCreateTempTexture(int width, int height)
+    {
+        var key = (width, height);
+        
+        if (tempTexturePool.ContainsKey(key) && tempTexturePool[key].Count > 0)
+        {
+            Texture2D texture = tempTexturePool[key].Dequeue();
+            
+            // Ensure texture is still valid
+            if (texture != null)
+            {
+                return texture;
+            }
+        }
+        
+        // Create new Texture2D (RGBA32 format for compatibility)
+        Texture2D newTexture = new Texture2D(width, height, TextureFormat.RGBA32, false);
+        return newTexture;
+    }
+    
+    
+    /// <summary>
+    /// Returns a temporary Texture2D to the pool for reuse.
+    /// </summary>
+    public void ReturnTempTexture(Texture2D texture)
+    {
+        if (texture == null) return;
+        
+        var key = (texture.width, texture.height);
+        
+        if (!tempTexturePool.ContainsKey(key))
+            tempTexturePool[key] = new Queue<Texture2D>();
+        
+        // Only pool if under max size limit
+        if (tempTexturePool[key].Count < maxPoolSize)
+        {
+            tempTexturePool[key].Enqueue(texture);
+        }
+        else
+        {
+            // Pool is full, destroy the texture
+            UnityEngine.Object.Destroy(texture);
+        }
+    }
+    
+    
+    /// <summary>
     /// Cleans up all pooled resources.
     /// </summary>
     public void Dispose()
@@ -272,6 +326,18 @@ public class TextureBlenderResources : IDisposable
                 UnityEngine.Object.Destroy(textureArray);
         }
         textureArrayCache.Clear();
+        
+        // Destroy all temp textures
+        foreach (var queue in tempTexturePool.Values)
+        {
+            while (queue.Count > 0)
+            {
+                Texture2D texture = queue.Dequeue();
+                if (texture != null)
+                    UnityEngine.Object.Destroy(texture);
+            }
+        }
+        tempTexturePool.Clear();
     }
 }
 

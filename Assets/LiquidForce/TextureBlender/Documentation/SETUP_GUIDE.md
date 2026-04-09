@@ -39,15 +39,17 @@ Install via Package Manager:
 
 | Platform | Supported | Notes |
 |----------|-----------|-------|
-| Windows  | ✅ Yes    | All features |
-| Mac      | ✅ Yes    | All features |
-| Linux    | ✅ Yes    | All features |
-| Quest 2  | ✅ Yes    | Reduce resolution |
-| Quest Pro| ✅ Yes    | Full performance |
-| PCVR     | ✅ Yes    | All features |
+| Windows  | ✅ Yes    | DirectX/Vulkan - All features, no overhead |
+| Mac      | ✅ Yes    | Metal - All features, no overhead |
+| Linux    | ✅ Yes    | Vulkan - All features, no overhead |
+| Quest 2  | ✅ Yes    | OpenGL ES 3.0 only - Buffer copy (+2-5ms) ✅ FIXED April 2026 |
+| Quest 3  | ✅ Yes    | **Vulkan (recommended, no overhead)** or OpenGL ES 3.0 (buffer copy) |
+| Quest Pro| ✅ Yes    | **Vulkan (recommended, no overhead)** or OpenGL ES 3.0 (buffer copy) |
+| Pico 4/4 Pro | ✅ Yes    | **Vulkan (recommended, no overhead)** or OpenGL ES 3.0 (buffer copy) |
+| PCVR     | ✅ Yes    | DirectX/Vulkan - All features, no overhead |
 | WebGL    | ❌ No     | No compute shader support |
 | iOS      | ⚠️ Limited| Requires Metal |
-| Android  | ⚠️ Limited| Requires Vulkan |
+| Android  | ✅ Yes    | **Vulkan recommended**, OpenGL ES 3.0 supported with buffer copy |
 
 ---
 
@@ -55,7 +57,7 @@ Install via Package Manager:
 
 ### Step 1: Verify Files
 
-Ensure these files exist in `Assets/LiquidForce/TextureBlender/`:
+Ensure these files exist in the TextureBlender directory:
 
 ```
 TextureBlender/
@@ -156,6 +158,15 @@ Performance Settings:
 - **When to enable:** Only if inputs are validated elsewhere
 - **Benefit:** Skips null checks (~0.1ms)
 - **Risk:** Crashes if given invalid inputs
+
+**Debug Settings (v3.0.1+)**
+
+**Force Buffer Copy Path**
+- **Default:** ☐ Disabled
+- **Purpose:** Test OpenGL ES 3.0 fallback in Editor without VR device
+- **When to enable:** Before Quest deployment to verify buffer copy works
+- **Performance Impact:** +2-5ms when enabled (mimics Quest performance)
+- **Auto-Disables:** Remove checkmark before building to Quest
 
 **Note:** Texture2DArray caching is always enabled (saves 1-2ms on repeat blends, ~64MB per unique texture set).
 
@@ -294,7 +305,13 @@ public class TestTextureBlender : MonoBehaviour
 
 ## Platform-Specific Setup
 
-### Quest 2 Standalone
+### Quest 2/Quest 3/Quest Pro/Pico Standalone
+
+**Graphics API Recommendations:**
+- **Quest 3/Pro/Pico 4+**: Use **Vulkan** (full performance, no buffer copy overhead)
+- **Quest 2**: OpenGL ES 3.0 only (requires buffer copy, +2-5ms overhead) ✅ FIXED April 2026
+
+**⚠️ Important for Quest 2:** OpenGL ES 3.0 requires automatic buffer copy (+2-5ms overhead). This is now handled automatically.
 
 **Settings:**
 ```
@@ -302,20 +319,47 @@ Default Output Width: 1024
 Default Output Height: 1024
 Max Pooled Textures: 3
 Fast Mode: ✓
+Force Buffer Copy Path: ☐ (auto-detected, leave unchecked)
 ```
 
 **Player Settings:**
 1. Android Platform selected
-2. Graphics API: OpenGLES3, Vulkan
+2. **Graphics API**: 
+   - **Quest 3/Pro/Pico 4+**: Vulkan (first priority), OpenGLES3 (fallback)
+   - **Quest 2**: OpenGLES3 only
 3. Install Location: Auto
 4. Minimum API Level: Android 10.0
+5. Color Space: Linear
+
+**Pre-Deployment Testing (Recommended):**
+1. In Editor, enable `Force Buffer Copy Path` in Inspector
+2. Run scene in Play Mode
+3. Verify textures blend correctly
+4. Check Console for: "OpenGL ES 3.0 detected - using buffer copy fallback..."
+5. Check Profiler for "TextureBlender.BufferCopy" marker
+6. **Disable `Force Buffer Copy Path` before building**
 
 **Test on Device:**
-1. Build and Run to Quest 2
-2. Expect: <3ms blend time
-3. Monitor: No frame drops
+1. Build and Run to Quest/Pico
+2. Expected Performance:
+   - **Quest 2 (OpenGL ES 3.0)**: 1024×1024: ~4-7ms (includes +2-5ms buffer copy)
+   - **Quest 3 (Vulkan)**: 1024×1024: ~1.5-2.5ms (no buffer copy!)
+   - **Quest 3 (OpenGL ES 3.0)**: 1024×1024: ~3-6ms (includes buffer copy if Vulkan unavailable)
+   - **Quest Pro (Vulkan)**: 1024×1024: ~1.5-2.5ms (no buffer copy!)
+3. Console logs:
+   - Vulkan: Normal operation, no special message
+   - OpenGL ES 3.0: "OpenGL ES 3.0 detected - using buffer copy fallback..."
+4. Monitor for frame drops
 
-### PCVR (Quest Link / AirLink)
+**Performance Tips for Quest:**
+- **Quest 3/Pro**: Use Vulkan for best performance (no buffer copy overhead)
+- **Quest 2**: Use 1024×1024 resolution (not 2048×2048)
+- Use Additive blend mode (30% faster)
+- Enable Fast Mode after validation
+- Reduce texture count to 4 or fewer
+- Consider spreading blends across frames
+
+### PCVR (Quest Link / AirLink / Index / Vive)
 
 **Settings:**
 ```

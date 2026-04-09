@@ -152,6 +152,18 @@ Texture2DArray array = new Texture2DArray(
         - TextureBlenderResources.GetOrCreateBuffer (ComputeBuffer; weight, offset, rotation)
         - Dispatch
 ```
+**Caching vs Pooling:**
+It is worth noting that Texture2DArray follows a Caching pattern, while RenderTexture and ComputeBuffer follow a Pooling pattern. RenderTexture and ComputeBuffer resources are obtained and written to. Texture2DArrays are created and reused as they are.
+    - Pooling Pattern (RenderTexture, ComputeBuffer):
+        - Borrow/return lifecycle
+        - FIFO queues
+        - Resources are returned after use
+        - Same resource can be reused for different purposes
+    - Caching Pattern (Texture2DArray):
+        - Hash-based lookup
+        - No return mechanism
+        - Resources stay cached until component destroyed
+        - Same input always returns same cached resource
 
 ## Data Flow
 
@@ -294,17 +306,43 @@ int dispatchY = Mathf.CeilToInt(height / 8f);
 
 **Dual Output Pattern:**
 ```hlsl
-// Modern approach (preferred)
+// Modern approach (preferred - works on desktop)
 OutputTexture[id.xy] = result;
 
-// Fallback for OpenGL ES 3.0 (Quest)
+// Fallback for OpenGL ES 3.0 (Quest/Pico) - REQUIRED
 OutputBuffer[id.y * TextureWidth + id.x] = result;
 ```
 
-Why both?
-- RWTexture2D not supported on all mobile GPUs
+**Why both?**
+- RWTexture2D not supported on OpenGL ES 3.0 (Quest 2, older Android devices)
+- Quest 3/Pro/Pico 4+ support Vulkan (RWTexture2D works - use Vulkan!)
 - RWStructuredBuffer universally supported
-- Minimal overhead (same data, two writes)
+- Desktop: Only RWTexture2D write succeeds (fast path)
+- Mobile VR (OpenGL ES 3.0): Only RWStructuredBuffer write succeeds (needs CPU copy)
+- Mobile VR (Vulkan): Only RWTexture2D write succeeds (fast path, no copy needed)
+
+**OpenGL ES 3.0 Fallback (April 2026 Fix):**
+```csharp
+// After shader dispatch on Quest/Pico
+if (requiresBufferCopyFallback) // Auto-detected at startup
+{
+    CopyBufferToTexture(outputBuffer, target);
+    // GPU → CPU → GPU transfer (adds 2-5ms)
+}
+```
+
+**Performance Impact:**
+- Desktop (DirectX/Vulkan/Metal): No overhead (buffer ignored)
+- Quest 3/Pro with Vulkan: No overhead (RWTexture2D works!)
+- Quest 2 / Quest 3 with OpenGL ES 3.0: +2-5ms per blend
+- Uses temp texture pooling to minimize allocations
+
+**Debug Testing:**
+- Enable `forceBufferCopyPath` in Inspector
+- Tests fallback path in Editor without VR device
+- Verify correct output before Quest deployment
+
+**Recommendation**: Configure Quest 3/Pro/Pico 4+ to use Vulkan as primary Graphics API for best performance.
 
 ### Texture Sampling and Tiling
 
@@ -620,29 +658,6 @@ textureArrayCache.Clear();
 - Automatically cleared on component destroy via `Dispose()`
 - No manual cache clearing needed (hash-based lookup handles modified textures)
 
-## Async Architecture
-
-### UniTask Integration
-
-```csharp
-public async UniTask<RenderTexture> BlendTexturesAsync(...)
-{
-    // Perform blend synchronously on current frame
-    RenderTexture result = BlendTextures(...);
-    
-    // Yield to next frame for pacing
-    await UniTask.Yield(PlayerLoopTiming.Update, cancellationToken);
-    
-    // Return result
-    return result;
-}
-```
-
-**Why this pattern?**
-- Compute shaders are async by nature
-- Unity manages GPU/CPU sync automatically
-- UniTask.Yield provides frame pacing
-- Prevents multiple blends per frame
 
 ## Blend Mode Implementation
 
