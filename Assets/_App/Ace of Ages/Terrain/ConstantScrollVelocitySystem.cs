@@ -4,7 +4,7 @@ using Unity.Mathematics;
 
 /// <summary>
 /// System that provides constant scroll velocity for testing.
-/// Writes fixed direction and speed to ScrollVelocity singleton each frame.
+/// Writes fixed direction and speed to TerrainScrollVelocity singleton each frame.
 /// </summary>
 [BurstCompile]
 [UpdateInGroup(typeof(SimulationSystemGroup))]
@@ -13,15 +13,15 @@ public partial struct ConstantScrollVelocitySystem : ISystem
 {
     public void OnCreate(ref SystemState state)
     {
-        state.RequireForUpdate<ScrollVelocity>();
-        state.RequireForUpdate<ConstantScrollVelocityConfig>();
+        state.RequireForUpdate<TerrainScrollVelocity>();
+        state.RequireForUpdate<ConstantTerrainScrollVelocityConfig>();
     }
 
     [BurstCompile]
     public void OnUpdate(ref SystemState state)
     {
-        var config = SystemAPI.GetSingleton<ConstantScrollVelocityConfig>();
-        RefRW<ScrollVelocity> scrollVelocity = SystemAPI.GetSingletonRW<ScrollVelocity>();
+        var config = SystemAPI.GetSingleton<ConstantTerrainScrollVelocityConfig>();
+        RefRW<TerrainScrollVelocity> scrollVelocity = SystemAPI.GetSingletonRW<TerrainScrollVelocity>();
         
         scrollVelocity.ValueRW.direction = config.direction;
         scrollVelocity.ValueRW.speed = config.speed;
@@ -31,7 +31,7 @@ public partial struct ConstantScrollVelocitySystem : ISystem
 /// <summary>
 /// Configuration component for constant scroll velocity.
 /// </summary>
-public struct ConstantScrollVelocityConfig : IComponentData
+public struct ConstantTerrainScrollVelocityConfig : IComponentData
 {
     public float3 direction;
     public float speed;

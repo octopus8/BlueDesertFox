@@ -17,7 +17,7 @@ partial struct SplineFollowerSystem : ISystem
         {
             // Get scroll velocity from terrain scrolling system
             float3 scrollVelocity = float3.zero;
-            if (SystemAPI.TryGetSingleton<ScrollVelocity>(out var scrollVel))
+            if (SystemAPI.TryGetSingleton<TerrainScrollVelocity>(out var scrollVel))
             {
                 scrollVelocity = scrollVel.direction * scrollVel.speed;
             }

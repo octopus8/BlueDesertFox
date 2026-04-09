@@ -119,7 +119,7 @@ public class TerrainConfigAuthoring : MonoBehaviour
             });
             
             // Create scroll velocity singleton (starts inactive)
-            AddComponent(entity, new ScrollVelocity
+            AddComponent(entity, new TerrainScrollVelocity
             {
                 direction = float3.zero,
                 speed = 0f

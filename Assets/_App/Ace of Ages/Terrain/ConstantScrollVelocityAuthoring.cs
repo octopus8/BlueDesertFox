@@ -28,7 +28,7 @@ public class ConstantScrollVelocityAuthoring : MonoBehaviour
             else
                 dir = new float3(0, 0, 1); // Default forward
             
-            AddComponent(entity, new ConstantScrollVelocityConfig
+            AddComponent(entity, new ConstantTerrainScrollVelocityConfig
             {
                 direction = dir,
                 speed = authoring.speed
