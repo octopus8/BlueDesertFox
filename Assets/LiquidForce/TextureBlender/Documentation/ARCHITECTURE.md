@@ -165,6 +165,9 @@ It is worth noting that Texture2DArray follows a Caching pattern, while RenderTe
         - Resources stay cached until component destroyed
         - Same input always returns same cached resource
 
+**General**
+- TextureArrayBuilder.BuildFromTextures sets all textures to the same size.
+
 ## Data Flow
 
 ### Standard Blend Operation
