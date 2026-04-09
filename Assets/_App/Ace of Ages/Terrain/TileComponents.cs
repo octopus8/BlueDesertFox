@@ -175,8 +175,8 @@ public struct TerrainScrollVelocity : IComponentData
 }
 
 /// <summary>
-/// Configuration component for player-based scroll velocity.
-/// Scrolls terrain in the direction the player is facing at a constant speed.
+/// Configuration component for player-based scroll velocity with head-tracking rotation.
+/// Scrolls terrain in the direction the player is facing, with rotation based on headset orientation.
 /// </summary>
 public struct PlayerTerrainScrollVelocityConfig : IComponentData
 {
@@ -184,5 +184,52 @@ public struct PlayerTerrainScrollVelocityConfig : IComponentData
     /// Speed of scrolling in units per second (scrolls in player's forward direction).
     /// </summary>
     public float speed;
+    
+    /// <summary>
+    /// Rotation speed multiplier for head-tracking (degrees per second per degree of difference).
+    /// Higher values make the scroll direction rotate faster toward the headset direction.
+    /// </summary>
+    public float rotationSpeed;
+}
+
+/// <summary>
+/// Singleton managed component that holds a reference to the headset GameObject's Transform.
+/// This allows the terrain system to track the VR headset for head-based rotation of scroll direction.
+/// </summary>
+public class HeadsetTransformReference : IComponentData
+{
+    /// <summary>
+    /// The Transform of the headset/camera GameObject for head-tracking rotation.
+    /// </summary>
+    public UnityEngine.Transform headsetTransform;
+}
+
+/// <summary>
+/// Component that stores search parameters for finding the headset GameObject at runtime.
+/// This is baked into the entity so it can find the headset after subscenes load.
+/// </summary>
+public struct HeadsetTrackingSearch : IComponentData
+{
+    public enum Mode : byte
+    {
+        FindByName = 0,
+        FindByTag = 1,
+        FindMainCamera = 2
+    }
+    
+    /// <summary>
+    /// How to search for the headset GameObject.
+    /// </summary>
+    public Mode mode;
+    
+    /// <summary>
+    /// Search string (name or tag) - only used for FindByName and FindByTag modes.
+    /// </summary>
+    public Unity.Collections.FixedString128Bytes searchString;
+    
+    /// <summary>
+    /// True if the HeadsetTransformReference has been set up successfully.
+    /// </summary>
+    public bool initialized;
 }
 

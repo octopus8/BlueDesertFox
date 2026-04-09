@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: SceneList
   m_EditorClassIdentifier: Assembly-CSharp::SceneListSO
   scenes:
-  - sceneDisplayName: AutoHand Demo
+  - sceneDisplayName: AutoHand Demo (Addressable)
     isAddressable: 1
     scene:
       m_AssetGUID: c8c7e9452f8c702479dda69a148e809f
