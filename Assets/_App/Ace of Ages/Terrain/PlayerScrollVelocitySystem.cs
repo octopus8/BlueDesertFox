@@ -2,9 +2,9 @@ using Unity.Entities;
 using Unity.Mathematics;
 
 /// <summary>
-/// System that provides scroll velocity based on the player's facing direction with world origin tracking rotation.
-/// Reads PlayerTransformReference and WorldOriginTransformReference, calculates rotation based on angle difference,
-/// and writes to TerrainScrollVelocity singleton.
+/// System that provides scroll velocity based on the player's facing direction and rotates world origin to face scroll direction.
+/// Reads PlayerTransformReference and WorldOriginTransformReference, calculates scroll direction,
+/// writes to TerrainScrollVelocity singleton, and rotates the world origin to face the scroll direction.
 /// Only runs when PlayerTerrainScrollVelocityConfig exists in the scene.
 /// </summary>
 [UpdateInGroup(typeof(SimulationSystemGroup))]
@@ -39,7 +39,7 @@ public partial class PlayerScrollVelocitySystem : SystemBase
         else
             baseScrollDirection = new float3(0, 0, 1); // Default forward if no valid direction
         
-        // If world origin is not available, disable rotation and use player forward only
+        // If world origin is not available, use player forward only
         if (worldOriginRef?.worldOriginTransform == null)
         {
             // Update TerrainScrollVelocity with player direction only (no rotation)
@@ -66,27 +66,29 @@ public partial class PlayerScrollVelocitySystem : SystemBase
             UnityEngine.Vector3.up
         );
         
-        // Test
-        angle = 10;
-        
         // Calculate rotation to apply this frame (proportional to angle and rotation speed)
         float rotationThisFrame = angle * config.rotationSpeed * SystemAPI.Time.DeltaTime;
         
-        // Apply rotation to base scroll direction around Y axis
-        quaternion rotation = quaternion.AxisAngle(math.up(), math.radians(rotationThisFrame));
+        // Apply rotation to current scroll direction around Y axis
         RefRW<TerrainScrollVelocity> scrollVelocityFinal = SystemAPI.GetSingletonRW<TerrainScrollVelocity>();
 
         float3 currentDirection = scrollVelocityFinal.ValueRO.direction;
         if (math.lengthsq(currentDirection) < 0.0001f)
             currentDirection = new float3(0, 0, 1); // Default forward if no valid direction
         
-        
+        quaternion rotation = quaternion.AxisAngle(math.up(), math.radians(rotationThisFrame));
         float3 rotatedDirection = math.mul(rotation, currentDirection);
-
-        // Not sure if this is needed.
         rotatedDirection = math.normalizesafe(rotatedDirection);
         
         scrollVelocityFinal.ValueRW.direction = rotatedDirection;
         scrollVelocityFinal.ValueRW.speed = config.speed;
+        
+        // Rotate the world origin to face the scroll direction
+        UnityEngine.Vector3 scrollDir3D = new UnityEngine.Vector3(rotatedDirection.x, 0, rotatedDirection.z);
+        if (scrollDir3D.sqrMagnitude > 0.0001f)
+        {
+            UnityEngine.Quaternion targetRotation = UnityEngine.Quaternion.LookRotation(scrollDir3D, UnityEngine.Vector3.up);
+            worldOriginRef.worldOriginTransform.rotation = targetRotation;
+        }
     }
 }
