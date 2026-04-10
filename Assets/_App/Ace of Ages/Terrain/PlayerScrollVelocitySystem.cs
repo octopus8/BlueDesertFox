@@ -65,9 +65,9 @@ public partial class PlayerScrollVelocitySystem : SystemBase
             new UnityEngine.Vector3(worldOriginDirection.x, 0, worldOriginDirection.z),
             UnityEngine.Vector3.up
         );
-        
+
         // Calculate rotation to apply this frame (proportional to angle and rotation speed)
-        float rotationThisFrame = angle * config.rotationSpeed * SystemAPI.Time.DeltaTime;
+        float rotationThisFrame = -angle * config.rotationSpeed * SystemAPI.Time.DeltaTime;
         
         // Apply rotation to current scroll direction around Y axis
         RefRW<TerrainScrollVelocity> scrollVelocityFinal = SystemAPI.GetSingletonRW<TerrainScrollVelocity>();
