@@ -84,7 +84,7 @@ MonoBehaviour:
   baseMapPropertyName: _BaseMap
   normalMapPropertyName: _BumpMap
   blendMode: 1
-  showPerformanceStats: 1
+  showPerformanceStats: 0
   performanceText: {fileID: 0}
 --- !u!1 &9040525703885629645
 GameObject:

@@ -71,10 +71,18 @@ public partial class PlayerScrollVelocitySystem : SystemBase
         
         // Apply rotation to base scroll direction around Y axis
         quaternion rotation = quaternion.AxisAngle(math.up(), math.radians(rotationThisFrame));
-        float3 rotatedDirection = math.mul(rotation, baseScrollDirection);
-        
-        // Update TerrainScrollVelocity singleton
         RefRW<TerrainScrollVelocity> scrollVelocityFinal = SystemAPI.GetSingletonRW<TerrainScrollVelocity>();
+
+        float3 currentDirection = scrollVelocityFinal.ValueRO.direction;
+        if (math.lengthsq(currentDirection) < 0.0001f)
+            currentDirection = new float3(0, 0, 1); // Default forward if no valid direction
+        
+        
+        float3 rotatedDirection = math.mul(rotation, currentDirection);
+
+        // Not sure if this is needed.
+        rotatedDirection = math.normalizesafe(rotatedDirection);
+        
         scrollVelocityFinal.ValueRW.direction = rotatedDirection;
         scrollVelocityFinal.ValueRW.speed = config.speed;
     }

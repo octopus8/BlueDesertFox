@@ -5585,7 +5585,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerScrollVelocityAuthoring
   speed: 50
-  rotationSpeed: 2
+  rotationSpeed: 1
   headsetSearchMode: 1
   headsetName: Main Camera
   headsetTag: MainCamera
