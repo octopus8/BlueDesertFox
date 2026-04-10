@@ -4,7 +4,8 @@ using Unity.Mathematics;
 /// <summary>
 /// System that provides scroll velocity based on the player's facing direction and rotates world origin to face scroll direction.
 /// Reads PlayerTransformReference and WorldOriginTransformReference, calculates scroll direction,
-/// writes to TerrainScrollVelocity singleton, and rotates the world origin to face the scroll direction.
+/// writes to TerrainScrollVelocity singleton, rotates the world origin to face the scroll direction,
+/// and moves the world origin vertically based on player pitch angle.
 /// Only runs when PlayerTerrainScrollVelocityConfig exists in the scene.
 /// </summary>
 [UpdateInGroup(typeof(SimulationSystemGroup))]
@@ -90,5 +91,29 @@ public partial class PlayerScrollVelocitySystem : SystemBase
             UnityEngine.Quaternion targetRotation = UnityEngine.Quaternion.LookRotation(scrollDir3D, UnityEngine.Vector3.up);
             worldOriginRef.worldOriginTransform.rotation = targetRotation;
         }
+        
+        // Calculate vertical movement based on player pitch angle
+        // Extract pitch from player's forward vector Y component
+        float pitchRadians = math.asin(playerForward.y);
+        float pitchDegrees = math.degrees(pitchRadians);
+        
+        // Calculate vertical velocity proportional to pitch angle (normalized to ±90 degrees)
+        // At 90° up: pitchDegrees = 90, verticalVelocity = +verticalSpeed
+        // At 0° (horizon): pitchDegrees = 0, verticalVelocity = 0
+        // At -90° down: pitchDegrees = -90, verticalVelocity = -verticalSpeed
+        float verticalVelocity = (pitchDegrees / 90f) * config.verticalSpeed;
+        
+        // Apply vertical movement with clamping
+        UnityEngine.Vector3 currentPosition = worldOriginRef.worldOriginTransform.position;
+        float newYPosition = currentPosition.y + (verticalVelocity * SystemAPI.Time.DeltaTime);
+        
+        // Clamp Y position to prevent extreme offsets
+        newYPosition = math.clamp(newYPosition, config.minVerticalPosition, config.maxVerticalPosition);
+        
+        worldOriginRef.worldOriginTransform.position = new UnityEngine.Vector3(
+            currentPosition.x,
+            newYPosition,
+            currentPosition.z
+        );
     }
 }

@@ -177,6 +177,7 @@ public struct TerrainScrollVelocity : IComponentData
 /// <summary>
 /// Configuration component for player-based scroll velocity with world origin tracking rotation.
 /// Scrolls terrain in the direction the player is facing, with rotation based on world origin orientation.
+/// Supports vertical movement based on player pitch angle.
 /// </summary>
 public struct PlayerTerrainScrollVelocityConfig : IComponentData
 {
@@ -190,6 +191,23 @@ public struct PlayerTerrainScrollVelocityConfig : IComponentData
     /// Higher values make the scroll direction rotate faster toward the world origin direction.
     /// </summary>
     public float rotationSpeed;
+    
+    /// <summary>
+    /// Vertical movement speed in units per second at maximum pitch (90 degrees up/down).
+    /// The actual vertical speed scales proportionally with the player's pitch angle.
+    /// Positive values: looking up moves world origin upward, looking down moves it downward.
+    /// </summary>
+    public float verticalSpeed;
+    
+    /// <summary>
+    /// Minimum Y position for the world origin (prevents moving too far down).
+    /// </summary>
+    public float minVerticalPosition;
+    
+    /// <summary>
+    /// Maximum Y position for the world origin (prevents moving too far up).
+    /// </summary>
+    public float maxVerticalPosition;
 }
 
 /// <summary>
