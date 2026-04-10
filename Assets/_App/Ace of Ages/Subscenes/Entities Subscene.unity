@@ -305,7 +305,6 @@ Transform:
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 512056377}
-  - {fileID: 1063569779}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &263055124
@@ -326,7 +325,7 @@ MonoBehaviour:
   targetGameObject: {fileID: 0}
   offset: {x: 0, y: 0, z: 0}
   followRotation: 1
-  smoothTime: 0.1
+  smoothTime: 0
 --- !u!1001 &512056376
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -399,6 +398,9 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 1179098101095210909, guid: 2a3b3f557fb287843b08dfe92a5a3d65, type: 3}
       insertIndex: -1
       addedObject: {fileID: 181105511}
+    - targetCorrespondingSourceObject: {fileID: 1179098101095210909, guid: 2a3b3f557fb287843b08dfe92a5a3d65, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1063569779}
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 2a3b3f557fb287843b08dfe92a5a3d65, type: 3}
 --- !u!4 &512056377 stripped
@@ -522,12 +524,12 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1063569778}
   serializedVersion: 2
-  m_LocalRotation: {x: -0, y: 1, z: -0, w: 0}
-  m_LocalPosition: {x: 0, y: 0, z: -0.20510001}
-  m_LocalScale: {x: 0.030000009, y: 0.029999997, z: 0.030000005}
+  m_LocalRotation: {x: -0, y: 0.99581295, z: -0.091414735, w: 0}
+  m_LocalPosition: {x: 0, y: -1.2447107, z: -6.7224045}
+  m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
-  m_Father: {fileID: 263055123}
+  m_Father: {fileID: 512056377}
   m_LocalEulerAnglesHint: {x: 0, y: 180, z: 0}
 --- !u!199 &1063569780
 ParticleSystemRenderer:
@@ -682,8 +684,8 @@ ParticleSystem:
       m_PreInfinity: 2
       m_PostInfinity: 2
       m_RotationOrder: 4
-  moveWithTransform: 1
-  moveWithCustomTransform: {fileID: 0}
+  moveWithTransform: 2
+  moveWithCustomTransform: {fileID: 1524666077}
   scalingMode: 1
   randomSeed: 0
   InitialModule:
@@ -745,7 +747,7 @@ ParticleSystem:
     startSpeed:
       serializedVersion: 2
       minMaxState: 0
-      scalar: 5
+      scalar: 15
       minScalar: 5
       maxCurve:
         serializedVersion: 2
@@ -5364,6 +5366,52 @@ Transform:
   - {fileID: 1730959685}
   m_Father: {fileID: 25680480}
   m_LocalEulerAnglesHint: {x: 0, y: -45, z: 0}
+--- !u!1 &1524666076
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1524666077}
+  - component: {fileID: 1524666078}
+  m_Layer: 0
+  m_Name: TerrainAnchor
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1524666077
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1524666076}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1528308291}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1524666078
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1524666076}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6effd77f55c44016907257a554c17990, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::TerrainAnchorTagAuthoring
+  useCustomBasePosition: 0
+  customBasePosition: {x: 0, y: 0, z: 0}
 --- !u!1 &1527544356
 GameObject:
   m_ObjectHideFlags: 0
@@ -5555,7 +5603,8 @@ Transform:
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
-  m_Children: []
+  m_Children:
+  - {fileID: 1524666077}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &1528308292
@@ -5586,6 +5635,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PlayerScrollVelocityAuthoring
   speed: 75
   rotationSpeed: 0.75
+  verticalSpeed: 20
+  minVerticalPosition: -100
+  maxVerticalPosition: 100
   worldOriginSearchMode: 0
   worldOriginName: XR Origin Hands (XR Rig)
   worldOriginTag: MainCamera
