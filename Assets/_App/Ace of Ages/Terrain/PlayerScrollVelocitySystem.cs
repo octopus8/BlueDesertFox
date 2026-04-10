@@ -2,8 +2,8 @@ using Unity.Entities;
 using Unity.Mathematics;
 
 /// <summary>
-/// System that provides scroll velocity based on the player's facing direction with head-tracking rotation.
-/// Reads PlayerTransformReference and HeadsetTransformReference, calculates rotation based on angle difference,
+/// System that provides scroll velocity based on the player's facing direction with world origin tracking rotation.
+/// Reads PlayerTransformReference and WorldOriginTransformReference, calculates rotation based on angle difference,
 /// and writes to TerrainScrollVelocity singleton.
 /// Only runs when PlayerTerrainScrollVelocityConfig exists in the scene.
 /// </summary>
@@ -16,14 +16,14 @@ public partial class PlayerScrollVelocitySystem : SystemBase
         RequireForUpdate<TerrainScrollVelocity>();
         RequireForUpdate<PlayerTerrainScrollVelocityConfig>();
         RequireForUpdate<PlayerTransformReference>();
-        RequireForUpdate<HeadsetTransformReference>();
+        RequireForUpdate<WorldOriginTransformReference>();
     }
 
     protected override void OnUpdate()
     {
         var config = SystemAPI.GetSingleton<PlayerTerrainScrollVelocityConfig>();
         var playerRef = SystemAPI.ManagedAPI.GetSingleton<PlayerTransformReference>();
-        var headsetRef = SystemAPI.ManagedAPI.GetSingleton<HeadsetTransformReference>();
+        var worldOriginRef = SystemAPI.ManagedAPI.GetSingleton<WorldOriginTransformReference>();
         
         // Early return if player transform is null or not yet initialized
         if (playerRef?.playerTransform == null)
@@ -39,8 +39,8 @@ public partial class PlayerScrollVelocitySystem : SystemBase
         else
             baseScrollDirection = new float3(0, 0, 1); // Default forward if no valid direction
         
-        // If headset is not available, disable rotation and use player forward only
-        if (headsetRef?.headsetTransform == null)
+        // If world origin is not available, disable rotation and use player forward only
+        if (worldOriginRef?.worldOriginTransform == null)
         {
             // Update TerrainScrollVelocity with player direction only (no rotation)
             RefRW<TerrainScrollVelocity> scrollVelocity = SystemAPI.GetSingletonRW<TerrainScrollVelocity>();
@@ -49,22 +49,25 @@ public partial class PlayerScrollVelocitySystem : SystemBase
             return;
         }
         
-        // Get headset's forward direction and project onto XZ plane
-        UnityEngine.Vector3 headsetForward = headsetRef.headsetTransform.forward;
-        float3 headsetDirection = new float3(headsetForward.x, 0, headsetForward.z);
+        // Get world origin's forward direction and project onto XZ plane
+        UnityEngine.Vector3 worldOriginForward = worldOriginRef.worldOriginTransform.forward;
+        float3 worldOriginDirection = new float3(worldOriginForward.x, 0, worldOriginForward.z);
         
-        // Normalize headset direction
-        if (math.lengthsq(headsetDirection) > 0.0001f)
-            headsetDirection = math.normalize(headsetDirection);
+        // Normalize world origin direction
+        if (math.lengthsq(worldOriginDirection) > 0.0001f)
+            worldOriginDirection = math.normalize(worldOriginDirection);
         else
-            headsetDirection = baseScrollDirection; // Fallback to player direction
+            worldOriginDirection = baseScrollDirection; // Fallback to player direction
         
-        // Calculate signed angle between player forward and headset forward on XZ plane
+        // Calculate signed angle between player forward and world origin forward on XZ plane
         float angle = UnityEngine.Vector3.SignedAngle(
             new UnityEngine.Vector3(baseScrollDirection.x, 0, baseScrollDirection.z),
-            new UnityEngine.Vector3(headsetDirection.x, 0, headsetDirection.z),
+            new UnityEngine.Vector3(worldOriginDirection.x, 0, worldOriginDirection.z),
             UnityEngine.Vector3.up
         );
+        
+        // Test
+        angle = 10;
         
         // Calculate rotation to apply this frame (proportional to angle and rotation speed)
         float rotationThisFrame = angle * config.rotationSpeed * SystemAPI.Time.DeltaTime;

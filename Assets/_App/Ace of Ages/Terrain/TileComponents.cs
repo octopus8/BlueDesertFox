@@ -175,8 +175,8 @@ public struct TerrainScrollVelocity : IComponentData
 }
 
 /// <summary>
-/// Configuration component for player-based scroll velocity with head-tracking rotation.
-/// Scrolls terrain in the direction the player is facing, with rotation based on headset orientation.
+/// Configuration component for player-based scroll velocity with world origin tracking rotation.
+/// Scrolls terrain in the direction the player is facing, with rotation based on world origin orientation.
 /// </summary>
 public struct PlayerTerrainScrollVelocityConfig : IComponentData
 {
@@ -186,29 +186,29 @@ public struct PlayerTerrainScrollVelocityConfig : IComponentData
     public float speed;
     
     /// <summary>
-    /// Rotation speed multiplier for head-tracking (degrees per second per degree of difference).
-    /// Higher values make the scroll direction rotate faster toward the headset direction.
+    /// Rotation speed multiplier for world origin tracking (degrees per second per degree of difference).
+    /// Higher values make the scroll direction rotate faster toward the world origin direction.
     /// </summary>
     public float rotationSpeed;
 }
 
 /// <summary>
-/// Singleton managed component that holds a reference to the headset GameObject's Transform.
-/// This allows the terrain system to track the VR headset for head-based rotation of scroll direction.
+/// Singleton managed component that holds a reference to the world origin GameObject's Transform.
+/// This allows the terrain system to track the VR world origin for rotation of scroll direction.
 /// </summary>
-public class HeadsetTransformReference : IComponentData
+public class WorldOriginTransformReference : IComponentData
 {
     /// <summary>
-    /// The Transform of the headset/camera GameObject for head-tracking rotation.
+    /// The Transform of the world origin/camera GameObject for tracking rotation.
     /// </summary>
-    public UnityEngine.Transform headsetTransform;
+    public UnityEngine.Transform worldOriginTransform;
 }
 
 /// <summary>
-/// Component that stores search parameters for finding the headset GameObject at runtime.
-/// This is baked into the entity so it can find the headset after subscenes load.
+/// Component that stores search parameters for finding the world origin GameObject at runtime.
+/// This is baked into the entity so it can find the world origin after subscenes load.
 /// </summary>
-public struct HeadsetTrackingSearch : IComponentData
+public struct WorldOriginTrackingSearch : IComponentData
 {
     public enum Mode : byte
     {
@@ -218,7 +218,7 @@ public struct HeadsetTrackingSearch : IComponentData
     }
     
     /// <summary>
-    /// How to search for the headset GameObject.
+    /// How to search for the world origin GameObject.
     /// </summary>
     public Mode mode;
     
@@ -228,7 +228,7 @@ public struct HeadsetTrackingSearch : IComponentData
     public Unity.Collections.FixedString128Bytes searchString;
     
     /// <summary>
-    /// True if the HeadsetTransformReference has been set up successfully.
+    /// True if the WorldOriginTransformReference has been set up successfully.
     /// </summary>
     public bool initialized;
 }

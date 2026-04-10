@@ -2,13 +2,13 @@ using Unity.Entities;
 using UnityEngine;
 
 /// <summary>
-/// Authoring component for player-based scroll velocity with head-tracking rotation.
-/// Scrolls terrain in the direction the player is facing, with rotation based on headset orientation.
+/// Authoring component for player-based scroll velocity with world origin tracking rotation.
+/// Scrolls terrain in the direction the player is facing, with rotation based on world origin orientation.
 /// Only one velocity provider (PlayerScrollVelocityAuthoring or ConstantScrollVelocityAuthoring) should be in the scene.
 /// </summary>
 public class PlayerScrollVelocityAuthoring : MonoBehaviour
 {
-    public enum HeadsetSearchMode
+    public enum WorldOriginSearchMode
     {
         FindByName,
         FindByTag,
@@ -19,18 +19,18 @@ public class PlayerScrollVelocityAuthoring : MonoBehaviour
     [Tooltip("Scroll speed in units per second (scrolls in player's forward direction)")]
     public float speed = 50f;
     
-    [Tooltip("Rotation speed multiplier for head-tracking (higher = faster rotation toward headset direction)")]
+    [Tooltip("Rotation speed multiplier for world origin tracking (higher = faster rotation toward world origin direction)")]
     public float rotationSpeed = 2.0f;
     
-    [Header("Headset Tracking")]
-    [Tooltip("How to find the headset GameObject at runtime")]
-    public HeadsetSearchMode headsetSearchMode = HeadsetSearchMode.FindMainCamera;
+    [Header("World Origin Tracking")]
+    [Tooltip("How to find the world origin GameObject at runtime")]
+    public WorldOriginSearchMode worldOriginSearchMode = WorldOriginSearchMode.FindMainCamera;
     
     [Tooltip("GameObject name to search for (only used if mode is FindByName)")]
-    public string headsetName = "Main Camera";
+    public string worldOriginName = "Main Camera";
     
     [Tooltip("GameObject tag to search for (only used if mode is FindByTag)")]
-    public string headsetTag = "MainCamera";
+    public string worldOriginTag = "MainCamera";
 
     public class Baker : Baker<PlayerScrollVelocityAuthoring>
     {
@@ -44,38 +44,38 @@ public class PlayerScrollVelocityAuthoring : MonoBehaviour
                 rotationSpeed = authoring.rotationSpeed
             });
             
-            // Determine headset search mode and parameters
-            HeadsetTrackingSearch.Mode searchMode;
+            // Determine world origin search mode and parameters
+            WorldOriginTrackingSearch.Mode searchMode;
             string searchString = "";
             
-            switch (authoring.headsetSearchMode)
+            switch (authoring.worldOriginSearchMode)
             {
-                case HeadsetSearchMode.FindByName:
-                    searchMode = HeadsetTrackingSearch.Mode.FindByName;
-                    searchString = authoring.headsetName;
+                case WorldOriginSearchMode.FindByName:
+                    searchMode = WorldOriginTrackingSearch.Mode.FindByName;
+                    searchString = authoring.worldOriginName;
                     break;
-                case HeadsetSearchMode.FindByTag:
-                    searchMode = HeadsetTrackingSearch.Mode.FindByTag;
-                    searchString = authoring.headsetTag;
+                case WorldOriginSearchMode.FindByTag:
+                    searchMode = WorldOriginTrackingSearch.Mode.FindByTag;
+                    searchString = authoring.worldOriginTag;
                     break;
-                case HeadsetSearchMode.FindMainCamera:
+                case WorldOriginSearchMode.FindMainCamera:
                 default:
-                    searchMode = HeadsetTrackingSearch.Mode.FindMainCamera;
+                    searchMode = WorldOriginTrackingSearch.Mode.FindMainCamera;
                     break;
             }
             
-            // Add headset search component - will be used by HeadsetTrackingInitSystem at runtime
-            AddComponent(entity, new HeadsetTrackingSearch
+            // Add world origin search component - will be used by WorldOriginTrackingInitSystem at runtime
+            AddComponent(entity, new WorldOriginTrackingSearch
             {
                 mode = searchMode,
                 searchString = searchString,
                 initialized = false
             });
             
-            // Add empty HeadsetTransformReference - will be populated at runtime
-            AddComponentObject(entity, new HeadsetTransformReference
+            // Add empty WorldOriginTransformReference - will be populated at runtime
+            AddComponentObject(entity, new WorldOriginTransformReference
             {
-                headsetTransform = null
+                worldOriginTransform = null
             });
         }
     }
