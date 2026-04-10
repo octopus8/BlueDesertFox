@@ -5586,9 +5586,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PlayerScrollVelocityAuthoring
   speed: 50
   rotationSpeed: 1
-  headsetSearchMode: 1
-  headsetName: Main Camera
-  headsetTag: MainCamera
+  worldOriginSearchMode: 0
+  worldOriginName: XR Origin Hands (XR Rig)
+  worldOriginTag: MainCamera
 --- !u!1 &1730959682
 GameObject:
   m_ObjectHideFlags: 0
