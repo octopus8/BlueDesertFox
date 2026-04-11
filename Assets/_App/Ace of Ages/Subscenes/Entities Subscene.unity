@@ -5633,7 +5633,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ea650e9e97214c68a8aab550673cff51, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerScrollVelocityAuthoring
-  speed: 75
+  speed: 50
   rotationSpeed: 0.75
   verticalSpeed: 20
   minVerticalPosition: -100
