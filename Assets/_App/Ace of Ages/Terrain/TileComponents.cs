@@ -251,3 +251,16 @@ public struct WorldOriginTrackingSearch : IComponentData
     public bool initialized;
 }
 
+/// <summary>
+/// Singleton managed component that holds a reference to the terrain material.
+/// This allows the authoring component to pass the material to the rendering system.
+/// </summary>
+public class TerrainMaterialReference : IComponentData
+{
+    /// <summary>
+    /// The material to use for rendering terrain tiles.
+    /// If null, the rendering system will fall back to loading from Resources.
+    /// </summary>
+    public UnityEngine.Material material;
+}
+

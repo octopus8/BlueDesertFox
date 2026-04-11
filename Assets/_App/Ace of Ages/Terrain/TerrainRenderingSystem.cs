@@ -33,49 +33,68 @@ public partial class TerrainRenderingSystem : SystemBase
 
     protected override void OnStartRunning()
     {
-        // Load or create terrain material
-        // Try to load from Resources first
+        // Try to get material from TerrainMaterialReference component first
+        var configQuery = GetEntityQuery(typeof(TerrainMaterialReference));
+        if (configQuery.CalculateEntityCount() > 0)
+        {
+            var configEntity = configQuery.GetSingletonEntity();
+            var materialRef = EntityManager.GetComponentObject<TerrainMaterialReference>(configEntity);
+            if (materialRef != null && materialRef.material != null)
+            {
+                _terrainMaterial = materialRef.material;
+                Debug.Log($"[TerrainRendering] Using material from TerrainConfigAuthoring: {_terrainMaterial.name}");
+                return;
+            }
+        }
+        
+        // Fall back to loading from Resources
         _terrainMaterial = Resources.Load<Material>("TerrainMaterial");
         
-        if (_terrainMaterial == null)
+        if (_terrainMaterial != null)
         {
-            // Try URP Lit shader first
-            var shader = Shader.Find("Universal Render Pipeline/Lit");
+            Debug.Log($"[TerrainRendering] Loaded material from Resources: {_terrainMaterial.name}");
+            return;
+        }
+        
+        // Last resort: create a debug material
+        Debug.LogWarning("[TerrainRendering] No material assigned in TerrainConfigAuthoring and no TerrainMaterial found in Resources. Creating debug material.");
+        
+        // Try URP Lit shader first
+        var shader = Shader.Find("Universal Render Pipeline/Lit");
+        if (shader == null)
+        {
+            // Fallback to standard shader
+            shader = Shader.Find("Standard");
             if (shader == null)
             {
-                // Fallback to standard shader
-                shader = Shader.Find("Standard");
-                if (shader == null)
-                {
-                    // Last resort: unlit color
-                    shader = Shader.Find("Unlit/Color");
-                }
+                // Last resort: unlit color
+                shader = Shader.Find("Unlit/Color");
             }
+        }
+        
+        if (shader != null)
+        {
+            _terrainMaterial = new Material(shader);
+            _terrainMaterial.name = "TerrainMaterial_Generated";
             
-            if (shader != null)
+            // Set a bright debug color so we can see if material is working
+            if (shader.name.Contains("Universal Render Pipeline"))
             {
-                _terrainMaterial = new Material(shader);
-                _terrainMaterial.name = "TerrainMaterial_Generated";
-                
-                // Set a bright debug color so we can see if material is working
-                if (shader.name.Contains("Universal Render Pipeline"))
-                {
-                    _terrainMaterial.SetColor("_BaseColor", new Color(1f, 0.5f, 0.8f, 1f)); // Pink for debugging
-                    _terrainMaterial.SetTexture("_BaseMap", Texture2D.whiteTexture);
-                }
-                else if (shader.name == "Standard")
-                {
-                    _terrainMaterial.SetColor("_Color", new Color(1f, 0.5f, 0.8f, 1f));
-                }
-                else
-                {
-                    _terrainMaterial.SetColor("_Color", new Color(1f, 0.5f, 0.8f, 1f));
-                }
+                _terrainMaterial.SetColor("_BaseColor", new Color(1f, 0.5f, 0.8f, 1f)); // Pink for debugging
+                _terrainMaterial.SetTexture("_BaseMap", Texture2D.whiteTexture);
+            }
+            else if (shader.name == "Standard")
+            {
+                _terrainMaterial.SetColor("_Color", new Color(1f, 0.5f, 0.8f, 1f));
             }
             else
             {
-                Debug.LogError("[TerrainRendering] Failed to find any suitable shader!");
+                _terrainMaterial.SetColor("_Color", new Color(1f, 0.5f, 0.8f, 1f));
             }
+        }
+        else
+        {
+            Debug.LogError("[TerrainRendering] Failed to find any suitable shader!");
         }
     }
 

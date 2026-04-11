@@ -77,7 +77,7 @@ Located in `Assets/_App/Ace of Ages/`:
   - `TerrainMeshGenerationSystem`: Parallel Burst jobs with `IJobParallelFor` for vertex/normal generation, camera-aware priority sorting, frame budgeting via `NativeQueue<Entity>` (processes up to `maxCollidersCreatedPerFrame` tiles/frame)
   - `TerrainColliderPreparationSystem`: Burst-compiled job for LOD decimation (1x/2x/4x vertex stride), calculates camera-aware priority, schedules parallel jobs
   - `TerrainPhysicsSystem`: Main-thread `MeshCollider.Create()` with LRU cache (`NativeHashMap<ColliderCacheKey, ColliderCacheEntry>`), frame budgeting, cache eviction when memory threshold exceeded
-  - `TerrainRenderingSystem`: Converts DynamicBuffers to Unity Mesh instances, sets up `RenderMesh` component, runs in `PresentationSystemGroup`, handles material loading from Resources ("TerrainMaterial")
+  - `TerrainRenderingSystem`: Converts DynamicBuffers to Unity Mesh instances, sets up `RenderMesh` component, runs in `PresentationSystemGroup`, uses material from `TerrainMaterialReference` component (assigned via `TerrainConfigAuthoring.terrainMaterial`), falls back to Resources ("TerrainMaterial") if not assigned
 - **DOTS Systems**: ECS performance-critical systems including:
   - `TransformFollowerSystem` (`TransformFollower/`): Makes DOTS entities follow GameObject Transforms outside subscenes using managed `TransformReference` component, runs on main thread via `.Run()` (cannot use Burst/Jobs due to managed references)
   - `SplineFollowerSystem` (`Splines/`): Moves entities along Unity.Splines with formation support via Burst-compiled job, uses `SplineDataComponent` (with pre-sampled `BlobAssetReference<SplineDataBlob>`) and `FormationPosition`
@@ -177,7 +177,7 @@ Located in `Assets/_App/Ace of Ages/Terrain/`:
 - Mid-range VR (RTX 3070): Keep at 3-4
 - Low-end VR (Quest 2): Set to 1-2
 - Increase `verticesPerSide` for more detail (32→64), reduces physics LOD decimation effectiveness
-- Material must exist in Resources as "TerrainMaterial" (URP/Lit shader recommended)
+- Material can be assigned in `TerrainConfigAuthoring.terrainMaterial` (recommended) or loaded from Resources as "TerrainMaterial" (URP/Lit shader recommended)
 
 **Zero-GC Pattern for ECS**:
 - Use `SystemAPI.Query<>().WithEntityAccess()` for direct iteration (no `ToEntityArray()`)

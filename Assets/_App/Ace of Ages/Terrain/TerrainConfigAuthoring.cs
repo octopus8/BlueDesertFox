@@ -171,6 +171,12 @@ public class TerrainConfigAuthoring : MonoBehaviour
             {
                 playerTransform = null
             });
+            
+            // Add terrain material reference if assigned
+            AddComponentObject(entity, new TerrainMaterialReference
+            {
+                material = authoring.terrainMaterial
+            });
         }
     }
 
