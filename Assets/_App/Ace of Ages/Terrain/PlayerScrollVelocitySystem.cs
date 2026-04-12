@@ -44,8 +44,23 @@ public partial class PlayerScrollVelocitySystem : SystemBase
         scrollVelocity.ValueRW.direction = baseScrollDirection;
         scrollVelocity.ValueRW.speed = config.speed;
 
-        // Rotate the world origin slowly to the right.
-        worldOriginRef.worldOriginTransform.rotation *= quaternion.Euler(0, config.rotationSpeed * SystemAPI.Time.DeltaTime, 0);
+        // Rotate world origin based on player's bank angle (local Z-axis rotation)
+        if (worldOriginRef?.worldOriginTransform != null)
+        {
+            // Get player's world rotation euler angles (not local)
+            UnityEngine.Vector3 playerEuler = playerRef.playerTransform.eulerAngles;
+            float bankAngle = playerEuler.z;
+            
+            // Convert from 0-360 to -180 to 180 for proper direction
+            if (bankAngle > 180f)
+                bankAngle -= 360f;
+            
+            // Rotate world origin proportional to bank angle
+            // Positive bank (right) rotates right, negative bank (left) rotates left
+            // Speed is proportional to the amount of bank
+            float rotationAmount = -bankAngle * config.rotationSpeed * SystemAPI.Time.DeltaTime;
+            worldOriginRef.worldOriginTransform.rotation *= UnityEngine.Quaternion.Euler(0, rotationAmount, 0);
+        }
         
     }
 }
