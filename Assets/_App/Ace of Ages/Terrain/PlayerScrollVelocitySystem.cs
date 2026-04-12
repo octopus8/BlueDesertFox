@@ -9,6 +9,7 @@ using Unity.Mathematics;
 /// </summary>
 [UpdateInGroup(typeof(SimulationSystemGroup))]
 [UpdateBefore(typeof(ScrollTerrainSystem))]
+[UpdateBefore(typeof(TransformFollowerSystem))]
 public partial class PlayerScrollVelocitySystem : SystemBase
 {
     protected override void OnCreate()
@@ -55,10 +56,14 @@ public partial class PlayerScrollVelocitySystem : SystemBase
             if (bankAngle > 180f)
                 bankAngle -= 360f;
             
-            // Rotate world origin proportional to bank angle
-            // Positive bank (right) rotates right, negative bank (left) rotates left
-            // Speed is proportional to the amount of bank
-            float rotationAmount = -bankAngle * config.rotationSpeed * SystemAPI.Time.DeltaTime;
+            // Use sine function to map bank angle to rotation speed
+            // At ±90°: sin = ±1.0 (full speed rotation)
+            // At 0°/180°: sin = 0 (no rotation)
+            // This creates a natural steering curve
+            float bankRadians = math.radians(bankAngle);
+            float rotationSpeed = -math.sin(bankRadians);
+            
+            float rotationAmount = rotationSpeed * config.rotationSpeed * SystemAPI.Time.DeltaTime;
             worldOriginRef.worldOriginTransform.rotation *= UnityEngine.Quaternion.Euler(0, rotationAmount, 0);
         }
         

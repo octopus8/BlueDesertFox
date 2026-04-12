@@ -5634,7 +5634,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerScrollVelocityAuthoring
   speed: 50
-  rotationSpeed: 1
+  rotationSpeed: 50
   verticalSpeed: 20
   minVerticalPosition: -100
   maxVerticalPosition: 100

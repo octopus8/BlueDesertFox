@@ -17,7 +17,6 @@ using UnityEngine;
 /// 3. Limiting the number of entities that follow external Transforms
 /// </remarks>
 [RequireMatchingQueriesForUpdate]
-[UpdateAfter(typeof(PlayerScrollVelocitySystem))]
 public partial class TransformFollowerSystem : SystemBase
 {
     private double _lastDebugTime;
