@@ -62,5 +62,30 @@ public partial class PlayerScrollVelocitySystem : SystemBase
             worldOriginRef.worldOriginTransform.rotation *= UnityEngine.Quaternion.Euler(0, rotationAmount, 0);
         }
         
+        // Calculate vertical movement based on player pitch angle
+        // Extract pitch from player's forward vector Y component
+        float pitchRadians = math.asin(playerForward.y);
+        float pitchDegrees = math.degrees(pitchRadians);
+        
+        // Calculate vertical velocity proportional to pitch angle (normalized to ±90 degrees)
+        // At 90° up: pitchDegrees = 90, verticalVelocity = +verticalSpeed
+        // At 0° (horizon): pitchDegrees = 0, verticalVelocity = 0
+        // At -90° down: pitchDegrees = -90, verticalVelocity = -verticalSpeed
+        float verticalVelocity = (pitchDegrees / 90f) * config.verticalSpeed;
+        
+        // Apply vertical movement with clamping
+        UnityEngine.Vector3 currentPosition = worldOriginRef.worldOriginTransform.position;
+        float newYPosition = currentPosition.y + (verticalVelocity * SystemAPI.Time.DeltaTime);
+        
+        // Clamp Y position to prevent extreme offsets
+        newYPosition = math.clamp(newYPosition, config.minVerticalPosition, config.maxVerticalPosition);
+        
+        worldOriginRef.worldOriginTransform.position = new UnityEngine.Vector3(
+            currentPosition.x,
+            newYPosition,
+            currentPosition.z
+        );
+        
+        
     }
 }
