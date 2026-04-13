@@ -298,14 +298,27 @@ Assign distant tiles (half/quarter resolution) to separate physics layer. Allows
 
 **Use Case**: Player should only collide with high-detail nearby terrain, not distant low-res tiles.
 
+#### Close Terrain Physics Layer
+**Type**: Int (Layer Dropdown)  
+**Default**: `0`  
+**Range**: 0 - 31
+
+Physics layer index for close terrain tiles (full resolution).
+
+**Inspector**: Displays as a dropdown menu showing all available Unity layers.
+
+**Recommended**: Select "Terrain" layer from the dropdown. Use the menu item `Tools/Terrain/Setup Physics Layers` to automatically create and configure both layers.
+
 #### Low Detail Physics Layer
-**Type**: Int  
+**Type**: Int (Layer Dropdown)  
 **Default**: `0`  
 **Range**: 0 - 31
 
 Physics layer index for low-detail terrain tiles (half/quarter resolution).
 
-**Recommended**: Create a layer named "TerrainLOD" and set its collision matrix appropriately.
+**Inspector**: Displays as a dropdown menu showing all available Unity layers.
+
+**Recommended**: Select "TerrainLowDetail" layer from the dropdown. Use the menu item `Tools/Terrain/Setup Physics Layers` to automatically create and configure both layers.
 
 ---
 

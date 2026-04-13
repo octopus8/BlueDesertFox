@@ -87,7 +87,11 @@ public class TerrainConfigAuthoring : MonoBehaviour
     [Tooltip("Assign distant tiles (half/quarter resolution) to separate physics layer")]
     public bool usePhysicsLODLayers = true;
     
-    [Range(0, 31)]
+    [NaughtyAttributes.Layer]
+    [Tooltip("Physics layer index for close terrain (full resolution tiles)")]
+    public int closeTerrainPhysicsLayer = 0;
+    
+    [NaughtyAttributes.Layer]
     [Tooltip("Physics layer index for low-detail terrain (half/quarter resolution tiles)")]
     public int lowDetailPhysicsLayer = 0;
 
@@ -115,6 +119,7 @@ public class TerrainConfigAuthoring : MonoBehaviour
                 lodQuarterResolutionDistance = authoring.lodQuarterResolutionDistance,
                 maxColliderCacheMemoryMB = authoring.maxColliderCacheMemoryMB,
                 usePhysicsLODLayers = authoring.usePhysicsLODLayers,
+                closeTerrainPhysicsLayer = authoring.closeTerrainPhysicsLayer,
                 lowDetailPhysicsLayer = authoring.lowDetailPhysicsLayer
             });
             

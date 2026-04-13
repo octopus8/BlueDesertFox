@@ -269,6 +269,7 @@ public partial class TerrainPhysicsSystem : SystemBase
 
     /// <summary>
     /// Creates collision filter based on LOD level and configuration.
+    /// Close tiles (full resolution) use closeTerrainPhysicsLayer.
     /// Low-detail tiles (half/quarter resolution) use separate physics layer if enabled.
     /// </summary>
     private CollisionFilter CreateCollisionFilter(TerrainPhysicsLODLevel lodLevel, TerrainTileConfig config)
@@ -282,8 +283,8 @@ public partial class TerrainPhysicsSystem : SystemBase
         }
         else
         {
-            // Use default layer for close tiles
-            layerMask = 1u << 0;
+            // Use close terrain layer for nearby tiles
+            layerMask = 1u << config.closeTerrainPhysicsLayer;
         }
         
         return new CollisionFilter

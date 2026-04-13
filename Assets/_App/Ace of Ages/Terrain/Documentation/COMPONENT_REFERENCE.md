@@ -49,6 +49,7 @@ public struct TerrainTileConfig : IComponentData
     public float lodQuarterResolutionDistance; // Quarter-res threshold
     public int maxColliderCacheMemoryMB;      // Cache memory limit
     public bool usePhysicsLODLayers;          // Enable layer separation
+    public int closeTerrainPhysicsLayer;      // Close terrain layer index
     public int lowDetailPhysicsLayer;         // LOD layer index
 }
 ```

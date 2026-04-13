@@ -41,6 +41,9 @@ public struct TerrainTileConfig : IComponentData
     /// <summary>Whether to assign distant tiles to low-detail physics layer.</summary>
     public bool usePhysicsLODLayers;
     
+    /// <summary>Physics layer index for close terrain (full resolution).</summary>
+    public int closeTerrainPhysicsLayer;
+    
     /// <summary>Physics layer index for low-detail terrain (half/quarter resolution).</summary>
     public int lowDetailPhysicsLayer;
 }

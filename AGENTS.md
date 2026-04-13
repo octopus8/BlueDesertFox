@@ -205,6 +205,7 @@ Located in `Assets/_App/Ace of Ages/Terrain/`:
 - "UI" layer: Used for CameraFader sphere and UI elements, UICamera culls "UI" and "Hand" layers together
 - "Hand" layer: AutoHand sets hand colliders recursively to left/right hand layers, UICamera includes in culling mask
 - AutoHand layers: "Grabbable", "Grabbing", "HandPlayer" - see `AutoHandSetupWizard.cs` for layer collision matrix setup
+- **Terrain layers**: "Terrain" (close/full-resolution tiles), "TerrainLowDetail" (distant/half-quarter-resolution tiles) - use `Tools/Terrain/Setup Physics Layers` to configure
 - Physics interactions expect default layer setup, AutoHand uses layer masks extensively
 
 ### Namespace Organization

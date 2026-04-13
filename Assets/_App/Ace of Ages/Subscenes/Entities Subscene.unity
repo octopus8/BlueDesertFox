@@ -5590,7 +5590,8 @@ MonoBehaviour:
   lodQuarterResolutionDistance: 450
   maxColliderCacheMemoryMB: 50
   usePhysicsLODLayers: 1
-  lowDetailPhysicsLayer: 0
+  closeTerrainPhysicsLayer: 11
+  lowDetailPhysicsLayer: 10
 --- !u!4 &1528308291
 Transform:
   m_ObjectHideFlags: 0
