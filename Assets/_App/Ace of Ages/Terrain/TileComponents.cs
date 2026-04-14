@@ -322,3 +322,16 @@ public struct SpawnedTreeReference : IBufferElementData
     public Entity treeEntity;
 }
 
+/// <summary>
+/// Component that tracks which terrain tile a tree belongs to and its local offset.
+/// Used to update tree positions when tiles move, without using parent-child hierarchy.
+/// </summary>
+public struct TreeTileOwnership : IComponentData
+{
+    /// <summary>The terrain tile entity this tree belongs to.</summary>
+    public Entity tileEntity;
+    
+    /// <summary>Local position offset from tile origin (relative to tile's position).</summary>
+    public float3 localOffset;
+}
+

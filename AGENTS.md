@@ -71,14 +71,15 @@ Located in `Assets/_App/Ace of Ages/`:
 - **Terrain Core Systems**: 
   - `PlayerTrackingInitSystem`: Finds and assigns player Transform reference at runtime (runs in `InitializationSystemGroup`), searches via `PlayerTrackingSearch` component with modes: FindByName, FindByTag, FindAutoHandPlayer, FindMainCamera
   - `ScrollTerrainSystem`: Updates `ScrollOffset` each frame in player's forward direction (XZ plane projection) when auto-scroll enabled
-  - `TileSpawningSystem`: Spawns/despawns tiles in ring around player using `NativeParallelHashMap<int2, Entity>` to track active tiles, applies scroll offset to tile positions, trees are parented to tiles and auto-destroyed by ECS
+  - `TileSpawningSystem`: Spawns/despawns tiles in ring around player using `NativeParallelHashMap<int2, Entity>` to track active tiles, applies scroll offset to tile positions, explicitly destroys trees when tiles despawn via `SpawnedTreeReference` buffer
   - `TileScrollPositionSystem`: Updates all existing tile positions each frame based on `ScrollOffset` (ensures smooth scrolling)
   - `TerrainDistanceTrackingSystem`: Calculates distance to player and LOD level for each tile, runs before physics system
   - `TerrainMeshGenerationSystem`: Parallel Burst jobs with `IJobParallelFor` for vertex/normal generation, camera-aware priority sorting, frame budgeting via `NativeQueue<Entity>` (processes up to `maxCollidersCreatedPerFrame` tiles/frame)
   - `TerrainColliderPreparationSystem`: Burst-compiled job for LOD decimation (1x/2x/4x vertex stride), calculates camera-aware priority, schedules parallel jobs
   - `TerrainPhysicsSystem`: Main-thread `MeshCollider.Create()` with LRU cache (`NativeHashMap<ColliderCacheKey, ColliderCacheEntry>`), frame budgeting, cache eviction when memory threshold exceeded
   - `TerrainRenderingSystem`: Converts DynamicBuffers to Unity Mesh instances, sets up `RenderMesh` component, runs in `PresentationSystemGroup`, uses material from `TerrainMaterialReference` component (assigned via `TerrainConfigAuthoring.terrainMaterial`), falls back to Resources ("TerrainMaterial") if not assigned
-  - `TerrainTreeSpawningSystem`: Spawns tree entities on tiles after mesh rendering, uses deterministic random placement (seeded by grid coordinate), frame budgeting, height/slope filtering, random rotation/scale variation, parents trees to tiles for automatic cleanup
+  - `TerrainTreeSpawningSystem`: Spawns tree entities on tiles after mesh rendering, uses deterministic random placement (seeded by grid coordinate), frame budgeting, height/slope filtering, random rotation/scale variation, tracks tile ownership via `TreeTileOwnership` without parent-child hierarchy for better performance
+  - `TreePositionUpdateSystem`: Burst-compiled system that updates tree positions when tiles move, uses `TreeTileOwnership` component to track which tile each tree belongs to without parent-child hierarchy overhead, runs in `TransformSystemGroup` after `TileScrollPositionSystem`
 - **DOTS Systems**: ECS performance-critical systems including:
   - `TransformFollowerSystem` (`TransformFollower/`): Makes DOTS entities follow GameObject Transforms outside subscenes using managed `TransformReference` component, runs on main thread via `.Run()` (cannot use Burst/Jobs due to managed references)
   - `SplineFollowerSystem` (`Splines/`): Moves entities along Unity.Splines with formation support via Burst-compiled job, uses `SplineDataComponent` (with pre-sampled `BlobAssetReference<SplineDataBlob>`) and `FormationPosition`
@@ -98,6 +99,7 @@ Located in `Assets/_App/Ace of Ages/`:
   - `TreePrefabElement`: Buffer element storing tree prefab entities for random selection
   - `TreesSpawned`: Tag component indicating trees spawned on tile
   - `SpawnedTreeReference`: Buffer element tracking spawned tree entities for cleanup
+  - `TreeTileOwnership`: Component tracking which tile owns each tree and the tree's local offset, used to update positions without parent-child hierarchy overhead
   - DynamicBuffers: `VertexElement`, `NormalElement`, `UVElement`, `IndexElement` for mesh data; `ColliderPreparedVertexElement`, `ColliderPreparedTriangleElement` for physics data
 - **Authoring Components**: Co-located with systems in subdirectories - `TransformFollowerAuthoring`, `SplineFollowerAuthoring`, `EnemySpawnerAuthoring`, `PlayerTagAuthoring` (in `Player/`), `FormationPositionAuthoring`, `PrefabEntitiesReferencesAuthoring`, `TreeSpawnerConfigAuthoring` (Terrain/)
 - **Cross-Subscene References**: `TransformFollowerAuthoring` uses `TransformFollowerTargetSearch` component with `FindByName`, `FindByTag`, or `DirectReference` modes to locate targets at runtime, initialized by `TransformFollowerInitSystem` since `MonoBehaviour.Start()` doesn't run in baked SubScenes

@@ -224,18 +224,19 @@ public partial class TerrainTreeSpawningSystem : SystemBase
             // Random scale
             float scale = random.NextFloat(config.minTreeScale, config.maxTreeScale);
             
-            // Set transform (position is now local to parent tile)
+            // Set transform (position is WORLD position, not local)
             EntityManager.SetComponentData(treeEntity, new LocalTransform
             {
-                Position = localPosition,  // Local to tile, not world position
+                Position = tileTransform.Position + localPosition,  // World position
                 Rotation = rotation,
                 Scale = scale
             });
             
-            // Parent the tree to the tile (ECS will auto-destroy when tile is destroyed)
-            EntityManager.AddComponentData(treeEntity, new Parent
+            // Track tile ownership without parent-child hierarchy (for performance)
+            EntityManager.AddComponentData(treeEntity, new TreeTileOwnership
             {
-                Value = tileEntity
+                tileEntity = tileEntity,
+                localOffset = localPosition  // Store local offset for position updates
             });
             
             // Store tree entity in temporary list
