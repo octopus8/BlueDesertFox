@@ -14,11 +14,11 @@ public class TreeSpawnerConfigAuthoring : MonoBehaviour
     
     [Header("Spawn Density")]
     [Tooltip("Minimum number of trees per tile")]
-    [Range(0, 50)]
+    [Range(0, 500)]
     public int minTreesPerTile = 5;
     
     [Tooltip("Maximum number of trees per tile")]
-    [Range(0, 50)]
+    [Range(0, 500)]
     public int maxTreesPerTile = 15;
     
     [Header("Tree Variation")]

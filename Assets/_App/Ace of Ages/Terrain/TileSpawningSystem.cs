@@ -165,8 +165,21 @@ public partial struct TileSpawningSystem : ISystem
         {
             if (_activeTiles.TryGetValue(gridCoord, out Entity tileEntity))
             {
-                // Trees are parented to tiles, so ECS will automatically destroy them
-                // when the parent tile is destroyed (no manual cleanup needed)
+                // Explicitly destroy child trees BEFORE destroying tile
+                // While Parent component should auto-destroy children, explicit cleanup
+                // ensures trees are removed even if transform hierarchy isn't fully updated
+                if (state.EntityManager.HasBuffer<SpawnedTreeReference>(tileEntity))
+                {
+                    var spawnedTrees = state.EntityManager.GetBuffer<SpawnedTreeReference>(tileEntity);
+                    foreach (var treeRef in spawnedTrees)
+                    {
+                        if (state.EntityManager.Exists(treeRef.treeEntity))
+                        {
+                            ecb.DestroyEntity(treeRef.treeEntity);
+                        }
+                    }
+                }
+                
                 ecb.DestroyEntity(tileEntity);
                 _activeTiles.Remove(gridCoord);
             }
@@ -201,6 +214,8 @@ public partial struct TileSpawningSystem : ISystem
         tilesToDespawn.Dispose();
     }
 }
+
+
 
 
 
