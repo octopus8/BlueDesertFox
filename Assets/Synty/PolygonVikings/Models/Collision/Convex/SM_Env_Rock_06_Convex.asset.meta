@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: dfbda4b2944304d4d87ed75f56a753f0
+timeCreated: 1579827966
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 43000355199889476
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 85664
+  packageName: POLYGON - Vikings Pack - Art by Synty
+  packageVersion: 1.5.0
+  assetPath: Assets/Synty/PolygonVikings/Models/Collision/Convex/SM_Env_Rock_06_Convex.asset
+  uploadId: 883992

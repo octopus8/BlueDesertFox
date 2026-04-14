@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: a24a6f93711d7ff40915d97eaeec109f
+timeCreated: 1579831458
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 43818218020607638
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 85664
+  packageName: POLYGON - Vikings Pack - Art by Synty
+  packageVersion: 1.5.0
+  assetPath: Assets/Synty/PolygonVikings/Models/Collision/Convex/SM_Prop_Rope_02_Snow_Convex.asset
+  uploadId: 883992

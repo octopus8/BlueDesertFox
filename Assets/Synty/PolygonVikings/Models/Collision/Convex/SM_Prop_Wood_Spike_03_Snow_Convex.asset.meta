@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 4c6f77e966662b84c8d9b3c3009dd98d
+timeCreated: 1579830703
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 43927513757879898
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 85664
+  packageName: POLYGON - Vikings Pack - Art by Synty
+  packageVersion: 1.5.0
+  assetPath: Assets/Synty/PolygonVikings/Models/Collision/Convex/SM_Prop_Wood_Spike_03_Snow_Convex.asset
+  uploadId: 883992

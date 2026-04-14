@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: bf594d77bfa40f5489189ae0b555585c
+timeCreated: 1579832445
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 43722279499859820
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 85664
+  packageName: POLYGON - Vikings Pack - Art by Synty
+  packageVersion: 1.5.0
+  assetPath: Assets/Synty/PolygonVikings/Models/Collision/Convex/SM_Bld_Tower_Stone_Base_01_Convex.asset
+  uploadId: 883992

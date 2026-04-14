@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: a5baf5c5455f82c4ca2a9ae98ee36034
+timeCreated: 1579831301
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 43190546031296660
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 85664
+  packageName: POLYGON - Vikings Pack - Art by Synty
+  packageVersion: 1.5.0
+  assetPath: Assets/Synty/PolygonVikings/Models/Collision/Convex/SM_Prop_Bench_01_Snow_Convex.asset
+  uploadId: 883992

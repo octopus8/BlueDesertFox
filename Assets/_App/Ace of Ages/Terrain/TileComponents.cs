@@ -267,3 +267,58 @@ public class TerrainMaterialReference : IComponentData
     public UnityEngine.Material material;
 }
 
+/// <summary>
+/// Singleton component that configures tree spawning on terrain tiles.
+/// </summary>
+public struct TreeSpawnerConfig : IComponentData
+{
+    /// <summary>Minimum number of trees to spawn per tile.</summary>
+    public int minTreesPerTile;
+    
+    /// <summary>Maximum number of trees to spawn per tile.</summary>
+    public int maxTreesPerTile;
+    
+    /// <summary>Minimum scale multiplier for spawned trees.</summary>
+    public float minTreeScale;
+    
+    /// <summary>Maximum scale multiplier for spawned trees.</summary>
+    public float maxTreeScale;
+    
+    /// <summary>Minimum height (Y coordinate) for tree spawning.</summary>
+    public float minSpawnHeight;
+    
+    /// <summary>Maximum height (Y coordinate) for tree spawning.</summary>
+    public float maxSpawnHeight;
+    
+    /// <summary>Pre-calculated slope threshold (cosine of max slope angle) for filtering steep terrain.</summary>
+    public float slopeThreshold;
+    
+    /// <summary>Maximum number of trees to spawn per frame (performance budgeting).</summary>
+    public int maxTreesSpawnedPerFrame;
+}
+
+/// <summary>
+/// Buffer element that stores a reference to a tree prefab entity for random selection.
+/// </summary>
+public struct TreePrefabElement : IBufferElementData
+{
+    /// <summary>The entity prefab to instantiate for this tree type.</summary>
+    public Entity prefabEntity;
+}
+
+/// <summary>
+/// Tag component indicating that trees have been spawned for this tile.
+/// </summary>
+public struct TreesSpawned : IComponentData
+{
+}
+
+/// <summary>
+/// Buffer element that stores references to trees spawned on this tile for cleanup.
+/// </summary>
+public struct SpawnedTreeReference : IBufferElementData
+{
+    /// <summary>The entity of a tree spawned on this tile.</summary>
+    public Entity treeEntity;
+}
+

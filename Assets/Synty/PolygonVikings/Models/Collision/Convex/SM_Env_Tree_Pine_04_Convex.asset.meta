@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 1f6a1d765fba4df409e44ed347f6e539
+timeCreated: 1579827859
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 43903307592259224
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 85664
+  packageName: POLYGON - Vikings Pack - Art by Synty
+  packageVersion: 1.5.0
+  assetPath: Assets/Synty/PolygonVikings/Models/Collision/Convex/SM_Env_Tree_Pine_04_Convex.asset
+  uploadId: 883992

@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 3ed2838f01b40b643b926ae194e7cdd9
+timeCreated: 1579826186
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 43684238226239258
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 85664
+  packageName: POLYGON - Vikings Pack - Art by Synty
+  packageVersion: 1.5.0
+  assetPath: Assets/Synty/PolygonVikings/Models/Collision/Convex/SM_Prop_Fur_Roll_01_Convex.asset
+  uploadId: 883992

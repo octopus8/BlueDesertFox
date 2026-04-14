@@ -1,0 +1,17 @@
+fileFormatVersion: 2
+guid: 448473e4985a37f40a1ce3630cf31a1d
+timeCreated: 1579829799
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 43095681123888662
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 85664
+  packageName: POLYGON - Vikings Pack - Art by Synty
+  packageVersion: 1.5.0
+  assetPath: Assets/Synty/PolygonVikings/Models/Collision/Convex/SM_Bld_BoatHouse_01_Snow_Convex
+    1.asset
+  uploadId: 883992

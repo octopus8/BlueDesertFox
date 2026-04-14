@@ -67,17 +67,18 @@ Located in `Assets/LiquidForce/TextureBlender/`:
 
 ### Ace of Ages Game Systems
 Located in `Assets/_App/Ace of Ages/`:
-- **Terrain System** (`Terrain/`): DOTS-based infinite terrain with procedural generation using multi-octave Perlin noise, parallel Burst-compiled mesh generation, LOD physics colliders with LRU caching, camera-aware prioritization, and optional directional auto-scrolling (see `Terrain/ARCHITECTURE.md`)
+- **Terrain System** (`Terrain/`): DOTS-based infinite terrain with procedural generation using multi-octave Perlin noise, parallel Burst-compiled mesh generation, LOD physics colliders with LRU caching, camera-aware prioritization, optional directional auto-scrolling, and procedural tree spawning (see `Terrain/ARCHITECTURE.md`, `Terrain/TREE_SPAWNING_SYSTEM.md`)
 - **Terrain Core Systems**: 
   - `PlayerTrackingInitSystem`: Finds and assigns player Transform reference at runtime (runs in `InitializationSystemGroup`), searches via `PlayerTrackingSearch` component with modes: FindByName, FindByTag, FindAutoHandPlayer, FindMainCamera
   - `ScrollTerrainSystem`: Updates `ScrollOffset` each frame in player's forward direction (XZ plane projection) when auto-scroll enabled
-  - `TileSpawningSystem`: Spawns/despawns tiles in ring around player using `NativeParallelHashMap<int2, Entity>` to track active tiles, applies scroll offset to tile positions
+  - `TileSpawningSystem`: Spawns/despawns tiles in ring around player using `NativeParallelHashMap<int2, Entity>` to track active tiles, applies scroll offset to tile positions, trees are parented to tiles and auto-destroyed by ECS
   - `TileScrollPositionSystem`: Updates all existing tile positions each frame based on `ScrollOffset` (ensures smooth scrolling)
   - `TerrainDistanceTrackingSystem`: Calculates distance to player and LOD level for each tile, runs before physics system
   - `TerrainMeshGenerationSystem`: Parallel Burst jobs with `IJobParallelFor` for vertex/normal generation, camera-aware priority sorting, frame budgeting via `NativeQueue<Entity>` (processes up to `maxCollidersCreatedPerFrame` tiles/frame)
   - `TerrainColliderPreparationSystem`: Burst-compiled job for LOD decimation (1x/2x/4x vertex stride), calculates camera-aware priority, schedules parallel jobs
   - `TerrainPhysicsSystem`: Main-thread `MeshCollider.Create()` with LRU cache (`NativeHashMap<ColliderCacheKey, ColliderCacheEntry>`), frame budgeting, cache eviction when memory threshold exceeded
   - `TerrainRenderingSystem`: Converts DynamicBuffers to Unity Mesh instances, sets up `RenderMesh` component, runs in `PresentationSystemGroup`, uses material from `TerrainMaterialReference` component (assigned via `TerrainConfigAuthoring.terrainMaterial`), falls back to Resources ("TerrainMaterial") if not assigned
+  - `TerrainTreeSpawningSystem`: Spawns tree entities on tiles after mesh rendering, uses deterministic random placement (seeded by grid coordinate), frame budgeting, height/slope filtering, random rotation/scale variation, parents trees to tiles for automatic cleanup
 - **DOTS Systems**: ECS performance-critical systems including:
   - `TransformFollowerSystem` (`TransformFollower/`): Makes DOTS entities follow GameObject Transforms outside subscenes using managed `TransformReference` component, runs on main thread via `.Run()` (cannot use Burst/Jobs due to managed references)
   - `SplineFollowerSystem` (`Splines/`): Moves entities along Unity.Splines with formation support via Burst-compiled job, uses `SplineDataComponent` (with pre-sampled `BlobAssetReference<SplineDataBlob>`) and `FormationPosition`
@@ -93,8 +94,12 @@ Located in `Assets/_App/Ace of Ages/`:
   - `PlayerTrackingSearch`: Runtime search configuration (FindByName/FindByTag/FindAutoHandPlayer/FindMainCamera modes)
   - `TerrainTileDistanceToPlayer`: Distance to player and current `TerrainPhysicsLODLevel` (FullResolution/HalfResolution/QuarterResolution/NoCollider)
   - `PhysicsColliderValid`: Tag indicating collider is up-to-date and cached
+  - `TreeSpawnerConfig`: Singleton with tree density (min/max per tile), scale variation, height/slope filters, frame budget
+  - `TreePrefabElement`: Buffer element storing tree prefab entities for random selection
+  - `TreesSpawned`: Tag component indicating trees spawned on tile
+  - `SpawnedTreeReference`: Buffer element tracking spawned tree entities for cleanup
   - DynamicBuffers: `VertexElement`, `NormalElement`, `UVElement`, `IndexElement` for mesh data; `ColliderPreparedVertexElement`, `ColliderPreparedTriangleElement` for physics data
-- **Authoring Components**: Co-located with systems in subdirectories - `TransformFollowerAuthoring`, `SplineFollowerAuthoring`, `EnemySpawnerAuthoring`, `PlayerTagAuthoring` (in `Player/`), `FormationPositionAuthoring`, `PrefabEntitiesReferencesAuthoring`
+- **Authoring Components**: Co-located with systems in subdirectories - `TransformFollowerAuthoring`, `SplineFollowerAuthoring`, `EnemySpawnerAuthoring`, `PlayerTagAuthoring` (in `Player/`), `FormationPositionAuthoring`, `PrefabEntitiesReferencesAuthoring`, `TreeSpawnerConfigAuthoring` (Terrain/)
 - **Cross-Subscene References**: `TransformFollowerAuthoring` uses `TransformFollowerTargetSearch` component with `FindByName`, `FindByTag`, or `DirectReference` modes to locate targets at runtime, initialized by `TransformFollowerInitSystem` since `MonoBehaviour.Start()` doesn't run in baked SubScenes
 - **Managed Components**: `TransformReference` is a managed `IComponentData` class (not struct) bridging GameObject/Transform references to ECS
 - Entry point: `AceOfAges.cs` test component triggers enemy spawns after 3-second delay using EntityQuery

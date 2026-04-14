@@ -1,0 +1,17 @@
+fileFormatVersion: 2
+guid: 06305b2938950354a93dcf53cd1d4b8e
+timeCreated: 1579832110
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 43091023352816220
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 85664
+  packageName: POLYGON - Vikings Pack - Art by Synty
+  packageVersion: 1.5.0
+  assetPath: Assets/Synty/PolygonVikings/Models/Collision/Convex/SM_Env_Trench_Bridge_01_Snow_Convex
+    2.asset
+  uploadId: 883992

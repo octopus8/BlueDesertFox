@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 4ec9766531526b14b9caec660b109a46
+timeCreated: 1579826209
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 43171560290770232
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 85664
+  packageName: POLYGON - Vikings Pack - Art by Synty
+  packageVersion: 1.5.0
+  assetPath: Assets/Synty/PolygonVikings/Models/Collision/Convex/SM_Prop_Beer_Mug_02_Convex.asset
+  uploadId: 883992

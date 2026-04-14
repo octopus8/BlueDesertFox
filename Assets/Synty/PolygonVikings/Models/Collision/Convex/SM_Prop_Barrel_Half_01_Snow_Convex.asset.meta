@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 930a85cd7a92b444ca02b365aad11a66
+timeCreated: 1579831302
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 43446909562442514
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 85664
+  packageName: POLYGON - Vikings Pack - Art by Synty
+  packageVersion: 1.5.0
+  assetPath: Assets/Synty/PolygonVikings/Models/Collision/Convex/SM_Prop_Barrel_Half_01_Snow_Convex.asset
+  uploadId: 883992

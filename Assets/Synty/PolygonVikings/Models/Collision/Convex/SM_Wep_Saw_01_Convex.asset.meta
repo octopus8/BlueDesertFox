@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: b308b286097bc1749a61ee523653c498
+timeCreated: 1579827662
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 43221379908025678
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 85664
+  packageName: POLYGON - Vikings Pack - Art by Synty
+  packageVersion: 1.5.0
+  assetPath: Assets/Synty/PolygonVikings/Models/Collision/Convex/SM_Wep_Saw_01_Convex.asset
+  uploadId: 883992

@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 2994b9e9788ee404fb6b5670a3e8f8d9
+timeCreated: 1579827663
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 43879866583345224
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 85664
+  packageName: POLYGON - Vikings Pack - Art by Synty
+  packageVersion: 1.5.0
+  assetPath: Assets/Synty/PolygonVikings/Models/Collision/Convex/SM_Wep_Pickaxe_01_Convex.asset
+  uploadId: 883992

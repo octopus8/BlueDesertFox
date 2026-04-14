@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 9545813834d0c784eaafce8d8bc98fc4
+timeCreated: 1579826193
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 43158770630585654
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 85664
+  packageName: POLYGON - Vikings Pack - Art by Synty
+  packageVersion: 1.5.0
+  assetPath: Assets/Synty/PolygonVikings/Models/Collision/Convex/SM_Prop_Fence_Wood_Pole_02_Convex.asset
+  uploadId: 883992

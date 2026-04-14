@@ -1,0 +1,17 @@
+fileFormatVersion: 2
+guid: 539350b40a419724fa9baf184a1ee5a0
+timeCreated: 1579828787
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 43031246537240038
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 85664
+  packageName: POLYGON - Vikings Pack - Art by Synty
+  packageVersion: 1.5.0
+  assetPath: Assets/Synty/PolygonVikings/Models/Collision/Convex/SM_Env_House_Rocks_Small_01_Convex
+    1.asset
+  uploadId: 883992

@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: b8af8a9521c3f7642aa0bb8091110865
+timeCreated: 1579831463
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 43809292587765718
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 85664
+  packageName: POLYGON - Vikings Pack - Art by Synty
+  packageVersion: 1.5.0
+  assetPath: Assets/Synty/PolygonVikings/Models/Collision/Convex/SM_Prop_Anvil_Stump_01_Snow_Convex.asset
+  uploadId: 883992

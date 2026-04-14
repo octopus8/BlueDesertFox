@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 711d86d735380024f9b73287018d2791
+timeCreated: 1579831217
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 43401114366073610
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 85664
+  packageName: POLYGON - Vikings Pack - Art by Synty
+  packageVersion: 1.5.0
+  assetPath: Assets/Synty/PolygonVikings/Models/Collision/Convex/SM_Prop_Rock_Totem_01_Snow_Convex.asset
+  uploadId: 883992

@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 19742b501768c3a4db3614b7abf5a6e3
+timeCreated: 1579831465
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 43620368527521246
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 85664
+  packageName: POLYGON - Vikings Pack - Art by Synty
+  packageVersion: 1.5.0
+  assetPath: Assets/Synty/PolygonVikings/Models/Collision/Convex/SM_Env_Grass_Large_02_Snow_Convex.asset
+  uploadId: 883992

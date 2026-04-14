@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 72f1202128ad1154f8341b028c89d246
+timeCreated: 1579833085
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 43497753993549042
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 85664
+  packageName: POLYGON - Vikings Pack - Art by Synty
+  packageVersion: 1.5.0
+  assetPath: Assets/Synty/PolygonVikings/Models/Collision/Convex/SM_Bld_Stall_Cover_01_Convex.asset
+  uploadId: 883992

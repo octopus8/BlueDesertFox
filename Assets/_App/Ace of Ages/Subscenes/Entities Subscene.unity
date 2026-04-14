@@ -5551,6 +5551,7 @@ GameObject:
   - component: {fileID: 1528308290}
   - component: {fileID: 1528308292}
   - component: {fileID: 1528308293}
+  - component: {fileID: 1528308294}
   m_Layer: 0
   m_Name: Terrain Config
   m_TagString: Untagged
@@ -5642,6 +5643,34 @@ MonoBehaviour:
   worldOriginSearchMode: 0
   worldOriginName: XR Origin Hands (XR Rig)
   worldOriginTag: MainCamera
+--- !u!114 &1528308294
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1528308289}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 646f191bc5214b43ac58d451eecf980b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::TreeSpawnerConfigAuthoring
+  treePrefabs:
+  - {fileID: 184134, guid: e0ecadb53dc23f74b88e4f42ae53f84a, type: 3}
+  - {fileID: 192174, guid: 1dc1e39e76eb6e8428d2185bfcf9491f, type: 3}
+  - {fileID: 179128, guid: 358badc9ddd35ff49b8070c96eb8feab, type: 3}
+  - {fileID: 122030, guid: 8c8ea713432a0a8469388cf641ee227c, type: 3}
+  - {fileID: 182652, guid: 0fa0ff3aa6d13b145ab8fd54b03b1146, type: 3}
+  - {fileID: 136856, guid: 2e038773d2d58aa4c83c615635bf660f, type: 3}
+  - {fileID: 195920, guid: b33e35f39f6c48c4bb1793bbc893acf6, type: 3}
+  minTreesPerTile: 5
+  maxTreesPerTile: 15
+  minTreeScale: 0.8
+  maxTreeScale: 1.2
+  minSpawnHeight: -100
+  maxSpawnHeight: 100
+  maxSlopeDegrees: 45
+  maxTreesSpawnedPerFrame: 20
 --- !u!1 &1730959682
 GameObject:
   m_ObjectHideFlags: 0

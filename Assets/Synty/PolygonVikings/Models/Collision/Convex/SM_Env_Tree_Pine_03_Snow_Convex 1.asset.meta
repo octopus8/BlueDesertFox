@@ -1,0 +1,17 @@
+fileFormatVersion: 2
+guid: 8d7f57edb9af5cb429c06761e73f0ce1
+timeCreated: 1579829934
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 43477589515105992
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 85664
+  packageName: POLYGON - Vikings Pack - Art by Synty
+  packageVersion: 1.5.0
+  assetPath: Assets/Synty/PolygonVikings/Models/Collision/Convex/SM_Env_Tree_Pine_03_Snow_Convex
+    1.asset
+  uploadId: 883992

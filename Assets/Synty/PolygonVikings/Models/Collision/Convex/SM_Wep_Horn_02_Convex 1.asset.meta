@@ -1,0 +1,17 @@
+fileFormatVersion: 2
+guid: d135af58219f01a4fadc62b4f1a3367e
+timeCreated: 1579827743
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 43354585225231866
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 85664
+  packageName: POLYGON - Vikings Pack - Art by Synty
+  packageVersion: 1.5.0
+  assetPath: Assets/Synty/PolygonVikings/Models/Collision/Convex/SM_Wep_Horn_02_Convex
+    1.asset
+  uploadId: 883992

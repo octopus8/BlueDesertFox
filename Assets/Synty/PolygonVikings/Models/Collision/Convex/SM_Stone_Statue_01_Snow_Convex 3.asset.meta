@@ -1,0 +1,17 @@
+fileFormatVersion: 2
+guid: 3385cf023260e5c42a715b3eefea5b12
+timeCreated: 1579831959
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 43297390106131464
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 85664
+  packageName: POLYGON - Vikings Pack - Art by Synty
+  packageVersion: 1.5.0
+  assetPath: Assets/Synty/PolygonVikings/Models/Collision/Convex/SM_Stone_Statue_01_Snow_Convex
+    3.asset
+  uploadId: 883992

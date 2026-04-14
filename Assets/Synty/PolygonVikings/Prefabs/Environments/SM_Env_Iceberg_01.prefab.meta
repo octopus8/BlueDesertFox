@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: b60d2db556c6aa24b84c18b24899de0f
+timeCreated: 1489445232
+licenseType: Store
+NativeFormatImporter:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 85664
+  packageName: POLYGON - Vikings Pack - Art by Synty
+  packageVersion: 1.5.0
+  assetPath: Assets/Synty/PolygonVikings/Prefabs/Environments/SM_Env_Iceberg_01.prefab
+  uploadId: 883992

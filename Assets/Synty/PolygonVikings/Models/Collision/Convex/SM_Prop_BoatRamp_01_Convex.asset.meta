@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: c8f2ef3dc286d7d4db2b723b7d0c73d8
+timeCreated: 1579826207
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 43096105710070546
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 85664
+  packageName: POLYGON - Vikings Pack - Art by Synty
+  packageVersion: 1.5.0
+  assetPath: Assets/Synty/PolygonVikings/Models/Collision/Convex/SM_Prop_BoatRamp_01_Convex.asset
+  uploadId: 883992

@@ -1,0 +1,17 @@
+fileFormatVersion: 2
+guid: b68ce8e8845145e42abcb6d53a952e70
+timeCreated: 1579831490
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 43179771571594764
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 85664
+  packageName: POLYGON - Vikings Pack - Art by Synty
+  packageVersion: 1.5.0
+  assetPath: Assets/Synty/PolygonVikings/Models/Collision/Convex/SM_Prop_Ladder_02_Snow_Convex
+    1.asset
+  uploadId: 883992

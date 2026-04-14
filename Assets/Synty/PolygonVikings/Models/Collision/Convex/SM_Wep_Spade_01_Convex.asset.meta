@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 9d49b1c488091454380bf67245c11cdc
+timeCreated: 1579827657
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 43202339756396752
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 85664
+  packageName: POLYGON - Vikings Pack - Art by Synty
+  packageVersion: 1.5.0
+  assetPath: Assets/Synty/PolygonVikings/Models/Collision/Convex/SM_Wep_Spade_01_Convex.asset
+  uploadId: 883992

@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 0ec2efc55179aac459a75ecbcec67d83
+timeCreated: 1489445229
+licenseType: Store
+NativeFormatImporter:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 85664
+  packageName: POLYGON - Vikings Pack - Art by Synty
+  packageVersion: 1.5.0
+  assetPath: Assets/Synty/PolygonVikings/Prefabs/Buildings/SM_Bld_Guard_Tower_01.prefab
+  uploadId: 883992

@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 11a361de1b0557c4c8db8a3bb6a9ae84
+timeCreated: 1579827665
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 43294227930608686
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 85664
+  packageName: POLYGON - Vikings Pack - Art by Synty
+  packageVersion: 1.5.0
+  assetPath: Assets/Synty/PolygonVikings/Models/Collision/Convex/SM_Wep_HammerLarge_01_Convex.asset
+  uploadId: 883992

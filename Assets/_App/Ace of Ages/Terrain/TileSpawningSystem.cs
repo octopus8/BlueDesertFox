@@ -155,6 +155,9 @@ public partial struct TileSpawningSystem : ISystem
             ecb.AddBuffer<NormalElement>(tileEntity);
             ecb.AddBuffer<UVElement>(tileEntity);
             ecb.AddBuffer<IndexElement>(tileEntity);
+            
+            // Add buffer for tracking spawned trees (for cleanup)
+            ecb.AddBuffer<SpawnedTreeReference>(tileEntity);
         }
         
         // Despawn old tiles
@@ -162,6 +165,8 @@ public partial struct TileSpawningSystem : ISystem
         {
             if (_activeTiles.TryGetValue(gridCoord, out Entity tileEntity))
             {
+                // Trees are parented to tiles, so ECS will automatically destroy them
+                // when the parent tile is destroyed (no manual cleanup needed)
                 ecb.DestroyEntity(tileEntity);
                 _activeTiles.Remove(gridCoord);
             }

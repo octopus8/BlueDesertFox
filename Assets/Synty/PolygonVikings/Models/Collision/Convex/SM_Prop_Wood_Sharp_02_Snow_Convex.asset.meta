@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: e8a7fc3b559a1b24dbf7cd196272304a
+timeCreated: 1579830703
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 43420339536145586
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 85664
+  packageName: POLYGON - Vikings Pack - Art by Synty
+  packageVersion: 1.5.0
+  assetPath: Assets/Synty/PolygonVikings/Models/Collision/Convex/SM_Prop_Wood_Sharp_02_Snow_Convex.asset
+  uploadId: 883992

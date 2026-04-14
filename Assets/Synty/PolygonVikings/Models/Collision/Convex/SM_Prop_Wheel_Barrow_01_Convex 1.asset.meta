@@ -1,0 +1,17 @@
+fileFormatVersion: 2
+guid: 1b1b3e351f278a046aef5874680e97c2
+timeCreated: 1579827558
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 43515843389380728
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 85664
+  packageName: POLYGON - Vikings Pack - Art by Synty
+  packageVersion: 1.5.0
+  assetPath: Assets/Synty/PolygonVikings/Models/Collision/Convex/SM_Prop_Wheel_Barrow_01_Convex
+    1.asset
+  uploadId: 883992

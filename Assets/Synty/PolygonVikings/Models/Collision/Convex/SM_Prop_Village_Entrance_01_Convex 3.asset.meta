@@ -1,0 +1,17 @@
+fileFormatVersion: 2
+guid: 8507fb0ed39eade47a1b8804ec3a47aa
+timeCreated: 1579827394
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 43231127335923836
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 85664
+  packageName: POLYGON - Vikings Pack - Art by Synty
+  packageVersion: 1.5.0
+  assetPath: Assets/Synty/PolygonVikings/Models/Collision/Convex/SM_Prop_Village_Entrance_01_Convex
+    3.asset
+  uploadId: 883992
