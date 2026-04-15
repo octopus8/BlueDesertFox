@@ -4,6 +4,10 @@ using Unity.Entities;
 using Unity.Mathematics;
 using Unity.Transforms;
 
+#if UNITY_EDITOR
+using UnityEngine;
+#endif
+
 /// <summary>
 /// System that spawns and despawns terrain tiles based on player position.
 /// Uses a NativeParallelHashMap to track active tiles efficiently.
@@ -165,12 +169,19 @@ public partial struct TileSpawningSystem : ISystem
         {
             if (_activeTiles.TryGetValue(gridCoord, out Entity tileEntity))
             {
+#if UNITY_EDITOR
+                Debug.Log($"[TileSpawning] Despawning tile at {gridCoord}, Entity: {tileEntity.Index}");
+#endif
+                
                 // Explicitly destroy child trees BEFORE destroying tile
                 // While Parent component should auto-destroy children, explicit cleanup
                 // ensures trees are removed even if transform hierarchy isn't fully updated
                 if (state.EntityManager.HasBuffer<SpawnedTreeReference>(tileEntity))
                 {
                     var spawnedTrees = state.EntityManager.GetBuffer<SpawnedTreeReference>(tileEntity);
+#if UNITY_EDITOR
+                    Debug.Log($"[TileSpawning] Found {spawnedTrees.Length} trees to destroy for tile {gridCoord}");
+#endif
                     foreach (var treeRef in spawnedTrees)
                     {
                         if (state.EntityManager.Exists(treeRef.treeEntity))

@@ -1,6 +1,6 @@
 fileFormatVersion: 2
 guid: 516a2a21b5e345f408e5be91be36ebb7
-timeCreated: 1521088402
+timeCreated: 1549333968
 licenseType: Store
 TextureImporter:
   fileIDToRecycleName: {}
@@ -68,8 +68,8 @@ TextureImporter:
   assetBundleVariant: 
 AssetOrigin:
   serializedVersion: 1
-  productId: 115950
-  packageName: POLYGON Sci-Fi City - Low Poly 3D Art by Synty
-  packageVersion: 1.2.4
+  productId: 138857
+  packageName: POLYGON Sci-Fi Space - Low Poly 3D Art by Synty
+  packageVersion: 1.13.1
   assetPath: Assets/PolygonSciFiCity/Textures/SphereGlow.png
-  uploadId: 756032
+  uploadId: 737404

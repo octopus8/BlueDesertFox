@@ -6,6 +6,7 @@ using Unity.Transforms;
 
 #if UNITY_EDITOR
 using Unity.Profiling;
+using UnityEngine;
 #endif
 
 /// <summary>
@@ -18,6 +19,7 @@ using Unity.Profiling;
 public partial class TerrainTreeSpawningSystem : SystemBase
 {
     private NativeQueue<Entity> _pendingTiles;
+    private NativeHashSet<Entity> _queuedEntities; // Track what's already queued to prevent duplicates
     private int _treesSpawnedThisFrame;
     
 #if UNITY_EDITOR
@@ -32,12 +34,15 @@ public partial class TerrainTreeSpawningSystem : SystemBase
         RequireForUpdate<TreePrefabElement>();
         
         _pendingTiles = new NativeQueue<Entity>(Allocator.Persistent);
+        _queuedEntities = new NativeHashSet<Entity>(64, Allocator.Persistent);
     }
 
     protected override void OnDestroy()
     {
         if (_pendingTiles.IsCreated)
             _pendingTiles.Dispose();
+        if (_queuedEntities.IsCreated)
+            _queuedEntities.Dispose();
     }
 
     protected override void OnUpdate()
@@ -90,7 +95,20 @@ public partial class TerrainTreeSpawningSystem : SystemBase
         {
             if (tile.ValueRO.meshGenerated)
             {
-                _pendingTiles.Enqueue(entity);
+                // Only enqueue if not already in the queue (prevents duplicates across frames)
+                if (_queuedEntities.Add(entity))
+                {
+                    _pendingTiles.Enqueue(entity);
+#if UNITY_EDITOR
+                    Debug.Log($"[TreeSpawning] Enqueued tile {tile.ValueRO.gridCoordinate}, Entity: {entity.Index}");
+#endif
+                }
+#if UNITY_EDITOR
+                else
+                {
+                    Debug.Log($"[TreeSpawning] Tile {tile.ValueRO.gridCoordinate}, Entity: {entity.Index} already queued, skipping");
+                }
+#endif
             }
         }
 
@@ -107,9 +125,21 @@ public partial class TerrainTreeSpawningSystem : SystemBase
         {
             Entity tileEntity = _pendingTiles.Dequeue();
             
+            // Remove from queued set immediately (tile is being processed now)
+            _queuedEntities.Remove(tileEntity);
+            
             // Check if tile still exists (could have been despawned)
             if (!EntityManager.Exists(tileEntity))
                 continue;
+            
+            // Check if tile already has trees (race condition prevention)
+            if (EntityManager.HasComponent<TreesSpawned>(tileEntity))
+            {
+#if UNITY_EDITOR
+                Debug.Log($"[TreeSpawning] Tile {tileEntity.Index} already has TreesSpawned tag, skipping");
+#endif
+                continue;
+            }
             
             // Spawn trees on this tile
             int treesSpawned = SpawnTreesOnTile(tileEntity, config, treePrefabs);
@@ -147,11 +177,19 @@ public partial class TerrainTreeSpawningSystem : SystemBase
         // Get tile data
         var tile = EntityManager.GetComponentData<TerrainTile>(tileEntity);
         var tileTransform = EntityManager.GetComponentData<LocalTransform>(tileEntity);
+        var terrainConfig = SystemAPI.GetSingleton<TerrainTileConfig>();
+        
+#if UNITY_EDITOR
+        Debug.Log($"[TreeSpawning] Starting spawn for tile {tile.gridCoordinate}, Entity: {tileEntity.Index}");
+#endif
         
         // Ensure we have the spawned tree reference buffer FIRST (before getting other buffers)
         // This prevents buffer invalidation from the structural change
         if (!EntityManager.HasBuffer<SpawnedTreeReference>(tileEntity))
         {
+#if UNITY_EDITOR
+            Debug.Log($"[TreeSpawning] Adding SpawnedTreeReference buffer to tile {tile.gridCoordinate}");
+#endif
             EntityManager.AddBuffer<SpawnedTreeReference>(tileEntity);
         }
         
@@ -161,11 +199,14 @@ public partial class TerrainTreeSpawningSystem : SystemBase
         
         if (vertices.Length == 0 || normals.Length == 0)
         {
+#if UNITY_EDITOR
+            Debug.LogWarning($"[TreeSpawning] Tile {tile.gridCoordinate} has no mesh data! Vertices: {vertices.Length}, Normals: {normals.Length}");
+#endif
             return 0;
         }
         
         // Copy vertex and normal data to native arrays to avoid buffer invalidation issues
-        // during tree spawning (when we add Parent components)
+        // during tree spawning (when we add components)
         var vertexCount = vertices.Length;
         var vertexPositions = new NativeArray<float3>(vertexCount, Allocator.Temp);
         var vertexNormals = new NativeArray<float3>(vertexCount, Allocator.Temp);
@@ -182,6 +223,10 @@ public partial class TerrainTreeSpawningSystem : SystemBase
         // Determine how many trees to spawn
         int treeCount = random.NextInt(config.minTreesPerTile, config.maxTreesPerTile + 1);
         
+#if UNITY_EDITOR
+        Debug.Log($"[TreeSpawning] Tile {tile.gridCoordinate} will spawn {treeCount} trees (min: {config.minTreesPerTile}, max: {config.maxTreesPerTile})");
+#endif
+        
         // Use a temporary list to collect spawned tree entities
         // This avoids the buffer invalidation issue from structural changes
         var tempSpawnedTrees = new NativeList<Entity>(treeCount, Allocator.Temp);
@@ -190,14 +235,62 @@ public partial class TerrainTreeSpawningSystem : SystemBase
         int maxAttempts = treeCount * 3; // Allow multiple attempts per tree to find valid spots
         int attempts = 0;
         
+        // Calculate grid dimensions for mesh sampling
+        int vPerSide = terrainConfig.verticesPerSide;
+        float tileSize = terrainConfig.tileSize;
+        
         while (actualTreesSpawned < treeCount && attempts < maxAttempts)
         {
             attempts++;
             
-            // Pick a random vertex (use copied data, not buffer)
-            int vertexIndex = random.NextInt(0, vertexCount);
-            float3 localPosition = vertexPositions[vertexIndex];
-            float3 normal = vertexNormals[vertexIndex];
+            // Generate random XZ position within tile bounds (truly random, not grid-based)
+            float randomX = random.NextFloat(0f, tileSize);
+            float randomZ = random.NextFloat(0f, tileSize);
+            
+            // Convert world position to grid coordinates for mesh sampling
+            // The mesh is generated with vertices at regular intervals
+            float gridX = (randomX / tileSize) * (vPerSide - 1);
+            float gridZ = (randomZ / tileSize) * (vPerSide - 1);
+            
+            // Get the four surrounding vertices for interpolation
+            int x0 = (int)math.floor(gridX);
+            int z0 = (int)math.floor(gridZ);
+            int x1 = math.min(x0 + 1, vPerSide - 1);
+            int z1 = math.min(z0 + 1, vPerSide - 1);
+            
+            // Calculate interpolation factors
+            float tx = gridX - x0;
+            float tz = gridZ - z0;
+            
+            // Get vertex indices (vertices are stored in row-major order)
+            int idx00 = z0 * vPerSide + x0;
+            int idx10 = z0 * vPerSide + x1;
+            int idx01 = z1 * vPerSide + x0;
+            int idx11 = z1 * vPerSide + x1;
+            
+            // Bilinear interpolation of height
+            float3 v00 = vertexPositions[idx00];
+            float3 v10 = vertexPositions[idx10];
+            float3 v01 = vertexPositions[idx01];
+            float3 v11 = vertexPositions[idx11];
+            
+            // Interpolate along X axis first, then Z axis
+            float3 vX0 = math.lerp(v00, v10, tx);
+            float3 vX1 = math.lerp(v01, v11, tx);
+            float3 interpolatedPosition = math.lerp(vX0, vX1, tz);
+            
+            // Use the random X and Z, but interpolated Y
+            float3 localPosition = new float3(randomX, interpolatedPosition.y, randomZ);
+            
+            // Interpolate normals the same way
+            float3 n00 = vertexNormals[idx00];
+            float3 n10 = vertexNormals[idx10];
+            float3 n01 = vertexNormals[idx01];
+            float3 n11 = vertexNormals[idx11];
+            
+            float3 nX0 = math.lerp(n00, n10, tx);
+            float3 nX1 = math.lerp(n01, n11, tx);
+            float3 normal = math.normalize(math.lerp(nX0, nX1, tz));
             
             // Calculate world position
             float3 worldPosition = tileTransform.Position + localPosition;
@@ -246,9 +339,16 @@ public partial class TerrainTreeSpawningSystem : SystemBase
         }
         
         // After all structural changes are done, add all trees to the buffer at once
+#if UNITY_EDITOR
+        Debug.Log($"[TreeSpawning] Tile {tile.gridCoordinate} spawned {actualTreesSpawned} trees (attempted {attempts}), adding to buffer...");
+#endif
+        
         if (tempSpawnedTrees.Length > 0)
         {
             var spawnedTreesBuffer = EntityManager.GetBuffer<SpawnedTreeReference>(tileEntity);
+#if UNITY_EDITOR
+            Debug.Log($"[TreeSpawning] Buffer capacity before: {spawnedTreesBuffer.Capacity}, length: {spawnedTreesBuffer.Length}");
+#endif
             foreach (var treeEntity in tempSpawnedTrees)
             {
                 spawnedTreesBuffer.Add(new SpawnedTreeReference
@@ -256,6 +356,15 @@ public partial class TerrainTreeSpawningSystem : SystemBase
                     treeEntity = treeEntity
                 });
             }
+#if UNITY_EDITOR
+            Debug.Log($"[TreeSpawning] Buffer after adding trees - length: {spawnedTreesBuffer.Length}, added {tempSpawnedTrees.Length} trees");
+#endif
+        }
+        else
+        {
+#if UNITY_EDITOR
+            Debug.LogWarning($"[TreeSpawning] Tile {tile.gridCoordinate} - NO TREES SPAWNED! All filtered out.");
+#endif
         }
         
         // Dispose native arrays (treePrefabs array is disposed in OnUpdate)

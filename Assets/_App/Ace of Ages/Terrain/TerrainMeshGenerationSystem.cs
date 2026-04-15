@@ -257,6 +257,16 @@ public partial struct TerrainMeshGenerationSystem : ISystem
                         
                         tile.meshGenerated = true;
                         tile.needsRegeneration = false;
+                        
+                        // CRITICAL: Remove TreesSpawned tag so trees can respawn on regenerated mesh
+                        // This also cleans up old tree references
+                        if (state.EntityManager.HasComponent<TreesSpawned>(entity))
+                        {
+                            state.EntityManager.RemoveComponent<TreesSpawned>(entity);
+#if UNITY_EDITOR
+                            UnityEngine.Debug.Log($"[TerrainMesh] Removed TreesSpawned tag from regenerated tile {tile.gridCoordinate}");
+#endif
+                        }
                     }
                 }
                 
