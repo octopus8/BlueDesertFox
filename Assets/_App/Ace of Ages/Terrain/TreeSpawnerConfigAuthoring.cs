@@ -21,15 +21,6 @@ public class TreeSpawnerConfigAuthoring : MonoBehaviour
     [Range(0, 50)]
     public int maxTreesPerTile = 15;
     
-    [Header("Tree Variation")]
-    [Tooltip("Minimum scale multiplier for tree size variation")]
-    [Range(0.1f, 2f)]
-    public float minTreeScale = 0.8f;
-    
-    [Tooltip("Maximum scale multiplier for tree size variation")]
-    [Range(0.1f, 2f)]
-    public float maxTreeScale = 1.2f;
-    
     [Header("Spawn Filtering")]
     [Tooltip("Minimum terrain height for tree spawning (world Y coordinate)")]
     public float minSpawnHeight = -100f;
@@ -68,8 +59,6 @@ public class TreeSpawnerConfigAuthoring : MonoBehaviour
             {
                 minTreesPerTile = authoring.minTreesPerTile,
                 maxTreesPerTile = authoring.maxTreesPerTile,
-                minTreeScale = authoring.minTreeScale,
-                maxTreeScale = authoring.maxTreeScale,
                 minSpawnHeight = authoring.minSpawnHeight,
                 maxSpawnHeight = authoring.maxSpawnHeight,
                 slopeThreshold = slopeThreshold,
@@ -112,10 +101,7 @@ public class TreeSpawnerConfigAuthoring : MonoBehaviour
         // Ensure valid values
         minTreesPerTile = Mathf.Max(0, minTreesPerTile);
         maxTreesPerTile = Mathf.Max(minTreesPerTile, maxTreesPerTile);
-        minTreeScale = Mathf.Max(0.1f, minTreeScale);
-        maxTreeScale = Mathf.Max(minTreeScale, maxTreeScale);
         maxSlopeDegrees = Mathf.Clamp(maxSlopeDegrees, 0f, 90f);
         maxTreesSpawnedPerFrame = Mathf.Max(1, maxTreesSpawnedPerFrame);
     }
 }
-

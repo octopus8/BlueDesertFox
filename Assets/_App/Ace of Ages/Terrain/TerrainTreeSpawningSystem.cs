@@ -314,15 +314,12 @@ public partial class TerrainTreeSpawningSystem : SystemBase
             // Random rotation around Y axis
             quaternion rotation = quaternion.RotateY(random.NextFloat(0f, math.PI * 2f));
             
-            // Random scale
-            float scale = random.NextFloat(config.minTreeScale, config.maxTreeScale);
-            
             // Set transform (position is WORLD position, not local)
             EntityManager.SetComponentData(treeEntity, new LocalTransform
             {
                 Position = tileTransform.Position + localPosition,  // World position
                 Rotation = rotation,
-                Scale = scale
+                Scale = 1f
             });
             
             // Track tile ownership without parent-child hierarchy (for performance)

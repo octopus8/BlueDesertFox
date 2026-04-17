@@ -5654,7 +5654,7 @@ MonoBehaviour:
   playerSearchMode: 1
   playerName: Right Controller Stabilized Attach
   playerTag: Player
-  tileSize: 128
+  tileSize: 256
   viewDistance: 1875
   verticesPerSide: 8
   scrollEnabled: 1
@@ -5743,10 +5743,8 @@ MonoBehaviour:
   - {fileID: 182652, guid: 0fa0ff3aa6d13b145ab8fd54b03b1146, type: 3}
   - {fileID: 136856, guid: 2e038773d2d58aa4c83c615635bf660f, type: 3}
   - {fileID: 195920, guid: b33e35f39f6c48c4bb1793bbc893acf6, type: 3}
-  minTreesPerTile: 5
+  minTreesPerTile: 50
   maxTreesPerTile: 50
-  minTreeScale: 0.8
-  maxTreeScale: 1.2
   minSpawnHeight: -100
   maxSpawnHeight: 100
   maxSlopeDegrees: 45

@@ -278,12 +278,6 @@ public struct TreeSpawnerConfig : IComponentData
     /// <summary>Maximum number of trees to spawn per tile.</summary>
     public int maxTreesPerTile;
     
-    /// <summary>Minimum scale multiplier for spawned trees.</summary>
-    public float minTreeScale;
-    
-    /// <summary>Maximum scale multiplier for spawned trees.</summary>
-    public float maxTreeScale;
-    
     /// <summary>Minimum height (Y coordinate) for tree spawning.</summary>
     public float minSpawnHeight;
     
