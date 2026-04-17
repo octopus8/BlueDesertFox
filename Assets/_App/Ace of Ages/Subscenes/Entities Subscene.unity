@@ -5736,13 +5736,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::TreeSpawnerConfigAuthoring
   treePrefabs:
-  - {fileID: 184134, guid: e0ecadb53dc23f74b88e4f42ae53f84a, type: 3}
-  - {fileID: 192174, guid: 1dc1e39e76eb6e8428d2185bfcf9491f, type: 3}
-  - {fileID: 179128, guid: 358badc9ddd35ff49b8070c96eb8feab, type: 3}
-  - {fileID: 122030, guid: 8c8ea713432a0a8469388cf641ee227c, type: 3}
-  - {fileID: 182652, guid: 0fa0ff3aa6d13b145ab8fd54b03b1146, type: 3}
-  - {fileID: 136856, guid: 2e038773d2d58aa4c83c615635bf660f, type: 3}
-  - {fileID: 195920, guid: b33e35f39f6c48c4bb1793bbc893acf6, type: 3}
+  - {fileID: 759921367205543732, guid: 77dfab156511d5f4a8b7155328b5f84a, type: 3}
   minTreesPerTile: 50
   maxTreesPerTile: 50
   minSpawnHeight: -100
