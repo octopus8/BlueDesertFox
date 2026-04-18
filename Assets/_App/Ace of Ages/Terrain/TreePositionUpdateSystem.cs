@@ -9,7 +9,7 @@ using Unity.Transforms;
 /// Uses TreeTileOwnership to track which tile each tree belongs to without parent-child hierarchy.
 /// This approach avoids the performance overhead of transform hierarchy while maintaining visual cohesion.
 /// </summary>
-[UpdateInGroup(typeof(TransformSystemGroup))]
+[UpdateInGroup(typeof(SimulationSystemGroup))]
 [UpdateAfter(typeof(TileScrollPositionSystem))]
 public partial struct TreePositionUpdateSystem : ISystem
 {

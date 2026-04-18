@@ -66,6 +66,10 @@ public class TerrainConfigAuthoring : MonoBehaviour
     [Tooltip("Material to use for terrain rendering (should use URP Lit shader)")]
     public Material terrainMaterial;
     
+    [Header("Debug/Testing")]
+    [Tooltip("Enable terrain tile rendering (disable to test tree rendering only)")]
+    public bool renderTerrain = true;
+    
     [Header("Physics Optimization")]
     [Range(1, 10)]
     [Tooltip("Maximum number of physics colliders created per frame to prevent stalls")]
@@ -120,7 +124,9 @@ public class TerrainConfigAuthoring : MonoBehaviour
                 maxColliderCacheMemoryMB = authoring.maxColliderCacheMemoryMB,
                 usePhysicsLODLayers = authoring.usePhysicsLODLayers,
                 closeTerrainPhysicsLayer = authoring.closeTerrainPhysicsLayer,
-                lowDetailPhysicsLayer = authoring.lowDetailPhysicsLayer
+                lowDetailPhysicsLayer = authoring.lowDetailPhysicsLayer,
+                // Debug/Testing
+                renderTerrain = authoring.renderTerrain
             });
             
             // Create scroll velocity singleton (starts inactive)

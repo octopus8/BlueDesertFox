@@ -1,5 +1,6 @@
 using Unity.Entities;
 using Unity.Mathematics;
+using UnityEngine;
 
 /// <summary>
 /// Singleton configuration for terrain tile system.
@@ -46,6 +47,9 @@ public struct TerrainTileConfig : IComponentData
     
     /// <summary>Physics layer index for low-detail terrain (half/quarter resolution).</summary>
     public int lowDetailPhysicsLayer;
+    
+    /// <summary>Whether to render terrain tiles (disable for tree-only testing).</summary>
+    public bool renderTerrain;
 }
 
 /// <summary>
@@ -301,6 +305,21 @@ public struct TreePrefabElement : IBufferElementData
 }
 
 /// <summary>
+/// Managed component that stores mesh and material references for all tree prefabs.
+/// Used during tree spawning to assign GlobalTreeInstanceData without runtime lookups.
+/// Must be a class (not struct) to hold managed Unity object references.
+/// Singleton component stored on the same entity as TreeSpawnerConfig.
+/// </summary>
+public class TreePrefabMeshMaterialData : IComponentData
+{
+    /// <summary>Array of meshes, one per tree prefab (same index as TreePrefabElement buffer).</summary>
+    public Mesh[] meshes;
+    
+    /// <summary>Array of materials, one per tree prefab (same index as TreePrefabElement buffer).</summary>
+    public Material[] materials;
+}
+
+/// <summary>
 /// Tag component indicating that trees have been spawned for this tile.
 /// </summary>
 public struct TreesSpawned : IComponentData
@@ -327,5 +346,31 @@ public struct TreeTileOwnership : IComponentData
     
     /// <summary>Local position offset from tile origin (relative to tile's position).</summary>
     public float3 localOffset;
+}
+
+/// <summary>
+/// Tag component marking a tree entity for global instance rendering.
+/// Trees with this tag are rendered via Graphics.DrawMeshInstanced instead of individual ECS rendering.
+/// This dramatically reduces draw calls by batching trees with the same mesh/material.
+/// </summary>
+public struct GlobalTreeInstance : IComponentData
+{
+}
+
+/// <summary>
+/// Managed component storing mesh and material references for global tree instance rendering.
+/// Must be a class (not struct) to hold managed Unity object references.
+/// Allows the global rendering system to batch trees efficiently.
+/// </summary>
+public class GlobalTreeInstanceData : IComponentData
+{
+    /// <summary>The mesh to render for this tree instance.</summary>
+    public Mesh mesh;
+    
+    /// <summary>The material to use for rendering this tree instance.</summary>
+    public Material material;
+    
+    /// <summary>Index of the tree prefab in the TreePrefabElement buffer (for debugging).</summary>
+    public int prefabIndex;
 }
 

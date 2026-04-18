@@ -15,7 +15,6 @@ using UnityEngine;
 /// </summary>
 [RequireMatchingQueriesForUpdate]
 [UpdateInGroup(typeof(SimulationSystemGroup))]
-[UpdateAfter(typeof(TerrainRenderingSystem))]
 public partial class TerrainTreeSpawningSystem : SystemBase
 {
     private NativeQueue<Entity> _pendingTiles;
@@ -62,8 +61,7 @@ public partial class TerrainTreeSpawningSystem : SystemBase
             return;
         }
         
-        // Get tree prefabs buffer and COPY to native array immediately
-        // This buffer will be invalidated by structural changes in SpawnTreesOnTile
+        // Get tree prefabs buffer and mesh/material data
         var configEntity = SystemAPI.GetSingletonEntity<TreeSpawnerConfig>();
         var treePrefabsBuffer = EntityManager.GetBuffer<TreePrefabElement>(configEntity);
         
@@ -75,12 +73,43 @@ public partial class TerrainTreeSpawningSystem : SystemBase
             return;
         }
         
+        // Get mesh/material data from managed component
+        TreePrefabMeshMaterialData meshMaterialData = null;
+        if (EntityManager.HasComponent<TreePrefabMeshMaterialData>(configEntity))
+        {
+            meshMaterialData = EntityManager.GetComponentData<TreePrefabMeshMaterialData>(configEntity);
+        }
+        
+        if (meshMaterialData == null || meshMaterialData.meshes == null || meshMaterialData.materials == null)
+        {
+#if UNITY_EDITOR
+            Debug.LogError("[TreeSpawning] TreePrefabMeshMaterialData component missing or invalid!");
+            s_ProfilerMarker.End();
+#endif
+            return;
+        }
+        
         // Copy tree prefab entities to native array to avoid buffer invalidation
         var treePrefabCount = treePrefabsBuffer.Length;
         var treePrefabs = new NativeArray<Entity>(treePrefabCount, Allocator.Temp);
+        
+        // Use baked mesh/material arrays
+        var treeMeshes = meshMaterialData.meshes;
+        var treeMaterials = meshMaterialData.materials;
+        
         for (int i = 0; i < treePrefabCount; i++)
         {
             treePrefabs[i] = treePrefabsBuffer[i].prefabEntity;
+            
+#if UNITY_EDITOR
+            if (i < treeMeshes.Length && i < treeMaterials.Length)
+            {
+                if (treeMeshes[i] == null || treeMaterials[i] == null)
+                {
+                    Debug.LogWarning($"[TreeSpawning] Tree prefab {i} missing mesh or material! Mesh: {treeMeshes[i]}, Material: {treeMaterials[i]}");
+                }
+            }
+#endif
         }
 
 #if UNITY_EDITOR
@@ -142,7 +171,7 @@ public partial class TerrainTreeSpawningSystem : SystemBase
             }
             
             // Spawn trees on this tile
-            int treesSpawned = SpawnTreesOnTile(tileEntity, config, treePrefabs);
+            int treesSpawned = SpawnTreesOnTile(tileEntity, config, treePrefabs, treeMeshes, treeMaterials);
             _treesSpawnedThisFrame += treesSpawned;
             
             // Mark tile as having trees spawned
@@ -167,7 +196,7 @@ public partial class TerrainTreeSpawningSystem : SystemBase
     /// Spawns trees on a single terrain tile.
     /// Returns the number of trees spawned.
     /// </summary>
-    private int SpawnTreesOnTile(Entity tileEntity, TreeSpawnerConfig config, NativeArray<Entity> treePrefabs)
+    private int SpawnTreesOnTile(Entity tileEntity, TreeSpawnerConfig config, NativeArray<Entity> treePrefabs, Mesh[] treeMeshes, Material[] treeMaterials)
     {
         // Tree prefabs already copied in OnUpdate() - safe to use directly
         var prefabCount = treePrefabs.Length;
@@ -311,6 +340,34 @@ public partial class TerrainTreeSpawningSystem : SystemBase
             // Instantiate the tree
             Entity treeEntity = EntityManager.Instantiate(treePrefab);
             
+            // Remove ECS rendering components to prevent double rendering
+            // Trees will only render via GlobalTreeInstanceSystem using Graphics.DrawMeshInstanced
+            if (EntityManager.HasComponent<Unity.Rendering.MaterialMeshInfo>(treeEntity))
+            {
+                EntityManager.RemoveComponent<Unity.Rendering.MaterialMeshInfo>(treeEntity);
+            }
+            if (EntityManager.HasComponent<Unity.Rendering.RenderBounds>(treeEntity))
+            {
+                EntityManager.RemoveComponent<Unity.Rendering.RenderBounds>(treeEntity);
+            }
+            
+            // Also remove from any linked entities (children)
+            if (EntityManager.HasBuffer<LinkedEntityGroup>(treeEntity))
+            {
+                var linkedGroup = EntityManager.GetBuffer<LinkedEntityGroup>(treeEntity);
+                foreach (var linkedEntity in linkedGroup)
+                {
+                    if (EntityManager.HasComponent<Unity.Rendering.MaterialMeshInfo>(linkedEntity.Value))
+                    {
+                        EntityManager.RemoveComponent<Unity.Rendering.MaterialMeshInfo>(linkedEntity.Value);
+                    }
+                    if (EntityManager.HasComponent<Unity.Rendering.RenderBounds>(linkedEntity.Value))
+                    {
+                        EntityManager.RemoveComponent<Unity.Rendering.RenderBounds>(linkedEntity.Value);
+                    }
+                }
+            }
+            
             // Random rotation around Y axis
             quaternion rotation = quaternion.RotateY(random.NextFloat(0f, math.PI * 2f));
             
@@ -328,6 +385,25 @@ public partial class TerrainTreeSpawningSystem : SystemBase
                 tileEntity = tileEntity,
                 localOffset = localPosition  // Store local offset for position updates
             });
+            
+            // Add global instance rendering components
+            EntityManager.AddComponent<GlobalTreeInstance>(treeEntity);
+            
+            // Add mesh and material data for batch rendering
+            EntityManager.AddComponentData(treeEntity, new GlobalTreeInstanceData
+            {
+                mesh = treeMeshes[prefabIndex],
+                material = treeMaterials[prefabIndex],
+                prefabIndex = prefabIndex
+            });
+            
+#if UNITY_EDITOR
+            // Debug: First tree spawned on this tile
+            if (actualTreesSpawned == 0)
+            {
+                Debug.Log($"[TreeSpawning] First tree on tile {tile.gridCoordinate}: Entity {treeEntity.Index}, Mesh: {treeMeshes[prefabIndex]?.name}, Material: {treeMaterials[prefabIndex]?.name}");
+            }
+#endif
             
             // Store tree entity in temporary list
             tempSpawnedTrees.Add(treeEntity);

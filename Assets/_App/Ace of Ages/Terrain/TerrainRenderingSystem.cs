@@ -100,7 +100,12 @@ public partial class TerrainRenderingSystem : SystemBase
 
     protected override void OnUpdate()
     {
-        if (_terrainMaterial == null)
+        // Always process tiles for MeshReference (needed for tree spawning)
+        // But skip actual rendering setup if renderTerrain is disabled
+        var config = SystemAPI.GetSingleton<TerrainTileConfig>();
+        bool shouldRender = config.renderTerrain;
+        
+        if (shouldRender && _terrainMaterial == null)
         {
             return;
         }
@@ -136,7 +141,7 @@ public partial class TerrainRenderingSystem : SystemBase
             
             if (vertices.Length > 0 && indices.Length > 0)
             {
-                CreateAndAssignMesh(entity, vertices, normals, uvs, indices);
+                CreateAndAssignMesh(entity, vertices, normals, uvs, indices, shouldRender);
             }
         }
         
@@ -145,13 +150,15 @@ public partial class TerrainRenderingSystem : SystemBase
 
     /// <summary>
     /// Creates a Unity Mesh from buffer data using NativeArray API to avoid GC allocations.
+    /// If shouldRender is false, only adds MeshReference (for tree spawning) but skips rendering setup.
     /// </summary>
     private void CreateAndAssignMesh(
         Entity entity,
         DynamicBuffer<VertexElement> vertexBuffer,
         DynamicBuffer<NormalElement> normalBuffer,
         DynamicBuffer<UVElement> uvBuffer,
-        DynamicBuffer<IndexElement> indexBuffer)
+        DynamicBuffer<IndexElement> indexBuffer,
+        bool shouldRender)
     {
         // Create Unity Mesh
         Mesh mesh = new Mesh();
@@ -173,8 +180,17 @@ public partial class TerrainRenderingSystem : SystemBase
         // Recalculate bounds
         mesh.RecalculateBounds();
         
-        // Add managed MeshReference component
+        // Always add MeshReference (needed for tree spawning system)
         EntityManager.AddComponentData(entity, new MeshReference { mesh = mesh });
+        
+        // Skip rendering setup if terrain rendering is disabled
+        if (!shouldRender)
+        {
+#if UNITY_EDITOR
+            Debug.Log($"[TerrainRendering] Added MeshReference for tile {entity.Index} but skipped rendering setup (renderTerrain=false)");
+#endif
+            return;
+        }
         
         // Register mesh and material with EntitiesGraphicsSystem
         var entitiesGraphicsSystem = World.GetExistingSystemManaged<EntitiesGraphicsSystem>();

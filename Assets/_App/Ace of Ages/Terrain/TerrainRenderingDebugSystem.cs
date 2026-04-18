@@ -10,7 +10,7 @@ using UnityEngine;
 /// DISABLED: Uncomment the [UpdateInGroup] attribute to re-enable.
 /// </summary>
 // [UpdateInGroup(typeof(PresentationSystemGroup), OrderLast = true)]
-[UpdateAfter(typeof(TerrainRenderingSystem))]
+// [UpdateAfter(typeof(TerrainRenderingSystem))]
 public partial class TerrainRenderingDebugSystem : SystemBase
 {
     private double _lastLogTime;
