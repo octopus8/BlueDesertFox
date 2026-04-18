@@ -50,6 +50,7 @@ public partial class GlobalTreeInstanceSystem : SystemBase
     private static readonly ProfilerMarker DrawMarker = new ProfilerMarker("GlobalTreeInstance.Draw");
     private int _lastTreeCount;
     private int _lastBatchCount;
+    private int _frameCount;
 #endif
 
     protected override void OnCreate()
@@ -63,27 +64,7 @@ public partial class GlobalTreeInstanceSystem : SystemBase
 #if UNITY_EDITOR
         ProfilerMarker.Begin();
         CollectMarker.Begin();
-#endif
-
-        // Debug: Check if system is running
-        int treeCount = 0;
-        foreach (var entity in SystemAPI.Query<RefRO<GlobalTreeInstance>>().WithEntityAccess())
-        {
-            treeCount++;
-        }
-        
-#if UNITY_EDITOR
-        if (treeCount == 0)
-        {
-            Debug.Log("[GlobalTreeInstance] No trees with GlobalTreeInstance tag found");
-            CollectMarker.End();
-            ProfilerMarker.End();
-            return;
-        }
-        else
-        {
-            Debug.Log($"[GlobalTreeInstance] Found {treeCount} trees with GlobalTreeInstance tag");
-        }
+        _frameCount++;
 #endif
 
         // Clear previous frame's batches
@@ -92,10 +73,7 @@ public partial class GlobalTreeInstanceSystem : SystemBase
             batch.matrices.Clear();
         }
         
-        // Collect all tree entities and group by mesh/material
-        // Use EntityManager to query managed components
-        int skippedNoData = 0;
-        int skippedNullMesh = 0;
+        // OPTIMIZED: Use Entities.ForEach but assume GlobalTreeInstanceData exists (added during spawn)
         int collected = 0;
         
         Entities
@@ -103,22 +81,11 @@ public partial class GlobalTreeInstanceSystem : SystemBase
             .WithNone<Unity.Rendering.DisableRendering>()
             .ForEach((Entity entity, in LocalTransform localTransform) =>
             {
-                // Get managed component data
-                if (!EntityManager.HasComponent<GlobalTreeInstanceData>(entity))
-                {
-                    skippedNoData++;
-                    return;
-                }
-                
+                // Direct GetComponentData without HasComponent check (faster - we know it exists)
                 var instanceData = EntityManager.GetComponentData<GlobalTreeInstanceData>(entity);
                 
                 if (instanceData.mesh == null || instanceData.material == null)
-                {
-                    skippedNullMesh++;
                     return;
-                }
-                
-                collected++;
                 
                 var batchKey = new BatchKey { mesh = instanceData.mesh, material = instanceData.material };
                 
@@ -134,17 +101,14 @@ public partial class GlobalTreeInstanceSystem : SystemBase
                 }
                 
                 // Add transform matrix to batch
-                Matrix4x4 matrix = Matrix4x4.TRS(
+                batch.matrices.Add(Matrix4x4.TRS(
                     localTransform.Position,
                     localTransform.Rotation,
                     new Vector3(localTransform.Scale, localTransform.Scale, localTransform.Scale)
-                );
-                batch.matrices.Add(matrix);
+                ));
+                
+                collected++;
             }).WithoutBurst().Run();
-
-#if UNITY_EDITOR
-        Debug.Log($"[GlobalTreeInstance] Collection results: Collected={collected}, SkippedNoData={skippedNoData}, SkippedNullMesh={skippedNullMesh}");
-#endif
 
 #if UNITY_EDITOR
         CollectMarker.End();
@@ -152,6 +116,7 @@ public partial class GlobalTreeInstanceSystem : SystemBase
 #endif
 
         // Render all batches using Graphics.DrawMeshInstanced
+        int totalDrawCalls = 0;
         foreach (var batch in _batches.Values)
         {
             if (batch.matrices.Count == 0)
@@ -186,6 +151,7 @@ public partial class GlobalTreeInstanceSystem : SystemBase
                     null // camera (null = all cameras)
                 );
                 
+                totalDrawCalls++;
                 offset += count;
             }
         }
@@ -194,28 +160,12 @@ public partial class GlobalTreeInstanceSystem : SystemBase
         DrawMarker.End();
         ProfilerMarker.End();
         
-        // Debug output (only when counts change)
-        int totalTrees = 0;
-        int totalBatches = 0;
-        foreach (var batch in _batches.Values)
+        // Reduced logging frequency: only every 60 frames (~1 second at 60 FPS)
+        if (_frameCount % 60 == 0 && collected > 0)
         {
-            if (batch.matrices.Count > 0)
-            {
-                totalTrees += batch.matrices.Count;
-                totalBatches += (batch.matrices.Count + MaxInstancesPerBatch - 1) / MaxInstancesPerBatch;
-            }
-        }
-        
-        if (totalTrees != _lastTreeCount || totalBatches != _lastBatchCount)
-        {
-            Debug.Log($"[GlobalTreeInstance] Rendering {totalTrees} trees in {totalBatches} draw calls ({_batches.Count} unique mesh/material combinations)");
-            _lastTreeCount = totalTrees;
-            _lastBatchCount = totalBatches;
+            Debug.Log($"[GlobalTreeInstance] Rendering {collected} trees in {totalDrawCalls} draw calls ({_batches.Count} unique mesh/material combinations)");
         }
 #endif
     }
 }
-
-
-
 
