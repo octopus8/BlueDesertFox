@@ -186,9 +186,6 @@ public partial class TerrainRenderingSystem : SystemBase
         // Skip rendering setup if terrain rendering is disabled
         if (!shouldRender)
         {
-#if UNITY_EDITOR
-            Debug.Log($"[TerrainRendering] Added MeshReference for tile {entity.Index} but skipped rendering setup (renderTerrain=false)");
-#endif
             return;
         }
         

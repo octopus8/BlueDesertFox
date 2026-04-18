@@ -169,19 +169,12 @@ public partial struct TileSpawningSystem : ISystem
         {
             if (_activeTiles.TryGetValue(gridCoord, out Entity tileEntity))
             {
-#if UNITY_EDITOR
-                Debug.Log($"[TileSpawning] Despawning tile at {gridCoord}, Entity: {tileEntity.Index}");
-#endif
-                
                 // Explicitly destroy child trees BEFORE destroying tile
                 // While Parent component should auto-destroy children, explicit cleanup
                 // ensures trees are removed even if transform hierarchy isn't fully updated
                 if (state.EntityManager.HasBuffer<SpawnedTreeReference>(tileEntity))
                 {
                     var spawnedTrees = state.EntityManager.GetBuffer<SpawnedTreeReference>(tileEntity);
-#if UNITY_EDITOR
-                    Debug.Log($"[TileSpawning] Found {spawnedTrees.Length} trees to destroy for tile {gridCoord}");
-#endif
                     foreach (var treeRef in spawnedTrees)
                     {
                         if (state.EntityManager.Exists(treeRef.treeEntity))

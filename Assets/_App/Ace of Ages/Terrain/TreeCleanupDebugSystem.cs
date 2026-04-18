@@ -48,9 +48,6 @@ public partial struct TreeCleanupDebugSystem : ISystem
             }
         }
         
-        Debug.Log($"[TreeDebug] Trees: {treeCount}, Tiles: {tileCount}, " +
-                  $"Tiles with TreesSpawned tag: {tilesWithTrees}, Orphaned trees: {orphanedTrees}");
-        
         if (orphanedTrees > 0)
         {
             Debug.LogWarning($"[TreeDebug] Found {orphanedTrees} orphaned trees! " +
