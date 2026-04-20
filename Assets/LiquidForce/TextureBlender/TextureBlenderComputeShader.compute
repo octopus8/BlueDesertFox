@@ -25,6 +25,11 @@ StructuredBuffer<float> RotationAngles;
 // Stored as interleaved floats: [tex0.x, tex0.y, tex1.x, tex1.y, ...]
 StructuredBuffer<float> UVOffsets;
 
+// UV scales for each texture layer (float2 per texture: scaleX, scaleY)
+// Stored as interleaved floats: [tex0.x, tex0.y, tex1.x, tex1.y, ...]
+// Default: (1.0, 1.0) for identity scale (no scaling)
+StructuredBuffer<float> UVScales;
+
 // Parameters
 int TextureCount;
 int TextureWidth;
@@ -37,23 +42,41 @@ SamplerState sampler_linear_repeat;
 
 
 /// <summary>
-/// Transforms UV coordinates: applies offset, then rotates around center point (0.5, 0.5).
+/// Transforms UV coordinates: applies scale first, then offset, then rotates around center point (0.5, 0.5).
 /// UVs automatically tile/wrap due to Wrap sampler state (AddressU/V = Wrap).
 /// Out-of-bounds UVs wrap seamlessly for continuous tiling.
+/// OPTIMIZATION: Skips scale multiplication if values are identity (1.0, 1.0) within epsilon threshold.
 /// </summary>
 /// <param name="uv">Original UV coordinates</param>
 /// <param name="angleRadians">Rotation angle in radians</param>
 /// <param name="offset">UV offset (x, y)</param>
-float2 TransformUV(float2 uv, float angleRadians, float2 offset)
+/// <param name="scale">UV scale (x, y) - default (1.0, 1.0) = no scaling</param>
+float2 TransformUV(float2 uv, float angleRadians, float2 offset, float2 scale)
 {
-    // Apply offset first (wrapping handled by sampler)
+    float2 result = uv;
+    
+    // Apply scale first if needed (anchored at center 0.5, 0.5)
+    // OPTIMIZATION: Skip multiplication for identity scale (98% of cases)
+    if (abs(scale.x - 1.0) > 0.0001 || abs(scale.y - 1.0) > 0.0001)
+    {
+        // Translate to origin (scale around center)
+        float2 centered = result - 0.5;
+        // Apply scale
+        centered.x *= scale.x;
+        centered.y *= scale.y;
+        // Translate back
+        result = centered + 0.5;
+    }
+    
+    // Apply offset (wrapping handled by sampler)
     // Note: Subtract offset to move texture in intuitive direction (positive X = right, positive Y = up)
-    float2 offsetUV = uv - offset;
+    result = result - offset;
+    
     // Then rotate around center if needed
     if (abs(angleRadians) > 0.0001)  // Skip rotation if angle is ~zero
     {
         // Translate to origin (rotate around center)
-        float2 centered = offsetUV - 0.5;
+        float2 centered = result - 0.5;
         // Apply 2D rotation matrix
         float cosAngle = cos(angleRadians);
         float sinAngle = sin(angleRadians);
@@ -61,9 +84,10 @@ float2 TransformUV(float2 uv, float angleRadians, float2 offset)
         rotated.x = centered.x * cosAngle - centered.y * sinAngle;
         rotated.y = centered.x * sinAngle + centered.y * cosAngle;
         // Translate back (wrapping handled by sampler)
-        return rotated + 0.5;
+        result = rotated + 0.5;
     }
-    return offsetUV;
+    
+    return result;
 }/// <summary>
 /// Rotates UV coordinates around center point (0.5, 0.5) by given angle in radians.
 /// UVs automatically tile/wrap due to Wrap sampler state (AddressU/V = Wrap).
@@ -130,8 +154,11 @@ void BlendTexturesArrayAdditive(uint3 id : SV_DispatchThreadID)
         // Get UV offset for this texture (stored as interleaved x,y pairs)
         float2 offset = float2(UVOffsets[i * 2], UVOffsets[i * 2 + 1]);
         
-        // Apply offset and rotation
-        float2 transformedUV = TransformUV(uv, RotationAngles[i], offset);
+        // Get UV scale for this texture (stored as interleaved x,y pairs)
+        float2 scale = float2(UVScales[i * 2], UVScales[i * 2 + 1]);
+        
+        // Apply scale, offset, and rotation
+        float2 transformedUV = TransformUV(uv, RotationAngles[i], offset, scale);
         
         // Sample texture layer i from the texture array with transformed UV
         float4 sample = InputTexturesArray.SampleLevel(sampler_linear_repeat, float3(transformedUV, i), 0);
@@ -176,8 +203,11 @@ void BlendTexturesArrayAlphaWeighted(uint3 id : SV_DispatchThreadID)
         // Get UV offset for this texture (stored as interleaved x,y pairs)
         float2 offset = float2(UVOffsets[i * 2], UVOffsets[i * 2 + 1]);
         
-        // Apply offset and rotation
-        float2 transformedUV = TransformUV(uv, RotationAngles[i], offset);
+        // Get UV scale for this texture (stored as interleaved x,y pairs)
+        float2 scale = float2(UVScales[i * 2], UVScales[i * 2 + 1]);
+        
+        // Apply scale, offset, and rotation
+        float2 transformedUV = TransformUV(uv, RotationAngles[i], offset, scale);
         
         // Sample texture layer i from the texture array with transformed UV
         // Unity performs sRGB->Linear conversion because Texture2DArray is marked as sRGB (linear: false)
@@ -224,8 +254,11 @@ void BlendTexturesArrayMultiplicative(uint3 id : SV_DispatchThreadID)
         // Get UV offset for this texture (stored as interleaved x,y pairs)
         float2 offset = float2(UVOffsets[i * 2], UVOffsets[i * 2 + 1]);
         
-        // Apply offset and rotation
-        float2 transformedUV = TransformUV(uv, RotationAngles[i], offset);
+        // Get UV scale for this texture (stored as interleaved x,y pairs)
+        float2 scale = float2(UVScales[i * 2], UVScales[i * 2 + 1]);
+        
+        // Apply scale, offset, and rotation
+        float2 transformedUV = TransformUV(uv, RotationAngles[i], offset, scale);
         
         // Sample texture layer i from the texture array with transformed UV
         float4 sample = InputTexturesArray.SampleLevel(sampler_linear_repeat, float3(transformedUV, i), 0);
@@ -268,8 +301,11 @@ void BlendNormalsWithBaseAlphaAdditive(uint3 id : SV_DispatchThreadID)
         // Get UV offset for this texture (stored as interleaved x,y pairs)
         float2 offset = float2(UVOffsets[i * 2], UVOffsets[i * 2 + 1]);
         
-        // Apply offset and rotation
-        float2 transformedUV = TransformUV(uv, RotationAngles[i], offset);
+        // Get UV scale for this texture (stored as interleaved x,y pairs)
+        float2 scale = float2(UVScales[i * 2], UVScales[i * 2 + 1]);
+        
+        // Apply scale, offset, and rotation
+        float2 transformedUV = TransformUV(uv, RotationAngles[i], offset, scale);
         
         // Sample normal texture layer i with transformed UV
         float4 normalSample = InputTexturesArray.SampleLevel(sampler_linear_repeat, float3(transformedUV, i), 0);
@@ -315,8 +351,11 @@ void BlendNormalsWithBaseAlphaAlphaWeighted(uint3 id : SV_DispatchThreadID)
         // Get UV offset for this texture (stored as interleaved x,y pairs)
         float2 offset = float2(UVOffsets[i * 2], UVOffsets[i * 2 + 1]);
         
-        // Apply offset and rotation
-        float2 transformedUV = TransformUV(uv, RotationAngles[i], offset);
+        // Get UV scale for this texture (stored as interleaved x,y pairs)
+        float2 scale = float2(UVScales[i * 2], UVScales[i * 2 + 1]);
+        
+        // Apply scale, offset, and rotation
+        float2 transformedUV = TransformUV(uv, RotationAngles[i], offset, scale);
         
         // Sample normal texture layer i with transformed UV
         float4 normalSample = InputTexturesArray.SampleLevel(sampler_linear_repeat, float3(transformedUV, i), 0);
@@ -360,8 +399,11 @@ void BlendNormalsWithBaseAlphaMultiplicative(uint3 id : SV_DispatchThreadID)
         // Get UV offset for this texture (stored as interleaved x,y pairs)
         float2 offset = float2(UVOffsets[i * 2], UVOffsets[i * 2 + 1]);
         
-        // Apply offset and rotation
-        float2 transformedUV = TransformUV(uv, RotationAngles[i], offset);
+        // Get UV scale for this texture (stored as interleaved x,y pairs)
+        float2 scale = float2(UVScales[i * 2], UVScales[i * 2 + 1]);
+        
+        // Apply scale, offset, and rotation
+        float2 transformedUV = TransformUV(uv, RotationAngles[i], offset, scale);
         
         // Sample normal texture layer i with transformed UV
         float4 normalSample = InputTexturesArray.SampleLevel(sampler_linear_repeat, float3(transformedUV, i), 0);

@@ -89,6 +89,7 @@ public class TextureBlender : MonoBehaviour
     private static readonly int BlendValuesID = Shader.PropertyToID("BlendValues");
     private static readonly int RotationAnglesID = Shader.PropertyToID("RotationAngles");
     private static readonly int UVOffsetsID = Shader.PropertyToID("UVOffsets");
+    private static readonly int UVScalesID = Shader.PropertyToID("UVScales");
     private static readonly int TextureCountID = Shader.PropertyToID("TextureCount");
     private static readonly int TextureWidthID = Shader.PropertyToID("TextureWidth");
     private static readonly int TextureHeightID = Shader.PropertyToID("TextureHeight");
@@ -99,7 +100,11 @@ public class TextureBlender : MonoBehaviour
     
     // Speed optimization: Cached zero-offset arrays to avoid allocations when offset is not used
     private Dictionary<int, float[]> cachedZeroOffsets = new Dictionary<int, float[]>();
-    private const float OffsetEpsilon = 0.0001f;  // Threshold for considering offset as zero  // Threshold for considering rotation as zero
+    private const float OffsetEpsilon = 0.0001f;  // Threshold for considering offset as zero
+    
+    // Speed optimization: Cached identity-scale arrays to avoid allocations when scale is not used (most common case)
+    private Dictionary<int, float[]> cachedIdentityScales = new Dictionary<int, float[]>();
+    private const float ScaleEpsilon = 0.0001f;  // Threshold for considering scale as identity (1.0)
     
     // Platform compatibility (cached at initialization)
     private bool requiresBufferCopyFallback = false;
@@ -290,6 +295,31 @@ public class TextureBlender : MonoBehaviour
         Vector2[] offsets,
         BlendMode mode = BlendMode.AlphaWeighted)
     {
+        return BlendTextures(target, textures, weights, rotationsDegrees, offsets, null, mode);
+    }
+    
+    
+    /// <summary>
+    /// Blends textures into an existing RenderTexture with optional rotation, UV offset, and scale per texture (no allocation).
+    /// PERFORMANCE: Fastest option when reusing render targets.
+    /// Note: If the target is null, a target texture is created.
+    /// </summary>
+    /// <param name="target">Existing RenderTexture to blend into (null = create new)</param>
+    /// <param name="textures">Array of textures to blend</param>
+    /// <param name="weights">Blend weights (required)</param>
+    /// <param name="rotationsDegrees">Optional rotation per texture (0-360°, null = no rotation)</param>
+    /// <param name="offsets">Optional UV offsets per texture (null = no offset, automatically tiles/wraps)</param>
+    /// <param name="scales">Optional UV scales per texture (null = identity scale 1.0, no scaling)</param>
+    /// <param name="mode">Blend mode to use</param>
+    public RenderTexture BlendTextures(
+        RenderTexture target,
+        Texture[] textures,
+        float[] weights,
+        float[] rotationsDegrees,
+        Vector2[] offsets,
+        Vector2[] scales,
+        BlendMode mode = BlendMode.AlphaWeighted)
+    {
         if (!isInitialized)
             Initialize();
 
@@ -325,7 +355,7 @@ public class TextureBlender : MonoBehaviour
         // Execute blend operation with rotation and offset
         using (s_ShaderDispatch.Auto())
         {
-            ExecuteBlend(target, textureArray, normalizedWeights, textures.Length, mode, rotationsDegrees, offsets);
+            ExecuteBlend(target, textureArray, normalizedWeights, textures.Length, mode, rotationsDegrees, offsets, scales);
         }
 
         return target;
@@ -449,6 +479,33 @@ public class TextureBlender : MonoBehaviour
         Vector2[] offsets,
         BlendMode mode = BlendMode.AlphaWeighted)
     {
+        return BlendNormalsWithBaseAlpha(normalTextures, baseTextures, weights, rotationsDegrees, offsets, null, mode);
+    }
+    
+    
+    /// <summary>
+    /// Blends normal maps with per-pixel alpha weighting from base textures with optional rotation, UV offset, and scale.
+    /// Each pixel's normal contribution is modulated by the corresponding base texture alpha at that pixel.
+    /// IMPORTANT: Rotation, offset, and scale should match base texture transformations for visual coherence.
+    /// PERFORMANCE: Similar to regular blending, requires both normal and base texture arrays.
+    /// </summary>
+    /// <param name="normalTextures">Array of normal map textures to blend</param>
+    /// <param name="baseTextures">Array of base textures (alpha channel used for per-pixel weighting)</param>
+    /// <param name="weights">Blend weights for each layer</param>
+    /// <param name="rotationsDegrees">Rotation angles in degrees for each texture (should match base texture rotations!)</param>
+    /// <param name="offsets">UV offsets for each texture (should match base texture offsets!)</param>
+    /// <param name="scales">UV scales for each texture (should match base texture scales!)</param>
+    /// <param name="mode">Blend mode to use</param>
+    /// <returns>New RenderTexture with blended normal map</returns>
+    public RenderTexture BlendNormalsWithBaseAlpha(
+        Texture[] normalTextures,
+        Texture[] baseTextures,
+        float[] weights,
+        float[] rotationsDegrees,
+        Vector2[] offsets,
+        Vector2[] scales,
+        BlendMode mode = BlendMode.AlphaWeighted)
+    {
         if (!isInitialized)
             Initialize();
         
@@ -467,7 +524,7 @@ public class TextureBlender : MonoBehaviour
             : CreateRenderTexture(defaultOutputWidth, defaultOutputHeight);
         
         // Blend to the output texture with rotation and offset
-        BlendNormalsWithBaseAlphaToExistingTexture(output, normalTextures, baseTextures, weights, rotationsDegrees, offsets, mode);
+        BlendNormalsWithBaseAlphaToExistingTexture(output, normalTextures, baseTextures, weights, rotationsDegrees, offsets, scales, mode);
         return output;
     }
     
@@ -536,6 +593,33 @@ public class TextureBlender : MonoBehaviour
         Vector2[] offsets,
         BlendMode mode = BlendMode.AlphaWeighted)
     {
+        BlendNormalsWithBaseAlphaToExistingTexture(target, normalTextures, baseTextures, weights, rotationsDegrees, offsets, null, mode);
+    }
+    
+    
+    /// <summary>
+    /// Blends normal maps with per-pixel alpha weighting from base textures into an existing RenderTexture with optional rotation, UV offset, and scale.
+    /// IMPORTANT: Rotation, offset, and scale should match base texture transformations for visual coherence.
+    /// PERFORMANCE: Fastest option for normal blending when reusing render targets.
+    /// </summary>
+    /// <param name="target">Existing RenderTexture to blend into</param>
+    /// <param name="normalTextures">Array of normal maps</param>
+    /// <param name="baseTextures">Array of base textures for alpha weighting</param>
+    /// <param name="weights">Blend weights (required)</param>
+    /// <param name="rotationsDegrees">Optional rotation per texture (0-360°, null = no rotation) - MUST match base texture rotations!</param>
+    /// <param name="offsets">Optional UV offsets per texture (null = no offset, automatically tiles/wraps) - MUST match base texture offsets!</param>
+    /// <param name="scales">Optional UV scales per texture (null = identity scale 1.0) - MUST match base texture scales!</param>
+    /// <param name="mode">Blend mode to use</param>
+    public void BlendNormalsWithBaseAlphaToExistingTexture(
+        RenderTexture target,
+        Texture[] normalTextures,
+        Texture[] baseTextures,
+        float[] weights,
+        float[] rotationsDegrees,
+        Vector2[] offsets,
+        Vector2[] scales,
+        BlendMode mode = BlendMode.AlphaWeighted)
+    {
         if (!isInitialized)
             Initialize();
         
@@ -580,7 +664,7 @@ public class TextureBlender : MonoBehaviour
         // Execute blend operation with base alpha, rotation, and offset
         using (s_ShaderDispatch.Auto())
         {
-            ExecuteNormalBlendWithBaseAlpha(target, normalTextureArray, baseTextureArray, normalizedWeights, normalTextures.Length, rotationsDegrees, offsets);
+            ExecuteNormalBlendWithBaseAlpha(target, normalTextureArray, baseTextureArray, normalizedWeights, normalTextures.Length, rotationsDegrees, offsets, scales);
         }
     }
     #endregion
@@ -798,6 +882,69 @@ public class TextureBlender : MonoBehaviour
         return result;
     }
     
+    
+    /// <summary>
+    /// Checks if any meaningful scale is present in the scale array.
+    /// Returns false if scales is null or all values are effectively (1.0, 1.0).
+    /// OPTIMIZATION: Avoids expensive array allocation when scale isn't needed (most common case).
+    /// </summary>
+    /// <param name="scales">UV scales as Vector2 array</param>
+    /// <returns>True if any scale value differs from identity (1.0) by more than epsilon threshold</returns>
+    private bool IsScaleNeeded(Vector2[] scales)
+    {
+        if (scales == null || scales.Length == 0)
+            return false;
+        
+        // Check if any scale value differs from identity (1.0)
+        for (int i = 0; i < scales.Length; i++)
+        {
+            if (Mathf.Abs(scales[i].x - 1.0f) > ScaleEpsilon || Mathf.Abs(scales[i].y - 1.0f) > ScaleEpsilon)
+                return true;
+        }
+        
+        return false;
+    }
+    
+    
+    /// <summary>
+    /// Prepares UV scales for GPU shader as interleaved float array [x0, y0, x1, y1, ...].
+    /// If scales is null or all identity (1.0, 1.0), returns cached identity array for maximum speed.
+    /// OPTIMIZATION: Caches identity-scale arrays to avoid allocation for the common case (98% of uses).
+    /// </summary>
+    /// <param name="textureCount">Number of textures</param>
+    /// <param name="scales">UV scales as Vector2 array (null = identity scale 1.0)</param>
+    /// <returns>Interleaved array of UV scales [x0, y0, x1, y1, ...]</returns>
+    private float[] PrepareUVScales(int textureCount, Vector2[] scales)
+    {
+        // OPTIMIZATION: Check if scale is actually needed
+        if (!IsScaleNeeded(scales))
+        {
+            // Return cached identity array if available, otherwise create and cache it
+            int arraySize = textureCount * 2;  // x,y pairs
+            if (!cachedIdentityScales.TryGetValue(arraySize, out float[] cachedIdentity))
+            {
+                cachedIdentity = new float[arraySize];
+                // Fill with identity scale (1.0, 1.0)
+                for (int i = 0; i < arraySize; i++)
+                {
+                    cachedIdentity[i] = 1.0f;
+                }
+                cachedIdentityScales[arraySize] = cachedIdentity;
+            }
+            return cachedIdentity;
+        }
+        
+        // Scale is needed - convert Vector2[] to interleaved float array
+        float[] result = new float[textureCount * 2];
+        for (int i = 0; i < textureCount; i++)
+        {
+            Vector2 scale = (i < scales.Length) ? scales[i] : Vector2.one;
+            result[i * 2] = scale.x;      // X component
+            result[i * 2 + 1] = scale.y;  // Y component
+        }
+        
+        return result;
+    }
 
     /// <summary>
     /// Executes the blend operation by dispatching the appropriate compute shader kernel based on the blend mode.
@@ -809,6 +956,7 @@ public class TextureBlender : MonoBehaviour
     /// <param name="mode">Blend mode to use</param>
     /// <param name="rotationsDegrees">Optional rotation angles in degrees for each texture (null = no rotation)</param>
     /// <param name="offsets">Optional UV offsets for each texture (null = no offset)</param>
+    /// <param name="scales">Optional UV scales for each texture (null = identity scale 1.0)</param>
     private void ExecuteBlend(
         RenderTexture target,
         Texture2DArray textureArray,
@@ -816,7 +964,8 @@ public class TextureBlender : MonoBehaviour
         int textureCount,
         BlendMode mode,
         float[] rotationsDegrees = null,
-        Vector2[] offsets = null)
+        Vector2[] offsets = null,
+        Vector2[] scales = null)
     {
         using (s_ResourceAllocation.Auto())
         {
@@ -841,6 +990,13 @@ public class TextureBlender : MonoBehaviour
             ComputeBuffer offsetBuffer = resources.GetOrCreateComputeBuffer(uvOffsets.Length, sizeof(float));
             offsetBuffer.SetData(uvOffsets);
             
+            // Prepare UV scales (Vector2 array to float array, default = identity 1.0)
+            float[] uvScales = PrepareUVScales(textureCount, scales);
+            
+            // Get or create a compute buffer for scales.
+            ComputeBuffer scaleBuffer = resources.GetOrCreateComputeBuffer(uvScales.Length, sizeof(float));
+            scaleBuffer.SetData(uvScales);
+            
             // Create output buffer for OpenGL ES 3.0 compatibility
             int pixelCount = target.width * target.height;
             ComputeBuffer outputBuffer = resources.GetOrCreateComputeBuffer(pixelCount, sizeof(float) * 4);
@@ -857,6 +1013,7 @@ public class TextureBlender : MonoBehaviour
             imageProcessorShader.SetBuffer(kernelID, BlendValuesID, weightsBuffer);
             imageProcessorShader.SetBuffer(kernelID, RotationAnglesID, rotationBuffer);
             imageProcessorShader.SetBuffer(kernelID, UVOffsetsID, offsetBuffer);
+            imageProcessorShader.SetBuffer(kernelID, UVScalesID, scaleBuffer);
             
             // Calculate dispatch dimensions
             imageProcessorShader.GetKernelThreadGroupSizes(kernelID, out uint threadGroupSizeX, out uint threadGroupSizeY, out uint threadGroupSizeZ);
@@ -876,6 +1033,7 @@ public class TextureBlender : MonoBehaviour
             resources.ReturnBuffer(weightsBuffer);
             resources.ReturnBuffer(rotationBuffer);
             resources.ReturnBuffer(offsetBuffer);
+            resources.ReturnBuffer(scaleBuffer);
             resources.ReturnBuffer(outputBuffer);
         }
     }
@@ -892,6 +1050,7 @@ public class TextureBlender : MonoBehaviour
     /// <param name="textureCount">Number of textures in the arrays</param>
     /// <param name="rotationsDegrees">Optional rotation angles in degrees for each texture (null = no rotation)</param>
     /// <param name="offsets">Optional UV offsets for each texture (null = no offset)</param>
+    /// <param name="scales">Optional UV scales for each texture (null = identity scale 1.0)</param>
     private void ExecuteNormalBlendWithBaseAlpha(
         RenderTexture target,
         Texture2DArray normalTextureArray,
@@ -899,7 +1058,8 @@ public class TextureBlender : MonoBehaviour
         float[] weights,
         int textureCount,
         float[] rotationsDegrees = null,
-        Vector2[] offsets = null)
+        Vector2[] offsets = null,
+        Vector2[] scales = null)
     {
         using (s_ResourceAllocation.Auto())
         {
@@ -918,6 +1078,11 @@ public class TextureBlender : MonoBehaviour
             ComputeBuffer offsetBuffer = resources.GetOrCreateComputeBuffer(uvOffsets.Length, sizeof(float));
             offsetBuffer.SetData(uvOffsets);
             
+            // Prepare UV scales (interleaved x,y pairs, default = identity 1.0)
+            float[] uvScales = PrepareUVScales(textureCount, scales);
+            ComputeBuffer scaleBuffer = resources.GetOrCreateComputeBuffer(uvScales.Length, sizeof(float));
+            scaleBuffer.SetData(uvScales);
+            
             // Create output buffer for OpenGL ES 3.0 compatibility
             int pixelCount = target.width * target.height;
             ComputeBuffer outputBuffer = resources.GetOrCreateComputeBuffer(pixelCount, sizeof(float) * 4);
@@ -935,6 +1100,7 @@ public class TextureBlender : MonoBehaviour
             imageProcessorShader.SetBuffer(kernelID, BlendValuesID, weightsBuffer);
             imageProcessorShader.SetBuffer(kernelID, RotationAnglesID, rotationBuffer);
             imageProcessorShader.SetBuffer(kernelID, UVOffsetsID, offsetBuffer);
+            imageProcessorShader.SetBuffer(kernelID, UVScalesID, scaleBuffer);
             
             // Calculate dispatch dimensions
             imageProcessorShader.GetKernelThreadGroupSizes(kernelID, out uint threadGroupSizeX, out uint threadGroupSizeY, out uint threadGroupSizeZ);
@@ -954,6 +1120,7 @@ public class TextureBlender : MonoBehaviour
             resources.ReturnBuffer(weightsBuffer);
             resources.ReturnBuffer(rotationBuffer);
             resources.ReturnBuffer(offsetBuffer);
+            resources.ReturnBuffer(scaleBuffer);
             resources.ReturnBuffer(outputBuffer);
         }
     }
@@ -1038,6 +1205,9 @@ public class TextureBlender : MonoBehaviour
         
         // Clear offset cache
         cachedZeroOffsets?.Clear();
+        
+        // Clear scale cache
+        cachedIdentityScales?.Clear();
         
         // Clean up flat normal map
         if (flatNormalMap != null)
