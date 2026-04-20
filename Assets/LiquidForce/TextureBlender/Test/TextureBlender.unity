@@ -661,6 +661,18 @@ PrefabInstance:
       propertyPath: textureLayers.Array.data[0].scaleX
       value: 1.5
       objectReference: {fileID: 0}
+    - target: {fileID: 6967620872234384839, guid: cf1b75e47da28f6449791d4083666848, type: 3}
+      propertyPath: textureLayers.Array.data[0].offsetX
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 6967620872234384839, guid: cf1b75e47da28f6449791d4083666848, type: 3}
+      propertyPath: textureLayers.Array.data[0].offsetY
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 6967620872234384839, guid: cf1b75e47da28f6449791d4083666848, type: 3}
+      propertyPath: textureLayers.Array.data[0].rotationDegrees
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 7673593378553393670, guid: cf1b75e47da28f6449791d4083666848, type: 3}
       propertyPath: m_Name
       value: Texture Blender Test
