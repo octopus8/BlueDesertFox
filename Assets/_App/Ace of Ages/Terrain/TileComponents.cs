@@ -50,6 +50,9 @@ public struct TerrainTileConfig : IComponentData
     
     /// <summary>Whether to render terrain tiles (disable for tree-only testing).</summary>
     public bool renderTerrain;
+    
+    /// <summary>Whether to visualize physics colliders as wireframes in Scene view.</summary>
+    public bool visualizeColliders;
 }
 
 /// <summary>

@@ -70,6 +70,9 @@ public class TerrainConfigAuthoring : MonoBehaviour
     [Tooltip("Enable terrain tile rendering (disable to test tree rendering only)")]
     public bool renderTerrain = true;
     
+    [Tooltip("Visualize physics colliders as colored wireframes (green=full, yellow=half, orange=quarter LOD)")]
+    public bool visualizeColliders = false;
+    
     [Header("Physics Optimization")]
     [Range(1, 10)]
     [Tooltip("Maximum number of physics colliders created per frame to prevent stalls")]
@@ -126,7 +129,8 @@ public class TerrainConfigAuthoring : MonoBehaviour
                 closeTerrainPhysicsLayer = authoring.closeTerrainPhysicsLayer,
                 lowDetailPhysicsLayer = authoring.lowDetailPhysicsLayer,
                 // Debug/Testing
-                renderTerrain = authoring.renderTerrain
+                renderTerrain = authoring.renderTerrain,
+                visualizeColliders = authoring.visualizeColliders
             });
             
             // Create scroll velocity singleton (starts inactive)
