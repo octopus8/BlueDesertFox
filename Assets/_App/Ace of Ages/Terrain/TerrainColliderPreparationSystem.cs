@@ -1,8 +1,8 @@
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Entities;
-using Unity.Jobs;
 using Unity.Mathematics;
+using UnityEngine;
 
 #if UNITY_EDITOR
 using Unity.Profiling;
@@ -17,63 +17,104 @@ using Unity.Profiling;
 [UpdateAfter(typeof(TerrainMeshGenerationSystem))]
 public partial struct TerrainColliderPreparationSystem : ISystem
 {
+    static public  int colliderCount = 0;
+    
 #if UNITY_EDITOR
-    private static readonly ProfilerMarker s_ProfilerMarker = new ProfilerMarker("TerrainPhysics.PrepareJob");
+    private static readonly ProfilerMarker KProfilerMarker = new ProfilerMarker("TerrainPhysics.PrepareJob");
 #endif
 
-    private JobHandle _preparationDependency;
-    
-    /// <summary>
-    /// Public dependency handle for future parallelization of mesh generation.
-    /// Future optimization: TerrainMeshGenerationSystem can schedule parallel jobs with .ScheduleParallel() - this dependency will chain automatically.
-    /// </summary>
-    public JobHandle PreparationDependency => _preparationDependency;
+    private EntityQuery _query;
 
     public void OnCreate(ref SystemState state)
     {
         state.RequireForUpdate<TerrainTileConfig>();
+        state.RequireForUpdate<EndSimulationEntityCommandBufferSystem.Singleton>();
+        state.RequireForUpdate<CameraDataSingleton>(); // Require the new singleton
+        _query = state.GetEntityQuery(
+            ComponentType.ReadOnly<PhysicsColliderNeedsPreparation>(),
+            ComponentType.ReadOnly<VertexElement>(),
+            ComponentType.ReadOnly<IndexElement>(),
+            ComponentType.ReadOnly<TerrainTile>(),
+            ComponentType.ReadOnly<TerrainTileDistanceToPlayer>()
+        );
     }
 
-    // NOTE: Removed [BurstCompile] because we need to access managed PlayerTransformReference
     public void OnUpdate(ref SystemState state)
     {
 #if UNITY_EDITOR
-        using (s_ProfilerMarker.Auto())
+        using (KProfilerMarker.Auto())
 #endif
         {
             var config = SystemAPI.GetSingleton<TerrainTileConfig>();
+            var cameraData = SystemAPI.GetSingleton<CameraDataSingleton>();
             
-            // Get player/camera position and forward direction for priority calculation
-            float3 cameraPosition = float3.zero;
-            float3 cameraForward = new float3(0, 0, 1); // Default forward if no camera
-            
-            if (SystemAPI.ManagedAPI.TryGetSingleton<PlayerTransformReference>(out var playerRef) &&
-                playerRef != null && 
-                playerRef.playerTransform != null)
-            {
-                cameraPosition = playerRef.playerTransform.position;
-                cameraForward = math.normalize(new float3(
-                    playerRef.playerTransform.forward.x, 
-                    playerRef.playerTransform.forward.y, 
-                    playerRef.playerTransform.forward.z));
-            }
-            
+            // Get the ECB singleton and create a command buffer
+            var ecbSingleton = SystemAPI.GetSingleton<EndSimulationEntityCommandBufferSystem.Singleton>();
+            var ecb = ecbSingleton.CreateCommandBuffer(state.WorldUnmanaged);
+
             // Schedule job to prepare collider data
             var job = new PrepareColliderDataJob
             {
+                ecb = ecb.AsParallelWriter(),
                 verticesPerSide = config.verticesPerSide,
                 tileSize = config.tileSize,
-                cameraPosition = cameraPosition,
-                cameraForward = cameraForward,
+                cameraPosition = cameraData.position,
+                cameraForward = cameraData.forward,
                 viewDistance = config.viewDistance
             };
             
-            // Chain with existing dependency and schedule
-            _preparationDependency = job.ScheduleParallel(state.Dependency);
-            state.Dependency = _preparationDependency;
+            // Schedule against the filtered query
+            state.Dependency = job.ScheduleParallel(_query, state.Dependency);
         }
     }
 }
+
+// This new system will run on the main thread to get the managed camera data
+// and write it to a Burst-compatible singleton for other systems to use.
+public struct CameraDataSingleton : IComponentData
+{
+    public float3 position;
+    public float3 forward;
+}
+
+[UpdateInGroup(typeof(SimulationSystemGroup))]
+[UpdateBefore(typeof(TerrainColliderPreparationSystem))]
+public partial class CameraDataUpdateSystem : SystemBase
+{
+    protected override void OnCreate()
+    {
+        // Ensure the singleton exists
+        if (!SystemAPI.HasSingleton<CameraDataSingleton>())
+        {
+            EntityManager.CreateEntity(typeof(CameraDataSingleton));
+        }
+    }
+
+    protected override void OnUpdate()
+    {
+        float3 cameraPosition = float3.zero;
+        float3 cameraForward = new float3(0, 0, 1);
+
+        if (SystemAPI.ManagedAPI.TryGetSingleton<PlayerTransformReference>(out var playerRef) &&
+            playerRef != null &&
+            playerRef.playerTransform != null)
+        {
+            cameraPosition = playerRef.playerTransform.position;
+            cameraForward = math.normalize(new float3(
+                playerRef.playerTransform.forward.x,
+                0, // Project to XZ plane
+                playerRef.playerTransform.forward.z));
+        }
+
+        // Write to the singleton
+        SystemAPI.SetSingleton(new CameraDataSingleton
+        {
+            position = cameraPosition,
+            forward = cameraForward
+        });
+    }
+}
+
 
 /// <summary>
 /// Burst-compiled job that prepares collider vertex and triangle data with LOD decimation.
@@ -84,6 +125,7 @@ public partial struct TerrainColliderPreparationSystem : ISystem
 [WithAll(typeof(PhysicsColliderNeedsPreparation))]
 partial struct PrepareColliderDataJob : IJobEntity
 {
+    public EntityCommandBuffer.ParallelWriter ecb;
     public int verticesPerSide;
     public float tileSize;
     public float3 cameraPosition;
@@ -91,16 +133,13 @@ partial struct PrepareColliderDataJob : IJobEntity
     public float viewDistance;
     
     public void Execute(
+        [ChunkIndexInQuery] int chunkIndex,
         Entity entity,
-        ref DynamicBuffer<VertexElement> sourceVertices,
-        ref DynamicBuffer<IndexElement> sourceIndices,
-        ref DynamicBuffer<ColliderPreparedVertexElement> preparedVertices,
-        ref DynamicBuffer<ColliderPreparedTriangleElement> preparedTriangles,
+        in DynamicBuffer<VertexElement> sourceVertices,
+        in DynamicBuffer<IndexElement> sourceIndices,
         in PhysicsColliderNeedsPreparation needsPrep,
         in TerrainTile tile,
-        in TerrainTileDistanceToPlayer distanceData,
-        ref PhysicsColliderPrepared prepared,
-        EnabledRefRW<PhysicsColliderNeedsPreparation> needsPrepEnabled)
+        in TerrainTileDistanceToPlayer distanceData)
     {
         // Determine vertex stride based on LOD level
         int stride = 1;
@@ -117,19 +156,18 @@ partial struct PrepareColliderDataJob : IJobEntity
                 break;
             case TerrainPhysicsLODLevel.NoCollider:
                 // Should not happen, but handle gracefully
-                needsPrepEnabled.ValueRW = false;
+                ecb.SetComponentEnabled<PhysicsColliderNeedsPreparation>(chunkIndex, entity, false);
                 return;
         }
         
-        // Clear prepared buffers
-        preparedVertices.Clear();
-        preparedTriangles.Clear();
+        // Use temporary lists to build decimated data
+        var preparedVertices = new NativeList<ColliderPreparedVertexElement>(Allocator.Temp);
+        var preparedTriangles = new NativeList<ColliderPreparedTriangleElement>(Allocator.Temp);
         
         // Calculate decimated vertex count
         int decimatedVerticesPerSide = (verticesPerSide - 1) / stride + 1;
-        int totalDecimatedVertices = decimatedVerticesPerSide * decimatedVerticesPerSide;
         
-        preparedVertices.EnsureCapacity(totalDecimatedVertices);
+        preparedVertices.Capacity = decimatedVerticesPerSide * decimatedVerticesPerSide;
         
         // Create vertex index mapping for triangle remapping
         var vertexIndexMap = new NativeArray<int>(verticesPerSide * verticesPerSide, Allocator.Temp);
@@ -159,34 +197,33 @@ partial struct PrepareColliderDataJob : IJobEntity
             }
         }
         
-        // Decimate triangles - only keep triangles where all vertices are in the decimated set
-        int triangleCount = sourceIndices.Length / 3;
-        
-        for (int i = 0; i < triangleCount; i++)
+        // Rebuild triangles based on the decimated grid, instead of trying to preserve old ones.
+        // This guarantees a valid mesh and prevents empty triangle buffers.
+        decimatedVerticesPerSide = (verticesPerSide - 1) / stride + 1;
+        for (int z = 0; z < decimatedVerticesPerSide - 1; z++)
         {
-            int idx0 = sourceIndices[i * 3].value;
-            int idx1 = sourceIndices[i * 3 + 1].value;
-            int idx2 = sourceIndices[i * 3 + 2].value;
-            
-            // Check if all three vertices are in the decimated set
-            if (idx0 < vertexIndexMap.Length && idx1 < vertexIndexMap.Length && idx2 < vertexIndexMap.Length &&
-                vertexIndexMap[idx0] >= 0 && vertexIndexMap[idx1] >= 0 && vertexIndexMap[idx2] >= 0)
+            for (int x = 0; x < decimatedVerticesPerSide - 1; x++)
             {
-                // Remap to new vertex indices
-                int3 remappedTriangle = new int3(
-                    vertexIndexMap[idx0],
-                    vertexIndexMap[idx1],
-                    vertexIndexMap[idx2]
-                );
-                
-                preparedTriangles.Add(new ColliderPreparedTriangleElement 
-                { 
-                    value = remappedTriangle 
-                });
+                int i0 = z * decimatedVerticesPerSide + x;
+                int i1 = z * decimatedVerticesPerSide + x + 1;
+                int i2 = (z + 1) * decimatedVerticesPerSide + x;
+                int i3 = (z + 1) * decimatedVerticesPerSide + x + 1;
+
+                // First triangle
+                preparedTriangles.Add(new ColliderPreparedTriangleElement { value = new int3(i2, i1, i0) });
+                // Second triangle
+                preparedTriangles.Add(new ColliderPreparedTriangleElement { value = new int3(i2, i3, i1) });
             }
         }
         
         vertexIndexMap.Dispose();
+        
+        // Add the prepared buffers to the entity
+        ecb.AddBuffer<ColliderPreparedVertexElement>(chunkIndex, entity).CopyFrom(preparedVertices.AsArray());
+        ecb.AddBuffer<ColliderPreparedTriangleElement>(chunkIndex, entity).CopyFrom(preparedTriangles.AsArray());
+        
+        preparedVertices.Dispose();
+        preparedTriangles.Dispose();
         
         // Calculate camera-aware priority
         // Lower priority value = higher actual priority (processed first)
@@ -208,6 +245,7 @@ partial struct PrepareColliderDataJob : IJobEntity
         // Calculate dot product with camera forward (2D projection)
         float2 cameraForward2D = math.normalize(new float2(cameraForward.x, cameraForward.z));
         float2 toTileNormalized = math.normalize(toTile);
+        if (math.lengthsq(toTile) < 0.001f) toTileNormalized = cameraForward2D; // Avoid NaN if tile is at camera center
         float dotProduct = math.dot(cameraForward2D, toTileNormalized);
         
         // Convert dot product from [-1, 1] to [0, 1] where:
@@ -225,10 +263,15 @@ partial struct PrepareColliderDataJob : IJobEntity
         float combinedPriority = (1f - viewScore) * 1000f + normalizedDistance * 500f;
         
         // Mark as prepared with camera-aware priority
-        prepared.lodLevel = needsPrep.targetLOD;
-        prepared.priority = (int)combinedPriority;
+        ecb.AddComponent(chunkIndex, entity, new PhysicsColliderPrepared
+        {
+            lodLevel = needsPrep.targetLOD,
+            priority = (int)combinedPriority
+        });
+
+        Debug.Log("XXX Created collider #" + ++TerrainColliderPreparationSystem.colliderCount);
         
         // Remove needs preparation flag
-        needsPrepEnabled.ValueRW = false;
+        ecb.SetComponentEnabled<PhysicsColliderNeedsPreparation>(chunkIndex, entity, false);
     }
 }
