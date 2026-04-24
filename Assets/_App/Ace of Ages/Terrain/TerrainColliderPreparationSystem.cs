@@ -2,7 +2,6 @@ using Unity.Burst;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
-using UnityEngine;
 
 #if UNITY_EDITOR
 using Unity.Profiling;
@@ -17,8 +16,6 @@ using Unity.Profiling;
 [UpdateAfter(typeof(TerrainMeshGenerationSystem))]
 public partial struct TerrainColliderPreparationSystem : ISystem
 {
-    static public  int colliderCount = 0;
-    
 #if UNITY_EDITOR
     private static readonly ProfilerMarker KProfilerMarker = new ProfilerMarker("TerrainPhysics.PrepareJob");
 #endif
@@ -114,7 +111,6 @@ public partial class CameraDataUpdateSystem : SystemBase
         });
     }
 }
-
 
 /// <summary>
 /// Burst-compiled job that prepares collider vertex and triangle data with LOD decimation.
@@ -268,8 +264,6 @@ partial struct PrepareColliderDataJob : IJobEntity
             lodLevel = needsPrep.targetLOD,
             priority = (int)combinedPriority
         });
-
-        Debug.Log("XXX Created collider #" + ++TerrainColliderPreparationSystem.colliderCount);
         
         // Remove needs preparation flag
         ecb.SetComponentEnabled<PhysicsColliderNeedsPreparation>(chunkIndex, entity, false);
