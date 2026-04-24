@@ -35,6 +35,7 @@ public partial class TerrainPhysicsSystem : SystemBase
     private long _totalCacheMemoryBytes;
     private long _currentFrameNumber;
 
+    private int colliderCreateCount = 0;
     protected override void OnCreate()
     {
         RequireForUpdate<TerrainTileConfig>();
@@ -126,6 +127,7 @@ public partial class TerrainPhysicsSystem : SystemBase
                         
                         // Create PhysicsCollider from cached blob data
                         CreatePhysicsColliderFromCache(entity, cacheEntry.blobAsset, prepared.lodLevel, config);
+                        Debug.Log("# Created colliders: " + ++colliderCreateCount);
                         
                         // Clean up prepared buffers
                         EntityManager.RemoveComponent<PhysicsColliderPrepared>(entity);
