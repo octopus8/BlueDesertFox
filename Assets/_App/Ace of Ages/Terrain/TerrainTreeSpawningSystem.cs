@@ -159,6 +159,7 @@ public partial class TerrainTreeSpawningSystem : SystemBase
         
         int vPerSide = terrainConfig.verticesPerSide;
         float tileSize = terrainConfig.tileSize;
+        float halfTileSize = tileSize * 0.5f;
         
         while (actualTreesSpawned < treeCount && attempts < maxAttempts)
         {
@@ -192,7 +193,9 @@ public partial class TerrainTreeSpawningSystem : SystemBase
             float3 vX1 = math.lerp(v01, v11, tx);
             float3 interpolatedPosition = math.lerp(vX0, vX1, tz);
             
-            float3 localPosition = new float3(randomX, interpolatedPosition.y, randomZ);
+            // Local position relative to tile center (vertices are now centered around origin)
+            // randomX/randomZ are in range [0, tileSize], offset by -halfTileSize to match vertex space
+            float3 localPosition = new float3(randomX - halfTileSize, interpolatedPosition.y, randomZ - halfTileSize);
             
             float3 n00 = vertexNormals[idx00];
             float3 n10 = vertexNormals[idx10];

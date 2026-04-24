@@ -126,11 +126,12 @@ public partial struct TileSpawningSystem : ISystem
         {
             Entity tileEntity = ecb.CreateEntity();
             
-            // Calculate world position for this tile (subtract directional scroll offset)
+            // Calculate world position for this tile (centered, subtract directional scroll offset)
+            // Tile transform is placed at the CENTER of the tile for accurate LOD distance calculations
             float3 basePosition = new float3(
-                gridCoord.x * config.tileSize,
+                gridCoord.x * config.tileSize + config.tileSize * 0.5f,
                 0,
-                gridCoord.y * config.tileSize
+                gridCoord.y * config.tileSize + config.tileSize * 0.5f
             );
             float3 tilePosition = basePosition - scrollOffset.accumulatedOffset;
             

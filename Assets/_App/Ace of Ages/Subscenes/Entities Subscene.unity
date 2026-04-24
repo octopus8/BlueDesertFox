@@ -5716,9 +5716,9 @@ MonoBehaviour:
   renderTerrain: 1
   visualizeColliders: 0
   maxCollidersCreatedPerFrame: 3
-  lodFullResolutionDistance: 150
-  lodHalfResolutionDistance: 300
-  lodQuarterResolutionDistance: 450
+  lodFullResolutionDistance: 256
+  lodHalfResolutionDistance: 384
+  lodQuarterResolutionDistance: 512
   maxColliderCacheMemoryMB: 50
   usePhysicsLODLayers: 1
   closeTerrainPhysicsLayer: 11

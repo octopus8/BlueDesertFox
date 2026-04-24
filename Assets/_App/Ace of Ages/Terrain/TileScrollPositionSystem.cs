@@ -29,11 +29,12 @@ public partial struct TileScrollPositionSystem : ISystem
         // Update all terrain tile positions based on their grid coordinates and scroll offset
         foreach (var (tile, transform) in SystemAPI.Query<RefRO<TerrainTile>, RefRW<LocalTransform>>())
         {
-            // Calculate base position from grid coordinates
+            // Calculate base position from grid coordinates (centered for accurate LOD distance)
+            // Tile transform is placed at the CENTER of the tile, not the corner
             float3 basePosition = new float3(
-                tile.ValueRO.gridCoordinate.x * tileConfig.tileSize,
+                tile.ValueRO.gridCoordinate.x * tileConfig.tileSize + tileConfig.tileSize * 0.5f,
                 0,
-                tile.ValueRO.gridCoordinate.y * tileConfig.tileSize
+                tile.ValueRO.gridCoordinate.y * tileConfig.tileSize + tileConfig.tileSize * 0.5f
             );
             
             // Apply directional scroll offset (subtract to make tiles move opposite to scroll direction)
