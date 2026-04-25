@@ -290,7 +290,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!4 &263055123
 Transform:
   m_ObjectHideFlags: 0
@@ -5703,7 +5703,7 @@ MonoBehaviour:
   playerName: Right Controller Stabilized Attach
   playerTag: Player
   tileSize: 256
-  viewDistance: 1875
+  viewDistance: 1250
   verticesPerSide: 8
   scrollEnabled: 1
   scrollSpeed: 75
@@ -5768,8 +5768,8 @@ MonoBehaviour:
   speed: 50
   rotationSpeed: 50
   verticalSpeed: 20
-  minVerticalPosition: -100
-  maxVerticalPosition: 100
+  minVerticalPosition: -20
+  maxVerticalPosition: 40
   worldOriginSearchMode: 0
   worldOriginName: XR Origin Hands (XR Rig)
   worldOriginTag: MainCamera
@@ -5788,7 +5788,7 @@ MonoBehaviour:
   treePrefabs:
   - {fileID: 1880130991530675682, guid: 80855f484516335468ca4c9c49937f3a, type: 3}
   minTreesPerTile: 0
-  maxTreesPerTile: 0
+  maxTreesPerTile: 100
   minSpawnHeight: -100
   maxSpawnHeight: 100
   maxSlopeDegrees: 45
