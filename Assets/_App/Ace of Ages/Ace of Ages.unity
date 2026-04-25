@@ -177,7 +177,7 @@ GameObject:
   - component: {fileID: 241762669}
   - component: {fileID: 241762668}
   m_Layer: 0
-  m_Name: GameObject
+  m_Name: Terrain Collider Visualizer
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -3938,7 +3938,7 @@ SceneRoots:
   - {fileID: 1949500442}
   - {fileID: 880413743}
   - {fileID: 1279682836}
+  - {fileID: 241762669}
   - {fileID: 132629395}
   - {fileID: 1422995850}
   - {fileID: 702503746}
-  - {fileID: 241762669}
