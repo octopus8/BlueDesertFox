@@ -361,19 +361,34 @@ public struct GlobalTreeInstance : IComponentData
 }
 
 /// <summary>
-/// Managed component storing mesh and material references for global tree instance rendering.
-/// Must be a class (not struct) to hold managed Unity object references.
-/// Allows the global rendering system to batch trees efficiently.
+/// Unmanaged component storing indices for global tree instance rendering.
+/// Uses indices instead of direct references for Burst compatibility and better performance.
+/// References the GlobalTreeRenderingData singleton to resolve actual mesh/material.
 /// </summary>
-public class GlobalTreeInstanceData : IComponentData
+public struct GlobalTreeInstanceData : IComponentData
 {
-    /// <summary>The mesh to render for this tree instance.</summary>
-    public Mesh mesh;
+    /// <summary>Index into the GlobalTreeRenderingData.meshes array.</summary>
+    public int meshIndex;
     
-    /// <summary>The material to use for rendering this tree instance.</summary>
-    public Material material;
+    /// <summary>Index into the GlobalTreeRenderingData.materials array.</summary>
+    public int materialIndex;
     
     /// <summary>Index of the tree prefab in the TreePrefabElement buffer (for debugging).</summary>
     public int prefabIndex;
+}
+
+/// <summary>
+/// Singleton managed component that stores mesh and material arrays for all tree types.
+/// This allows thousands of tree entities to reference these arrays via indices,
+/// dramatically reducing managed component lookups and enabling Burst compilation.
+/// Stored on the same entity as TreeSpawnerConfig.
+/// </summary>
+public class GlobalTreeRenderingData : IComponentData
+{
+    /// <summary>Array of unique meshes used by tree prefabs.</summary>
+    public Mesh[] meshes;
+    
+    /// <summary>Array of unique materials used by tree prefabs.</summary>
+    public Material[] materials;
 }
 

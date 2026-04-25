@@ -261,10 +261,11 @@ public partial class TerrainTreeSpawningSystem : SystemBase
             
             EntityManager.AddComponent<GlobalTreeInstance>(treeEntity);
             
+            // Use index-based approach for optimized rendering
             EntityManager.AddComponentData(treeEntity, new GlobalTreeInstanceData
             {
-                mesh = treeMeshes[prefabIndex],
-                material = treeMaterials[prefabIndex],
+                meshIndex = prefabIndex,
+                materialIndex = prefabIndex,
                 prefabIndex = prefabIndex
             });
             

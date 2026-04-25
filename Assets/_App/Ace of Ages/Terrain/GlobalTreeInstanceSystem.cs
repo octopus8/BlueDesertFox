@@ -55,8 +55,8 @@ public partial class GlobalTreeInstanceSystem : SystemBase
 
     protected override void OnCreate()
     {
-        // Don't use RequireForUpdate - we want to run even if no trees yet
-        // so we can detect when trees are spawned
+        // Require the tree spawner config (same entity has rendering data)
+        RequireForUpdate<TreeSpawnerConfig>();
     }
 
     protected override void OnUpdate()
@@ -67,35 +67,64 @@ public partial class GlobalTreeInstanceSystem : SystemBase
         _frameCount++;
 #endif
 
+        // Get singleton rendering data (ONE lookup instead of thousands)
+        var configEntity = SystemAPI.GetSingletonEntity<TreeSpawnerConfig>();
+        
+        // Check if GlobalTreeRenderingData exists
+        if (!EntityManager.HasComponent<GlobalTreeRenderingData>(configEntity))
+        {
+#if UNITY_EDITOR
+            CollectMarker.End();
+            ProfilerMarker.End();
+#endif
+            return;
+        }
+        
+        var renderingData = EntityManager.GetComponentData<GlobalTreeRenderingData>(configEntity);
+        
+        if (renderingData == null || renderingData.meshes == null || renderingData.materials == null)
+        {
+#if UNITY_EDITOR
+            CollectMarker.End();
+            ProfilerMarker.End();
+#endif
+            return;
+        }
+
         // Clear previous frame's batches
         foreach (var batch in _batches.Values)
         {
             batch.matrices.Clear();
         }
         
-        // OPTIMIZED: Use Entities.ForEach but assume GlobalTreeInstanceData exists (added during spawn)
+        // OPTIMIZED: Use index-based lookup with unmanaged component data
         int collected = 0;
         
         Entities
             .WithAll<GlobalTreeInstance>()
             .WithNone<Unity.Rendering.DisableRendering>()
-            .ForEach((Entity entity, in LocalTransform localTransform) =>
+            .ForEach((Entity entity, in LocalTransform localTransform, in GlobalTreeInstanceData instanceData) =>
             {
-                // Direct GetComponentData without HasComponent check (faster - we know it exists)
-                var instanceData = EntityManager.GetComponentData<GlobalTreeInstanceData>(entity);
-                
-                if (instanceData.mesh == null || instanceData.material == null)
+                // Validate indices
+                if (instanceData.meshIndex < 0 || instanceData.meshIndex >= renderingData.meshes.Length ||
+                    instanceData.materialIndex < 0 || instanceData.materialIndex >= renderingData.materials.Length)
                     return;
                 
-                var batchKey = new BatchKey { mesh = instanceData.mesh, material = instanceData.material };
+                var mesh = renderingData.meshes[instanceData.meshIndex];
+                var material = renderingData.materials[instanceData.materialIndex];
+                
+                if (mesh == null || material == null)
+                    return;
+                
+                var batchKey = new BatchKey { mesh = mesh, material = material };
                 
                 // Find or create batch for this mesh/material combination
                 if (!_batches.TryGetValue(batchKey, out TreeBatch batch))
                 {
                     batch = new TreeBatch
                     {
-                        mesh = instanceData.mesh,
-                        material = instanceData.material
+                        mesh = mesh,
+                        material = material
                     };
                     _batches[batchKey] = batch;
                 }

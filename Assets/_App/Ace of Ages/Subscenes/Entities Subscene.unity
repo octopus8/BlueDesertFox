@@ -5718,7 +5718,7 @@ MonoBehaviour:
   maxCollidersCreatedPerFrame: 3
   lodFullResolutionDistance: 256
   lodHalfResolutionDistance: 384
-  lodQuarterResolutionDistance: 512
+  lodQuarterResolutionDistance: 384
   maxColliderCacheMemoryMB: 50
   usePhysicsLODLayers: 1
   closeTerrainPhysicsLayer: 11

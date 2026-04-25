@@ -130,10 +130,17 @@ public class TreeSpawnerConfigAuthoring : MonoBehaviour
                 }
             }
             
-            // Add managed component with mesh/material data
+            // Add managed component with mesh/material data (legacy - still used by spawning system)
             if (validCount > 0)
             {
                 AddComponentObject(entity, new TreePrefabMeshMaterialData
+                {
+                    meshes = treeMeshes,
+                    materials = treeMaterials
+                });
+                
+                // Add new GlobalTreeRenderingData singleton for optimized rendering system
+                AddComponentObject(entity, new GlobalTreeRenderingData
                 {
                     meshes = treeMeshes,
                     materials = treeMaterials
