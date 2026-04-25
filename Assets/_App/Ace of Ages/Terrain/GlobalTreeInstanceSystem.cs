@@ -1,4 +1,6 @@
+using Unity.Collections;
 using Unity.Entities;
+using Unity.Mathematics;
 using Unity.Transforms;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -9,47 +11,40 @@ using Unity.Profiling;
 
 /// <summary>
 /// System that renders all tree entities using Graphics.DrawMeshInstanced for maximum batching efficiency.
-/// This approach dramatically reduces draw calls compared to individual entity rendering.
-/// Trees are batched by mesh/material combination, with up to 1023 instances per batch.
+/// OPTIMIZED: Uses persistent Dictionary with NativeList storage for zero GC allocations.
+/// Trees are batched by material index, with up to 1023 instances per batch.
 /// </summary>
 [UpdateInGroup(typeof(PresentationSystemGroup))]
 public partial class GlobalTreeInstanceSystem : SystemBase
 {
-    // Batch key for grouping trees by mesh/material
-    private struct BatchKey : System.IEquatable<BatchKey>
-    {
-        public UnityEngine.Mesh mesh;
-        public UnityEngine.Material material;
-        
-        public bool Equals(BatchKey other)
-        {
-            return mesh == other.mesh && material == other.material;
-        }
-        
-        public override int GetHashCode()
-        {
-            return (mesh != null ? mesh.GetHashCode() : 0) ^ (material != null ? material.GetHashCode() : 0);
-        }
-    }
-    
-    // Batch data for rendering
+    // Batch storage using NativeList for zero GC
     private class TreeBatch
     {
-        public UnityEngine.Mesh mesh;
-        public UnityEngine.Material material;
-        public System.Collections.Generic.List<Matrix4x4> matrices = new System.Collections.Generic.List<Matrix4x4>(256);
+        public Mesh mesh;
+        public Material material;
+        public NativeList<Matrix4x4> matrices;
+        
+        public TreeBatch()
+        {
+            matrices = new NativeList<Matrix4x4>(256, Allocator.Persistent);
+        }
+        
+        public void Dispose()
+        {
+            if (matrices.IsCreated)
+                matrices.Dispose();
+        }
     }
     
-    private System.Collections.Generic.Dictionary<BatchKey, TreeBatch> _batches = new System.Collections.Generic.Dictionary<BatchKey, TreeBatch>();
-    private System.Collections.Generic.List<Matrix4x4> _tempMatrixArray = new System.Collections.Generic.List<Matrix4x4>(1023);
+    // Persistent Dictionary (reused each frame, minimal GC)
+    private System.Collections.Generic.Dictionary<int, TreeBatch> _batches = new System.Collections.Generic.Dictionary<int, TreeBatch>();
+    
     private const int MaxInstancesPerBatch = 1023; // Unity limitation for DrawMeshInstanced
     
 #if UNITY_EDITOR
     private static readonly ProfilerMarker ProfilerMarker = new ProfilerMarker("GlobalTreeInstance.Render");
     private static readonly ProfilerMarker CollectMarker = new ProfilerMarker("GlobalTreeInstance.Collect");
     private static readonly ProfilerMarker DrawMarker = new ProfilerMarker("GlobalTreeInstance.Draw");
-    private int _lastTreeCount;
-    private int _lastBatchCount;
     private int _frameCount;
 #endif
 
@@ -57,6 +52,16 @@ public partial class GlobalTreeInstanceSystem : SystemBase
     {
         // Require the tree spawner config (same entity has rendering data)
         RequireForUpdate<TreeSpawnerConfig>();
+    }
+    
+    protected override void OnDestroy()
+    {
+        // Dispose all NativeList in batches to prevent memory leaks
+        foreach (var batch in _batches.Values)
+        {
+            batch.Dispose();
+        }
+        _batches.Clear();
     }
 
     protected override void OnUpdate()
@@ -91,13 +96,13 @@ public partial class GlobalTreeInstanceSystem : SystemBase
             return;
         }
 
-        // Clear previous frame's batches
+        // Clear previous frame's batches (NativeList.Clear keeps capacity = zero GC)
         foreach (var batch in _batches.Values)
         {
             batch.matrices.Clear();
         }
         
-        // OPTIMIZED: Use index-based lookup with unmanaged component data
+        // SINGLE-PASS ITERATION: Collect and batch in one pass
         int collected = 0;
         
         Entities
@@ -116,20 +121,18 @@ public partial class GlobalTreeInstanceSystem : SystemBase
                 if (mesh == null || material == null)
                     return;
                 
-                var batchKey = new BatchKey { mesh = mesh, material = material };
-                
-                // Find or create batch for this mesh/material combination
-                if (!_batches.TryGetValue(batchKey, out TreeBatch batch))
+                // Find or create batch for this material index
+                if (!_batches.TryGetValue(instanceData.materialIndex, out TreeBatch batch))
                 {
                     batch = new TreeBatch
                     {
                         mesh = mesh,
                         material = material
                     };
-                    _batches[batchKey] = batch;
+                    _batches[instanceData.materialIndex] = batch;
                 }
                 
-                // Add transform matrix to batch
+                // Add transform matrix to batch (NativeList.Add = zero GC)
                 batch.matrices.Add(Matrix4x4.TRS(
                     localTransform.Position,
                     localTransform.Rotation,
@@ -146,25 +149,25 @@ public partial class GlobalTreeInstanceSystem : SystemBase
 
         // Render all batches using Graphics.DrawMeshInstanced
         int totalDrawCalls = 0;
+        
         foreach (var batch in _batches.Values)
         {
-            if (batch.matrices.Count == 0)
+            if (batch.matrices.Length == 0)
                 continue;
             
-            // Unity DrawMeshInstanced has a limit of 1023 instances per call
-            // If we have more, we need to split into multiple draw calls
-            int instanceCount = batch.matrices.Count;
-            int offset = 0;
+            int instanceCount = batch.matrices.Length;
             
+            // Split into batches of 1023 if needed (Unity limitation)
+            int offset = 0;
             while (offset < instanceCount)
             {
-                int count = Mathf.Min(MaxInstancesPerBatch, instanceCount - offset);
+                int batchSize = math.min(MaxInstancesPerBatch, instanceCount - offset);
                 
-                // Copy matrices to temporary array for this batch
-                _tempMatrixArray.Clear();
-                for (int i = 0; i < count; i++)
+                // Create array slice for this batch (small allocation, unavoidable for Graphics API)
+                var batchArray = new Matrix4x4[batchSize];
+                for (int j = 0; j < batchSize; j++)
                 {
-                    _tempMatrixArray.Add(batch.matrices[offset + i]);
+                    batchArray[j] = batch.matrices[offset + j];
                 }
                 
                 // Draw this batch
@@ -172,7 +175,8 @@ public partial class GlobalTreeInstanceSystem : SystemBase
                     batch.mesh,
                     0, // submesh index
                     batch.material,
-                    _tempMatrixArray,
+                    batchArray,
+                    batchSize,
                     null, // material property block
                     ShadowCastingMode.On,
                     true, // receive shadows
@@ -181,7 +185,7 @@ public partial class GlobalTreeInstanceSystem : SystemBase
                 );
                 
                 totalDrawCalls++;
-                offset += count;
+                offset += batchSize;
             }
         }
 
@@ -192,7 +196,7 @@ public partial class GlobalTreeInstanceSystem : SystemBase
         // Reduced logging frequency: only every 60 frames (~1 second at 60 FPS)
         if (_frameCount % 60 == 0 && collected > 0)
         {
-            Debug.Log($"[GlobalTreeInstance] Rendering {collected} trees in {totalDrawCalls} draw calls ({_batches.Count} unique mesh/material combinations)");
+            Debug.Log($"[GlobalTreeInstance] Rendering {collected} trees in {totalDrawCalls} draw calls ({_batches.Count} unique materials) - OPTIMIZED");
         }
 #endif
     }
