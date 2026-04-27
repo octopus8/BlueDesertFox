@@ -5872,14 +5872,14 @@ MonoBehaviour:
     lod1: {fileID: 268780033425554496, guid: 5cfabf8fb09c20f49b7721a267c890b8, type: 3}
     lod2: {fileID: 4922588999693537203, guid: 1102ac1201d59f244ba5407dbaf9c0c1, type: 3}
   lod0Distance: 75
-  lod1Distance: 300
+  lod1Distance: 400
   lod2Distance: 600
   lodHysteresis: 5
-  minTreesPerTile: 50
-  maxTreesPerTile: 50
+  minTreesPerTile: 0
+  maxTreesPerTile: 100
   minSpawnHeight: -100
   maxSpawnHeight: 100
-  maxSlopeDegrees: 45
+  maxSlopeDegrees: 22.5
   maxTreesSpawnedPerFrame: 20
 --- !u!1 &1730959682
 GameObject:
