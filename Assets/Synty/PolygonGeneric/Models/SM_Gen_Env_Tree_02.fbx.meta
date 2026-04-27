@@ -1,7 +1,14 @@
 fileFormatVersion: 2
 guid: e2e60a97507aac14a8f616d5f5076d94
+AssetOrigin:
+  serializedVersion: 1
+  productId: 85664
+  packageName: POLYGON - Vikings Pack - Art by Synty
+  packageVersion: 1.5.0
+  assetPath: Assets/Synty/PolygonGeneric/Models/SM_Gen_Env_Tree_02.fbx
+  uploadId: 883992
 ModelImporter:
-  serializedVersion: 21300
+  serializedVersion: 24200
   internalIDToNameTable: []
   externalObjects: {}
   materials:
@@ -16,8 +23,6 @@ ModelImporter:
     optimizeGameObjects: 0
     removeConstantScaleCurves: 1
     motionNodeName: 
-    rigImportErrors: 
-    rigImportWarnings: 
     animationImportErrors: 
     animationImportWarnings: 
     animationRetargetingWarnings: 
@@ -40,6 +45,7 @@ ModelImporter:
     addColliders: 0
     useSRGBMaterialColor: 1
     sortHierarchyByName: 1
+    importPhysicalCameras: 1
     importVisibility: 0
     importBlendShapes: 0
     importCameras: 0
@@ -57,6 +63,9 @@ ModelImporter:
     maxBonesPerVertex: 4
     minBoneWeight: 0.001
     optimizeBones: 1
+    generateMeshLods: 1
+    meshLodGenerationFlags: 0
+    maximumMeshLod: -1
     meshOptimizationFlags: -3
     indexFormat: 0
     secondaryUVAngleDistortion: 8
@@ -67,6 +76,7 @@ ModelImporter:
     secondaryUVMinObjectScale: 1
     secondaryUVPackMargin: 4
     useFileScale: 1
+    strictVertexDataChecks: 0
   tangentSpace:
     normalSmoothAngle: 3
     normalImportMode: 1
@@ -99,15 +109,9 @@ ModelImporter:
   humanoidOversampling: 1
   avatarSetup: 0
   addHumanoidExtraRootOnlyWhenUsingAvatar: 1
+  importBlendShapeDeformPercent: 0
   remapMaterialsIfMaterialImportModeIsNone: 0
   additionalBone: 0
   userData: 
   assetBundleName: 
   assetBundleVariant: 
-AssetOrigin:
-  serializedVersion: 1
-  productId: 85664
-  packageName: POLYGON - Vikings Pack - Art by Synty
-  packageVersion: 1.5.0
-  assetPath: Assets/Synty/PolygonGeneric/Models/SM_Gen_Env_Tree_02.fbx
-  uploadId: 883992

@@ -61,7 +61,15 @@ public partial class TerrainTreeSpawningSystem : SystemBase
             return;
         }
         
+        // Calculate number of tree types (3 LODs per type)
         var treePrefabCount = treePrefabsBuffer.Length;
+        var treeTypeCount = treePrefabCount / 3; // 3 LODs per tree type
+        
+        if (treeTypeCount == 0)
+        {
+            return;
+        }
+        
         var treePrefabs = new NativeArray<Entity>(treePrefabCount, Allocator.Temp);
         
         var treeMeshes = meshMaterialData.meshes;
@@ -70,6 +78,24 @@ public partial class TerrainTreeSpawningSystem : SystemBase
         for (int i = 0; i < treePrefabCount; i++)
         {
             treePrefabs[i] = treePrefabsBuffer[i].prefabEntity;
+        }
+        
+        // Get LOD config if available
+        TreeLODConfig lodConfig = default;
+        bool hasLODConfig = SystemAPI.HasSingleton<TreeLODConfig>();
+        if (hasLODConfig)
+        {
+            lodConfig = SystemAPI.GetSingleton<TreeLODConfig>();
+        }
+        
+        // Get player position for initial LOD calculation
+        float3 playerPosition = float3.zero;
+        bool hasPlayerRef = false;
+        if (SystemAPI.ManagedAPI.TryGetSingleton<PlayerTransformReference>(out var playerRef) &&
+            playerRef != null && playerRef.playerTransform != null)
+        {
+            playerPosition = playerRef.playerTransform.position;
+            hasPlayerRef = true;
         }
         
         foreach (var (tile, entity) in SystemAPI.Query<RefRO<TerrainTile>>()
@@ -120,9 +146,32 @@ public partial class TerrainTreeSpawningSystem : SystemBase
         if (prefabCount == 0)
             return 0;
         
+        // Calculate tree type count (3 LODs per type)
+        int treeTypeCount = prefabCount / 3;
+        if (treeTypeCount == 0)
+            return 0;
+        
         var tile = EntityManager.GetComponentData<TerrainTile>(tileEntity);
         var tileTransform = EntityManager.GetComponentData<LocalTransform>(tileEntity);
         var terrainConfig = SystemAPI.GetSingleton<TerrainTileConfig>();
+        
+        // Get LOD config and player position for initial LOD calculation
+        TreeLODConfig lodConfig = default;
+        float3 playerPosition = float3.zero;
+        bool hasLODConfig = SystemAPI.HasSingleton<TreeLODConfig>();
+        bool hasPlayerRef = false;
+        
+        if (hasLODConfig)
+        {
+            lodConfig = SystemAPI.GetSingleton<TreeLODConfig>();
+        }
+        
+        if (SystemAPI.ManagedAPI.TryGetSingleton<PlayerTransformReference>(out var playerRef) &&
+            playerRef != null && playerRef.playerTransform != null)
+        {
+            playerPosition = playerRef.playerTransform.position;
+            hasPlayerRef = true;
+        }
         
         if (!EntityManager.HasBuffer<SpawnedTreeReference>(tileEntity))
         {
@@ -214,8 +263,12 @@ public partial class TerrainTreeSpawningSystem : SystemBase
             if (normal.y < config.slopeThreshold)
                 continue;
             
-            int prefabIndex = random.NextInt(0, prefabCount);
-            Entity treePrefab = treePrefabs[prefabIndex];
+            // Select tree type (not individual LOD prefab)
+            int treeTypeIndex = random.NextInt(0, treeTypeCount);
+            
+            // Always spawn with LOD0 prefab (highest detail)
+            int prefabIndexLOD0 = treeTypeIndex * 3 + 0;
+            Entity treePrefab = treePrefabs[prefabIndexLOD0];
             
             Entity treeEntity = EntityManager.Instantiate(treePrefab);
             
@@ -261,12 +314,38 @@ public partial class TerrainTreeSpawningSystem : SystemBase
             
             EntityManager.AddComponent<GlobalTreeInstance>(treeEntity);
             
+            // Calculate initial LOD based on distance to player
+            byte initialLODLevel = 0; // Default to highest detail
+            float initialDistance = 0f;
+            
+            if (hasPlayerRef && hasLODConfig)
+            {
+                // Calculate 2D distance from tree to player
+                float2 treePos2D = new float2(worldPosition.x, worldPosition.z);
+                float2 playerPos2D = new float2(playerPosition.x, playerPosition.z);
+                initialDistance = math.distance(treePos2D, playerPos2D);
+                
+                // Determine initial LOD level based on distance
+                if (initialDistance >= lodConfig.lod1Distance)
+                    initialLODLevel = 2; // Farthest: LOD2
+                else if (initialDistance >= lodConfig.lod0Distance)
+                    initialLODLevel = 1; // Medium: LOD1
+                else
+                    initialLODLevel = 0; // Closest: LOD0
+            }
+            
+            // Calculate mesh index based on tree type and initial LOD
+            int initialMeshIndex = (treeTypeIndex * 3) + initialLODLevel;
+            
             // Use index-based approach for optimized rendering
             EntityManager.AddComponentData(treeEntity, new GlobalTreeInstanceData
             {
-                meshIndex = prefabIndex,
-                materialIndex = prefabIndex,
-                prefabIndex = prefabIndex
+                meshIndex = initialMeshIndex,
+                materialIndex = initialMeshIndex,
+                prefabIndex = prefabIndexLOD0, // Store LOD0 prefab index for reference
+                treeTypeIndex = treeTypeIndex,
+                currentLODLevel = initialLODLevel,
+                lastDistanceToPlayer = initialDistance
             });
             
             tempSpawnedTrees.Add(treeEntity);

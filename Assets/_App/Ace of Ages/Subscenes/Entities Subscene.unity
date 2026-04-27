@@ -5794,7 +5794,7 @@ MonoBehaviour:
   noiseLacunarity: 2
   noisePersistence: 0.4
   terrainMaterial: {fileID: 2100000, guid: dc12ba763b59e3a4586cb235c2a074fc, type: 2}
-  renderTerrain: 1
+  renderTerrain: 0
   visualizeColliders: 0
   maxCollidersCreatedPerFrame: 3
   lodFullResolutionDistance: 256
@@ -5868,8 +5868,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::TreeSpawnerConfigAuthoring
   treePrefabs:
   - {fileID: 1880130991530675682, guid: 80855f484516335468ca4c9c49937f3a, type: 3}
-  minTreesPerTile: 0
-  maxTreesPerTile: 0
+  minTreesPerTile: 25
+  maxTreesPerTile: 25
   minSpawnHeight: -100
   maxSpawnHeight: 100
   maxSlopeDegrees: 45

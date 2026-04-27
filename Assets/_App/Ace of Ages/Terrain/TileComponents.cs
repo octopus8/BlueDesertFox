@@ -375,6 +375,50 @@ public struct GlobalTreeInstanceData : IComponentData
     
     /// <summary>Index of the tree prefab in the TreePrefabElement buffer (for debugging).</summary>
     public int prefabIndex;
+    
+    /// <summary>Tree type index (0 to N-1 where N is number of tree types). Used to calculate LOD mesh indices.</summary>
+    public int treeTypeIndex;
+    
+    /// <summary>Current LOD level (0=highest detail, 2=lowest detail).</summary>
+    public byte currentLODLevel;
+    
+    /// <summary>Last calculated distance to player (used for LOD hysteresis).</summary>
+    public float lastDistanceToPlayer;
+}
+
+/// <summary>
+/// Singleton configuration for tree mesh LOD system.
+/// Controls distance-based LOD switching with hysteresis to prevent flickering.
+/// </summary>
+public struct TreeLODConfig : IComponentData
+{
+    /// <summary>Distance threshold for LOD0->LOD1 transition (meters).</summary>
+    public float lod0Distance;
+    
+    /// <summary>Distance threshold for LOD1->LOD2 transition (meters).</summary>
+    public float lod1Distance;
+    
+    /// <summary>Distance beyond which trees use LOD2 (meters).</summary>
+    public float lod2Distance;
+    
+    /// <summary>Hysteresis buffer to prevent LOD flickering (meters). Adds/subtracts from thresholds.</summary>
+    public float hysteresisDelta;
+    
+    /// <summary>Number of LOD levels per tree type (hardcoded to 3).</summary>
+    public int lodsPerTreeType;
+    
+    /// <summary>Maximum number of spatial chunks to update per frame for LOD calculations.</summary>
+    public int maxChunksUpdatedPerFrame;
+}
+
+/// <summary>
+/// Component tracking which spatial chunk a tree belongs to for efficient LOD updates.
+/// Chunks are 100m x 100m grid cells used to batch LOD update calculations.
+/// </summary>
+public struct TreeChunkMembership : IComponentData
+{
+    /// <summary>2D chunk coordinate (X, Z grid position).</summary>
+    public int2 chunkCoord;
 }
 
 /// <summary>
