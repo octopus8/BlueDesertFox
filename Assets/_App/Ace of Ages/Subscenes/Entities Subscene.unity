@@ -290,7 +290,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!4 &263055123
 Transform:
   m_ObjectHideFlags: 0
@@ -398,6 +398,10 @@ PrefabInstance:
     - target: {fileID: 919132149155446097, guid: 87f4999611a81074d84b81fdce75df7b, type: 3}
       propertyPath: m_Name
       value: Horizon
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: 87f4999611a81074d84b81fdce75df7b, type: 3}
+      propertyPath: m_IsActive
+      value: 0
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -5553,8 +5557,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::GridSpawnerAuthoring
   prefab: {fileID: 1880130991530675682, guid: 6b5cd3b0c50436a4db8637775a75d6ad, type: 3}
-  gridSize: 75
-  spacing: 2
+  gridSize: 16
+  spacing: 5
   zPosition: 100
 --- !u!4 &1371828255
 Transform:
@@ -5864,8 +5868,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::TreeSpawnerConfigAuthoring
   treePrefabs:
   - {fileID: 1880130991530675682, guid: 80855f484516335468ca4c9c49937f3a, type: 3}
-  minTreesPerTile: 0
-  maxTreesPerTile: 100
+  minTreesPerTile: 25
+  maxTreesPerTile: 25
   minSpawnHeight: -100
   maxSpawnHeight: 100
   maxSlopeDegrees: 45
