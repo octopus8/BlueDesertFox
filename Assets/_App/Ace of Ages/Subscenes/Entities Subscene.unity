@@ -5875,8 +5875,8 @@ MonoBehaviour:
   lod1Distance: 400
   lod2Distance: 600
   lodHysteresis: 5
-  minTreesPerTile: 0
-  maxTreesPerTile: 100
+  minTreesPerTile: 200
+  maxTreesPerTile: 200
   minSpawnHeight: -100
   maxSpawnHeight: 100
   maxSlopeDegrees: 22.5
