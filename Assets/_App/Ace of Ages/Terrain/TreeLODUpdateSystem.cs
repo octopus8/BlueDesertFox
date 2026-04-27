@@ -55,7 +55,7 @@ public partial struct TreeLODUpdateSystem : ISystem
             _activeChunksSet.Dispose();
     }
 
-    [BurstCompile]
+    // NOTE: Cannot use [BurstCompile] here because we access managed PlayerTransformReference component
     public void OnUpdate(ref SystemState state)
     {
 #if UNITY_EDITOR
@@ -88,7 +88,8 @@ public partial struct TreeLODUpdateSystem : ISystem
             return;
         }
         
-        int2 playerChunk = GetChunkCoord(playerPosition);
+        int2 playerChunk;
+        GetChunkCoord(in playerPosition, out playerChunk);
         
         // Build list of chunks to update this frame
         _activeChunks.Clear();
@@ -259,9 +260,9 @@ public partial struct TreeLODUpdateSystem : ISystem
     /// Calculate chunk coordinate from world position.
     /// </summary>
     [BurstCompile]
-    private static int2 GetChunkCoord(float3 worldPos)
+    private static void GetChunkCoord(in float3 worldPos, out int2 result)
     {
-        return new int2(
+        result = new int2(
             (int)math.floor(worldPos.x / ChunkSize),
             (int)math.floor(worldPos.z / ChunkSize)
         );
