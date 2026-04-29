@@ -1,3 +1,5 @@
+using Unity.Burst;
+using Unity.Collections;
 using Unity.Entities;
 using Unity.Transforms;
 using UnityEngine;
@@ -11,6 +13,7 @@ using Unity.Profiling;
 /// System that renders all tree entities using Graphics.DrawMeshInstanced for maximum batching efficiency.
 /// This approach dramatically reduces draw calls compared to individual entity rendering.
 /// Trees are batched by mesh/material combination, with up to 1023 instances per batch.
+/// OPTIMIZED: Uses Burst-compiled parallel jobs for collecting tree matrices across multiple CPU cores.
 /// </summary>
 [UpdateInGroup(typeof(PresentationSystemGroup))]
 public partial class GlobalTreeInstanceSystem : SystemBase
@@ -32,6 +35,39 @@ public partial class GlobalTreeInstanceSystem : SystemBase
         }
     }
     
+    /// <summary>
+    /// Burst-compiled parallel job that collects tree transform matrices into batches.
+    /// Processes thousands of trees across multiple CPU cores for maximum performance.
+    /// </summary>
+    [BurstCompile]
+    private partial struct CollectTreeMatricesJob : IJobEntity
+    {
+        public NativeParallelMultiHashMap<int, Matrix4x4>.ParallelWriter BatchMatrices;
+        public int MeshArrayLength;
+        public int MaterialArrayLength;
+        
+        private void Execute(in LocalTransform transform, in GlobalTreeInstanceData instanceData)
+        {
+            // Validate indices
+            if (instanceData.meshIndex < 0 || instanceData.meshIndex >= MeshArrayLength ||
+                instanceData.materialIndex < 0 || instanceData.materialIndex >= MaterialArrayLength)
+                return;
+            
+            // Calculate batch key: meshIndex * 1000 + materialIndex
+            // Safe for <1000 materials per mesh type
+            int batchKey = instanceData.meshIndex * 1000 + instanceData.materialIndex;
+            
+            // Add transform matrix to batch
+            var matrix = Matrix4x4.TRS(
+                transform.Position,
+                transform.Rotation,
+                new Vector3(transform.Scale, transform.Scale, transform.Scale)
+            );
+            
+            BatchMatrices.Add(batchKey, matrix);
+        }
+    }
+    
     // Batch data for rendering
     private class TreeBatch
     {
@@ -40,14 +76,17 @@ public partial class GlobalTreeInstanceSystem : SystemBase
         public System.Collections.Generic.List<Matrix4x4> matrices = new System.Collections.Generic.List<Matrix4x4>(256);
     }
     
-    private System.Collections.Generic.Dictionary<BatchKey, TreeBatch> _batches = new System.Collections.Generic.Dictionary<BatchKey, TreeBatch>();
-    private System.Collections.Generic.List<Matrix4x4> _tempMatrixArray = new System.Collections.Generic.List<Matrix4x4>(1023);
+    private NativeParallelMultiHashMap<int, Matrix4x4> _batchMatrices;
+    private System.Collections.Generic.Dictionary<BatchKey, TreeBatch> _batches;
+    private Matrix4x4[] _renderMatrixArray;
+    private EntityQuery _treeQuery;
     private const int MaxInstancesPerBatch = 1023; // Unity limitation for DrawMeshInstanced
     
 #if UNITY_EDITOR
     private static readonly ProfilerMarker ProfilerMarker = new ProfilerMarker("GlobalTreeInstance.Render");
     private static readonly ProfilerMarker CollectMarker = new ProfilerMarker("GlobalTreeInstance.Collect");
     private static readonly ProfilerMarker DrawMarker = new ProfilerMarker("GlobalTreeInstance.Draw");
+    private static readonly ProfilerMarker ConvertMarker = new ProfilerMarker("GlobalTreeInstance.Convert");
     private int _lastTreeCount;
     private int _lastBatchCount;
     private int _frameCount;
@@ -57,6 +96,26 @@ public partial class GlobalTreeInstanceSystem : SystemBase
     {
         // Require the tree spawner config (same entity has rendering data)
         RequireForUpdate<TreeSpawnerConfig>();
+        
+        // Create entity query for tree counting
+        _treeQuery = GetEntityQuery(
+            ComponentType.ReadOnly<GlobalTreeInstance>(),
+            ComponentType.ReadOnly<LocalTransform>(),
+            ComponentType.ReadOnly<GlobalTreeInstanceData>()
+        );
+        
+        // Initialize native collections with larger capacity
+        // Increased from 1000 to 10000 to handle more trees
+        _batchMatrices = new NativeParallelMultiHashMap<int, Matrix4x4>(10000, Allocator.Persistent);
+        _batches = new System.Collections.Generic.Dictionary<BatchKey, TreeBatch>();
+        _renderMatrixArray = new Matrix4x4[MaxInstancesPerBatch];
+    }
+    
+    protected override void OnDestroy()
+    {
+        // Dispose native collections
+        if (_batchMatrices.IsCreated)
+            _batchMatrices.Dispose();
     }
 
     protected override void OnUpdate()
@@ -91,56 +150,102 @@ public partial class GlobalTreeInstanceSystem : SystemBase
             return;
         }
 
+        // Count trees to ensure hashmap has enough capacity
+        int treeCount = _treeQuery.CalculateEntityCount();
+        
+        // Resize hashmap if needed (with 20% buffer for safety)
+        int requiredCapacity = (int)(treeCount * 1.2f);
+        if (_batchMatrices.Capacity < requiredCapacity)
+        {
+            _batchMatrices.Dispose();
+            _batchMatrices = new NativeParallelMultiHashMap<int, Matrix4x4>(requiredCapacity, Allocator.Persistent);
+#if UNITY_EDITOR
+            Debug.Log($"[GlobalTreeInstance] Resized hashmap to capacity {requiredCapacity} for {treeCount} trees");
+#endif
+        }
+
+        // Clear native hash map from previous frame
+        _batchMatrices.Clear();
+        
+        // Schedule parallel Burst-compiled job to collect tree matrices
+        var collectJob = new CollectTreeMatricesJob
+        {
+            BatchMatrices = _batchMatrices.AsParallelWriter(),
+            MeshArrayLength = renderingData.meshes.Length,
+            MaterialArrayLength = renderingData.materials.Length
+        };
+        
+        Dependency = collectJob.ScheduleParallel(Dependency);
+        
+        // Complete job before accessing results
+        Dependency.Complete();
+
+#if UNITY_EDITOR
+        CollectMarker.End();
+        ConvertMarker.Begin();
+#endif
+
+        // Convert NativeMultiHashMap to rendering batches
         // Clear previous frame's batches
         foreach (var batch in _batches.Values)
         {
             batch.matrices.Clear();
         }
         
-        // OPTIMIZED: Use index-based lookup with unmanaged component data
+        // Get all unique batch keys
+        var batchKeys = _batchMatrices.GetKeyArray(Allocator.Temp);
+        var uniqueKeys = new NativeHashSet<int>(batchKeys.Length, Allocator.Temp);
+        
+        foreach (var key in batchKeys)
+        {
+            uniqueKeys.Add(key);
+        }
+        
         int collected = 0;
         
-        Entities
-            .WithAll<GlobalTreeInstance>()
-            .WithNone<Unity.Rendering.DisableRendering>()
-            .ForEach((Entity entity, in LocalTransform localTransform, in GlobalTreeInstanceData instanceData) =>
+        // For each unique batch key, resolve mesh/material and collect matrices
+        foreach (var batchKey in uniqueKeys)
+        {
+            // Extract mesh and material indices from batch key
+            int meshIndex = batchKey / 1000;
+            int materialIndex = batchKey % 1000;
+            
+            var mesh = renderingData.meshes[meshIndex];
+            var material = renderingData.materials[materialIndex];
+            
+            if (mesh == null || material == null)
+                continue;
+            
+            var key = new BatchKey { mesh = mesh, material = material };
+            
+            // Find or create batch
+            if (!_batches.TryGetValue(key, out TreeBatch batch))
             {
-                // Validate indices
-                if (instanceData.meshIndex < 0 || instanceData.meshIndex >= renderingData.meshes.Length ||
-                    instanceData.materialIndex < 0 || instanceData.materialIndex >= renderingData.materials.Length)
-                    return;
-                
-                var mesh = renderingData.meshes[instanceData.meshIndex];
-                var material = renderingData.materials[instanceData.materialIndex];
-                
-                if (mesh == null || material == null)
-                    return;
-                
-                var batchKey = new BatchKey { mesh = mesh, material = material };
-                
-                // Find or create batch for this mesh/material combination
-                if (!_batches.TryGetValue(batchKey, out TreeBatch batch))
+                batch = new TreeBatch
                 {
-                    batch = new TreeBatch
-                    {
-                        mesh = mesh,
-                        material = material
-                    };
-                    _batches[batchKey] = batch;
+                    mesh = mesh,
+                    material = material
+                };
+                _batches[key] = batch;
+            }
+            
+            // Collect all matrices for this batch key
+            if (_batchMatrices.TryGetFirstValue(batchKey, out var matrix, out var iterator))
+            {
+                do
+                {
+                    batch.matrices.Add(matrix);
+                    collected++;
                 }
-                
-                // Add transform matrix to batch
-                batch.matrices.Add(Matrix4x4.TRS(
-                    localTransform.Position,
-                    localTransform.Rotation,
-                    new Vector3(localTransform.Scale, localTransform.Scale, localTransform.Scale)
-                ));
-                
-                collected++;
-            }).WithoutBurst().Run();
+                while (_batchMatrices.TryGetNextValue(out matrix, ref iterator));
+            }
+        }
+        
+        batchKeys.Dispose();
+        uniqueKeys.Dispose();
 
 #if UNITY_EDITOR
-        CollectMarker.End();
+        ConvertMarker.End();
         DrawMarker.Begin();
 #endif
 
@@ -160,11 +265,10 @@ public partial class GlobalTreeInstanceSystem : SystemBase
             {
                 int count = Mathf.Min(MaxInstancesPerBatch, instanceCount - offset);
                 
-                // Copy matrices to temporary array for this batch
-                _tempMatrixArray.Clear();
+                // Copy matrices to pre-allocated array
                 for (int i = 0; i < count; i++)
                 {
-                    _tempMatrixArray.Add(batch.matrices[offset + i]);
+                    _renderMatrixArray[i] = batch.matrices[offset + i];
                 }
                 
                 // Draw this batch
@@ -172,7 +276,8 @@ public partial class GlobalTreeInstanceSystem : SystemBase
                     batch.mesh,
                     0, // submesh index
                     batch.material,
-                    _tempMatrixArray,
+                    _renderMatrixArray,
+                    count, // number of instances to render
                     null, // material property block
                     ShadowCastingMode.On,
                     true, // receive shadows
