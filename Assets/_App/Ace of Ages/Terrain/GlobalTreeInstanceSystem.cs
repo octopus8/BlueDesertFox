@@ -1,6 +1,7 @@
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Entities;
+using Unity.Mathematics;
 using Unity.Transforms;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -38,6 +39,7 @@ public partial class GlobalTreeInstanceSystem : SystemBase
     /// <summary>
     /// Burst-compiled parallel job that collects tree transform matrices into batches.
     /// Processes thousands of trees across multiple CPU cores for maximum performance.
+    /// OPTIMIZED: Includes frustum culling to skip trees outside camera view.
     /// </summary>
     [BurstCompile]
     private partial struct CollectTreeMatricesJob : IJobEntity
@@ -46,12 +48,37 @@ public partial class GlobalTreeInstanceSystem : SystemBase
         public int MeshArrayLength;
         public int MaterialArrayLength;
         
+        [ReadOnly] public NativeArray<float4> FrustumPlanes;
+        public bool EnableFrustumCulling;
+        
         private void Execute(in LocalTransform transform, in GlobalTreeInstanceData instanceData)
         {
             // Validate indices
             if (instanceData.meshIndex < 0 || instanceData.meshIndex >= MeshArrayLength ||
                 instanceData.materialIndex < 0 || instanceData.materialIndex >= MaterialArrayLength)
                 return;
+            
+            // Frustum culling: Test if tree is visible
+            if (EnableFrustumCulling && FrustumPlanes.Length == 6)
+            {
+                float3 treePos = transform.Position;
+                float treeRadius = transform.Scale * 10f; // Estimate: 10m radius for typical tree
+                
+                // Test against all 6 frustum planes
+                for (int i = 0; i < 6; i++)
+                {
+                    float4 plane = FrustumPlanes[i];
+                    float3 planeNormal = plane.xyz;
+                    float planeDistance = plane.w;
+                    
+                    // Distance from point to plane
+                    float dist = math.dot(planeNormal, treePos) + planeDistance;
+                    
+                    // If tree is completely outside this plane, skip it
+                    if (dist < -treeRadius)
+                        return;
+                }
+            }
             
             // Calculate batch key: meshIndex * 1000 + materialIndex
             // Safe for <1000 materials per mesh type
@@ -80,6 +107,8 @@ public partial class GlobalTreeInstanceSystem : SystemBase
     private System.Collections.Generic.Dictionary<BatchKey, TreeBatch> _batches;
     private Matrix4x4[] _renderMatrixArray;
     private EntityQuery _treeQuery;
+    private Plane[] _frustumPlanes = new Plane[6];
+    private Camera _mainCamera;
     private const int MaxInstancesPerBatch = 1023; // Unity limitation for DrawMeshInstanced
     
 #if UNITY_EDITOR
@@ -103,6 +132,9 @@ public partial class GlobalTreeInstanceSystem : SystemBase
             ComponentType.ReadOnly<LocalTransform>(),
             ComponentType.ReadOnly<GlobalTreeInstanceData>()
         );
+        
+        // Cache main camera for frustum culling
+        _mainCamera = Camera.main;
         
         // Initialize native collections with larger capacity
         // Increased from 1000 to 10000 to handle more trees
@@ -167,18 +199,47 @@ public partial class GlobalTreeInstanceSystem : SystemBase
         // Clear native hash map from previous frame
         _batchMatrices.Clear();
         
+        // Calculate frustum planes for culling
+        bool enableCulling = false;
+        NativeArray<float4> frustumPlanesNative;
+        
+        if (_mainCamera != null)
+        {
+            GeometryUtility.CalculateFrustumPlanes(_mainCamera, _frustumPlanes);
+            
+            // Convert to NativeArray for Burst job
+            frustumPlanesNative = new NativeArray<float4>(6, Allocator.TempJob);
+            for (int i = 0; i < 6; i++)
+            {
+                var plane = _frustumPlanes[i];
+                frustumPlanesNative[i] = new float4(plane.normal.x, plane.normal.y, plane.normal.z, plane.distance);
+            }
+            enableCulling = true;
+        }
+        else
+        {
+            // Create empty array if no camera (job requires constructed NativeArray)
+            frustumPlanesNative = new NativeArray<float4>(0, Allocator.TempJob);
+        }
+        
         // Schedule parallel Burst-compiled job to collect tree matrices
         var collectJob = new CollectTreeMatricesJob
         {
             BatchMatrices = _batchMatrices.AsParallelWriter(),
             MeshArrayLength = renderingData.meshes.Length,
-            MaterialArrayLength = renderingData.materials.Length
+            MaterialArrayLength = renderingData.materials.Length,
+            FrustumPlanes = frustumPlanesNative,
+            EnableFrustumCulling = enableCulling
         };
         
         Dependency = collectJob.ScheduleParallel(Dependency);
         
         // Complete job before accessing results
         Dependency.Complete();
+        
+        // Dispose temporary frustum planes array
+        if (frustumPlanesNative.IsCreated)
+            frustumPlanesNative.Dispose();
 
 #if UNITY_EDITOR
         CollectMarker.End();
