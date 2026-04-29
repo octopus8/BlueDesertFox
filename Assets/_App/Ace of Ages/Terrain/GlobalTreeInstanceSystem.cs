@@ -202,7 +202,12 @@ public partial class GlobalTreeInstanceSystem : SystemBase
         // Calculate frustum planes for culling
         bool enableCulling = false;
         NativeArray<float4> frustumPlanesNative;
-        
+
+        if (_mainCamera == null)
+        {
+            _mainCamera = Camera.main;
+        }
+
         if (_mainCamera != null)
         {
             GeometryUtility.CalculateFrustumPlanes(_mainCamera, _frustumPlanes);
