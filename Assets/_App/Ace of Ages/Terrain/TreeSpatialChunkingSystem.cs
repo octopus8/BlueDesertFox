@@ -20,13 +20,14 @@ public partial struct TreeSpatialChunkingSystem : ISystem
     public void OnCreate(ref SystemState state)
     {
         state.RequireForUpdate<TreeLODConfig>();
-        state.RequireForUpdate<BeginSimulationEntityCommandBufferSystem.Singleton>();
+        state.RequireForUpdate<EndSimulationEntityCommandBufferSystem.Singleton>();
     }
 
     public void OnUpdate(ref SystemState state)
     {
-        // Get EntityCommandBuffer from singleton system
-        var ecbSingleton = SystemAPI.GetSingleton<BeginSimulationEntityCommandBufferSystem.Singleton>();
+        // Use EndSimulationECB to ensure playback happens in same frame as job execution
+        // This prevents race conditions where entities are destroyed before ECB playback
+        var ecbSingleton = SystemAPI.GetSingleton<EndSimulationEntityCommandBufferSystem.Singleton>();
         var ecb = ecbSingleton.CreateCommandBuffer(state.WorldUnmanaged);
         
         // Job 1: Assign chunk membership to new trees (parallel)
@@ -43,8 +44,11 @@ public partial struct TreeSpatialChunkingSystem : ISystem
     
     /// <summary>
     /// Burst-compiled job that assigns chunk membership to trees that don't have it yet.
+    /// Explicitly excludes entities that already have TreeChunkMembership to prevent race conditions
+    /// where entities are destroyed between job scheduling and ECB playback.
     /// </summary>
     [BurstCompile]
+    [WithNone(typeof(TreeChunkMembership))]
     private partial struct AssignChunkJob : IJobEntity
     {
         public EntityCommandBuffer.ParallelWriter ecb;
@@ -53,7 +57,7 @@ public partial struct TreeSpatialChunkingSystem : ISystem
                             in LocalTransform transform,
                             in GlobalTreeInstance _)
         {
-            int2 chunkCoord = GetChunkCoord(transform.Position);
+            GetChunkCoord(in transform.Position, out int2 chunkCoord);
             ecb.AddComponent(chunkIndex, entity, new TreeChunkMembership
             {
                 chunkCoord = chunkCoord
@@ -71,7 +75,7 @@ public partial struct TreeSpatialChunkingSystem : ISystem
                             ref TreeChunkMembership chunkMembership,
                             in GlobalTreeInstance _)
         {
-            int2 currentChunk = GetChunkCoord(transform.Position);
+            GetChunkCoord(in transform.Position, out int2 currentChunk);
             
             // Cache-friendly: only write if changed
             if (!math.all(currentChunk == chunkMembership.chunkCoord))
@@ -85,13 +89,12 @@ public partial struct TreeSpatialChunkingSystem : ISystem
     /// Calculate chunk coordinate from world position.
     /// </summary>
     [BurstCompile]
-    private static int2 GetChunkCoord(float3 worldPos)
+    private static void GetChunkCoord(in float3 worldPos, out int2 result)
     {
-        return new int2(
+        result = new int2(
             (int)math.floor(worldPos.x / ChunkSize),
             (int)math.floor(worldPos.z / ChunkSize)
         );
     }
 }
-
 
