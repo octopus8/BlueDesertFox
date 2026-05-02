@@ -148,9 +148,10 @@ public partial struct TreeLODUpdateSystem : ISystem
         
 #if UNITY_EDITOR
         s_ProfilerMarker.Data.End();
+#endif
         
         // Log periodically (must complete job first for accurate count)
-        if (_frameCounter % 120 == 0)
+        if (lodConfig.enableTreeLODDebug && _frameCounter % 120 == 0)
         {
             state.Dependency.Complete();
             // Get tree count for logging
@@ -158,7 +159,6 @@ public partial struct TreeLODUpdateSystem : ISystem
             int totalTrees = query.CalculateEntityCount();
             UnityEngine.Debug.Log($"[TreeLOD] Processing up to {MaxTreesPerFrame} trees/frame from {_activeChunks.Length} chunks (total: {totalTrees} trees)");
         }
-#endif
     }
     
     /// <summary>

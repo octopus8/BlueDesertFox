@@ -50,6 +50,12 @@ public partial struct TerrainMeshGenerationSystem : ISystem
         {
             var config = SystemAPI.GetSingleton<TerrainTileConfig>();
             
+            // Early exit if rendering is disabled - no need to generate meshes
+            if (!config.renderTerrain)
+            {
+                return;
+            }
+            
             // Get player/camera position and forward direction for priority calculation
             float3 cameraPosition = float3.zero;
             float3 cameraForward = new float3(0, 0, 1); // Default forward if no camera

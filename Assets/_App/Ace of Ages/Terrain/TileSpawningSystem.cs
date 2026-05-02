@@ -38,6 +38,12 @@ public partial struct TileSpawningSystem : ISystem
     {
         var config = SystemAPI.GetSingleton<TerrainTileConfig>();
         
+        // Early exit if both rendering and physics are disabled - no need to spawn tiles
+        if (!config.renderTerrain && !config.enablePhysicsColliders)
+        {
+            return;
+        }
+        
         // Get the player transform reference (managed component, cannot use Burst)
         var playerRef = SystemAPI.ManagedAPI.GetSingleton<PlayerTransformReference>();
         
@@ -194,26 +200,29 @@ public partial struct TileSpawningSystem : ISystem
         ecb.Playback(state.EntityManager);
         ecb.Dispose();
         
-        // Now add the newly created entities to _activeTiles using a query
+        // Now add the newly created entities to _activeTiles using zero-GC iteration
         if (tilesToSpawn.Length > 0)
         {
-            var query = state.EntityManager.CreateEntityQuery(ComponentType.ReadOnly<TerrainTile>());
-            var allTiles = query.ToEntityArray(Allocator.Temp);
-            
-            // Find newly created tiles and add them to _activeTiles
-            foreach (var entity in allTiles)
+            // Convert tilesToSpawn to a HashSet for O(1) lookups (avoid O(n²) complexity from Contains())
+            var spawnedCoords = new NativeHashSet<int2>(tilesToSpawn.Length, Allocator.Temp);
+            for (int i = 0; i < tilesToSpawn.Length; i++)
             {
-                var tile = state.EntityManager.GetComponentData<TerrainTile>(entity);
-                
+                spawnedCoords.Add(tilesToSpawn[i]);
+            }
+            
+            // Use direct iteration instead of ToEntityArray() to avoid GC allocations
+            foreach (var (tile, entity) in SystemAPI.Query<RefRO<TerrainTile>>().WithEntityAccess())
+            {
                 // Check if this tile should be in our active set but isn't yet
-                if (tilesToSpawn.Contains(tile.gridCoordinate) && !_activeTiles.ContainsKey(tile.gridCoordinate))
+                // O(1) lookup instead of O(n) Contains() on NativeList
+                if (spawnedCoords.Contains(tile.ValueRO.gridCoordinate) && !_activeTiles.ContainsKey(tile.ValueRO.gridCoordinate))
                 {
-                    _activeTiles.Add(tile.gridCoordinate, entity);
+                    _activeTiles.Add(tile.ValueRO.gridCoordinate, entity);
                 }
             }
             
-            allTiles.Dispose();
-        }
+            spawnedCoords.Dispose();
+        }        
         
         tilesToSpawn.Dispose();
         tilesToDespawn.Dispose();

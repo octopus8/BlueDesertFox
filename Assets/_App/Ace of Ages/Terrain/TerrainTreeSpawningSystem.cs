@@ -15,6 +15,9 @@ public partial class TerrainTreeSpawningSystem : SystemBase
     private NativeQueue<Entity> _pendingTiles;
     private NativeHashSet<Entity> _queuedEntities;
     private int _treesSpawnedThisFrame;
+    
+    // Cached managed data to avoid GC allocations from repeated GetComponentData() calls
+    private TreePrefabMeshMaterialData _cachedMeshMaterialData;
 
     protected override void OnCreate()
     {
@@ -33,10 +36,27 @@ public partial class TerrainTreeSpawningSystem : SystemBase
             _queuedEntities.Dispose();
     }
 
+    protected override void OnStartRunning()
+    {
+        // Cache the managed component data once to avoid GC allocations from repeated GetComponentData() calls
+        var configEntity = SystemAPI.GetSingletonEntity<TreeSpawnerConfig>();
+        if (EntityManager.HasComponent<TreePrefabMeshMaterialData>(configEntity))
+        {
+            _cachedMeshMaterialData = EntityManager.GetComponentData<TreePrefabMeshMaterialData>(configEntity);
+        }
+    }
+
     protected override void OnUpdate()
     {
         var config = SystemAPI.GetSingleton<TreeSpawnerConfig>();
-        
+/*        
+        // Early exit if rendering is disabled - no need to spawn trees
+        var terrainConfig = SystemAPI.GetSingleton<TerrainTileConfig>();
+        if (!terrainConfig.renderTerrain)
+        {
+            return;
+        }
+*/        
         if (config.maxTreesPerTile <= 0)
         {
             return;
@@ -50,13 +70,8 @@ public partial class TerrainTreeSpawningSystem : SystemBase
             return;
         }
         
-        TreePrefabMeshMaterialData meshMaterialData = null;
-        if (EntityManager.HasComponent<TreePrefabMeshMaterialData>(configEntity))
-        {
-            meshMaterialData = EntityManager.GetComponentData<TreePrefabMeshMaterialData>(configEntity);
-        }
-        
-        if (meshMaterialData == null || meshMaterialData.meshes == null || meshMaterialData.materials == null)
+        // Use cached mesh/material data (fetched once in OnStartRunning) to avoid GC allocations
+        if (_cachedMeshMaterialData == null || _cachedMeshMaterialData.meshes == null || _cachedMeshMaterialData.materials == null)
         {
             return;
         }
@@ -72,8 +87,8 @@ public partial class TerrainTreeSpawningSystem : SystemBase
         
         var treePrefabs = new NativeArray<Entity>(treePrefabCount, Allocator.Temp);
         
-        var treeMeshes = meshMaterialData.meshes;
-        var treeMaterials = meshMaterialData.materials;
+        var treeMeshes = _cachedMeshMaterialData.meshes;
+        var treeMaterials = _cachedMeshMaterialData.materials;
         
         for (int i = 0; i < treePrefabCount; i++)
         {
@@ -368,6 +383,13 @@ public partial class TerrainTreeSpawningSystem : SystemBase
         vertexPositions.Dispose();
         vertexNormals.Dispose();
         tempSpawnedTrees.Dispose();
+        
+        // Log tree spawning results if debug logging is enabled
+        if (hasLODConfig && lodConfig.enableTreeLODDebug)
+        {
+            int failedAttempts = attempts - actualTreesSpawned;
+            UnityEngine.Debug.Log($"[TreeSpawner] Tile {tile.gridCoordinate}: Spawned {actualTreesSpawned}/{treeCount} trees ({failedAttempts} filtered by height/slope)");
+        }
         
         return actualTreesSpawned;
     }

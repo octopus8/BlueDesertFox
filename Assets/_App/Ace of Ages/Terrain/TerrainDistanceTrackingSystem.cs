@@ -32,6 +32,12 @@ public partial class TerrainDistanceTrackingSystem : SystemBase
         {
             var config = SystemAPI.GetSingleton<TerrainTileConfig>();
             
+            // Early exit if physics colliders are disabled
+            if (!config.enablePhysicsColliders)
+            {
+                return;
+            }
+            
             // Get player transform reference (managed component)
             if (!SystemAPI.ManagedAPI.TryGetSingleton<PlayerTransformReference>(out var playerRef) ||
                 playerRef == null || 

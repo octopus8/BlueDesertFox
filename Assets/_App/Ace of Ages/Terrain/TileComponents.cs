@@ -53,6 +53,12 @@ public struct TerrainTileConfig : IComponentData
     
     /// <summary>Whether to visualize physics colliders as wireframes in Scene view.</summary>
     public bool visualizeColliders;
+    
+    /// <summary>Whether to generate physics colliders for terrain tiles (disable for debugging/performance testing).</summary>
+    public bool enablePhysicsColliders;
+    
+    /// <summary>Whether to enable TerrainRenderingDebugSystem logging (disable to reduce console spam).</summary>
+    public bool enableRenderingDebug;
 }
 
 /// <summary>
@@ -409,6 +415,9 @@ public struct TreeLODConfig : IComponentData
     
     /// <summary>Maximum number of spatial chunks to update per frame for LOD calculations.</summary>
     public int maxChunksUpdatedPerFrame;
+    
+    /// <summary>Whether to enable tree LOD and spawning debug logging (disable to reduce console spam).</summary>
+    public bool enableTreeLODDebug;
 }
 
 /// <summary>

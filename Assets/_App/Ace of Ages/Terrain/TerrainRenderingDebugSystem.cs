@@ -7,10 +7,10 @@ using UnityEngine;
 /// <summary>
 /// Debug system to inspect terrain tile entities and their rendering components.
 /// Add this temporarily to diagnose rendering issues.
-/// DISABLED: Uncomment the [UpdateInGroup] attribute to re-enable.
+/// Enable/disable via TerrainConfigAuthoring.enableRenderingDebug flag.
 /// </summary>
-// [UpdateInGroup(typeof(PresentationSystemGroup), OrderLast = true)]
-// [UpdateAfter(typeof(TerrainRenderingSystem))]
+[UpdateInGroup(typeof(PresentationSystemGroup), OrderLast = true)]
+[UpdateAfter(typeof(TerrainRenderingSystem))]
 public partial class TerrainRenderingDebugSystem : SystemBase
 {
     private double _lastLogTime;
@@ -22,6 +22,11 @@ public partial class TerrainRenderingDebugSystem : SystemBase
     
     protected override void OnUpdate()
     {
+        // Early exit if debug logging is disabled
+        var config = SystemAPI.GetSingleton<TerrainTileConfig>();
+        if (!config.enableRenderingDebug)
+            return;
+        
         // Log every 10 seconds
         if (SystemAPI.Time.ElapsedTime - _lastLogTime < 10.0)
             return;

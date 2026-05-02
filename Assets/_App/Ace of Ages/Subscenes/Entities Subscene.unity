@@ -5796,6 +5796,8 @@ MonoBehaviour:
   terrainMaterial: {fileID: 2100000, guid: dc12ba763b59e3a4586cb235c2a074fc, type: 2}
   renderTerrain: 1
   visualizeColliders: 0
+  enablePhysicsColliders: 1
+  enableRenderingDebug: 0
   maxCollidersCreatedPerFrame: 3
   lodFullResolutionDistance: 256
   lodHalfResolutionDistance: 384
@@ -5881,6 +5883,7 @@ MonoBehaviour:
   maxSpawnHeight: 100
   maxSlopeDegrees: 22.5
   maxTreesSpawnedPerFrame: 20
+  enableTreeLODDebug: 0
 --- !u!1 &1730959682
 GameObject:
   m_ObjectHideFlags: 0

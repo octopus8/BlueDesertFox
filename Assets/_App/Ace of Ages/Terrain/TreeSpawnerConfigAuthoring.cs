@@ -69,6 +69,10 @@ public class TreeSpawnerConfigAuthoring : MonoBehaviour
     [Tooltip("Maximum number of tree entities to spawn per frame (prevents stuttering)")]
     [Range(1, 100)]
     public int maxTreesSpawnedPerFrame = 20;
+    
+    [Header("Debug")]
+    [Tooltip("Enable tree LOD and spawning debug logging (disable to reduce console spam)")]
+    public bool enableTreeLODDebug;
 
     public class Baker : Baker<TreeSpawnerConfigAuthoring>
     {
@@ -106,7 +110,8 @@ public class TreeSpawnerConfigAuthoring : MonoBehaviour
                 lod2Distance = authoring.lod2Distance,
                 hysteresisDelta = authoring.lodHysteresis,
                 lodsPerTreeType = 3, // Hardcoded to 3 LOD levels
-                maxChunksUpdatedPerFrame = 7
+                maxChunksUpdatedPerFrame = 7,
+                enableTreeLODDebug = authoring.enableTreeLODDebug
             });
             
             // Add buffer for tree prefab entities

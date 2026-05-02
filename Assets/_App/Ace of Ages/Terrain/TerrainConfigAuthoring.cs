@@ -73,6 +73,12 @@ public class TerrainConfigAuthoring : MonoBehaviour
     [Tooltip("Visualize physics colliders as colored wireframes (green=full, yellow=half, orange=quarter LOD)")]
     public bool visualizeColliders = false;
     
+    [Tooltip("Enable physics collider generation (disable for debugging/performance testing)")]
+    public bool enablePhysicsColliders = true;
+    
+    [Tooltip("Enable TerrainRenderingDebugSystem logging (disable to reduce console spam)")]
+    public bool enableRenderingDebug;
+    
     [Header("Physics Optimization")]
     [Range(1, 10)]
     [Tooltip("Maximum number of physics colliders created per frame to prevent stalls")]
@@ -130,7 +136,9 @@ public class TerrainConfigAuthoring : MonoBehaviour
                 lowDetailPhysicsLayer = authoring.lowDetailPhysicsLayer,
                 // Debug/Testing
                 renderTerrain = authoring.renderTerrain,
-                visualizeColliders = authoring.visualizeColliders
+                visualizeColliders = authoring.visualizeColliders,
+                enablePhysicsColliders = authoring.enablePhysicsColliders,
+                enableRenderingDebug = authoring.enableRenderingDebug
             });
             
             // Create scroll velocity singleton (starts inactive)

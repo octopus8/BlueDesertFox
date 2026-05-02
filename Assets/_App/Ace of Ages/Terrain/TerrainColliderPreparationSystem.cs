@@ -43,6 +43,13 @@ public partial struct TerrainColliderPreparationSystem : ISystem
 #endif
         {
             var config = SystemAPI.GetSingleton<TerrainTileConfig>();
+            
+            // Early exit if physics colliders are disabled
+            if (!config.enablePhysicsColliders)
+            {
+                return;
+            }
+            
             var cameraData = SystemAPI.GetSingleton<CameraDataSingleton>();
             
             // Get the ECB singleton and create a command buffer

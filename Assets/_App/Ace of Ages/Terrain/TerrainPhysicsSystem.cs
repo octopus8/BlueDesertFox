@@ -52,6 +52,12 @@ public partial class TerrainPhysicsSystem : SystemBase
         
         var config = SystemAPI.GetSingleton<TerrainTileConfig>();
         
+        // Early exit if physics colliders are disabled
+        if (!config.enablePhysicsColliders)
+        {
+            return;
+        }
+        
         // Phase 1: Query tiles with prepared collider data and sort by priority (ZERO GC ALLOCATIONS)
         var preparedQuery = GetEntityQuery(
             ComponentType.ReadOnly<PhysicsColliderPrepared>(),
@@ -127,7 +133,7 @@ public partial class TerrainPhysicsSystem : SystemBase
                         
                         // Create PhysicsCollider from cached blob data
                         CreatePhysicsColliderFromCache(entity, cacheEntry.blobAsset, prepared.lodLevel, config);
-                        Debug.Log("# Created colliders: " + ++colliderCreateCount);
+//                        Debug.Log("# Created colliders: " + ++colliderCreateCount);
                         
                         // Clean up prepared buffers
                         EntityManager.RemoveComponent<PhysicsColliderPrepared>(entity);
@@ -347,12 +353,15 @@ public partial class TerrainPhysicsSystem : SystemBase
             
             entries.Dispose();
             
-#if UNITY_EDITOR
+            // Log eviction results if debug logging is enabled
             if (entriesEvicted > 0)
             {
-                Debug.Log($"[TerrainPhysics] LRU Eviction: Freed {memoryFreed / 1024}KB by evicting {entriesEvicted} cache entries");
+                var lodConfig = SystemAPI.GetSingleton<TreeLODConfig>();
+                if (lodConfig.enableTreeLODDebug)
+                {
+                    Debug.Log($"[TerrainPhysics] LRU Eviction: Freed {memoryFreed / 1024}KB by evicting {entriesEvicted} cache entries");
+                }
             }
-#endif
         }
     }
 

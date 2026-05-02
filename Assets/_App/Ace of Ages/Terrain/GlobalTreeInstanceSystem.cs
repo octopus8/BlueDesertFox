@@ -111,6 +111,12 @@ public partial class GlobalTreeInstanceSystem : SystemBase
     private Camera _mainCamera;
     private const int MaxInstancesPerBatch = 1023; // Unity limitation for DrawMeshInstanced
     
+    // ✅ Cached rendering data to avoid GC allocations every frame
+    private GlobalTreeRenderingData _cachedRenderingData;
+    
+    // Frame counter for periodic debug logging (used outside UNITY_EDITOR for flag-based control)
+    private int _frameCount;
+    
 #if UNITY_EDITOR
     private static readonly ProfilerMarker ProfilerMarker = new ProfilerMarker("GlobalTreeInstance.Render");
     private static readonly ProfilerMarker CollectMarker = new ProfilerMarker("GlobalTreeInstance.Collect");
@@ -118,7 +124,6 @@ public partial class GlobalTreeInstanceSystem : SystemBase
     private static readonly ProfilerMarker ConvertMarker = new ProfilerMarker("GlobalTreeInstance.Convert");
     private int _lastTreeCount;
     private int _lastBatchCount;
-    private int _frameCount;
 #endif
 
     protected override void OnCreate()
@@ -143,6 +148,16 @@ public partial class GlobalTreeInstanceSystem : SystemBase
         _renderMatrixArray = new Matrix4x4[MaxInstancesPerBatch];
     }
     
+    protected override void OnStartRunning()
+    {
+        // ✅ Cache rendering data once to avoid GC allocations every frame
+        var configEntity = SystemAPI.GetSingletonEntity<TreeSpawnerConfig>();
+        if (EntityManager.HasComponent<GlobalTreeRenderingData>(configEntity))
+        {
+            _cachedRenderingData = EntityManager.GetComponentData<GlobalTreeRenderingData>(configEntity);
+        }
+    }
+    
     protected override void OnDestroy()
     {
         // Dispose native collections
@@ -152,28 +167,15 @@ public partial class GlobalTreeInstanceSystem : SystemBase
 
     protected override void OnUpdate()
     {
+        _frameCount++; // Increment frame counter for periodic debug logging
+        
 #if UNITY_EDITOR
         ProfilerMarker.Begin();
         CollectMarker.Begin();
-        _frameCount++;
 #endif
 
-        // Get singleton rendering data (ONE lookup instead of thousands)
-        var configEntity = SystemAPI.GetSingletonEntity<TreeSpawnerConfig>();
-        
-        // Check if GlobalTreeRenderingData exists
-        if (!EntityManager.HasComponent<GlobalTreeRenderingData>(configEntity))
-        {
-#if UNITY_EDITOR
-            CollectMarker.End();
-            ProfilerMarker.End();
-#endif
-            return;
-        }
-        
-        var renderingData = EntityManager.GetComponentData<GlobalTreeRenderingData>(configEntity);
-        
-        if (renderingData == null || renderingData.meshes == null || renderingData.materials == null)
+        // ✅ Use cached rendering data - ZERO GC allocations
+        if (_cachedRenderingData == null || _cachedRenderingData.meshes == null || _cachedRenderingData.materials == null)
         {
 #if UNITY_EDITOR
             CollectMarker.End();
@@ -182,6 +184,9 @@ public partial class GlobalTreeInstanceSystem : SystemBase
             return;
         }
 
+        // Get LOD config once for debug logging (used in multiple places)
+        var lodConfig = SystemAPI.GetSingleton<TreeLODConfig>();
+        
         // Count trees to ensure hashmap has enough capacity
         int treeCount = _treeQuery.CalculateEntityCount();
         
@@ -191,9 +196,12 @@ public partial class GlobalTreeInstanceSystem : SystemBase
         {
             _batchMatrices.Dispose();
             _batchMatrices = new NativeParallelMultiHashMap<int, Matrix4x4>(requiredCapacity, Allocator.Persistent);
-#if UNITY_EDITOR
-            Debug.Log($"[GlobalTreeInstance] Resized hashmap to capacity {requiredCapacity} for {treeCount} trees");
-#endif
+            
+            // Log resize event if debug logging is enabled
+            if (lodConfig.enableTreeLODDebug)
+            {
+                Debug.Log($"[GlobalTreeInstance] Resized hashmap to capacity {requiredCapacity} for {treeCount} trees");
+            }
         }
 
         // Clear native hash map from previous frame
@@ -231,8 +239,8 @@ public partial class GlobalTreeInstanceSystem : SystemBase
         var collectJob = new CollectTreeMatricesJob
         {
             BatchMatrices = _batchMatrices.AsParallelWriter(),
-            MeshArrayLength = renderingData.meshes.Length,
-            MaterialArrayLength = renderingData.materials.Length,
+            MeshArrayLength = _cachedRenderingData.meshes.Length,
+            MaterialArrayLength = _cachedRenderingData.materials.Length,
             FrustumPlanes = frustumPlanesNative,
             EnableFrustumCulling = enableCulling
         };
@@ -276,8 +284,8 @@ public partial class GlobalTreeInstanceSystem : SystemBase
             int meshIndex = batchKey / 1000;
             int materialIndex = batchKey % 1000;
             
-            var mesh = renderingData.meshes[meshIndex];
-            var material = renderingData.materials[materialIndex];
+            var mesh = _cachedRenderingData.meshes[meshIndex];
+            var material = _cachedRenderingData.materials[materialIndex];
             
             if (mesh == null || material == null)
                 continue;
@@ -359,13 +367,13 @@ public partial class GlobalTreeInstanceSystem : SystemBase
 #if UNITY_EDITOR
         DrawMarker.End();
         ProfilerMarker.End();
+#endif
         
         // Reduced logging frequency: only every 60 frames (~1 second at 60 FPS)
-        if (_frameCount % 60 == 0 && collected > 0)
+        if (lodConfig.enableTreeLODDebug && _frameCount % 60 == 0 && collected > 0)
         {
             Debug.Log($"[GlobalTreeInstance] Rendering {collected} trees in {totalDrawCalls} draw calls ({_batches.Count} unique mesh/material combinations)");
         }
-#endif
     }
 }
 
