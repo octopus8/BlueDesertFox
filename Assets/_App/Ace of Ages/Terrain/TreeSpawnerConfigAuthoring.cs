@@ -73,6 +73,14 @@ public class TreeSpawnerConfigAuthoring : MonoBehaviour
     [Header("Debug")]
     [Tooltip("Enable tree LOD and spawning debug logging (disable to reduce console spam)")]
     public bool enableTreeLODDebug;
+    
+    [Header("Distance Culling (VR Performance)")]
+    [Tooltip("Enable distance-based culling for tree rendering. Trees beyond maxTreeRenderDistance won't render. Recommended ON for VR.")]
+    public bool enableDistanceCulling = true;
+    
+    [Tooltip("Maximum distance to render trees in meters. Trees beyond this distance are culled (not rendered). Quest 3 recommended: 300-500m.")]
+    [Range(100f, 1000f)]
+    public float maxTreeRenderDistance = 400f;
 
     public class Baker : Baker<TreeSpawnerConfigAuthoring>
     {
@@ -111,7 +119,9 @@ public class TreeSpawnerConfigAuthoring : MonoBehaviour
                 hysteresisDelta = authoring.lodHysteresis,
                 lodsPerTreeType = 3, // Hardcoded to 3 LOD levels
                 maxChunksUpdatedPerFrame = 7,
-                enableTreeLODDebug = authoring.enableTreeLODDebug
+                enableTreeLODDebug = authoring.enableTreeLODDebug,
+                enableDistanceCulling = authoring.enableDistanceCulling,
+                maxTreeRenderDistance = authoring.maxTreeRenderDistance
             });
             
             // Add buffer for tree prefab entities
@@ -281,5 +291,8 @@ public class TreeSpawnerConfigAuthoring : MonoBehaviour
         lod1Distance = Mathf.Max(lod0Distance + 1f, lod1Distance);
         lod2Distance = Mathf.Max(lod1Distance + 1f, lod2Distance);
         lodHysteresis = Mathf.Max(0f, lodHysteresis);
+        
+        // Validate distance culling settings
+        maxTreeRenderDistance = Mathf.Clamp(maxTreeRenderDistance, 100f, 1000f);
     }
 }

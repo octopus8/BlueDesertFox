@@ -418,6 +418,12 @@ public struct TreeLODConfig : IComponentData
     
     /// <summary>Whether to enable tree LOD and spawning debug logging (disable to reduce console spam).</summary>
     public bool enableTreeLODDebug;
+    
+    /// <summary>Enable distance-based culling for tree rendering (trees beyond maxTreeRenderDistance won't render).</summary>
+    public bool enableDistanceCulling;
+    
+    /// <summary>Maximum distance to render trees in meters. Trees beyond this distance are culled (not rendered). Quest 3 recommended: 300-500m.</summary>
+    public float maxTreeRenderDistance;
 }
 
 /// <summary>

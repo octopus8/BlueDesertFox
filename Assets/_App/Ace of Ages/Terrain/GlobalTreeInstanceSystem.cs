@@ -188,8 +188,7 @@ public partial class GlobalTreeInstanceSystem : SystemBase
     private const int MaxInstancesPerBatch = 1023; // Unity limitation for DrawMeshInstanced
     
     // VR-optimized culling parameters
-    private const float DefaultMaxRenderDistance = 400f; // Quest 3 recommended: 300-400m
-    private float _maxRenderDistance = DefaultMaxRenderDistance;
+    private const float DefaultMaxRenderDistance = 400f; // Quest 3 recommended: 300-400m (used as fallback if config not set)
     
     // ✅ Cached rendering data to avoid GC allocations every frame
     private GlobalTreeRenderingData _cachedRenderingData;
@@ -278,8 +277,14 @@ public partial class GlobalTreeInstanceSystem : SystemBase
             return;
         }
         
-        // Get LOD config once for debug logging (used in multiple places)
+        // Get LOD config once for distance culling and debug logging
         var lodConfig = SystemAPI.GetSingleton<TreeLODConfig>();
+        
+        // Get distance culling settings from config
+        bool enableDistanceCulling = lodConfig.enableDistanceCulling;
+        float maxRenderDistance = lodConfig.maxTreeRenderDistance > 0 
+            ? lodConfig.maxTreeRenderDistance 
+            : DefaultMaxRenderDistance; // Fallback to default if not set
         
         // Get player position for distance culling
         float3 playerPosition = float3.zero;
@@ -357,8 +362,8 @@ public partial class GlobalTreeInstanceSystem : SystemBase
             FrustumPlanes = frustumPlanesNative,
             EnableFrustumCulling = enableCulling,
             PlayerPosition = playerPosition,
-            MaxRenderDistance = _maxRenderDistance,
-            EnableDistanceCulling = hasPlayerPosition
+            MaxRenderDistance = maxRenderDistance,
+            EnableDistanceCulling = enableDistanceCulling && hasPlayerPosition
         };
         
         Dependency = collectJob.ScheduleParallel(Dependency);
@@ -451,8 +456,11 @@ public partial class GlobalTreeInstanceSystem : SystemBase
         // Reduced logging frequency: only every 60 frames (~1 second at 60 FPS)
         if (lodConfig.enableTreeLODDebug && _frameCount % 60 == 0 && totalRendered > 0)
         {
+            string cullingStatus = enableDistanceCulling 
+                ? $"distance culling: {maxRenderDistance:F0}m" 
+                : "distance culling: OFF";
             Debug.Log($"[GlobalTreeInstance] Rendered {totalRendered}/{treeCount} trees in {totalDrawCalls} draw calls " +
-                      $"({_batchKeys.Length} unique batches, max distance: {_maxRenderDistance}m)");
+                      $"({_batchKeys.Length} unique batches, {cullingStatus})");
         }
     }
 }
