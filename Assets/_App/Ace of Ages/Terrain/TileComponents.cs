@@ -302,6 +302,9 @@ public struct TreeSpawnerConfig : IComponentData
     
     /// <summary>Maximum number of trees to spawn per frame (performance budgeting).</summary>
     public int maxTreesSpawnedPerFrame;
+    
+    /// <summary>Enable debug logging for tree spawner system.</summary>
+    public bool enableSpawnerDebug;
 }
 
 /// <summary>

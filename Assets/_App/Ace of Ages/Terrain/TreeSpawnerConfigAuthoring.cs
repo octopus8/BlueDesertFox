@@ -74,6 +74,9 @@ public class TreeSpawnerConfigAuthoring : MonoBehaviour
     [Tooltip("Enable tree LOD and spawning debug logging (disable to reduce console spam)")]
     public bool enableTreeLODDebug;
     
+    [Tooltip("Enable tree spawner system debug logging (disable to reduce console spam)")]
+    public bool enableSpawnerDebug;
+    
     [Header("Distance Culling (VR Performance)")]
     [Tooltip("Enable distance-based culling for tree rendering. Trees beyond maxTreeRenderDistance won't render. Recommended ON for VR.")]
     public bool enableDistanceCulling = true;
@@ -107,7 +110,8 @@ public class TreeSpawnerConfigAuthoring : MonoBehaviour
                 minSpawnHeight = authoring.minSpawnHeight,
                 maxSpawnHeight = authoring.maxSpawnHeight,
                 slopeThreshold = slopeThreshold,
-                maxTreesSpawnedPerFrame = authoring.maxTreesSpawnedPerFrame
+                maxTreesSpawnedPerFrame = authoring.maxTreesSpawnedPerFrame,
+                enableSpawnerDebug = authoring.enableSpawnerDebug
             });
             
             // Create tree LOD config singleton

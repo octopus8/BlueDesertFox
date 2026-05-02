@@ -147,17 +147,20 @@ public partial struct TerrainTreeSpawningSystemOptimized : ISystem
                 tilesNeedingBuffer++;
             }
         }
+
+        if (config.enableSpawnerDebug)
+        {
+            if (tilesNeedingBuffer > 0)
+            {
+                UnityEngine.Debug.Log($"[TreeSpawnerOptimized] Adding TreeSpawnPosition buffer to {tilesNeedingBuffer} tiles (will spawn next frame)");
+            }
+            if (_pendingTiles.Count > 0)
+            {
+                UnityEngine.Debug.Log($"[TreeSpawnerOptimized] Processing {_pendingTiles.Count} tiles for tree spawning this frame");
+            }
+            
+        }
         
-#if UNITY_EDITOR
-        if (tilesNeedingBuffer > 0)
-        {
-            UnityEngine.Debug.Log($"[TreeSpawnerOptimized] Adding TreeSpawnPosition buffer to {tilesNeedingBuffer} tiles (will spawn next frame)");
-        }
-        if (_pendingTiles.Count > 0)
-        {
-            UnityEngine.Debug.Log($"[TreeSpawnerOptimized] Processing {_pendingTiles.Count} tiles for tree spawning this frame");
-        }
-#endif
 
         if (_pendingTiles.Count == 0)
         {
@@ -219,12 +222,10 @@ public partial struct TerrainTreeSpawningSystemOptimized : ISystem
             tilesProcessed++;
         }
         
-#if UNITY_EDITOR
-        if (tilesToProcess.Length > 0)
+        if (config.enableSpawnerDebug && tilesToProcess.Length > 0)
         {
             UnityEngine.Debug.Log($"[TreeSpawnerOptimized] Processing {tilesToProcess.Length} tiles this frame (budget: {maxTilesThisFrame})");
         }
-#endif
         
 #if UNITY_EDITOR
         using (s_InstantiationMarker.Auto())
