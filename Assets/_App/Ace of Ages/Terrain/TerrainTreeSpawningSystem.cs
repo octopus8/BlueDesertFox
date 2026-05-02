@@ -7,7 +7,11 @@ using UnityEngine;
 /// <summary>
 /// System that spawns tree entities on terrain tiles after mesh generation.
 /// Uses frame budgeting to prevent performance spikes and deterministic random placement.
+/// 
+/// DISABLED: Replaced by TerrainTreeSpawningSystemOptimized for Quest 3 performance.
+/// Remove [DisableAutoCreation] to re-enable original system.
 /// </summary>
+[DisableAutoCreation]
 [RequireMatchingQueriesForUpdate]
 [UpdateInGroup(typeof(SimulationSystemGroup))]
 public partial class TerrainTreeSpawningSystem : SystemBase

@@ -336,6 +336,34 @@ public struct TreesSpawned : IComponentData
 }
 
 /// <summary>
+/// Temporary buffer element storing calculated tree spawn data for deferred instantiation.
+/// Calculated by Burst job, consumed by ECB-based instantiation job, then cleared same frame.
+/// </summary>
+public struct TreeSpawnPosition : IBufferElementData
+{
+    /// <summary>Position relative to tile origin (tile-local space).</summary>
+    public float3 localPosition;
+    
+    /// <summary>World-space position for the tree.</summary>
+    public float3 worldPosition;
+    
+    /// <summary>Random Y-axis rotation for visual variety.</summary>
+    public quaternion rotation;
+    
+    /// <summary>Tree type index (0 to N-1 where N is number of tree types).</summary>
+    public int treeTypeIndex;
+    
+    /// <summary>Initial LOD level based on distance to camera (0=LOD0, 1=LOD1, 2=LOD2).</summary>
+    public byte initialLODLevel;
+    
+    /// <summary>Initial distance to player/camera for LOD calculation.</summary>
+    public float initialDistance;
+    
+    /// <summary>Initial mesh index based on tree type and LOD level.</summary>
+    public int initialMeshIndex;
+}
+
+/// <summary>
 /// Buffer element that stores references to trees spawned on this tile for cleanup.
 /// </summary>
 public struct SpawnedTreeReference : IBufferElementData
