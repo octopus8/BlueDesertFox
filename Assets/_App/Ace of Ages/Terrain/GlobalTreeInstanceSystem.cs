@@ -183,9 +183,14 @@ public partial class GlobalTreeInstanceSystem : SystemBase
 #endif
             return;
         }
-
+        
         // Get LOD config once for debug logging (used in multiple places)
         var lodConfig = SystemAPI.GetSingleton<TreeLODConfig>();
+        
+        if (lodConfig.enableTreeLODDebug && _frameCount % 60 == 0)
+        {
+            Debug.Log($"[GlobalTreeInstance] Camera status: {(_mainCamera != null ? $"Found (tag: {_mainCamera.tag})" : "NULL - CULLING DISABLED!")}");
+        }
         
         // Count trees to ensure hashmap has enough capacity
         int treeCount = _treeQuery.CalculateEntityCount();
