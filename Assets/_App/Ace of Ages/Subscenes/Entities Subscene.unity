@@ -5883,7 +5883,7 @@ MonoBehaviour:
   maxSpawnHeight: 100
   maxSlopeDegrees: 22.5
   maxTreesSpawnedPerFrame: 20
-  enableTreeLODDebug: 1
+  enableTreeLODDebug: 0
 --- !u!1 &1730959682
 GameObject:
   m_ObjectHideFlags: 0

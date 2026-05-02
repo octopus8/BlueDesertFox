@@ -13,6 +13,7 @@ using UnityEngine;
 /// Burst-compiled system that updates tree mesh LOD levels based on distance to player.
 /// Uses spatial chunking, HashSet filtering, and parallel jobs for maximum performance.
 /// Applies hysteresis to prevent LOD flickering at transition boundaries.
+/// VR OPTIMIZED: Runs every N frames on mobile VR platforms to reduce CPU load.
 /// </summary>
 [RequireMatchingQueriesForUpdate]
 [UpdateInGroup(typeof(SimulationSystemGroup))]
@@ -22,6 +23,9 @@ public partial struct TreeLODUpdateSystem : ISystem
 {
     private const float ChunkSize = 100f; // 100m x 100m chunks
     private const int MaxTreesPerFrame = 500; // Frame budget to prevent spikes
+    
+    // VR optimization: Skip frames on mobile platforms
+    private const int VRFrameSkip = 2; // Update every 2-3 frames on Quest 3
     
     private int _frameCounter;
     private NativeList<int2> _activeChunks;
@@ -58,6 +62,15 @@ public partial struct TreeLODUpdateSystem : ISystem
     // NOTE: Cannot use [BurstCompile] here because we access managed PlayerTransformReference component
     public void OnUpdate(ref SystemState state)
     {
+        _frameCounter++;
+        
+        // VR OPTIMIZATION: Skip frames on mobile VR platforms to reduce CPU load
+        // Quest 3 benefits from updating LOD every 2-3 frames instead of every frame
+        if (_frameCounter % VRFrameSkip != 0)
+        {
+            return;
+        }
+        
 #if UNITY_EDITOR
         s_ProfilerMarker.Data.Begin();
 #endif
@@ -128,8 +141,6 @@ public partial struct TreeLODUpdateSystem : ISystem
                 }
             }
         }
-        
-        _frameCounter++;
         
         // Schedule Burst-compiled job for LOD updates
         var updateJob = new TreeLODUpdateJob

@@ -1,6 +1,7 @@
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Entities;
+using Unity.Jobs;
 using Unity.Mathematics;
 using Unity.Transforms;
 using UnityEngine;
@@ -14,32 +15,30 @@ using Unity.Profiling;
 /// System that renders all tree entities using Graphics.DrawMeshInstanced for maximum batching efficiency.
 /// This approach dramatically reduces draw calls compared to individual entity rendering.
 /// Trees are batched by mesh/material combination, with up to 1023 instances per batch.
-/// OPTIMIZED: Uses Burst-compiled parallel jobs for collecting tree matrices across multiple CPU cores.
+/// OPTIMIZED v2.0: Native-only batching pipeline with distance culling for Quest 3 VR performance.
+/// - Uses NativeList for zero-GC batch storage
+/// - Burst-compiled parallel jobs for matrix collection
+/// - Distance-based culling before frustum culling
+/// - Optimized batch conversion with native array operations
 /// </summary>
 [UpdateInGroup(typeof(PresentationSystemGroup))]
 public partial class GlobalTreeInstanceSystem : SystemBase
 {
-    // Batch key for grouping trees by mesh/material
-    private struct BatchKey : System.IEquatable<BatchKey>
+    /// <summary>
+    /// Native struct for batch data - replaces managed TreeBatch class.
+    /// Uses NativeList for zero-allocation matrix storage.
+    /// </summary>
+    private struct TreeBatchNative
     {
-        public UnityEngine.Mesh mesh;
-        public UnityEngine.Material material;
-        
-        public bool Equals(BatchKey other)
-        {
-            return mesh == other.mesh && material == other.material;
-        }
-        
-        public override int GetHashCode()
-        {
-            return (mesh != null ? mesh.GetHashCode() : 0) ^ (material != null ? material.GetHashCode() : 0);
-        }
+        public int meshIndex;
+        public int materialIndex;
+        public NativeList<Matrix4x4> matrices;
     }
     
     /// <summary>
     /// Burst-compiled parallel job that collects tree transform matrices into batches.
     /// Processes thousands of trees across multiple CPU cores for maximum performance.
-    /// OPTIMIZED: Includes frustum culling to skip trees outside camera view.
+    /// OPTIMIZED v2.0: Added distance culling before frustum culling for Quest 3 VR.
     /// </summary>
     [BurstCompile]
     private partial struct CollectTreeMatricesJob : IJobEntity
@@ -51,6 +50,11 @@ public partial class GlobalTreeInstanceSystem : SystemBase
         [ReadOnly] public NativeArray<float4> FrustumPlanes;
         public bool EnableFrustumCulling;
         
+        // NEW: Distance culling parameters
+        [ReadOnly] public float3 PlayerPosition;
+        public float MaxRenderDistance;
+        public bool EnableDistanceCulling;
+        
         private void Execute(in LocalTransform transform, in GlobalTreeInstanceData instanceData)
         {
             // Validate indices
@@ -58,10 +62,23 @@ public partial class GlobalTreeInstanceSystem : SystemBase
                 instanceData.materialIndex < 0 || instanceData.materialIndex >= MaterialArrayLength)
                 return;
             
+            float3 treePos = transform.Position;
+            
+            // OPTIMIZATION: Distance culling first (cheapest check)
+            if (EnableDistanceCulling)
+            {
+                // 2D distance check (XZ plane) - cheaper than 3D
+                float2 treePos2D = new float2(treePos.x, treePos.z);
+                float2 playerPos2D = new float2(PlayerPosition.x, PlayerPosition.z);
+                float distanceSq = math.distancesq(treePos2D, playerPos2D);
+                
+                if (distanceSq > MaxRenderDistance * MaxRenderDistance)
+                    return;
+            }
+            
             // Frustum culling: Test if tree is visible
             if (EnableFrustumCulling && FrustumPlanes.Length == 6)
             {
-                float3 treePos = transform.Position;
                 float treeRadius = transform.Scale * 10f; // Estimate: 10m radius for typical tree
                 
                 // Test against all 6 frustum planes
@@ -86,7 +103,7 @@ public partial class GlobalTreeInstanceSystem : SystemBase
             
             // Add transform matrix to batch
             var matrix = Matrix4x4.TRS(
-                transform.Position,
+                treePos,
                 transform.Rotation,
                 new Vector3(transform.Scale, transform.Scale, transform.Scale)
             );
@@ -95,21 +112,84 @@ public partial class GlobalTreeInstanceSystem : SystemBase
         }
     }
     
-    // Batch data for rendering
-    private class TreeBatch
+    /// <summary>
+    /// Converts NativeMultiHashMap to batched NativeList arrays on main thread.
+    /// This replaces the managed collection conversion that was causing GC allocations.
+    /// NOTE: Runs on main thread (not a job) because nested native containers not allowed in jobs.
+    /// </summary>
+    private void ConvertToBatches()
     {
-        public UnityEngine.Mesh mesh;
-        public UnityEngine.Material material;
-        public System.Collections.Generic.List<Matrix4x4> matrices = new System.Collections.Generic.List<Matrix4x4>(256);
+        _batchKeys.Clear();
+        
+        // Get all batch keys and build unique set
+        var allKeys = _batchMatrices.GetKeyArray(Allocator.Temp);
+        var uniqueKeysSet = new NativeHashSet<int>(allKeys.Length, Allocator.Temp);
+        
+        // Build unique keys set
+        for (int i = 0; i < allKeys.Length; i++)
+        {
+            uniqueKeysSet.Add(allKeys[i]);
+        }
+        
+        // Process each unique batch key
+        var uniqueKeysArray = uniqueKeysSet.ToNativeArray(Allocator.Temp);
+        for (int i = 0; i < uniqueKeysArray.Length; i++)
+        {
+            int batchKey = uniqueKeysArray[i];
+            
+            // Get or create batch
+            if (!_batchesNative.TryGetValue(batchKey, out var batch))
+            {
+                // Create new batch with native list
+                batch = new TreeBatchNative
+                {
+                    meshIndex = batchKey / 1000,
+                    materialIndex = batchKey % 1000,
+                    matrices = new NativeList<Matrix4x4>(256, Allocator.Persistent)
+                };
+            }
+            else
+            {
+                // Clear existing batch for reuse
+                batch.matrices.Clear();
+            }
+            
+            // Collect all matrices for this batch key
+            if (_batchMatrices.TryGetFirstValue(batchKey, out var matrix, out var iterator))
+            {
+                do
+                {
+                    batch.matrices.Add(matrix);
+                }
+                while (_batchMatrices.TryGetNextValue(out matrix, ref iterator));
+            }
+            
+            // Store batch back
+            _batchesNative[batchKey] = batch;
+            _batchKeys.Add(batchKey);
+        }
+        
+        // Clean up
+        allKeys.Dispose();
+        uniqueKeysSet.Dispose();
+        uniqueKeysArray.Dispose();
     }
     
+    // Native collections for zero-GC batch processing
     private NativeParallelMultiHashMap<int, Matrix4x4> _batchMatrices;
-    private System.Collections.Generic.Dictionary<BatchKey, TreeBatch> _batches;
+    private NativeParallelHashMap<int, TreeBatchNative> _batchesNative;
+    private NativeList<int> _batchKeys;
+    
+    // Rendering data
     private Matrix4x4[] _renderMatrixArray;
     private EntityQuery _treeQuery;
     private Plane[] _frustumPlanes = new Plane[6];
     private Camera _mainCamera;
     private const int MaxInstancesPerBatch = 1023; // Unity limitation for DrawMeshInstanced
+    
+    // VR-optimized culling parameters
+    private const float DefaultMaxRenderDistance = 400f; // Quest 3 recommended: 300-400m
+    private float _maxRenderDistance = DefaultMaxRenderDistance;
     
     // ✅ Cached rendering data to avoid GC allocations every frame
     private GlobalTreeRenderingData _cachedRenderingData;
@@ -141,10 +221,11 @@ public partial class GlobalTreeInstanceSystem : SystemBase
         // Cache main camera for frustum culling
         _mainCamera = Camera.main;
         
-        // Initialize native collections with larger capacity
-        // Increased from 1000 to 10000 to handle more trees
+        // Initialize native collections with larger capacity for VR performance
+        // Increased from 1000 to 10000 to handle more trees without reallocation
         _batchMatrices = new NativeParallelMultiHashMap<int, Matrix4x4>(10000, Allocator.Persistent);
-        _batches = new System.Collections.Generic.Dictionary<BatchKey, TreeBatch>();
+        _batchesNative = new NativeParallelHashMap<int, TreeBatchNative>(64, Allocator.Persistent);
+        _batchKeys = new NativeList<int>(64, Allocator.Persistent);
         _renderMatrixArray = new Matrix4x4[MaxInstancesPerBatch];
     }
     
@@ -160,9 +241,22 @@ public partial class GlobalTreeInstanceSystem : SystemBase
     
     protected override void OnDestroy()
     {
-        // Dispose native collections
+        // Dispose all native batch lists first
+        if (_batchesNative.IsCreated)
+        {
+            foreach (var kvp in _batchesNative)
+            {
+                if (kvp.Value.matrices.IsCreated)
+                    kvp.Value.matrices.Dispose();
+            }
+            _batchesNative.Dispose();
+        }
+        
+        // Dispose other native collections
         if (_batchMatrices.IsCreated)
             _batchMatrices.Dispose();
+        if (_batchKeys.IsCreated)
+            _batchKeys.Dispose();
     }
 
     protected override void OnUpdate()
@@ -187,10 +281,18 @@ public partial class GlobalTreeInstanceSystem : SystemBase
         // Get LOD config once for debug logging (used in multiple places)
         var lodConfig = SystemAPI.GetSingleton<TreeLODConfig>();
         
-        // CHECK THIS ON HEADSET!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-        if (lodConfig.enableTreeLODDebug && _frameCount % 60 == 0)
+        // Get player position for distance culling
+        float3 playerPosition = float3.zero;
+        bool hasPlayerPosition = false;
+        
+        // Access managed component singleton
+        if (SystemAPI.ManagedAPI.TryGetSingleton<PlayerTransformReference>(out var playerRef))
         {
-            Debug.Log($"[GlobalTreeInstance] Camera status: {(_mainCamera != null ? $"Found (tag: {_mainCamera.tag})" : "NULL - CULLING DISABLED!")}");
+            if (playerRef != null && playerRef.playerTransform != null)
+            {
+                playerPosition = playerRef.playerTransform.position;
+                hasPlayerPosition = true;
+            }
         }
         
         // Count trees to ensure hashmap has enough capacity
@@ -239,6 +341,11 @@ public partial class GlobalTreeInstanceSystem : SystemBase
         {
             // Create empty array if no camera (job requires constructed NativeArray)
             frustumPlanesNative = new NativeArray<float4>(0, Allocator.TempJob);
+            
+            if (lodConfig.enableTreeLODDebug && _frameCount % 60 == 0)
+            {
+                Debug.LogWarning("[GlobalTreeInstance] Camera is NULL - frustum culling disabled!");
+            }
         }
         
         // Schedule parallel Burst-compiled job to collect tree matrices
@@ -248,12 +355,15 @@ public partial class GlobalTreeInstanceSystem : SystemBase
             MeshArrayLength = _cachedRenderingData.meshes.Length,
             MaterialArrayLength = _cachedRenderingData.materials.Length,
             FrustumPlanes = frustumPlanesNative,
-            EnableFrustumCulling = enableCulling
+            EnableFrustumCulling = enableCulling,
+            PlayerPosition = playerPosition,
+            MaxRenderDistance = _maxRenderDistance,
+            EnableDistanceCulling = hasPlayerPosition
         };
         
         Dependency = collectJob.ScheduleParallel(Dependency);
         
-        // Complete job before accessing results
+        // Complete matrix collection job before conversion
         Dependency.Complete();
         
         // Dispose temporary frustum planes array
@@ -265,64 +375,9 @@ public partial class GlobalTreeInstanceSystem : SystemBase
         ConvertMarker.Begin();
 #endif
 
-        // Convert NativeMultiHashMap to rendering batches
-        // Clear previous frame's batches
-        foreach (var batch in _batches.Values)
-        {
-            batch.matrices.Clear();
-        }
-        
-        // Get all unique batch keys
-        var batchKeys = _batchMatrices.GetKeyArray(Allocator.Temp);
-        var uniqueKeys = new NativeHashSet<int>(batchKeys.Length, Allocator.Temp);
-        
-        foreach (var key in batchKeys)
-        {
-            uniqueKeys.Add(key);
-        }
-        
-        int collected = 0;
-        
-        // For each unique batch key, resolve mesh/material and collect matrices
-        foreach (var batchKey in uniqueKeys)
-        {
-            // Extract mesh and material indices from batch key
-            int meshIndex = batchKey / 1000;
-            int materialIndex = batchKey % 1000;
-            
-            var mesh = _cachedRenderingData.meshes[meshIndex];
-            var material = _cachedRenderingData.materials[materialIndex];
-            
-            if (mesh == null || material == null)
-                continue;
-            
-            var key = new BatchKey { mesh = mesh, material = material };
-            
-            // Find or create batch
-            if (!_batches.TryGetValue(key, out TreeBatch batch))
-            {
-                batch = new TreeBatch
-                {
-                    mesh = mesh,
-                    material = material
-                };
-                _batches[key] = batch;
-            }
-            
-            // Collect all matrices for this batch key
-            if (_batchMatrices.TryGetFirstValue(batchKey, out var matrix, out var iterator))
-            {
-                do
-                {
-                    batch.matrices.Add(matrix);
-                    collected++;
-                }
-                while (_batchMatrices.TryGetNextValue(out matrix, ref iterator));
-            }
-        }
-        
-        batchKeys.Dispose();
-        uniqueKeys.Dispose();
+        // OPTIMIZATION: Convert to native batches on main thread (fast, just organizing data)
+        // NOTE: Can't use job due to nested native containers limitation
+        ConvertToBatches();
 
 #if UNITY_EDITOR
         ConvertMarker.End();
@@ -331,31 +386,48 @@ public partial class GlobalTreeInstanceSystem : SystemBase
 
         // Render all batches using Graphics.DrawMeshInstanced
         int totalDrawCalls = 0;
-        foreach (var batch in _batches.Values)
+        int totalRendered = 0;
+        
+        // Iterate through batch keys (native list, no GC)
+        for (int i = 0; i < _batchKeys.Length; i++)
         {
-            if (batch.matrices.Count == 0)
+            int batchKey = _batchKeys[i];
+            if (!_batchesNative.TryGetValue(batchKey, out var batch))
+                continue;
+            
+            if (batch.matrices.Length == 0)
+                continue;
+            
+            // Resolve mesh and material from cached data
+            var mesh = _cachedRenderingData.meshes[batch.meshIndex];
+            var material = _cachedRenderingData.materials[batch.materialIndex];
+            
+            if (mesh == null || material == null)
                 continue;
             
             // Unity DrawMeshInstanced has a limit of 1023 instances per call
             // If we have more, we need to split into multiple draw calls
-            int instanceCount = batch.matrices.Count;
+            int instanceCount = batch.matrices.Length;
             int offset = 0;
             
             while (offset < instanceCount)
             {
                 int count = Mathf.Min(MaxInstancesPerBatch, instanceCount - offset);
                 
-                // Copy matrices to pre-allocated array
-                for (int i = 0; i < count; i++)
+                // OPTIMIZATION: Use NativeArray slice for zero-copy access
+                var matricesSlice = batch.matrices.AsArray().GetSubArray(offset, count);
+                
+                // Copy to render array (unavoidable - Graphics API requires managed array)
+                for (int j = 0; j < count; j++)
                 {
-                    _renderMatrixArray[i] = batch.matrices[offset + i];
+                    _renderMatrixArray[j] = matricesSlice[j];
                 }
                 
                 // Draw this batch
                 Graphics.DrawMeshInstanced(
-                    batch.mesh,
+                    mesh,
                     0, // submesh index
-                    batch.material,
+                    material,
                     _renderMatrixArray,
                     count, // number of instances to render
                     null, // material property block
@@ -366,6 +438,7 @@ public partial class GlobalTreeInstanceSystem : SystemBase
                 );
                 
                 totalDrawCalls++;
+                totalRendered += count;
                 offset += count;
             }
         }
@@ -376,9 +449,10 @@ public partial class GlobalTreeInstanceSystem : SystemBase
 #endif
         
         // Reduced logging frequency: only every 60 frames (~1 second at 60 FPS)
-        if (lodConfig.enableTreeLODDebug && _frameCount % 60 == 0 && collected > 0)
+        if (lodConfig.enableTreeLODDebug && _frameCount % 60 == 0 && totalRendered > 0)
         {
-            Debug.Log($"[GlobalTreeInstance] Rendering {collected} trees in {totalDrawCalls} draw calls ({_batches.Count} unique mesh/material combinations)");
+            Debug.Log($"[GlobalTreeInstance] Rendered {totalRendered}/{treeCount} trees in {totalDrawCalls} draw calls " +
+                      $"({_batchKeys.Length} unique batches, max distance: {_maxRenderDistance}m)");
         }
     }
 }
