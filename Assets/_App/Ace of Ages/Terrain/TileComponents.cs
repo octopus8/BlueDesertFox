@@ -455,6 +455,17 @@ public struct TreeLODConfig : IComponentData
     
     /// <summary>Maximum distance to render trees in meters. Trees beyond this distance are culled (not rendered). Quest 3 recommended: 300-500m.</summary>
     public float maxTreeRenderDistance;
+    
+    // QUEST 3 VR OPTIMIZATIONS
+    
+    /// <summary>Maximum number of unique mesh/material batch combinations. Default: 32. Increase if seeing capacity warnings.</summary>
+    public int maxUniqueBatches;
+    
+    /// <summary>Frame skip interval when player velocity exceeds threshold during terrain scrolling. Default: 4 (update every 4th frame). Quest 3 recommended: 3-4.</summary>
+    public int vrFrameSkipScrolling;
+    
+    /// <summary>Player velocity threshold (m/s) above which vrFrameSkipScrolling is used instead of base VRFrameSkip. Default: 0.5 m/s.</summary>
+    public float playerVelocityThreshold;
 }
 
 /// <summary>

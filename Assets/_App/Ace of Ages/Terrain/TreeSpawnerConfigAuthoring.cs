@@ -84,6 +84,19 @@ public class TreeSpawnerConfigAuthoring : MonoBehaviour
     [Tooltip("Maximum distance to render trees in meters. Trees beyond this distance are culled (not rendered). Quest 3 recommended: 300-500m.")]
     [Range(100f, 1000f)]
     public float maxTreeRenderDistance = 400f;
+    
+    [Header("Quest 3 VR Optimizations")]
+    [Tooltip("Maximum number of unique mesh/material batch combinations. Increase if seeing capacity warnings in logs. Default: 32")]
+    [Range(16, 128)]
+    public int maxUniqueBatches = 32;
+    
+    [Tooltip("Frame skip interval when player velocity exceeds threshold during terrain scrolling. Quest 3 @ 72Hz recommended: 3-4. Higher = more performance, less responsive LOD.")]
+    [Range(1, 8)]
+    public int vrFrameSkipScrolling = 4;
+    
+    [Tooltip("Player velocity threshold (m/s) above which vrFrameSkipScrolling is used instead of base VR frame skip. Default: 0.5 m/s (walking speed).")]
+    [Range(0.1f, 10f)]
+    public float playerVelocityThreshold = 0.5f;
 
     public class Baker : Baker<TreeSpawnerConfigAuthoring>
     {
@@ -125,7 +138,11 @@ public class TreeSpawnerConfigAuthoring : MonoBehaviour
                 maxChunksUpdatedPerFrame = 7,
                 enableTreeLODDebug = authoring.enableTreeLODDebug,
                 enableDistanceCulling = authoring.enableDistanceCulling,
-                maxTreeRenderDistance = authoring.maxTreeRenderDistance
+                maxTreeRenderDistance = authoring.maxTreeRenderDistance,
+                // Quest 3 VR Optimizations
+                maxUniqueBatches = authoring.maxUniqueBatches,
+                vrFrameSkipScrolling = authoring.vrFrameSkipScrolling,
+                playerVelocityThreshold = authoring.playerVelocityThreshold
             });
             
             // Add buffer for tree prefab entities

@@ -27,13 +27,21 @@ public partial struct TreeLODUpdateSystem : ISystem
     // VR optimization: Skip frames on mobile platforms
     private const int VRFrameSkip = 2; // Update every 2-3 frames on Quest 3
     
+    // OPTIMIZED v3.0: Velocity-aware throttling
+    private float3 _lastPlayerPosition;
+    private float _lastDeltaTime;
+    
     private int _frameCounter;
     private NativeList<int2> _activeChunks;
     private NativeHashSet<int2> _activeChunksSet; // O(1) chunk lookup
     
 #if UNITY_EDITOR
     private static readonly SharedStatic<ProfilerMarker> s_ProfilerMarker = SharedStatic<ProfilerMarker>.GetOrCreate<ProfilerMarkerKey>();
+    private static readonly SharedStatic<ProfilerMarker> s_VelocityCalcMarker = SharedStatic<ProfilerMarker>.GetOrCreate<VelocityMarkerKey>();
+    private static readonly SharedStatic<ProfilerMarker> s_ChunkFilterMarker = SharedStatic<ProfilerMarker>.GetOrCreate<ChunkFilterMarkerKey>();
     private struct ProfilerMarkerKey { }
+    private struct VelocityMarkerKey { }
+    private struct ChunkFilterMarkerKey { }
 #endif
 
     [BurstCompile]
@@ -45,8 +53,14 @@ public partial struct TreeLODUpdateSystem : ISystem
         _activeChunksSet = new NativeHashSet<int2>(20, Allocator.Persistent);
         _frameCounter = 0;
         
+        // OPTIMIZED v3.0: Initialize velocity tracking
+        _lastPlayerPosition = float3.zero;
+        _lastDeltaTime = 0f;
+        
 #if UNITY_EDITOR
         s_ProfilerMarker.Data = new ProfilerMarker("TreeLOD.Update");
+        s_VelocityCalcMarker.Data = new ProfilerMarker("TreeLOD.VelocityCalc");
+        s_ChunkFilterMarker.Data = new ProfilerMarker("TreeLOD.ChunkFilter");
 #endif
     }
 
@@ -64,17 +78,6 @@ public partial struct TreeLODUpdateSystem : ISystem
     {
         _frameCounter++;
         
-        // VR OPTIMIZATION: Skip frames on mobile VR platforms to reduce CPU load
-        // Quest 3 benefits from updating LOD every 2-3 frames instead of every frame
-        if (_frameCounter % VRFrameSkip != 0)
-        {
-            return;
-        }
-        
-#if UNITY_EDITOR
-        s_ProfilerMarker.Data.Begin();
-#endif
-
         // Get configuration
         var lodConfig = SystemAPI.GetSingleton<TreeLODConfig>();
         
@@ -95,12 +98,40 @@ public partial struct TreeLODUpdateSystem : ISystem
         
         if (!hasPlayerPosition)
         {
-#if UNITY_EDITOR
-            s_ProfilerMarker.Data.End();
-#endif
             return;
         }
         
+#if UNITY_EDITOR
+        s_VelocityCalcMarker.Data.Begin();
+#endif
+        
+        // OPTIMIZED v3.0: Calculate velocity for adaptive throttling
+        float velocity = 0f;
+        if (_lastDeltaTime > 0)
+        {
+            velocity = math.length(playerPosition - _lastPlayerPosition) / _lastDeltaTime;
+        }
+        
+        // Determine frame skip based on velocity
+        int effectiveFrameSkip = velocity > lodConfig.playerVelocityThreshold 
+            ? lodConfig.vrFrameSkipScrolling 
+            : VRFrameSkip;
+        
+#if UNITY_EDITOR
+        s_VelocityCalcMarker.Data.End();
+#endif
+        
+        // VR OPTIMIZATION: Adaptive frame skip based on player velocity
+        if (_frameCounter % effectiveFrameSkip != 0)
+        {
+            return;
+        }
+        
+#if UNITY_EDITOR
+        s_ProfilerMarker.Data.Begin();
+        s_ChunkFilterMarker.Data.Begin();
+#endif
+
         int2 playerChunk;
         GetChunkCoord(in playerPosition, out playerChunk);
         
@@ -142,7 +173,11 @@ public partial struct TreeLODUpdateSystem : ISystem
             }
         }
         
-        // Schedule Burst-compiled job for LOD updates
+#if UNITY_EDITOR
+        s_ChunkFilterMarker.Data.End();
+#endif
+        
+        // Schedule Burst-compiled job for LOD updates with distance-tiered filtering
         var updateJob = new TreeLODUpdateJob
         {
             playerPosition = playerPosition,
@@ -152,7 +187,8 @@ public partial struct TreeLODUpdateSystem : ISystem
             hysteresis = lodConfig.hysteresisDelta,
             lodsPerTreeType = lodConfig.lodsPerTreeType,
             activeChunksSet = _activeChunksSet,
-            maxTreesPerFrame = MaxTreesPerFrame
+            maxTreesPerFrame = MaxTreesPerFrame,
+            frameCounter = _frameCounter // Pass frame counter for distance-tiered updates
         };
         
         state.Dependency = updateJob.ScheduleParallel(state.Dependency);
@@ -161,6 +197,10 @@ public partial struct TreeLODUpdateSystem : ISystem
         s_ProfilerMarker.Data.End();
 #endif
         
+        // Update velocity tracking for next frame
+        _lastPlayerPosition = playerPosition;
+        _lastDeltaTime = SystemAPI.Time.DeltaTime;
+        
         // Log periodically (must complete job first for accurate count)
         if (lodConfig.enableTreeLODDebug && _frameCounter % 120 == 0)
         {
@@ -168,12 +208,13 @@ public partial struct TreeLODUpdateSystem : ISystem
             // Get tree count for logging
             var query = SystemAPI.QueryBuilder().WithAll<GlobalTreeInstance, TreeChunkMembership>().Build();
             int totalTrees = query.CalculateEntityCount();
-            UnityEngine.Debug.Log($"[TreeLOD] Processing up to {MaxTreesPerFrame} trees/frame from {_activeChunks.Length} chunks (total: {totalTrees} trees)");
+            UnityEngine.Debug.Log($"[TreeLOD] Velocity: {velocity:F2} m/s, FrameSkip: {effectiveFrameSkip}, Processing {_activeChunks.Length} chunks (total: {totalTrees} trees)");
         }
     }
     
     /// <summary>
     /// Burst-compiled job that updates tree LOD levels in parallel.
+    /// OPTIMIZED v3.0: Added distance-tiered updates (4 tiers: 0-100m, 100-200m, 200-300m, 300m+).
     /// </summary>
     [BurstCompile]
     private partial struct TreeLODUpdateJob : IJobEntity
@@ -186,6 +227,7 @@ public partial struct TreeLODUpdateSystem : ISystem
         [ReadOnly] public int lodsPerTreeType;
         [ReadOnly] public NativeHashSet<int2> activeChunksSet;
         [ReadOnly] public int maxTreesPerFrame;
+        [ReadOnly] public int frameCounter; // For distance-tiered updates
         
         private void Execute(
             in LocalTransform transform,
@@ -200,6 +242,18 @@ public partial struct TreeLODUpdateSystem : ISystem
             float2 treePos2D = new float2(transform.Position.x, transform.Position.z);
             float2 playerPos2D = new float2(playerPosition.x, playerPosition.z);
             float distance = math.distance(treePos2D, playerPos2D);
+            
+            // OPTIMIZED v3.0: Distance-tiered updates (4 tiers)
+            // Near trees (0-100m): Update every frame
+            // Mid trees (100-200m): Update every 2 frames
+            // Far trees (200-300m): Update every 4 frames
+            // Very far trees (300m+): Update every 8 frames
+            if (distance > 300f && frameCounter % 8 != 0)
+                return;
+            if (distance > 200f && frameCounter % 4 != 0)
+                return;
+            if (distance > 100f && frameCounter % 2 != 0)
+                return;
             
             // Determine new LOD level with hysteresis
             byte currentLOD = instanceData.currentLODLevel;

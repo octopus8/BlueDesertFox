@@ -1,6 +1,6 @@
 # Nested Native Container Fix - GlobalTreeInstanceSystem
 
-**Date**: May 2, 2026  
+**Date**: May 2, 2026 (Updated)  
 **Issue**: `InvalidOperationException: Nested native containers are illegal in jobs`  
 **Status**: ✅ **FIXED**
 
@@ -8,7 +8,13 @@
 
 ## Problem Description
 
-### Original Error
+### Latest Error (Current Version)
+```
+InvalidOperationException: The Unity.Collections.NativeArray`1[GlobalTreeInstanceSystem+TreeBatchNative] 
+ConvertToBatchesJob.batchesArray can not be accessed. Nested native containers are illegal in jobs.
+```
+
+### Previous Error (Original Fix)
 ```
 InvalidOperationException: The Unity.Collections.NativeParallelHashMap`2[System.Int32,GlobalTreeInstanceSystem+TreeBatchNative] 
 ConvertToBatchesJob.OutputBatches can not be accessed. Nested native containers are illegal in jobs.
@@ -16,7 +22,7 @@ ConvertToBatchesJob.OutputBatches can not be accessed. Nested native containers 
 
 ### Root Cause
 
-The `ConvertToBatchesJob` was attempting to use a `NativeParallelHashMap<int, TreeBatchNative>` where `TreeBatchNative` contains a `NativeList<Matrix4x4>`:
+The `TreeBatchNative` struct contains a `NativeList<Matrix4x4>`, and when this struct is used inside another native container (like `NativeArray` or `NativeParallelHashMap`) in a job, Unity's safety system blocks it:
 
 ```csharp
 // PROBLEMATIC STRUCTURE
@@ -24,13 +30,14 @@ private struct TreeBatchNative
 {
     public int meshIndex;
     public int materialIndex;
+    public int batchKey;
     public NativeList<Matrix4x4> matrices; // <-- Native container
 }
 
 [BurstCompile]
 private struct ConvertToBatchesJob : IJob
 {
-    public NativeParallelHashMap<int, TreeBatchNative> OutputBatches; // <-- ERROR: Nested containers
+    public NativeArray<TreeBatchNative> batchesArray; // <-- ERROR: Nested containers
     // ...
 }
 ```
@@ -39,16 +46,62 @@ This creates **nested native containers** which Unity's job system explicitly pr
 
 ---
 
-## The Fix
+## Evolution of Fixes
 
-### Solution: Main Thread Conversion
+### Fix v2: Safety Restriction Attribute (Current - May 2, 2026)
 
-Instead of running the batch conversion as a job, we run it on the main thread. This is acceptable because:
+The current fix uses `[NativeDisableContainerSafetyRestriction]` at **two levels** to allow the nested container pattern in the job. This enables Burst-compiled batch conversion while bypassing the safety restriction.
 
-1. **Already Fast**: We're just reorganizing pre-collected data from the parallel job
-2. **No Burst Required**: Simple data movement, CPU-bound not compute-bound
-3. **Avoids Limitations**: No nested container restrictions on main thread
-4. **Still Zero GC**: Uses only native collections (just not in a job)
+**Code Change (Critical - Both Required)**:
+```csharp
+// Location 1: Inside TreeBatchNative struct
+private struct TreeBatchNative
+{
+    public int meshIndex;
+    public int materialIndex;
+    public int batchKey;
+    
+    [NativeDisableContainerSafetyRestriction]  // ← REQUIRED
+    public NativeList<Matrix4x4> matrices;
+}
+
+// Location 2: Inside ConvertToBatchesJob
+[BurstCompile]
+private struct ConvertToBatchesJob : IJob
+{
+    public NativeParallelMultiHashMap<int, Matrix4x4> batchMatrices;
+    
+    [NativeDisableContainerSafetyRestriction]  // ← ALSO REQUIRED
+    public NativeArray<TreeBatchNative> batchesArray;
+    
+    // ...other fields
+}
+```
+
+**Why Both Attributes Are Required**:
+Unity checks nested containers at multiple levels. Without BOTH attributes:
+1. First attribute bypasses check for `NativeList` inside `TreeBatchNative`
+2. Second attribute bypasses check for `TreeBatchNative` (containing nested `NativeList`) in the job's `NativeArray`
+3. Missing either one = job scheduling still fails!
+
+**Why This Is Safe**:
+- Lists are pre-allocated in `OnCreate()` with `Allocator.Persistent`
+- Job only modifies list contents (Clear/Add), never creates or destroys lists
+- Proper disposal in `OnDestroy()` ensures no memory leaks
+- Single-threaded job (`IJob`) avoids concurrent access issues
+- All lifecycle management is explicit and controlled
+
+**Benefits Over v1**:
+- ✅ Burst-compiled job for faster execution
+- ✅ Better CPU utilization (off main thread)
+- ✅ Reduced main thread load
+- ✅ Still zero GC allocations
+
+---
+
+## Fix v1: Main Thread Conversion (Original - Preserved for Reference)
+
+The original fix removed the job entirely and ran conversion on main thread. This worked but was replaced with v2 for better performance.
 
 ### Updated Code
 
@@ -226,8 +279,15 @@ Unity's job system has strict safety rules:
 ### When Can You Use Nested Containers?
 
 ✅ **Main Thread**: No restrictions, full access  
-✅ **Single Container**: One level of nesting OK on main thread  
-❌ **Jobs/Burst**: Never allowed, even with `[NativeDisableContainerSafetyRestriction]`  
+✅ **Jobs with [NativeDisableContainerSafetyRestriction]**: Allowed if lifecycle properly managed  
+⚠️ **Jobs without attribute**: Blocked by safety system (default behavior)  
+❌ **Parallel Jobs with nested containers**: High risk of race conditions, avoid even with attribute  
+
+**Critical Safety Requirements**:
+- Pre-allocate nested containers outside the job (e.g., in `OnCreate()`)
+- Never create or dispose nested containers inside the job
+- Ensure single-threaded access (use `IJob`, not `IJobParallelFor` with shared nested containers)
+- Properly dispose all containers in `OnDestroy()`  
 
 ---
 
@@ -282,6 +342,23 @@ GlobalTreeInstance.Render: 2-5ms total
 
 ### Files Updated
 
+**Fix v2 (Current - May 2, 2026)**:
+1. **GlobalTreeInstanceSystem.cs** (lines 39 and 148)
+   - Added `[NativeDisableContainerSafetyRestriction]` to `TreeBatchNative.matrices` field
+   - Added `[NativeDisableContainerSafetyRestriction]` to `ConvertToBatchesJob.batchesArray` field
+   - Enables Burst-compiled job execution (both attributes required!)
+
+2. **NESTED_CONTAINER_FIX.md** (this document)
+   - Updated with v2 fix details showing both required attributes
+   - Preserved v1 documentation for reference
+   - Explained safety considerations and why both are needed
+
+3. **NESTED_CONTAINER_SAFETY_FIX.md**
+   - Detailed technical explanation of v2 fix with two-level attribute requirement
+   - Lifecycle management verification
+   - Risk assessment and testing checklist
+
+**Fix v1 (Original)**:
 1. **GlobalTreeInstanceSystem.cs**
    - Removed `ConvertToBatchesJob` struct
    - Added `ConvertToBatches()` method
@@ -292,21 +369,22 @@ GlobalTreeInstance.Render: 2-5ms total
    - Added note about nested container limitation
    - Clarified main thread performance is still excellent
 
-3. **NESTED_CONTAINER_FIX.md** (this document)
-   - Complete explanation of the issue and fix
-   - Alternative solutions considered
-   - Performance impact analysis
-
 ---
 
 ## Summary
 
-**Issue**: Nested native containers (`NativeList` inside `NativeParallelHashMap`) cannot be used in Unity jobs  
-**Fix**: Run batch conversion on main thread instead of as a job  
-**Impact**: Zero performance regression, still <1ms, still 0 KB/frame GC  
-**Lesson**: Not everything needs to be a Burst job - profile first, optimize smartly  
+**Issue**: Nested native containers (`NativeList` inside `NativeArray`/`NativeParallelHashMap`) cannot be used in Unity jobs  
 
-✅ **Quest 3 optimization goals still achieved: ~10ms CPU time reduction with 2000+ trees**
+**Fix v1 (Original)**: Run batch conversion on main thread instead of as a job  
+**Fix v2 (Current)**: Use `[NativeDisableContainerSafetyRestriction]` attribute to allow job execution  
+
+**Impact**: 
+- v1: Still <1ms, 0 KB/frame GC, but runs on main thread
+- v2: Burst-compiled job, better CPU utilization, 0 KB/frame GC  
+
+**Lesson**: `[NativeDisableContainerSafetyRestriction]` is safe when lifecycle is properly managed  
+
+✅ **Quest 3 optimization goals achieved: ~10ms CPU time reduction with 2000+ trees**
 
 ---
 
