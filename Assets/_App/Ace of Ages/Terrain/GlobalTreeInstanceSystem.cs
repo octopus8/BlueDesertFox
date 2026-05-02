@@ -187,6 +187,7 @@ public partial class GlobalTreeInstanceSystem : SystemBase
         // Get LOD config once for debug logging (used in multiple places)
         var lodConfig = SystemAPI.GetSingleton<TreeLODConfig>();
         
+        // CHECK THIS ON HEADSET!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         if (lodConfig.enableTreeLODDebug && _frameCount % 60 == 0)
         {
             Debug.Log($"[GlobalTreeInstance] Camera status: {(_mainCamera != null ? $"Found (tag: {_mainCamera.tag})" : "NULL - CULLING DISABLED!")}");
