@@ -380,7 +380,8 @@ public partial class GlobalTreeInstanceSystem : SystemBase
 #endif
         
         // OPTIMIZED v3.0: Calculate visible grid cells for spatial culling
-        bool enableSpatialCulling = hasPlayerPosition;
+        // Only enable if distance culling is enabled AND player position is available
+        bool enableSpatialCulling = enableDistanceCulling && hasPlayerPosition;
         if (_mainCamera == null)
         {
             _mainCamera = Camera.main;
@@ -414,6 +415,13 @@ public partial class GlobalTreeInstanceSystem : SystemBase
         else if (lodConfig.enableTreeLODDebug && _frameCount % 60 == 0)
         {
             Debug.LogWarning("[GlobalTreeInstance] Camera is NULL - frustum culling disabled!");
+        }
+        
+        // Debug log when distance culling is disabled (helps users understand performance)
+        if (!enableDistanceCulling && lodConfig.enableTreeLODDebug && _frameCount % 300 == 0)
+        {
+            Debug.Log("[GlobalTreeInstance] Distance culling is DISABLED - all trees rendering regardless of distance. " +
+                      "Enable 'Enable Distance Culling' in TreeSpawnerConfigAuthoring for better VR performance.");
         }
         
         // Schedule parallel Burst-compiled job to collect tree matrices
@@ -564,7 +572,9 @@ public partial class GlobalTreeInstanceSystem : SystemBase
             string cullingStatus = enableDistanceCulling 
                 ? $"distance culling: {maxRenderDistance:F0}m" 
                 : "distance culling: OFF";
-            string spatialStatus = enableSpatialCulling ? $", spatial grid: {_visibleGridCells.Count} cells" : "";
+            string spatialStatus = enableSpatialCulling 
+                ? $", spatial grid: {_visibleGridCells.Count} cells" 
+                : (enableDistanceCulling ? ", spatial grid: disabled (no player pos)" : "");
             int dirtyCount = _dirtyBatchKeys.Count;
             int stableCount = _activeBatchIndices.Length - dirtyCount;
             
