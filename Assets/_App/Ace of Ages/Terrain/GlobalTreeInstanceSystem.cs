@@ -537,16 +537,15 @@ public partial class GlobalTreeInstanceSystem : SystemBase
                 MemoryCopyMarker.End();
 #endif
                 
-                // Create temp managed array for Graphics API (required by Unity API)
-                Matrix4x4[] renderArray = new Matrix4x4[count];
-                _renderMatrixArray.GetSubArray(0, count).CopyTo(renderArray);
+                // Copy to pooled managed array (required by Unity API - zero GC with pooling)
+                NativeArray<Matrix4x4>.Copy(_renderMatrixArray, _renderMatrixArrayManaged, count);
                 
                 // Draw this batch
                 Graphics.DrawMeshInstanced(
                     mesh,
                     0, // submesh index
                     material,
-                    renderArray,
+                    _renderMatrixArrayManaged, // Use pooled array (zero GC)
                     count, // number of instances to render
                     null, // material property block
                     ShadowCastingMode.On,
@@ -612,6 +611,9 @@ public partial class GlobalTreeInstanceSystem : SystemBase
     
     // ✅ Cached rendering data to avoid GC allocations every frame
     private GlobalTreeRenderingData _cachedRenderingData;
+    
+    // ✅ Pooled managed array for Graphics API (avoids GC allocations)
+    private Matrix4x4[] _renderMatrixArrayManaged;
     
     // Frame counter for periodic debug logging (used outside UNITY_EDITOR for flag-based control)
     private int _frameCount;
@@ -680,6 +682,9 @@ public partial class GlobalTreeInstanceSystem : SystemBase
         
         // Rendering array (now NativeArray for unsafe memcpy)
         _renderMatrixArray = new NativeArray<Matrix4x4>(MaxInstancesPerBatch, Allocator.Persistent);
+        
+        // Managed array for Graphics.DrawMeshInstanced (reuse to avoid GC)
+        _renderMatrixArrayManaged = new Matrix4x4[MaxInstancesPerBatch];
         
         // Pre-allocate batch matrix lists in array slots
         for (int i = 0; i < maxBatches; i++)
