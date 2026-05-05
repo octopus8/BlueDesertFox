@@ -17,7 +17,7 @@ using Unity.Profiling;
 public partial struct TerrainColliderPreparationSystem : ISystem
 {
 #if UNITY_EDITOR
-    private static readonly ProfilerMarker KProfilerMarker = new ProfilerMarker("TerrainPhysics.PrepareJob");
+    private static readonly ProfilerMarker s_ProfilerMarker = new ProfilerMarker("TerrainPhysics.PrepareJob");
 #endif
 
     private EntityQuery _query;
@@ -39,7 +39,7 @@ public partial struct TerrainColliderPreparationSystem : ISystem
     public void OnUpdate(ref SystemState state)
     {
 #if UNITY_EDITOR
-        using (KProfilerMarker.Auto())
+        using (s_ProfilerMarker.Auto())
 #endif
         {
             var config = SystemAPI.GetSingleton<TerrainTileConfig>();
