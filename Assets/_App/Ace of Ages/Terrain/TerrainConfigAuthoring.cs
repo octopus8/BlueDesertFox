@@ -70,9 +70,6 @@ public class TerrainConfigAuthoring : MonoBehaviour
     [Tooltip("Enable terrain tile rendering (disable to test tree rendering only)")]
     public bool renderTerrain = true;
     
-    [Tooltip("Visualize physics colliders as colored wireframes (green=full, yellow=half, orange=quarter LOD)")]
-    public bool visualizeColliders = false;
-    
     [Tooltip("Enable physics collider generation (disable for debugging/performance testing)")]
     public bool enablePhysicsColliders = true;
     
@@ -136,7 +133,6 @@ public class TerrainConfigAuthoring : MonoBehaviour
                 lowDetailPhysicsLayer = authoring.lowDetailPhysicsLayer,
                 // Debug/Testing
                 renderTerrain = authoring.renderTerrain,
-                visualizeColliders = authoring.visualizeColliders,
                 enablePhysicsColliders = authoring.enablePhysicsColliders,
                 enableRenderingDebug = authoring.enableRenderingDebug
             });

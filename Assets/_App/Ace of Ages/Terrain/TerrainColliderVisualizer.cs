@@ -1,3 +1,4 @@
+using System;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
@@ -34,7 +35,15 @@ public class TerrainColliderVisualizer : MonoBehaviour
     [SerializeField] private int _quarterResolutionCount = 0;
     
     private EntityManager _entityManager;
-    
+
+    private void Awake()
+    {
+        // If not Unity editor, then destroy this component.
+#if !UNITY_EDITOR
+        Destroy(this);
+#endif
+    }
+
     void Update()
     {
         if (!Application.isPlaying)
