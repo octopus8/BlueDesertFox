@@ -6,6 +6,8 @@ using Unity.Physics;
 using Unity.Transforms;
 using UnityEngine;
 
+
+[DisableAutoCreation]
 partial struct SplineFollowerSystem : ISystem
 {
     private const bool useJobs = true;

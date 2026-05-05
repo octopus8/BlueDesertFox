@@ -597,8 +597,8 @@ public partial class GlobalTreeInstanceSystem : SystemBase
     private NativeArray<float4> _frustumPlanesNative; // Persistent frustum planes array
     
     // Spatial grid culling (OPTIMIZED v3.0)
-    private NativeHashSet<int2> _visibleGridCells; // 100m x 100m grid cells in camera view
-    private const float GridCellSize = 100f;
+    private NativeHashSet<int2> _visibleGridCells; // 150m x 150m grid cells in camera view
+    private const float GridCellSize = 150f;
     
     // Rendering data
     private NativeArray<Matrix4x4> _renderMatrixArray; // Changed to NativeArray for MemCpy optimization
