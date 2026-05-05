@@ -72,7 +72,7 @@ Located in `Assets/_App/Ace of Ages/`:
   - `PlayerTrackingInitSystem`: Finds and assigns player Transform reference at runtime (runs in `InitializationSystemGroup`), searches via `PlayerTrackingSearch` component with modes: FindByName, FindByTag, FindAutoHandPlayer, FindMainCamera
   - `ScrollTerrainSystem`: Updates `ScrollOffset` each frame in player's forward direction (XZ plane projection) when auto-scroll enabled
   - `TileSpawningSystem`: Spawns/despawns tiles in ring around player using `NativeParallelHashMap<int2, Entity>` to track active tiles, applies scroll offset to tile positions, explicitly destroys trees when tiles despawn via `SpawnedTreeReference` buffer
-  - `TileScrollPositionSystem`: Updates all existing tile positions each frame based on `ScrollOffset` (ensures smooth scrolling)
+  - `TileScrollPositionSystem`: **OPTIMIZED (May 2026)** - Parallel Burst-compiled system using `IJobEntity` to update all existing tile positions each frame based on `ScrollOffset` (ensures smooth scrolling), optimized for Quest 3 performance with 3-5x speedup via multi-core execution (see `TILE_SCROLL_POSITION_OPTIMIZATION.md`)
   - `TerrainDistanceTrackingSystem`: Calculates distance to player and LOD level for each tile, runs before physics system
   - `TerrainMeshGenerationSystem`: Parallel Burst jobs with `IJobParallelFor` for vertex/normal generation, camera-aware priority sorting, frame budgeting via `NativeQueue<Entity>` (processes up to `maxCollidersCreatedPerFrame` tiles/frame)
   - `TerrainColliderPreparationSystem`: Burst-compiled job for LOD decimation (1x/2x/4x vertex stride), calculates camera-aware priority, schedules parallel jobs
