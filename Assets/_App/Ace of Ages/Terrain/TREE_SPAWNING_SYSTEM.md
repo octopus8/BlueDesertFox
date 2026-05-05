@@ -1,8 +1,15 @@
 # Tree Spawning System - Documentation
+**Version:** 3.0  
+**Last Updated:** May 4, 2026
 
 ## Overview
 
 The Tree Spawning System procedurally places tree entities on terrain tiles after mesh generation, with configurable density, variation, and performance budgeting.
+
+**Related Documentation:**
+- **[Tree Rendering System](Documentation/TREE_RENDERING_SYSTEM.md)** - Instanced rendering, LOD, and culling (v3.0)
+- **[System Reference](Documentation/SYSTEM_REFERENCE.md)** - Complete system APIs
+- **[Performance Guide](Documentation/PERFORMANCE.md)** - Optimization strategies
 
 ## Features
 

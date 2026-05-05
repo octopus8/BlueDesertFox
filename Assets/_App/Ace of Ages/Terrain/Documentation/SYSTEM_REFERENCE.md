@@ -1,12 +1,14 @@
 # System Reference - All Terrain Systems
+**Version:** 3.0  
+**Last Updated:** May 4, 2026
 
 Complete reference for all ECS systems in the terrain implementation.
 
 ## System Overview
 
-The terrain system consists of **8 ECS systems** plus **3 debug tools**:
+The terrain system consists of **20+ ECS systems** organized in categories:
 
-### Core Systems (8)
+### Core Terrain Systems (9)
 1. **PlayerTrackingInitSystem** - Initialization
 2. **ScrollTerrainSystem** - Auto-scrolling
 3. **TileSpawningSystem** - Tile lifecycle
@@ -15,11 +17,29 @@ The terrain system consists of **8 ECS systems** plus **3 debug tools**:
 6. **TerrainDistanceTrackingSystem** - LOD calculation
 7. **TerrainColliderPreparationSystem** - Collider preparation
 8. **TerrainPhysicsSystem** - Collider creation
+9. **TerrainRenderingSystem** - Mesh rendering
+
+### Tree Management Systems (5)
+10. **TerrainTreeSpawningSystem** - Tree spawning on tiles
+11. **TreeSpatialChunkingSystem** - Spatial chunk assignment
+12. **TreePositionUpdateSystem** - Tree position updates
+13. **TreeLODUpdateSystem** - Dynamic LOD with hysteresis
+14. **GlobalTreeInstanceSystem** - Instanced rendering with culling
+
+### Scroll Velocity Systems (2)
+15. **PlayerScrollVelocitySystem** - Player rotation-based velocity
+16. **ConstantScrollVelocitySystem** - Fixed velocity vector
+
+### Utility Systems (2)
+17. **TerrainAnchorSystem** - Anchored entity positioning
+18. **WorldOriginTrackingInitSystem** - Optional world origin tracking
 
 ### Debug Tools (3)
 - **TerrainTrackingDebugger** (MonoBehaviour)
 - **TerrainTileGizmoVisualizer** (MonoBehaviour)
 - **TerrainRenderingDebugSystem** (ECS system, disabled by default)
+- **TreeLODDebugSystem** (ECS system, disabled by default)
+- **TreeCleanupDebugSystem** (ECS system, disabled by default)
 
 ---
 
@@ -552,7 +572,38 @@ protected override void OnUpdate()
 
 ---
 
-## System Update Order Diagram
+## Systems 10-18: Tree & Scroll Velocity Systems
+
+**Detailed Documentation:** See [Tree Rendering System](TREE_RENDERING_SYSTEM.md) for comprehensive coverage of:
+- **System 10:** TerrainTreeSpawningSystem
+- **System 11:** TreeSpatialChunkingSystem  
+- **System 12:** TreePositionUpdateSystem
+- **System 13:** TreeLODUpdateSystem
+- **System 14:** GlobalTreeInstanceSystem
+- **System 15:** PlayerScrollVelocitySystem
+- **System 16:** ConstantScrollVelocitySystem
+- **System 17:** TerrainAnchorSystem
+- **System 18:** WorldOriginTrackingInitSystem
+
+### Quick Reference
+
+**Tree Management Systems** (10-14):
+- Spawning, spatial chunking, position updates, LOD, instanced rendering
+- Performance: <2ms for 1000+ trees (Quest 3)
+- v3.0 optimizations: Spatial grid culling (30-40% improvement)
+
+**Scroll Velocity Systems** (15-16):
+- Flexible scroll sources (player rotation or constant vector)
+- Integrate with ScrollTerrainSystem via ScrollVelocity singleton
+- Enable gameplay variety (rotation-based, fixed-speed, etc.)
+
+**Utility Systems** (17-18):
+- TerrainAnchorSystem: Update entities moving with terrain
+- WorldOriginTrackingInitSystem: Optional world origin management
+
+---
+
+## System Update Order Diagram (Complete v3.0)
 
 ```
 Frame Start

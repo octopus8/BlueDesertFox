@@ -1,88 +1,97 @@
 # Infinite Terrain System - Documentation Hub
-Welcome to the comprehensive documentation for the DOTS-based infinite terrain system. This system provides high-performance procedural terrain generation optimized for VR applications.
-## ?? Quick Start
+**Version:** 3.0  
+**Last Updated:** May 4, 2026
+
+Welcome to the comprehensive documentation for the DOTS-based infinite terrain system. This system provides high-performance procedural terrain generation with instanced tree rendering optimized for VR applications.
+
+---
+
+## 🚀 Quick Start
 **New to the system?** Start here:
 1. **[Quick Start Guide](QUICK_START.md)** - Get terrain running in 10 minutes
 2. **[System Overview](SYSTEM_OVERVIEW.md)** - Understand how the system works
 3. **[Common Issues](TROUBLESHOOTING.md)** - Solve problems quickly
-## ?? Documentation Index
+
+**Complete Document Index:** [Table of Contents](TABLE_OF_CONTENTS.md)
+
+---
+
+## 📚 Documentation Index
+
 ### Getting Started
 - **[Quick Start Guide](QUICK_START.md)** - Step-by-step setup instructions for beginners
 - **[Configuration Reference](CONFIGURATION.md)** - Complete guide to all terrain settings
 - **[Player Tracking Setup](PLAYER_TRACKING.md)** - How to configure player tracking for terrain centering
+
 ### Understanding the System
+- **[Architecture](ARCHITECTURE.md)** - 🔄 **NEW v3.0** - Complete system architecture with Mermaid diagrams
 - **[System Overview](SYSTEM_OVERVIEW.md)** - High-level architecture and component relationships
 - **[System Pipeline](SYSTEM_PIPELINE.md)** - Detailed execution order and data flow
 - **[Technical Details](TECHNICAL_DETAILS.md)** - Deep dive into algorithms and implementation
+
 ### Feature Documentation
-- **[Auto-Scrolling Terrain](AUTO_SCROLLING.md)** - Complete guide to the scrolling terrain feature
+- **[Auto-Scrolling Terrain](AUTO_SCROLLING.md)** - 🔄 **Updated v3.0** - Scroll velocity components and configuration
 - **[Physics System](PHYSICS_SYSTEM.md)** - LOD-based physics collider system
 - **[Rendering System](RENDERING_SYSTEM.md)** - How mesh rendering works with Entities Graphics
+- **[Tree Rendering System](TREE_RENDERING_SYSTEM.md)** - 🔄 **NEW v3.0** - Instanced rendering with spatial culling
+
 ### Reference
-- **[API Reference](API_REFERENCE.md)** - Complete component and system API documentation
+- **[System Reference](SYSTEM_REFERENCE.md)** - 🔄 **Updated v3.0** - All 20+ systems with APIs
 - **[Component Reference](COMPONENT_REFERENCE.md)** - All components with detailed explanations
-- **[System Reference](SYSTEM_REFERENCE.md)** - All systems with update order and dependencies
+- **[API Reference](API_REFERENCE.md)** - Complete component and system API documentation
+
 ### Troubleshooting & Debugging
 - **[Troubleshooting Guide](TROUBLESHOOTING.md)** - Solutions to common problems
 - **[Debug Tools](DEBUG_TOOLS.md)** - Using TerrainTrackingDebugger and visualization tools
 - **[Performance Optimization](PERFORMANCE.md)** - Tuning for maximum performance
+- **[Optimization History](OPTIMIZATION_HISTORY.md)** - 🔄 **NEW v3.0** - v1.0 → v3.0 evolution
+- **[Code Review](CODE_REVIEW.md)** - 🔄 **NEW v3.0** - Code quality assessment
+
 ### Advanced Topics
 - **[Extension Guide](EXTENSIONS.md)** - How to add custom features (biomes, LOD, modifications)
 - **[Integration Guide](INTEGRATION.md)** - Integrating with other systems in your project
-## ?? What is this System?
-The Infinite Terrain System is a production-ready Unity DOTS implementation that provides:
+
+---
+
+## ⭐ What is this System?
+
+The Infinite Terrain System v3.0 is a production-ready Unity DOTS implementation that provides:
+
 ### Core Features
-? **Infinite Procedural Terrain** - Tiles spawn/despawn automatically as player moves  
-? **Auto-Scrolling** - Optional endless runner mode with directional scrolling  
-? **VR Optimized** - Low overhead, no motion sickness from smooth scrolling  
-? **High Performance** - Burst-compiled ECS systems, zero GC allocations  
-? **Physics Ready** - Automatic mesh collider generation with LOD support  
-? **Flexible Player Tracking** - Works with any GameObject (VR rig, camera, etc.)
-### Performance Characteristics
+✅ **Infinite Procedural Terrain** - Tiles spawn/despawn automatically as player moves  
+✅ **Auto-Scrolling** - Optional endless runner mode with flexible velocity sources  
+✅ **Instanced Tree Rendering** - Thousands of trees with spatial culling (v3.0)  
+✅ **Dynamic Tree LOD** - Distance-based mesh switching with hysteresis (v3.0)  
+✅ **VR Optimized** - Quest 3 performance targets (<11ms budget)  
+✅ **High Performance** - Burst-compiled ECS systems, zero GC allocations  
+✅ **Physics Ready** - Automatic mesh collider generation with LOD support  
+✅ **Flexible Player Tracking** - Works with any GameObject (VR rig, camera, etc.)
+
+### Performance Characteristics (v3.0)
 - **Tile Generation**: ~5-10ms per tile (configurable budget)
+- **Tree Rendering**: <2ms for 1000+ trees (Quest 3)
+- **Tree LOD Updates**: <0.5ms (velocity-aware throttling)
 - **Physics Collider Creation**: Budget-limited to prevent frame spikes
-- **Memory Usage**: Collider cache with LRU eviction
+- **Memory Usage**: Collider cache with LRU eviction (~53MB typical)
 - **Zero GC Allocations**: No managed memory allocations during runtime
-## ??? System Architecture Overview
-```
-+-------------------------------------------------------------+
-�                    Initialization Phase                      �
-+-------------------------------------------------------------�
-� PlayerTrackingInitSystem                                    �
-� +- Finds player GameObject and stores Transform reference   �
-+-------------------------------------------------------------+
-+-------------------------------------------------------------+
-�                    Simulation Phase (Update Order)           �
-+-------------------------------------------------------------�
-� 1. ScrollTerrainSystem                                      �
-�    +- Updates scroll offset for auto-scrolling terrain      �
-�                                                              �
-� 2. TileSpawningSystem                                       �
-�    +- Creates/destroys tiles based on player distance       �
-�                                                              �
-� 3. TileScrollPositionSystem                                 �
-�    +- Applies scroll offset to tile positions               �
-�                                                              �
-� 4. TerrainMeshGenerationSystem                              �
-�    +- Generates procedural meshes with Perlin noise         �
-�                                                              �
-� 5. TerrainDistanceTrackingSystem                            �
-�    +- Calculates tile distances and LOD levels              �
-�                                                              �
-� 6. TerrainColliderPreparationSystem                         �
-�    +- Prepares collider data with LOD decimation (Burst)    �
-�                                                              �
-� 7. TerrainPhysicsSystem                                     �
-�    +- Creates Unity Physics colliders with caching          �
-+-------------------------------------------------------------+
-+-------------------------------------------------------------+
-�                    Presentation Phase                        �
-+-------------------------------------------------------------�
-� TerrainRenderingSystem                                      �
-� +- Creates Unity Meshes and sets up Entities Graphics       �
-+-------------------------------------------------------------+
-```
-## ?? Quick Configuration Reference
+
+---
+
+## 🏗️ System Architecture Overview
+
+**20+ Systems** organized in clear execution pipeline. **[Complete Architecture Diagram](ARCHITECTURE.md)**
+
+**System Categories:**
+- **Core Terrain (9)** - Tile lifecycle, mesh generation, physics
+- **Tree Management (5)** - Spawning, LOD, spatial chunking, instanced rendering
+- **Scroll Velocity (2)** - Player-based and constant velocity sources
+- **Utilities (4)** - Player tracking, anchors, debug tools
+
+**Execution Flow:** Init → Scroll Velocity → Terrain Core → Physics → Trees → Presentation
+
+---
+
+## 🎯 Quick Configuration Reference
 ### Basic Terrain Settings
 ```
 Tile Size:           100m      // Size of each terrain chunk
@@ -110,66 +119,141 @@ Half Resolution Distance:  300m   // Use every 2nd vertex
 Quarter Resolution Distance: 450m // Use every 4th vertex
 Max Collider Cache:        50MB   // Memory limit for cached colliders
 ```
-## ?? Having Issues?
-1. **Terrain not spawning?** ? [Troubleshooting - No Tiles](TROUBLESHOOTING.md#no-tiles-spawning)
-2. **Terrain not visible?** ? [Troubleshooting - Not Rendering](TROUBLESHOOTING.md#terrain-not-rendering)
-3. **Player tracking fails?** ? [Player Tracking Setup](PLAYER_TRACKING.md)
-4. **Performance issues?** ? [Performance Optimization](PERFORMANCE.md)
-5. **Physics problems?** ? [Physics System](PHYSICS_SYSTEM.md)
+
+### Tree Rendering Settings (v3.0)
+```
+Max Render Distance:       200m   // Tree culling distance
+LOD 0 Distance:            50m    // High detail
+LOD 1 Distance:            100m   // Medium detail
+LOD 2 Distance:            200m   // Low detail/billboard
+Spatial Grid Cell Size:    100m   // Chunk size for culling
+```
+
+---
+
+## 🆕 What's New in v3.0 (May 2026)
+
+**Major Features:**
+- ✅ **Global Tree Instanced Rendering** - Spatial grid culling, 30-40% performance improvement
+- ✅ **Tree LOD System** - Dynamic mesh LOD with hysteresis and velocity-aware throttling
+- ✅ **Scroll Velocity Components** - Flexible scroll sources (player rotation or constant)
+- ✅ **Complete Documentation** - Architecture diagrams, optimization history, code review
+
+**Performance Improvements:**
+- Spatial chunking for efficient tree culling
+- Burst-compiled parallel matrix collection
+- Distance culling before frustum tests
+- VR frame skipping for LOD updates
+
+**Documentation Updates:**
+- Mermaid diagrams throughout
+- Consolidated optimization notes
+- Complete system reference (20+ systems)
+- Code quality assessment
+
+---
+
+## 🔥 Having Issues?
+1. **Terrain not spawning?** → [Troubleshooting - No Tiles](TROUBLESHOOTING.md#no-tiles-spawning)
+2. **Terrain not visible?** → [Troubleshooting - Not Rendering](TROUBLESHOOTING.md#terrain-not-rendering)
+3. **Player tracking fails?** → [Player Tracking Setup](PLAYER_TRACKING.md)
+4. **Performance issues?** → [Performance Optimization](PERFORMANCE.md)
+5. **Physics problems?** → [Physics System](PHYSICS_SYSTEM.md)
+6. **Trees not rendering?** → [Tree Rendering System](TREE_RENDERING_SYSTEM.md)
+
 **Debug Tools Available**:
 - `TerrainTrackingDebugger` - Player tracking and tile status
 - `TerrainTileGizmoVisualizer` - Visual tile debugging in Scene view
-## ?? Technical Highlights
+- `TreeLODDebugSystem` - LOD level visualization
+- `TreeCleanupDebugSystem` - Tree lifecycle validation
+
+---
+
+## 💡 Technical Highlights
+
 ### Zero GC Allocation Design
 - All systems use `NativeContainer` types (no managed collections)
 - Burst-compiled jobs for mesh generation and collider preparation
 - `Reinterpret<T>().AsNativeArray()` pattern for zero-copy buffer access
 - Entity queries with stack-allocated processing
+
 ### Camera-Aware Prioritization
 - Tiles in camera view frustum processed first
 - Forward-facing tiles prioritized over backward tiles
 - Distance-based sorting for generation order
+
 ### Physics LOD System
 - Three LOD levels based on distance (full, half, quarter resolution)
 - Cached collider data with LRU eviction
 - Frame budget system prevents spikes
 - Optional physics layer separation for distant tiles
+
 ### Hybrid MonoBehaviour/ECS Design
 - Player tracking via managed `PlayerTransformReference` component
 - Compatible with any GameObject (VR rigs, cameras, etc.)
 - Runtime initialization system for cross-scene references
 - Material management via MonoBehaviour systems
-## ?? File Structure
+
+### Tree Rendering Architecture (v3.0)
+- Graphics.DrawMeshInstanced for maximum batching
+- Three-stage culling (spatial → distance → frustum)
+- Burst-compiled parallel matrix collection
+- Dynamic LOD with hysteresis to prevent flickering
+
+---
+
+## 📁 File Structure
 ```
 Terrain/
-+- Documentation/           ? You are here!
-�  +- README.md             (This file)
-�  +- QUICK_START.md
-�  +- SYSTEM_OVERVIEW.md
-�  +- ... (all documentation)
-�
-+- TerrainConfigAuthoring.cs       (Main authoring component)
-+- TileComponents.cs               (Component definitions)
-+- TerrainPhysicsComponents.cs     (Physics-specific components)
-�
-+- Systems:
-�  +- PlayerTrackingInitSystem.cs
-�  +- ScrollTerrainSystem.cs
-�  +- TileSpawningSystem.cs
-�  +- TileScrollPositionSystem.cs
-�  +- TerrainMeshGenerationSystem.cs
-�  +- TerrainDistanceTrackingSystem.cs
-�  +- TerrainColliderPreparationSystem.cs
-�  +- TerrainPhysicsSystem.cs
-�  +- TerrainRenderingSystem.cs
-�
-+- Debug Tools:
-   +- TerrainTrackingDebugger.cs
-   +- TerrainTileGizmoVisualizer.cs
-   +- TerrainRenderingDebugSystem.cs
+├─ Documentation/           ← You are here!
+│  ├─ README.md             (This file)
+│  ├─ TABLE_OF_CONTENTS.md  (Complete document index)
+│  ├─ ARCHITECTURE.md       (NEW v3.0 - System architecture)
+│  ├─ QUICK_START.md
+│  ├─ SYSTEM_OVERVIEW.md
+│  ├─ TREE_RENDERING_SYSTEM.md (NEW v3.0)
+│  └─ ... (all documentation)
+│
+├─ README.md                (Quick reference)
+├─ TREE_SPAWNING_SYSTEM.md  (Tree spawning guide)
+│
+├─ Systems (C# files):
+│  ├─ TerrainConfigAuthoring.cs       (Main authoring component)
+│  ├─ TileComponents.cs               (Component definitions)
+│  ├─ TerrainPhysicsComponents.cs     (Physics-specific components)
+│  │
+│  ├─ Core Systems:
+│  │  ├─ PlayerTrackingInitSystem.cs
+│  │  ├─ ScrollTerrainSystem.cs
+│  │  ├─ TileSpawningSystem.cs
+│  │  ├─ TileScrollPositionSystem.cs
+│  │  ├─ TerrainMeshGenerationSystem.cs
+│  │  ├─ TerrainDistanceTrackingSystem.cs
+│  │  ├─ TerrainColliderPreparationSystem.cs
+│  │  ├─ TerrainPhysicsSystem.cs
+│  │  └─ TerrainRenderingSystem.cs
+│  │
+│  ├─ Tree Systems:
+│  │  ├─ TerrainTreeSpawningSystem.cs
+│  │  ├─ TreeSpatialChunkingSystem.cs
+│  │  ├─ TreePositionUpdateSystem.cs
+│  │  ├─ TreeLODUpdateSystem.cs
+│  │  └─ GlobalTreeInstanceSystem.cs
+│  │
+│  ├─ Scroll Velocity:
+│  │  ├─ PlayerScrollVelocitySystem.cs
+│  │  └─ ConstantScrollVelocitySystem.cs
+│  │
+│  └─ Debug Tools:
+│     ├─ TerrainTrackingDebugger.cs
+│     ├─ TerrainTileGizmoVisualizer.cs
+│     └─ TerrainRenderingDebugSystem.cs
 ```
-## ?? Version Information
-**Current Version**: 2.0  
+
+---
+
+## 📊 Version Information
+**Current Version**: 3.0  
 **Unity Version**: Unity 6 (6000.3.10f1)  
 **Dependencies**:
 - Unity.Entities (1.3.0+)
@@ -177,6 +261,38 @@ Terrain/
 - Unity.Rendering.Hybrid (Entities Graphics)
 - Unity.Burst
 - Unity.Mathematics
-**Last Updated**: March 2026
+
+**Last Updated**: May 4, 2026
+
+**Version History:**
+- **v3.0 (May 2026)** - Tree instanced rendering, LOD system, scroll velocity components
+- **v2.0 (March 2026)** - Camera-aware prioritization, tree spawning system
+- **v1.0 (December 2025)** - Core infinite terrain with auto-scrolling
+
 ---
-**Ready to get started?** ? [Quick Start Guide](QUICK_START.md)
+
+## 🔗 Key Documentation Links
+
+**Start Here:**
+- [Quick Start Guide](QUICK_START.md) - 10 minute setup
+- [Table of Contents](TABLE_OF_CONTENTS.md) - All documents
+
+**Understanding:**
+- [Architecture](ARCHITECTURE.md) - Complete system design
+- [System Pipeline](SYSTEM_PIPELINE.md) - Execution flow
+
+**Reference:**
+- [System Reference](SYSTEM_REFERENCE.md) - All 20+ systems
+- [Component Reference](COMPONENT_REFERENCE.md) - All components
+
+**Features:**
+- [Auto-Scrolling](AUTO_SCROLLING.md) - Endless runner mode
+- [Tree Rendering](TREE_RENDERING_SYSTEM.md) - Instanced rendering
+
+**Optimization:**
+- [Performance Guide](PERFORMANCE.md) - Tuning tips
+- [Optimization History](OPTIMIZATION_HISTORY.md) - Evolution timeline
+
+---
+
+**Ready to get started?** → [Quick Start Guide](QUICK_START.md)
