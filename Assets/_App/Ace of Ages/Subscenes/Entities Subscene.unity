@@ -5883,7 +5883,7 @@ MonoBehaviour:
   maxSpawnHeight: 100
   maxSlopeDegrees: 22.5
   maxTreesSpawnedPerFrame: 20
-  enableTreeLODDebug: 1
+  enableTreeLODDebug: 0
   enableSpawnerDebug: 0
   enableDistanceCulling: 0
   maxTreeRenderDistance: 400
