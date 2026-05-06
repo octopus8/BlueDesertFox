@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: eeebb2a9f51a98c4fadc09dd8c1e20d2
+timeCreated: 1579838857
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 43198656120646014
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 85664
+  packageName: POLYGON - Vikings Pack - Art by Synty
+  packageVersion: 1.5.0
+  assetPath: Assets/Synty/PolygonVikings/Models/Collision/Convex/SM_Prop_Fence_Platform_01_Snow_Convex.asset
+  uploadId: 883992

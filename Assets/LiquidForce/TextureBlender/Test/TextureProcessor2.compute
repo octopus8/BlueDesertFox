@@ -1,0 +1,300 @@
+#pragma kernel DTXnmToRGBA
+#pragma kernel BlendImageToBuffer
+#pragma kernel BlendBufferToImage
+#pragma kernel BlendTransformedImageToBuffer
+#pragma kernel InitBuffer
+#pragma kernel BlendAlphamaps
+
+
+// Blend properties.
+struct BlendProperties
+{
+    float width;
+    float height;
+    float blendIntensity;
+    float2 position;
+    float rotationDegrees;
+    float2 scale;
+};
+
+
+// The texture to blend.
+Texture2D<float4> InputTexture;
+
+// A texture used to mask the blending. The alpha channel of this texture is used for masking.
+Texture2D<float4> MaskTexture;
+
+// The result texture. Note: this shader writes to both the Result texture and the output buffer because OpenGL ES 3.0 does not support read/write
+// to rgb textures - this will APPEAR to work in the editor, but will not work unless a headset is running Vulkan.
+RWTexture2D<float4> Result;
+
+// The output image buffer.
+RWStructuredBuffer<float4> OutputBuffer;
+
+// Blend properties.
+StructuredBuffer<BlendProperties> BlendPropertiesBuffer;
+
+// Sampler.
+SamplerState TexLinearClampSampler;
+
+
+/************************************************************************************************
+ * Helper functions
+ ************************************************************************************************/
+
+uint2 RotatePoint(uint2 p, float deg, float2 dim)
+{
+    float2 pf = float2(p);
+    float2 remap = float2(dim) * 0.5f;
+    pf -= remap;
+
+    float rad = deg * (3.14159265359 / 180.0); // Convert degrees to radians
+
+    float x = pf.x * cos(rad) - pf.y * sin(rad);
+    float y = pf.x * sin(rad) + pf.y * cos(rad);
+
+    return uint2(x + remap.x, y + remap.y);
+}
+
+float Lerp(float a, float b, float t) {
+    return a + t * (b - a);
+}
+
+float4 Lerp(float4 a, float4 b, float t)
+{
+    return a * (1 - t) + b * t;
+}
+
+float4 sampleBilinear(Texture2D tex, float2 uv, float2 size) {
+    uv = uv * size.x - 0.5f;
+    float2 f = frac(uv);
+    uv -= f;
+    uv = uv / size;
+
+    // Fetch the four neighboring samples
+    float4 tl = tex.SampleLevel(TexLinearClampSampler, uv, 0);
+    float4 tr = tex.SampleLevel(TexLinearClampSampler, uv + float2(1, 0) / size, 0);
+    float4 bl = tex.SampleLevel(TexLinearClampSampler, uv + float2(0, 1) / size, 0);
+    float4 br = tex.SampleLevel(TexLinearClampSampler, uv + float2(1, 1) / size, 0);
+
+    // Interpolate using the fractional part of uv
+    float4 t = Lerp(tl, tr, f.x);
+    float4 b = Lerp(bl, br, f.x);
+    return Lerp(t, b, f.y);
+}
+
+
+
+/************************************************************************************************
+ * DTXnmColorToRGBA kernel
+ ************************************************************************************************/
+
+/// Converts a color from DXTnm to RGBA.
+float4 DTXnmColorToRGBA(float4 col)
+{
+    float4 c = col;
+    c.r = c.a*2-1;                              //red<-alpha (x<-w)
+    c.g = c.g*2-1;                              //green is always the same (y)
+    float2 xy = float2(c.r, c.g);               //this is the xy vector, can be written also just "c.xy"
+    c.b = sqrt(1-clamp(dot(xy, xy), 0, 1));     //recalculate the blue channel (z)
+    return float4(c.r*0.5f+0.5f, c.g*0.5f+0.5f, c.b*0.5f+0.5f, 1); //back to 0-1 range
+}
+
+
+/// Kernel that converts an image from DXTnm to RGBA.
+[numthreads(8,8,1)]
+void DTXnmToRGBA(uint3 id : SV_DispatchThreadID)
+{
+    // Get dimensions.
+    float3 dim;
+    InputTexture.GetDimensions(dim.x, dim.y);
+
+    // Get input texture pixel color.
+    const float4 input_color = InputTexture[id.xy];
+
+    // Convert the color.
+    const float4 converted_color = DTXnmColorToRGBA(input_color);
+    
+    // Write the result to the output buffer.
+    const uint flattened = id.y * dim.x + id.x;
+    OutputBuffer[flattened] = converted_color;
+
+    // Write the result to the result texture.
+    Result[id.xy] = converted_color;
+}
+
+
+/************************************************************************************************
+ * Blend textures kernels
+ ************************************************************************************************/
+
+// Initializes the output buffer with an image.
+[numthreads(8,8,1)]
+void InitBuffer(uint3 id : SV_DispatchThreadID)
+{
+    float3 dim;
+    InputTexture.GetDimensions(dim.x, dim.y);
+    const float4 input_color = InputTexture[id.xy];
+    const uint flattened = id.y * dim.x + id.x;
+    OutputBuffer[flattened] = input_color;
+}
+
+
+/// \brief Blends an image into the image buffer. The image is scaled to fit the buffer image size.
+[numthreads(8,8,1)]
+void BlendImageToBuffer(uint3 id : SV_DispatchThreadID)
+{
+    // Get blend properties.
+    float2 BufferSize;
+    BufferSize.x = BlendPropertiesBuffer[id.z].width;
+    BufferSize.y = BlendPropertiesBuffer[id.z].height;
+    float blendIntensity = BlendPropertiesBuffer[id.z].blendIntensity;
+    
+    // Get input texture pixel color.
+    float3 inputTextureSize;
+    InputTexture.GetDimensions(inputTextureSize.x, inputTextureSize.y);
+    uint2 inputUV;
+    inputUV.x = (inputTextureSize.x/BufferSize.x) * id.x;
+    inputUV.y = (inputTextureSize.y/BufferSize.y) * id.y;
+    float4 inputColor = InputTexture[inputUV];
+
+    // Get the mask texture pixel color.
+    float3 maskTextureSize;
+    MaskTexture.GetDimensions(maskTextureSize.x, maskTextureSize.y);
+    uint2 maskUV;
+    maskUV.x = (maskTextureSize.x/BufferSize.x) * id.x;
+    maskUV.y = (maskTextureSize.y/BufferSize.y) * id.y;
+    float4 maskColor = MaskTexture[maskUV];
+
+    // Get the existing pixel color from the image buffer.
+    uint flattened = id.y * BufferSize.x + id.x;
+    float4 bufferColor = OutputBuffer[flattened];
+
+    // Compute the blended color. This is where this kernel differs from `BlendBufferToImage`.
+    blendIntensity *= inputColor.a * maskColor.a;
+    float4 blendedColor = bufferColor * (1.0-blendIntensity) + (inputColor * blendIntensity) * inputColor.a;
+    blendedColor.a = bufferColor.a;
+
+    // Write the result to the output buffer.
+    OutputBuffer[flattened] = blendedColor;
+
+    // Write the result to the result texture.
+    Result[id.xy] = blendedColor;
+}
+
+
+
+/// \brief Blends the image buffer into an image. The image is scaled to fit the buffer image size.
+[numthreads(8,8,1)]
+void BlendBufferToImage(uint3 id : SV_DispatchThreadID)
+{
+    // Get blend properties.
+    float2 BufferSize;
+    BufferSize.x = BlendPropertiesBuffer[id.z].width;
+    BufferSize.y = BlendPropertiesBuffer[id.z].height;
+    float blendIntensity = BlendPropertiesBuffer[id.z].blendIntensity;
+    
+    // Get input texture dimensions.
+    float3 inputTextureSize;
+    InputTexture.GetDimensions(inputTextureSize.x, inputTextureSize.y);
+
+    // Get input texture pixel color.
+    uint2 inputUV;
+    inputUV.x = (inputTextureSize.x/BufferSize.x) * id.x;
+    inputUV.y = (inputTextureSize.y/BufferSize.y) * id.y;
+    float4 inputColor = InputTexture[inputUV];
+
+    // Get the existing pixel color from the image buffer.
+    uint flattened = id.y * BufferSize.x + id.x;
+    float4 bufferColor = OutputBuffer[flattened];
+
+    // Compute the blended color. This is where this kernel differs from `BlendBufferToImage`.
+    blendIntensity *= bufferColor.a;
+    float4 blendedColor = bufferColor * blendIntensity + (inputColor * (1.0 - blendIntensity)) * inputColor.a;
+    blendedColor.a = bufferColor.a;
+    
+    // Write the result to the output buffer.
+    OutputBuffer[flattened] = blendedColor;
+
+    // Write the result to the result texture.
+    Result[id.xy] = blendedColor;
+}
+
+
+/// \brief Blends an image into the image buffer. The image is NOT scaled to fit the buffer image size. Transform data is specified to position, rotate, and scale the image.
+[numthreads(8,8,1)]
+void BlendTransformedImageToBuffer(uint3 id : SV_DispatchThreadID)
+{
+    // Get blend properties.
+    float2 BufferSize;
+    BufferSize.x = BlendPropertiesBuffer[id.z].width;
+    BufferSize.y = BlendPropertiesBuffer[id.z].height;
+    float blendIntensity = BlendPropertiesBuffer[id.z].blendIntensity;
+    float2 position = BlendPropertiesBuffer[id.z].position;
+    
+    // Get input texture dimensions.
+    float2 inputTextureSize;
+    InputTexture.GetDimensions(inputTextureSize.x, inputTextureSize.y);
+    
+    // Get input texture pixel color.
+    uint2 inputPos;
+    float2 scaleFactor = 1 / BlendPropertiesBuffer[id.z].scale;
+    position *= scaleFactor;
+    inputPos.x = (id.x - position.x * 0.5 * BufferSize.x) - ((BufferSize.x - inputTextureSize.x) * 0.5);
+    inputPos.y = (id.y - position.y * 0.5 * BufferSize.y) - ((BufferSize.y - inputTextureSize.y) * 0.5);
+    inputPos *= scaleFactor;
+    inputPos = RotatePoint(inputPos, BlendPropertiesBuffer[id.z].rotationDegrees, inputTextureSize);
+    float4 inputColor = InputTexture[inputPos];
+
+    // Get the existing pixel color from the image buffer.
+    uint flattened = id.y * BufferSize.x + id.x;
+    float4 bufferColor = OutputBuffer[flattened];
+
+    // Compute the blended color.
+    blendIntensity *= inputColor.a;
+    float4 blendedColor = bufferColor * (1.0-blendIntensity) + (inputColor * blendIntensity) * inputColor.a;
+    blendedColor.a = bufferColor.a;
+
+    // Write the result to the output buffer.
+    OutputBuffer[flattened] = blendedColor;
+
+    // Write the result to the result texture.
+    Result[id.xy] = blendedColor;
+}
+
+
+/************************************************************************************************
+ * Blend alpha maps kernel
+ ************************************************************************************************/
+
+
+/// \brief Very similar to BlendImageToBuffer, this kernel is used to blend alphamaps.
+[numthreads(8,8,1)]
+void BlendAlphamaps (uint3 id : SV_DispatchThreadID)
+{
+    // Get blend properties.
+    float2 BufferSize;
+    BufferSize.x = BlendPropertiesBuffer[id.z].width;
+    BufferSize.y = BlendPropertiesBuffer[id.z].height;
+    
+    // Get input texture pixel color.
+    float3 inputTextureSize;
+    InputTexture.GetDimensions(inputTextureSize.x, inputTextureSize.y);
+    uint2 inputUV;
+    inputUV.x = (inputTextureSize.x/BufferSize.x) * id.x;
+    inputUV.y = (inputTextureSize.y/BufferSize.y) * id.y;
+    float4 inputColor = InputTexture[inputUV];
+
+    // Get the existing pixel color from the image buffer.
+    uint flattened = id.y * BufferSize.x + id.x;
+    float4 bufferColor = OutputBuffer[flattened];
+
+    // Compute the blended color. This is where this kernel differs from `BlendBufferToImage`.
+    float4 blendedColor = bufferColor * inputColor;
+
+    // Write the result to the output buffer.
+    OutputBuffer[flattened] = blendedColor;
+
+    // Write the result to the result texture.
+    Result[id.xy] = blendedColor;
+}

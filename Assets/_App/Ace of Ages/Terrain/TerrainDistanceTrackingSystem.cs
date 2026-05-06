@@ -19,6 +19,11 @@ public partial class TerrainDistanceTrackingSystem : SystemBase
     private static readonly ProfilerMarker s_ProfilerMarker = new ProfilerMarker("TerrainPhysics.DistanceTracking");
 #endif
 
+    protected override void OnCreate()
+    {
+        RequireForUpdate<TerrainTileConfig>();
+    }
+
     protected override void OnUpdate()
     {
 #if UNITY_EDITOR
@@ -26,6 +31,12 @@ public partial class TerrainDistanceTrackingSystem : SystemBase
 #endif
         {
             var config = SystemAPI.GetSingleton<TerrainTileConfig>();
+            
+            // Early exit if physics colliders are disabled
+            if (!config.enablePhysicsColliders)
+            {
+                return;
+            }
             
             // Get player transform reference (managed component)
             if (!SystemAPI.ManagedAPI.TryGetSingleton<PlayerTransformReference>(out var playerRef) ||
@@ -41,17 +52,15 @@ public partial class TerrainDistanceTrackingSystem : SystemBase
             var ecb = new EntityCommandBuffer(Allocator.Temp);
             
             // Query all terrain tiles using SystemAPI.Query
-            foreach (var (tile, entity) in SystemAPI.Query<RefRO<TerrainTile>>().WithEntityAccess())
+            foreach (var (transform, tile, entity) in SystemAPI.Query<RefRO<LocalTransform>, RefRO<TerrainTile>>().WithEntityAccess())
             {
-                // Calculate tile center in world space
-                float2 tileCenter = new float2(
-                    tile.ValueRO.gridCoordinate.x * config.tileSize + config.tileSize * 0.5f,
-                    tile.ValueRO.gridCoordinate.y * config.tileSize + config.tileSize * 0.5f
-                );
+                // Calculate tile center in world space using its transform
+                float3 tileCenter = transform.ValueRO.Position;
                 
                 // Calculate 2D distance (XZ plane) from player to tile center
                 float2 playerPos2D = new float2(playerPosition.x, playerPosition.z);
-                float distance = math.distance(tileCenter, playerPos2D);
+                float2 tileCenter2D = new float2(tileCenter.x, tileCenter.z);
+                float distance = math.distance(tileCenter2D, playerPos2D);
                 
                 // Determine LOD level based on distance thresholds
                 TerrainPhysicsLODLevel newLodLevel;

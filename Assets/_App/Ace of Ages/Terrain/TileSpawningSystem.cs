@@ -4,6 +4,10 @@ using Unity.Entities;
 using Unity.Mathematics;
 using Unity.Transforms;
 
+#if UNITY_EDITOR
+using UnityEngine;
+#endif
+
 /// <summary>
 /// System that spawns and despawns terrain tiles based on player position.
 /// Uses a NativeParallelHashMap to track active tiles efficiently.
@@ -33,6 +37,12 @@ public partial struct TileSpawningSystem : ISystem
     public void OnUpdate(ref SystemState state)
     {
         var config = SystemAPI.GetSingleton<TerrainTileConfig>();
+        
+        // Early exit if both rendering and physics are disabled - no need to spawn tiles
+        if (!config.renderTerrain && !config.enablePhysicsColliders)
+        {
+            return;
+        }
         
         // Get the player transform reference (managed component, cannot use Burst)
         var playerRef = SystemAPI.ManagedAPI.GetSingleton<PlayerTransformReference>();
@@ -122,11 +132,12 @@ public partial struct TileSpawningSystem : ISystem
         {
             Entity tileEntity = ecb.CreateEntity();
             
-            // Calculate world position for this tile (subtract directional scroll offset)
+            // Calculate world position for this tile (centered, subtract directional scroll offset)
+            // Tile transform is placed at the CENTER of the tile for accurate LOD distance calculations
             float3 basePosition = new float3(
-                gridCoord.x * config.tileSize,
+                gridCoord.x * config.tileSize + config.tileSize * 0.5f,
                 0,
-                gridCoord.y * config.tileSize
+                gridCoord.y * config.tileSize + config.tileSize * 0.5f
             );
             float3 tilePosition = basePosition - scrollOffset.accumulatedOffset;
             
@@ -155,6 +166,9 @@ public partial struct TileSpawningSystem : ISystem
             ecb.AddBuffer<NormalElement>(tileEntity);
             ecb.AddBuffer<UVElement>(tileEntity);
             ecb.AddBuffer<IndexElement>(tileEntity);
+            
+            // Add buffer for tracking spawned trees (for cleanup)
+            ecb.AddBuffer<SpawnedTreeReference>(tileEntity);
         }
         
         // Despawn old tiles
@@ -162,6 +176,21 @@ public partial struct TileSpawningSystem : ISystem
         {
             if (_activeTiles.TryGetValue(gridCoord, out Entity tileEntity))
             {
+                // Explicitly destroy child trees BEFORE destroying tile
+                // While Parent component should auto-destroy children, explicit cleanup
+                // ensures trees are removed even if transform hierarchy isn't fully updated
+                if (state.EntityManager.HasBuffer<SpawnedTreeReference>(tileEntity))
+                {
+                    var spawnedTrees = state.EntityManager.GetBuffer<SpawnedTreeReference>(tileEntity);
+                    foreach (var treeRef in spawnedTrees)
+                    {
+                        if (state.EntityManager.Exists(treeRef.treeEntity))
+                        {
+                            ecb.DestroyEntity(treeRef.treeEntity);
+                        }
+                    }
+                }
+                
                 ecb.DestroyEntity(tileEntity);
                 _activeTiles.Remove(gridCoord);
             }
@@ -171,31 +200,36 @@ public partial struct TileSpawningSystem : ISystem
         ecb.Playback(state.EntityManager);
         ecb.Dispose();
         
-        // Now add the newly created entities to _activeTiles using a query
+        // Now add the newly created entities to _activeTiles using zero-GC iteration
         if (tilesToSpawn.Length > 0)
         {
-            var query = state.EntityManager.CreateEntityQuery(ComponentType.ReadOnly<TerrainTile>());
-            var allTiles = query.ToEntityArray(Allocator.Temp);
-            
-            // Find newly created tiles and add them to _activeTiles
-            foreach (var entity in allTiles)
+            // Convert tilesToSpawn to a HashSet for O(1) lookups (avoid O(n²) complexity from Contains())
+            var spawnedCoords = new NativeHashSet<int2>(tilesToSpawn.Length, Allocator.Temp);
+            for (int i = 0; i < tilesToSpawn.Length; i++)
             {
-                var tile = state.EntityManager.GetComponentData<TerrainTile>(entity);
-                
+                spawnedCoords.Add(tilesToSpawn[i]);
+            }
+            
+            // Use direct iteration instead of ToEntityArray() to avoid GC allocations
+            foreach (var (tile, entity) in SystemAPI.Query<RefRO<TerrainTile>>().WithEntityAccess())
+            {
                 // Check if this tile should be in our active set but isn't yet
-                if (tilesToSpawn.Contains(tile.gridCoordinate) && !_activeTiles.ContainsKey(tile.gridCoordinate))
+                // O(1) lookup instead of O(n) Contains() on NativeList
+                if (spawnedCoords.Contains(tile.ValueRO.gridCoordinate) && !_activeTiles.ContainsKey(tile.ValueRO.gridCoordinate))
                 {
-                    _activeTiles.Add(tile.gridCoordinate, entity);
+                    _activeTiles.Add(tile.ValueRO.gridCoordinate, entity);
                 }
             }
             
-            allTiles.Dispose();
-        }
+            spawnedCoords.Dispose();
+        }        
         
         tilesToSpawn.Dispose();
         tilesToDespawn.Dispose();
     }
 }
+
+
 
 
 

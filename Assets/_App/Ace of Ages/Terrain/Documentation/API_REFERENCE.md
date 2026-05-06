@@ -46,7 +46,8 @@ public struct TerrainTileConfig : IComponentData
 | `lodQuarterResolutionDistance` | float | Quarter-res collider threshold (e.g., 450) |
 | `maxColliderCacheMemoryMB` | int | Cache memory limit in MB (e.g., 50) |
 | `usePhysicsLODLayers` | bool | Enable physics layer separation |
-| `lowDetailPhysicsLayer` | int | Physics layer for LOD tiles (e.g., 10) |
+| `closeTerrainPhysicsLayer` | int | Physics layer for close terrain (layer dropdown in Inspector) |
+| `lowDetailPhysicsLayer` | int | Physics layer for LOD tiles (layer dropdown in Inspector) |
 
 **Usage**:
 ```csharp

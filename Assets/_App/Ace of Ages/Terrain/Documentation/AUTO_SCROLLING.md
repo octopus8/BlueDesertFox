@@ -1,4 +1,6 @@
 # Auto-Scrolling Terrain Guide
+**Version:** 3.0  
+**Last Updated:** May 4, 2026
 
 Complete guide to the automatic terrain scrolling feature for endless runner gameplay.
 
@@ -100,6 +102,208 @@ Scroll direction is determined by **player's forward facing direction** (XZ plan
 - Player rotates → Scroll direction changes
 
 **Important**: Scroll is always locked to XZ plane (horizontal), Y component ignored.
+
+---
+
+## Scroll Velocity Components (v3.0)
+
+**NEW in v3.0:** Flexible scroll velocity sources for enhanced gameplay control.
+
+### Architecture Overview
+
+The scroll system now supports multiple velocity sources through component-based architecture:
+
+```mermaid
+sequenceDiagram
+    participant PV as PlayerScrollVelocitySystem
+    participant CV as ConstantScrollVelocitySystem
+    participant ST as ScrollTerrainSystem
+    participant SO as ScrollOffset (Singleton)
+    
+    Note over PV,CV: Calculate velocity sources
+    PV->>PV: Read player rotation
+    PV->>PV: Calculate velocity from facing direction
+    CV->>CV: Use fixed velocity vector
+    
+    ST->>PV: Get PlayerScrollVelocity (if exists)
+    ST->>CV: Get ConstantScrollVelocity (if exists)
+    ST->>ST: Choose velocity source
+    ST->>SO: Update accumulatedOffset
+    
+    Note over ST,SO: Terrain scrolls based on velocity
+```
+
+### Two Velocity Sources
+
+#### 1. Player-Based Velocity (PlayerScrollVelocitySystem)
+
+**Purpose:** Terrain scrolls in the direction the player is facing (rotation-based).
+
+**Configuration:**
+```csharp
+// Add PlayerScrollVelocityAuthoring to GameObject
+// (Can be same GameObject as TerrainConfigAuthoring or separate)
+```
+
+**Inspector Settings:**
+- `scrollSpeed` - Base scroll speed (m/s)
+- `useVerticalRotation` - Include vertical facing in scroll direction
+- `verticalInfluence` - How much vertical affects scroll (0-1)
+
+**Behavior:**
+- Scroll direction = Player's forward vector (XZ plane by default)
+- Player rotates → Scroll direction changes
+- Perfect for exploration games
+- Default if no velocity component exists
+
+**Example Use Cases:**
+- VR walking simulator (player looks around, terrain scrolls forward)
+- Railshooter (player aims, terrain scrolls in look direction)
+- Meditation apps (player controls scroll with head movement)
+
+#### 2. Constant Velocity (ConstantScrollVelocitySystem)
+
+**Purpose:** Fixed scroll velocity regardless of player rotation.
+
+**Configuration:**
+```csharp
+// Add ConstantScrollVelocityAuthoring to GameObject
+```
+
+**Inspector Settings:**
+- `velocityVector` - Fixed scroll direction and speed (float3)
+- `scrollSpeed` - Speed multiplier (m/s)
+
+**Behavior:**
+- Scroll direction = Fixed vector (e.g., always +Z)
+- Player rotates → Scroll direction unchanged
+- Perfect for racing/runner games
+
+**Example Use Cases:**
+- Racing game (always scroll forward at constant speed)
+- Endless runner (fixed direction regardless of player)
+- On-rails shooter (predetermined path)
+
+### Combining Velocity Sources
+
+**Priority Order:**
+1. If `ConstantScrollVelocity` exists → Use constant velocity
+2. Else if `PlayerScrollVelocity` exists → Use player-based velocity
+3. Else → Use ScrollConfig default (player forward)
+
+**Example Configuration:**
+```
+// Scenario: Racing game with turbo boost
+
+GameObject: TerrainConfig
+  ├─ TerrainConfigAuthoring (scroll configuration)
+  └─ ConstantScrollVelocityAuthoring
+     ├─ velocityVector: (0, 0, 1) // Always forward
+     └─ scrollSpeed: 20 m/s // Base racing speed
+
+// When boost activated:
+// Dynamically increase scrollSpeed to 40 m/s via code
+```
+
+### Switching Velocity Sources at Runtime
+
+```csharp
+using Unity.Entities;
+
+public class ScrollVelocityController : MonoBehaviour
+{
+    public void SwitchToConstantVelocity(float3 direction, float speed)
+    {
+        var world = World.DefaultGameObjectInjectionWorld;
+        var em = world.EntityManager;
+        
+        // Find or create ConstantScrollVelocity singleton
+        var query = em.CreateEntityQuery(typeof(ConstantScrollVelocity));
+        Entity entity;
+        
+        if (query.CalculateEntityCount() == 0)
+        {
+            // Create new singleton
+            entity = em.CreateEntity(typeof(ConstantScrollVelocity));
+        }
+        else
+        {
+            entity = query.GetSingletonEntity();
+        }
+        
+        em.SetComponentData(entity, new ConstantScrollVelocity
+        {
+            velocityVector = direction,
+            scrollSpeed = speed
+        });
+        
+        query.Dispose();
+    }
+    
+    public void RemoveConstantVelocity()
+    {
+        var world = World.DefaultGameObjectInjectionWorld;
+        var em = world.EntityManager;
+        
+        var query = em.CreateEntityQuery(typeof(ConstantScrollVelocity));
+        if (query.CalculateEntityCount() > 0)
+        {
+            em.DestroyEntity(query.GetSingletonEntity());
+        }
+        query.Dispose();
+        
+        // Falls back to PlayerScrollVelocity or default
+    }
+}
+```
+
+### Configuration Examples
+
+#### Example 1: VR Exploration (Player-Based)
+
+```
+GameObject: TerrainConfig
+  ├─ TerrainConfigAuthoring
+  │  ├─ Scroll Enabled: ✅
+  │  └─ Scroll Speed: 5.0 m/s
+  └─ PlayerScrollVelocityAuthoring
+     ├─ scrollSpeed: 5.0 m/s
+     ├─ useVerticalRotation: ❌
+     └─ verticalInfluence: 0.0
+```
+
+**Result:** Terrain scrolls forward in direction player is facing (horizontal only).
+
+#### Example 2: Racing Game (Constant Velocity)
+
+```
+GameObject: TerrainConfig
+  ├─ TerrainConfigAuthoring
+  │  ├─ Scroll Enabled: ✅
+  │  └─ Scroll Speed: 25.0 m/s
+  └─ ConstantScrollVelocityAuthoring
+     ├─ velocityVector: (0, 0, 1) // Always +Z
+     └─ scrollSpeed: 25.0 m/s
+```
+
+**Result:** Terrain scrolls forward at constant 25 m/s regardless of player rotation.
+
+#### Example 3: Flight Simulator (Player-Based with Vertical)
+
+```
+GameObject: TerrainConfig
+  ├─ TerrainConfigAuthoring
+  │  ├─ Scroll Enabled: ✅
+  │  └─ Scroll Speed: 30.0 m/s
+  └─ PlayerScrollVelocityAuthoring
+     ├─ scrollSpeed: 30.0 m/s
+     ├─ useVerticalRotation: ✅
+     └─ verticalInfluence: 0.5
+```
+
+**Result:** Terrain scrolls in 3D direction with 50% vertical influence (fly up/down).
+
+---
 
 ## Runtime Control
 

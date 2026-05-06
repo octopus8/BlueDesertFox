@@ -6,6 +6,8 @@ using Unity.Physics;
 using Unity.Transforms;
 using UnityEngine;
 
+
+[DisableAutoCreation]
 partial struct SplineFollowerSystem : ISystem
 {
     private const bool useJobs = true;
@@ -15,10 +17,19 @@ partial struct SplineFollowerSystem : ISystem
     {
         if (useJobs)
         {
+            // Get scroll velocity from terrain scrolling system
+            float3 scrollVelocity = float3.zero;
+            if (SystemAPI.TryGetSingleton<TerrainScrollVelocity>(out var scrollVel))
+            {
+                scrollVelocity = scrollVel.direction * scrollVel.speed;
+            }
+            
             SplineFollowerJob splineFollowerJob = new SplineFollowerJob
             {
                 deltaTime = Time.deltaTime,
+                scrollVelocity = scrollVelocity,
                 formationPositionLookup = SystemAPI.GetComponentLookup<FormationPosition>(true),
+                movementStateLookup = SystemAPI.GetComponentLookup<FormationMovementState>(true),
             };
             splineFollowerJob.ScheduleParallel();
         }
@@ -41,7 +52,9 @@ partial struct SplineFollowerSystem : ISystem
 public partial struct SplineFollowerJob : IJobEntity
 {
     public float deltaTime;
+    public float3 scrollVelocity;
     [ReadOnly] public ComponentLookup<FormationPosition> formationPositionLookup;
+    [ReadOnly] public ComponentLookup<FormationMovementState> movementStateLookup;
     
     public void Execute(
         Entity entity,
@@ -50,6 +63,17 @@ public partial struct SplineFollowerJob : IJobEntity
         ref PhysicsVelocity physicsVelocity,
         in SplineDataComponent splineData)
     {
+        // Only process entities in FollowingSpline phase (or entities without movement state for backwards compatibility)
+        if (movementStateLookup.HasComponent(entity))
+        {
+            var movementState = movementStateLookup[entity];
+            if (movementState.phase != MovementPhase.FollowingSpline)
+            {
+                // Skip entities not currently following the spline
+                return;
+            }
+        }
+        
         // Check if spline data is valid
         if (!splineData.splineData.IsCreated)
         {
@@ -58,8 +82,20 @@ public partial struct SplineFollowerJob : IJobEntity
         
         ref var spline = ref splineData.splineData.Value;
         
-        // Calculate the new distance ratio based on speed and time
-        splineFollower.distanceRatio += (splineFollower.moveSpeed * deltaTime) / spline.totalLength;
+        // Get enemy's current movement direction from spline tangent
+        SplineSample currentSample = spline.Evaluate(splineFollower.distanceRatio);
+        float3 enemyDirection = math.normalize(currentSample.tangent);
+        
+        // Project scroll velocity onto enemy's movement direction to get speed offset
+        // Scroll velocity represents world movement (opposite of player movement)
+        // Negate to convert to player's relative velocity for correct closing speeds
+        float scrollSpeedOffset = -math.dot(scrollVelocity, enemyDirection);
+        
+        // Apply scroll velocity offset to enemy movement speed (allow negative speeds)
+        float effectiveSpeed = splineFollower.moveSpeed + scrollSpeedOffset;
+        
+        // Calculate the new distance ratio based on effective speed and time
+        splineFollower.distanceRatio += (effectiveSpeed * deltaTime) / spline.totalLength;
         
         // Wrap around the spline if it's a closed loop
         if (spline.isClosed)
@@ -75,6 +111,7 @@ public partial struct SplineFollowerJob : IJobEntity
         bool hasFormation = formationPositionLookup.HasComponent(entity);
         float adjustedDistanceRatio = splineFollower.distanceRatio;
         float3 lateralOffset = float3.zero;
+        float forwardOffsetDistance = 0f; // Track offset distance for out-of-bounds calculation
         
         if (hasFormation)
         {
@@ -82,6 +119,7 @@ public partial struct SplineFollowerJob : IJobEntity
             
             // Apply forward offset from formation position
             adjustedDistanceRatio = splineFollower.distanceRatio + (formationPos.forwardOffset / spline.totalLength);
+            forwardOffsetDistance = formationPos.forwardOffset;
             
             // Wrap/clamp the adjusted ratio
             if (spline.isClosed)
@@ -101,6 +139,38 @@ public partial struct SplineFollowerJob : IJobEntity
         
         // Calculate target position
         float3 targetPosition = sample.position;
+        
+        // For non-closed splines, handle formation offsets that extend beyond spline bounds
+        // by extending along the spline tangent instead of clamping to endpoints
+        if (hasFormation && !spline.isClosed && forwardOffsetDistance != 0f)
+        {
+            float rawAdjustedRatio = splineFollower.distanceRatio + (forwardOffsetDistance / spline.totalLength);
+            
+            // Handle enemies behind the spline start (negative offset)
+            if (rawAdjustedRatio < 0f)
+            {
+                // Enemy is behind the spline start - extend backward along start tangent
+                float offsetDistance = -rawAdjustedRatio * spline.totalLength; // Distance behind start (positive value)
+                SplineSample startSample = spline.Evaluate(0f);
+                float3 backwardDirection = -math.normalize(startSample.tangent); // Reverse tangent for backward
+                targetPosition = startSample.position + backwardDirection * offsetDistance;
+                
+                // Use start sample for lateral offset calculation
+                sample = startSample;
+            }
+            // Handle enemies ahead of the spline end (positive offset beyond 1.0)
+            else if (rawAdjustedRatio > 1f)
+            {
+                // Enemy is ahead of the spline end - extend forward along end tangent
+                float offsetDistance = (rawAdjustedRatio - 1f) * spline.totalLength; // Distance ahead of end
+                SplineSample endSample = spline.Evaluate(1f);
+                float3 forwardDirection = math.normalize(endSample.tangent);
+                targetPosition = endSample.position + forwardDirection * offsetDistance;
+                
+                // Use end sample for lateral offset calculation
+                sample = endSample;
+            }
+        }
         
         // Apply lateral offset if in formation
         if (hasFormation)

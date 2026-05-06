@@ -52,11 +52,22 @@ namespace LiquidForce {
             CreateGameObjects();
             
             // Set the object to follow the head.
-            DeviceTracking.Instance.AddHeadFollower(cameraFaderRoot.transform);
+            if (DeviceTracking.Instance != null)
+            {
+                DeviceTracking.Instance.AddHeadFollower(cameraFaderRoot.transform);
+            }
+            else
+            {
+                Debug.LogError("DeviceTracking instance not found. CameraFader will not follow the head.");
+            }
         }
 
         private void OnDestroy()
         {
+            if (DeviceTracking.Instance != null)
+            {
+                DeviceTracking.Instance.RemoveHeadFollower(cameraFaderRoot.transform);
+            }
             CancelAnimations();
         }
 

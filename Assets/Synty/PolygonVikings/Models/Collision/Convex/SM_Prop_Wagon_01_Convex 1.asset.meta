@@ -1,0 +1,17 @@
+fileFormatVersion: 2
+guid: 03a69a1289f1e734299b24aee2603b7a
+timeCreated: 1579827468
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 43273244945027558
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 85664
+  packageName: POLYGON - Vikings Pack - Art by Synty
+  packageVersion: 1.5.0
+  assetPath: Assets/Synty/PolygonVikings/Models/Collision/Convex/SM_Prop_Wagon_01_Convex
+    1.asset
+  uploadId: 883992

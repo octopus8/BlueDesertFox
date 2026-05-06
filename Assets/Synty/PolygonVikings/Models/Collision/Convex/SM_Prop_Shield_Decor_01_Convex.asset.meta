@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 6ded7caf7319a66439d5bed34fda98d6
+timeCreated: 1579826175
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 43140640680599256
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 85664
+  packageName: POLYGON - Vikings Pack - Art by Synty
+  packageVersion: 1.5.0
+  assetPath: Assets/Synty/PolygonVikings/Models/Collision/Convex/SM_Prop_Shield_Decor_01_Convex.asset
+  uploadId: 883992

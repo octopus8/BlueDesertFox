@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: eb71b2cd34a615344babc33ea2651dbc
+timeCreated: 1489445237
+licenseType: Store
+NativeFormatImporter:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 85664
+  packageName: POLYGON - Vikings Pack - Art by Synty
+  packageVersion: 1.5.0
+  assetPath: Assets/Synty/PolygonVikings/Prefabs/Environments/SM_Env_Glacier_01.prefab
+  uploadId: 883992

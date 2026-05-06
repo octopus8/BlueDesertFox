@@ -1,0 +1,17 @@
+fileFormatVersion: 2
+guid: a22608980931b3a409a1fae973691ebf
+timeCreated: 1579832197
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 43042696363808658
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 85664
+  packageName: POLYGON - Vikings Pack - Art by Synty
+  packageVersion: 1.5.0
+  assetPath: Assets/Synty/PolygonVikings/Models/Collision/Convex/SM_Veh_FishingBoat_01_Snow_Convex
+    1.asset
+  uploadId: 883992

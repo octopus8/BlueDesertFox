@@ -1,4 +1,6 @@
 # Performance Optimization Guide
+**Version:** 3.0  
+**Last Updated:** May 4, 2026
 
 Complete guide to optimizing terrain system performance for VR and desktop applications.
 

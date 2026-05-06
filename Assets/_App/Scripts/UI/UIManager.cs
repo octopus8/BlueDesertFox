@@ -81,16 +81,39 @@ public class UIManager : MonoBehaviour
         SetHiddenImmediate();
     }
 
+    
+    /// <summary>
+    /// Initializes input actions when the component is enabled.
+    /// </summary>
+    /// <remarks>
+    /// Called in OnEnable instead of Start to handle scene transitions where InputSystem.actions
+    /// might be reset. This ensures the action is re-initialized if the UIManager persists across scenes.
+    /// </remarks>
+    private void OnEnable()
+    {
+        // Initialize or re-initialize the menu toggle action.
+        InitializeInputAction();
+    }
+
+    
+    /// <summary>
+    /// Cleans up input actions when the component is disabled.
+    /// </summary>
+    private void OnDisable()
+    {
+        // Disable the action to prevent it from consuming input when UI is not active.
+        if (menuToggleAction != null)
+        {
+            menuToggleAction.Disable();
+        }
+    }
+
 
     /// <summary>
     /// Initializes the UI.
     /// </summary>
     void Start()
     {
-        // Enable actions.
-        menuToggleAction = InputSystem.actions.FindAction("ToggleMenu"); 
-        menuToggleAction.Enable(); // Actions must be enabled to receive input            
-        
         // Push the start state.
         if (startState != null)
         {
@@ -100,6 +123,32 @@ public class UIManager : MonoBehaviour
         {
             Debug.LogError("No start state set for UI.");
         }
+    }
+    
+    
+    /// <summary>
+    /// Initializes or re-initializes the menu toggle input action.
+    /// </summary>
+    private void InitializeInputAction()
+    {
+        // Check if InputSystem.actions is available.
+        if (InputSystem.actions == null)
+        {
+            Debug.LogWarning("UIManager: InputSystem.actions is null. Menu toggle action cannot be initialized. Ensure an InputActionAsset is set in Project Settings > Input System Package > Input Actions.");
+            menuToggleAction = null;
+            return;
+        }
+        
+        // Find and enable the menu toggle action.
+        menuToggleAction = InputSystem.actions.FindAction("ToggleMenu");
+        
+        if (menuToggleAction == null)
+        {
+            Debug.LogWarning("UIManager: ToggleMenu action not found in InputSystem.actions. Menu button will not work.");
+            return;
+        }
+        
+        menuToggleAction.Enable();
     }
     
     // Push a new state: Pause current, add new to top
@@ -159,11 +208,22 @@ public class UIManager : MonoBehaviour
     /// </summary>
     private void Update()
     {
+        // Check if the menu toggle action is valid. If not, try to re-initialize it.
+        if (menuToggleAction == null || !menuToggleAction.enabled)
+        {
+            InitializeInputAction();
+            
+            // If still null after initialization attempt, skip input processing this frame.
+            if (menuToggleAction == null)
+            {
+                return;
+            }
+        }
+        
         // Handle menu toggle action.
         if (menuToggleAction.WasPressedThisFrame())
         {
-            // If close disable is not set, then toggle visibility.
-            if (!disableClose)
+            if ((currentAnimState is AnimState.on or AnimState.turningOn && !disableClose) || (currentAnimState is AnimState.off or AnimState.turningOff))
             {
                 ToggleVisibility();
             }

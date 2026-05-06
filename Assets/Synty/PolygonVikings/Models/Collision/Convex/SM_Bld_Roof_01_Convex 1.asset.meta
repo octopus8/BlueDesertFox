@@ -1,0 +1,17 @@
+fileFormatVersion: 2
+guid: 6d86129d6773a6d44a4822084b347d26
+timeCreated: 1579832548
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 43419787475260480
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 85664
+  packageName: POLYGON - Vikings Pack - Art by Synty
+  packageVersion: 1.5.0
+  assetPath: Assets/Synty/PolygonVikings/Models/Collision/Convex/SM_Bld_Roof_01_Convex
+    1.asset
+  uploadId: 883992

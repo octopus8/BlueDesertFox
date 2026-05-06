@@ -1,0 +1,17 @@
+fileFormatVersion: 2
+guid: 3ef716933334ddc418f2261d9dd99eb6
+timeCreated: 1579826355
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 43015809946343310
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 85664
+  packageName: POLYGON - Vikings Pack - Art by Synty
+  packageVersion: 1.5.0
+  assetPath: Assets/Synty/PolygonVikings/Models/Collision/Convex/SM_Prop_Archway_01_Convex
+    1.asset
+  uploadId: 883992

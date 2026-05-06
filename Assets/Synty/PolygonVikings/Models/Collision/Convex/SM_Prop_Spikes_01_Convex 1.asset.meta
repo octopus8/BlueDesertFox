@@ -1,0 +1,17 @@
+fileFormatVersion: 2
+guid: f6d6b97247ccafc44a057c226ef1a76e
+timeCreated: 1579827301
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 43233389966731158
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 85664
+  packageName: POLYGON - Vikings Pack - Art by Synty
+  packageVersion: 1.5.0
+  assetPath: Assets/Synty/PolygonVikings/Models/Collision/Convex/SM_Prop_Spikes_01_Convex
+    1.asset
+  uploadId: 883992

@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 4646dee46f396b64f9d72c7758df3a95
+timeCreated: 1579832691
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 43958080834265598
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 85664
+  packageName: POLYGON - Vikings Pack - Art by Synty
+  packageVersion: 1.5.0
+  assetPath: Assets/Synty/PolygonVikings/Models/Collision/Convex/SM_Bld_Wharf_01_Convex.asset
+  uploadId: 883992

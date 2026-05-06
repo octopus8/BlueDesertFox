@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 233241e3d4a12774aaff54658118c231
+timeCreated: 1579831297
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 43072101675656208
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 85664
+  packageName: POLYGON - Vikings Pack - Art by Synty
+  packageVersion: 1.5.0
+  assetPath: Assets/Synty/PolygonVikings/Models/Collision/Convex/SM_Prop_Cow_Skull_01_Snow_Convex.asset
+  uploadId: 883992

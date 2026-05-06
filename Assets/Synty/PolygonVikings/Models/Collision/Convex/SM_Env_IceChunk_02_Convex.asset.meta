@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: b13cbd1555d4e2d48926ec76bf335d85
+timeCreated: 1579828529
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 43181620662261472
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 85664
+  packageName: POLYGON - Vikings Pack - Art by Synty
+  packageVersion: 1.5.0
+  assetPath: Assets/Synty/PolygonVikings/Models/Collision/Convex/SM_Env_IceChunk_02_Convex.asset
+  uploadId: 883992

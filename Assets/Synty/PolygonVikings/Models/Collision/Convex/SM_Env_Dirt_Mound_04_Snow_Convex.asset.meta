@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 9aaa3e6bfa963f241b041ee362d052c5
+timeCreated: 1579830090
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 43738217454429642
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 85664
+  packageName: POLYGON - Vikings Pack - Art by Synty
+  packageVersion: 1.5.0
+  assetPath: Assets/Synty/PolygonVikings/Models/Collision/Convex/SM_Env_Dirt_Mound_04_Snow_Convex.asset
+  uploadId: 883992

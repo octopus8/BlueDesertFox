@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 750573d7e47ae8e4983660b69678295b
+timeCreated: 1579829390
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 43551921272463994
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 85664
+  packageName: POLYGON - Vikings Pack - Art by Synty
+  packageVersion: 1.5.0
+  assetPath: Assets/Synty/PolygonVikings/Models/Collision/Convex/SM_Bld_Base_01_Snow_Convex.asset
+  uploadId: 883992

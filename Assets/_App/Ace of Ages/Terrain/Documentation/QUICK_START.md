@@ -1,4 +1,6 @@
 # Quick Start Guide - Infinite Terrain System
+**Version:** 3.0  
+**Last Updated:** May 4, 2026
 
 Get the terrain system running in your scene in under 10 minutes!
 

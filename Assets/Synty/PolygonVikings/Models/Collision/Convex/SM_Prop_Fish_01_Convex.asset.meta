@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 6f31c3ef1ca1ce74d9bbbfaeafb112d7
+timeCreated: 1579826192
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 43557207550167672
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 85664
+  packageName: POLYGON - Vikings Pack - Art by Synty
+  packageVersion: 1.5.0
+  assetPath: Assets/Synty/PolygonVikings/Models/Collision/Convex/SM_Prop_Fish_01_Convex.asset
+  uploadId: 883992

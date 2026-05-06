@@ -1,0 +1,17 @@
+fileFormatVersion: 2
+guid: 2745553182fd1f24ab8293965dc7b407
+timeCreated: 1579826790
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 43031713219176878
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 85664
+  packageName: POLYGON - Vikings Pack - Art by Synty
+  packageVersion: 1.5.0
+  assetPath: Assets/Synty/PolygonVikings/Models/Collision/Convex/SM_Prop_Fish_Rack_02_Convex
+    1.asset
+  uploadId: 883992

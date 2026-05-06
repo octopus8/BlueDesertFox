@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: c822fa13433f6f943b2ad67d46f47a70
+timeCreated: 1579826206
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 43668624502240154
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 85664
+  packageName: POLYGON - Vikings Pack - Art by Synty
+  packageVersion: 1.5.0
+  assetPath: Assets/Synty/PolygonVikings/Models/Collision/Convex/SM_Prop_Clay_Pot_01_Convex.asset
+  uploadId: 883992

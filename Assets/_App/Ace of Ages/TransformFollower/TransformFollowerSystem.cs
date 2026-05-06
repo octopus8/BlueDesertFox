@@ -16,6 +16,7 @@ using UnityEngine;
 /// 2. Implementing a hybrid approach where you copy Transform data to a native array once per frame
 /// 3. Limiting the number of entities that follow external Transforms
 /// </remarks>
+[DisableAutoCreation]
 [RequireMatchingQueriesForUpdate]
 public partial class TransformFollowerSystem : SystemBase
 {

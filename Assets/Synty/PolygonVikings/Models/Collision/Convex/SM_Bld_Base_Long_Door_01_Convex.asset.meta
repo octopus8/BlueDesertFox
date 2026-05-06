@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: f754c38b7aa922f4baa5ee5150ad6578
+timeCreated: 1579833059
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 43742846377977960
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 85664
+  packageName: POLYGON - Vikings Pack - Art by Synty
+  packageVersion: 1.5.0
+  assetPath: Assets/Synty/PolygonVikings/Models/Collision/Convex/SM_Bld_Base_Long_Door_01_Convex.asset
+  uploadId: 883992

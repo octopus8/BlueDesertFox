@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: f105d3317ebfe4f449d3077d13d7676b
+timeCreated: 1579827655
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 43852640269427488
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 85664
+  packageName: POLYGON - Vikings Pack - Art by Synty
+  packageVersion: 1.5.0
+  assetPath: Assets/Synty/PolygonVikings/Models/Collision/Convex/SM_Wep_Spike_01_Convex.asset
+  uploadId: 883992

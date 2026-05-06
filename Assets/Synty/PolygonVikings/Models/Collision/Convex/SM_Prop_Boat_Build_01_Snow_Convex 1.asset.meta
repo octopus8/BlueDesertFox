@@ -1,0 +1,17 @@
+fileFormatVersion: 2
+guid: a25261896402c074fb5476369bd8de2c
+timeCreated: 1579831313
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 43076302821333474
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 85664
+  packageName: POLYGON - Vikings Pack - Art by Synty
+  packageVersion: 1.5.0
+  assetPath: Assets/Synty/PolygonVikings/Models/Collision/Convex/SM_Prop_Boat_Build_01_Snow_Convex
+    1.asset
+  uploadId: 883992

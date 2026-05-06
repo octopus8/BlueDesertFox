@@ -1,4 +1,4 @@
-using Unity.Collections;
+﻿using Unity.Collections;
 using Unity.Entities;
 using Unity.Entities.Graphics;
 using Unity.Mathematics;
@@ -6,10 +6,10 @@ using Unity.Rendering;
 using Unity.Transforms;
 using UnityEngine;
 using UnityEngine.Rendering;
-
 /// <summary>
 /// System that converts ECS mesh data to Unity Mesh instances and sets up rendering.
 /// Must run on the main thread due to managed Mesh object access.
+/// Uses frame budgeting to prevent performance spikes on Quest.
 /// </summary>
 [RequireMatchingQueriesForUpdate]
 [UpdateInGroup(typeof(PresentationSystemGroup))]
@@ -17,11 +17,16 @@ public partial class TerrainRenderingSystem : SystemBase
 {
     private Material _terrainMaterial;
     private EntityQuery _newTilesQuery;
-
+    private NativeQueue<Entity> _pendingMeshCreation;
+    private NativeHashSet<Entity> _queuedEntities;
+    
+    // ✅ Cached arrays to avoid GC allocations in CreateAndAssignMesh
+    private Material[] _cachedMaterialArray;
+    private Mesh[] _cachedMeshArray;
+    
     protected override void OnCreate()
     {
         RequireForUpdate<TerrainTileConfig>();
-        
         // Query for tiles that have mesh data but no MeshReference yet
         _newTilesQuery = GetEntityQuery(
             ComponentType.ReadOnly<TerrainTile>(),
@@ -29,66 +34,85 @@ public partial class TerrainRenderingSystem : SystemBase
             ComponentType.ReadOnly<IndexElement>(),
             ComponentType.Exclude<MeshReference>()
         );
+        _pendingMeshCreation = new NativeQueue<Entity>(Allocator.Persistent);
+        _queuedEntities = new NativeHashSet<Entity>(64, Allocator.Persistent);
+        
+        // ✅ Initialize cached arrays once - reused for all mesh creation (zero GC)
+        _cachedMaterialArray = new Material[1];
+        _cachedMeshArray = new Mesh[1];
     }
-
+    
     protected override void OnStartRunning()
     {
-        // Load or create terrain material
-        // Try to load from Resources first
-        _terrainMaterial = Resources.Load<Material>("TerrainMaterial");
-        
-        if (_terrainMaterial == null)
+        // Try to get material from TerrainMaterialReference component first
+        var configQuery = GetEntityQuery(typeof(TerrainMaterialReference));
+        if (configQuery.CalculateEntityCount() > 0)
         {
-            // Try URP Lit shader first
-            var shader = Shader.Find("Universal Render Pipeline/Lit");
+            var configEntity = configQuery.GetSingletonEntity();
+            var materialRef = EntityManager.GetComponentObject<TerrainMaterialReference>(configEntity);
+            if (materialRef != null && materialRef.material != null)
+            {
+                _terrainMaterial = materialRef.material;
+                Debug.Log($"[TerrainRendering] Using material from TerrainConfigAuthoring: {_terrainMaterial.name}");
+                return;
+            }
+        }
+        // Fall back to loading from Resources
+        _terrainMaterial = Resources.Load<Material>("TerrainMaterial");
+        if (_terrainMaterial != null)
+        {
+            Debug.Log($"[TerrainRendering] Loaded material from Resources: {_terrainMaterial.name}");
+            return;
+        }
+        // Last resort: create a debug material
+        Debug.LogWarning("[TerrainRendering] No material assigned in TerrainConfigAuthoring and no TerrainMaterial found in Resources. Creating debug material.");
+        // Try URP Lit shader first
+        var shader = Shader.Find("Universal Render Pipeline/Lit");
+        if (shader == null)
+        {
+            // Fallback to standard shader
+            shader = Shader.Find("Standard");
             if (shader == null)
             {
-                // Fallback to standard shader
-                shader = Shader.Find("Standard");
-                if (shader == null)
-                {
-                    // Last resort: unlit color
-                    shader = Shader.Find("Unlit/Color");
-                }
+                // Last resort: unlit color
+                shader = Shader.Find("Unlit/Color");
             }
-            
-            if (shader != null)
+        }
+        if (shader != null)
+        {
+            _terrainMaterial = new Material(shader);
+            _terrainMaterial.name = "TerrainMaterial_Generated";
+            // Set a bright debug color so we can see if material is working
+            if (shader.name.Contains("Universal Render Pipeline"))
             {
-                _terrainMaterial = new Material(shader);
-                _terrainMaterial.name = "TerrainMaterial_Generated";
-                
-                // Set a bright debug color so we can see if material is working
-                if (shader.name.Contains("Universal Render Pipeline"))
-                {
-                    _terrainMaterial.SetColor("_BaseColor", new Color(1f, 0.5f, 0.8f, 1f)); // Pink for debugging
-                    _terrainMaterial.SetTexture("_BaseMap", Texture2D.whiteTexture);
-                }
-                else if (shader.name == "Standard")
-                {
-                    _terrainMaterial.SetColor("_Color", new Color(1f, 0.5f, 0.8f, 1f));
-                }
-                else
-                {
-                    _terrainMaterial.SetColor("_Color", new Color(1f, 0.5f, 0.8f, 1f));
-                }
+                _terrainMaterial.SetColor("_BaseColor", new Color(1f, 0.5f, 0.8f, 1f)); // Pink for debugging
+                _terrainMaterial.SetTexture("_BaseMap", Texture2D.whiteTexture);
+            }
+            else if (shader.name == "Standard")
+            {
+                _terrainMaterial.SetColor("_Color", new Color(1f, 0.5f, 0.8f, 1f));
             }
             else
             {
-                Debug.LogError("[TerrainRendering] Failed to find any suitable shader!");
+                _terrainMaterial.SetColor("_Color", new Color(1f, 0.5f, 0.8f, 1f));
             }
         }
+        else
+        {
+            Debug.LogError("[TerrainRendering] Failed to find any suitable shader!");
+        }
     }
-
     protected override void OnUpdate()
     {
-        if (_terrainMaterial == null)
+        // Always process tiles for MeshReference (needed for tree spawning)
+        // But skip actual rendering setup if renderTerrain is disabled
+        var config = SystemAPI.GetSingleton<TerrainTileConfig>();
+        bool shouldRender = config.renderTerrain;
+        if (shouldRender && _terrainMaterial == null)
         {
             return;
         }
-
-        // Collect entities that need mesh creation (ZERO GC ALLOCATIONS)
-        var entitiesToProcess = new NativeList<Entity>(16, Allocator.Temp);
-        
+        // Add new tiles to the queue
         foreach (var (tile, entity) in SystemAPI.Query<RefRO<TerrainTile>>()
             .WithAll<VertexElement>()
             .WithAll<NormalElement>()
@@ -102,61 +126,75 @@ public partial class TerrainRenderingSystem : SystemBase
                 var vertices = EntityManager.GetBuffer<VertexElement>(entity);
                 if (vertices.Length > 0)
                 {
-                    entitiesToProcess.Add(entity);
+                    // Only add if not already queued (prevents duplicates!)
+                    if (_queuedEntities.Add(entity))
+                    {
+                        _pendingMeshCreation.Enqueue(entity);
+                    }
                 }
             }
         }
-        
-        // Process collected entities (structural changes allowed after iteration)
-        foreach (var entity in entitiesToProcess)
+        // Process up to maxMeshesPerFrame (use same budget as colliders - typically 3 for VR)
+        int maxMeshesPerFrame = math.max(1, config.maxCollidersCreatedPerFrame);
+        int meshesCreatedThisFrame = 0;
+        while (_pendingMeshCreation.Count > 0 && meshesCreatedThisFrame < maxMeshesPerFrame)
         {
+            Entity entity = _pendingMeshCreation.Dequeue();
+            
+            // Remove from queued set
+            _queuedEntities.Remove(entity);
+            
+            // Verify entity still exists and needs processing
+            if (!EntityManager.Exists(entity))
+                continue;
+            if (EntityManager.HasComponent<MeshReference>(entity))
+                continue;
             var vertices = EntityManager.GetBuffer<VertexElement>(entity);
             var normals = EntityManager.GetBuffer<NormalElement>(entity);
             var uvs = EntityManager.GetBuffer<UVElement>(entity);
             var indices = EntityManager.GetBuffer<IndexElement>(entity);
-            
             if (vertices.Length > 0 && indices.Length > 0)
             {
-                CreateAndAssignMesh(entity, vertices, normals, uvs, indices);
+                CreateAndAssignMesh(entity, vertices, normals, uvs, indices, shouldRender);
+                meshesCreatedThisFrame++;
             }
         }
-        
-        entitiesToProcess.Dispose();
     }
-
     /// <summary>
     /// Creates a Unity Mesh from buffer data using NativeArray API to avoid GC allocations.
+    /// If shouldRender is false, only adds MeshReference (for tree spawning) but skips rendering setup.
     /// </summary>
     private void CreateAndAssignMesh(
         Entity entity,
         DynamicBuffer<VertexElement> vertexBuffer,
         DynamicBuffer<NormalElement> normalBuffer,
         DynamicBuffer<UVElement> uvBuffer,
-        DynamicBuffer<IndexElement> indexBuffer)
+        DynamicBuffer<IndexElement> indexBuffer,
+        bool shouldRender)
     {
         // Create Unity Mesh
         Mesh mesh = new Mesh();
         mesh.name = $"TerrainTile_{entity.Index}";
-        
         // Use NativeArray API to avoid GC allocations (Unity 2020.1+)
-        // Reinterpret buffers as NativeArrays directly - ZERO GC
+        // Reinterpret buffers as NativeArrays directly - ZERO GC for data copy
         var verticesNative = vertexBuffer.Reinterpret<float3>().AsNativeArray();
         var normalsNative = normalBuffer.Reinterpret<float3>().AsNativeArray();
         var uvsNative = uvBuffer.Reinterpret<float2>().AsNativeArray();
         var indicesNative = indexBuffer.Reinterpret<int>().AsNativeArray();
-        
         // Set mesh data from NativeArrays (ZERO GC ALLOCATIONS)
         mesh.SetVertices(verticesNative);
         mesh.SetNormals(normalsNative);
         mesh.SetUVs(0, uvsNative);
         mesh.SetIndices(indicesNative, MeshTopology.Triangles, 0);
-        
         // Recalculate bounds
         mesh.RecalculateBounds();
-        
-        // Add managed MeshReference component
+        // Always add MeshReference (needed for tree spawning system)
         EntityManager.AddComponentData(entity, new MeshReference { mesh = mesh });
-        
+        // Skip rendering setup if terrain rendering is disabled
+        if (!shouldRender)
+        {
+            return;
+        }
         // Register mesh and material with EntitiesGraphicsSystem
         var entitiesGraphicsSystem = World.GetExistingSystemManaged<EntitiesGraphicsSystem>();
         if (entitiesGraphicsSystem == null)
@@ -166,11 +204,9 @@ public partial class TerrainRenderingSystem : SystemBase
             #endif
             return;
         }
-
         // Register the mesh and material to get proper IDs
         var registeredMesh = entitiesGraphicsSystem.RegisterMesh(mesh);
         var registeredMaterial = entitiesGraphicsSystem.RegisterMaterial(_terrainMaterial);
-        
         // Add rendering components using RenderMeshUtility
         var renderMeshDescription = new RenderMeshDescription(
             shadowCastingMode: ShadowCastingMode.On,
@@ -178,12 +214,14 @@ public partial class TerrainRenderingSystem : SystemBase
             layer: 0,
             renderingLayerMask: 1
         );
-        
         try
         {
-            var renderMeshArray = new RenderMeshArray(new[] { _terrainMaterial }, new[] { mesh });
-            var materialMeshInfo = MaterialMeshInfo.FromRenderMeshArrayIndices(0, 0);
+            // ✅ Use cached arrays - ZERO GC allocations (arrays created once in OnCreate)
+            _cachedMaterialArray[0] = _terrainMaterial;
+            _cachedMeshArray[0] = mesh;
             
+            var renderMeshArray = new RenderMeshArray(_cachedMaterialArray, _cachedMeshArray);
+            var materialMeshInfo = MaterialMeshInfo.FromRenderMeshArrayIndices(0, 0);
             RenderMeshUtility.AddComponents(
                 entity,
                 EntityManager,
@@ -199,20 +237,23 @@ public partial class TerrainRenderingSystem : SystemBase
             #endif
             return;
         }
-        
         // Ensure LocalToWorld is present
         if (!EntityManager.HasComponent<LocalToWorld>(entity))
         {
             EntityManager.AddComponent<LocalToWorld>(entity);
         }
     }
-
     protected override void OnDestroy()
     {
+        // Dispose queue and hash set
+        if (_pendingMeshCreation.IsCreated)
+            _pendingMeshCreation.Dispose();
+        if (_queuedEntities.IsCreated)
+            _queuedEntities.Dispose();
+        
         // Clean up meshes - OnDestroy called once per session, GC allocation acceptable here
         var query = GetEntityQuery(ComponentType.ReadOnly<MeshReference>());
         var entities = query.ToEntityArray(Unity.Collections.Allocator.Temp);
-        
         foreach (var entity in entities)
         {
             var meshRef = EntityManager.GetComponentData<MeshReference>(entity);
@@ -221,18 +262,6 @@ public partial class TerrainRenderingSystem : SystemBase
                 Object.Destroy(meshRef.mesh);
             }
         }
-        
         entities.Dispose();
     }
 }
-
-
-
-
-
-
-
-
-
-
-

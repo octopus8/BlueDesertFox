@@ -37,3 +37,27 @@ MonoBehaviour:
     - SceneAsset
     sceneGUID: 
     localIdentifier: 0
+  - type: 1
+    actualReference: {fileID: 102900000, guid: 35485fd6631705441aeeff9cdadf69e4, type: 3}
+    cachedDrawData:
+      Name: UI Interaction Test
+      Icon: {fileID: 985423054452513129, guid: 0000000000000000d000000000000000, type: 0}
+      SceneData:
+        IsScene: 1
+        Scene: {fileID: 102900000, guid: 35485fd6631705441aeeff9cdadf69e4, type: 3}
+    cachedTypes:
+    - SceneAsset
+    sceneGUID: 
+    localIdentifier: 0
+  - type: 1
+    actualReference: {fileID: 102900000, guid: 41beed594dd99c447823e4fba88c549e, type: 3}
+    cachedDrawData:
+      Name: FPS
+      Icon: {fileID: 985423054452513129, guid: 0000000000000000d000000000000000, type: 0}
+      SceneData:
+        IsScene: 1
+        Scene: {fileID: 102900000, guid: 41beed594dd99c447823e4fba88c549e, type: 3}
+    cachedTypes:
+    - SceneAsset
+    sceneGUID: 
+    localIdentifier: 0

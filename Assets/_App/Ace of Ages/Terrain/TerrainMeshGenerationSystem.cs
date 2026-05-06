@@ -50,6 +50,12 @@ public partial struct TerrainMeshGenerationSystem : ISystem
         {
             var config = SystemAPI.GetSingleton<TerrainTileConfig>();
             
+            // Early exit if rendering is disabled - no need to generate meshes
+            if (!config.renderTerrain)
+            {
+                return;
+            }
+            
             // Get player/camera position and forward direction for priority calculation
             float3 cameraPosition = float3.zero;
             float3 cameraForward = new float3(0, 0, 1); // Default forward if no camera
@@ -257,6 +263,16 @@ public partial struct TerrainMeshGenerationSystem : ISystem
                         
                         tile.meshGenerated = true;
                         tile.needsRegeneration = false;
+                        
+                        // CRITICAL: Remove TreesSpawned tag so trees can respawn on regenerated mesh
+                        // This also cleans up old tree references
+                        if (state.EntityManager.HasComponent<TreesSpawned>(entity))
+                        {
+                            state.EntityManager.RemoveComponent<TreesSpawned>(entity);
+#if UNITY_EDITOR
+                            UnityEngine.Debug.Log($"[TerrainMesh] Removed TreesSpawned tag from regenerated tile {tile.gridCoordinate}");
+#endif
+                        }
                     }
                 }
                 
@@ -351,6 +367,7 @@ public struct GenerateTileMeshJob : IJobParallelFor
         int indexOffset = data.indexOffset;
         
         float stepSize = data.tileSize / (data.verticesPerSide - 1);
+        float halfTileSize = data.tileSize * 0.5f;
         
         // Generate vertices and UVs
         for (int z = 0; z < data.verticesPerSide; z++)
@@ -360,7 +377,7 @@ public struct GenerateTileMeshJob : IJobParallelFor
                 int vertexIndex = z * data.verticesPerSide + x;
                 int flatIndex = vertexOffset + vertexIndex;
                 
-                // Local position within tile
+                // Local position within tile (0 to tileSize)
                 float localX = x * stepSize;
                 float localZ = z * stepSize;
                 
@@ -371,8 +388,9 @@ public struct GenerateTileMeshJob : IJobParallelFor
                 // Sample noise at this position
                 float height = SampleNoise(worldX, worldZ, data);
                 
-                // Store vertex position (relative to tile origin)
-                allVertices[flatIndex] = new float3(localX, height, localZ);
+                // Store vertex position (relative to tile center, not corner)
+                // Offset by -halfTileSize so vertices are centered around tile transform
+                allVertices[flatIndex] = new float3(localX - halfTileSize, height, localZ - halfTileSize);
                 
                 // Store UV coordinates
                 allUVs[flatIndex] = new float2(

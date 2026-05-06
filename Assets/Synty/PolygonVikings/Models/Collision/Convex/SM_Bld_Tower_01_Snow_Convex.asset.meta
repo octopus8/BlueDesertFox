@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 024f1f87dae52e4449e2da97e7d1fb52
+timeCreated: 1579838670
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 43645885526920294
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 85664
+  packageName: POLYGON - Vikings Pack - Art by Synty
+  packageVersion: 1.5.0
+  assetPath: Assets/Synty/PolygonVikings/Models/Collision/Convex/SM_Bld_Tower_01_Snow_Convex.asset
+  uploadId: 883992

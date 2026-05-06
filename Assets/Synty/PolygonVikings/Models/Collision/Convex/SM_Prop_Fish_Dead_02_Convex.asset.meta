@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 8b3c33dd4bc6ef146b4adc559d8bb84a
+timeCreated: 1579826190
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 43206052637361244
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 85664
+  packageName: POLYGON - Vikings Pack - Art by Synty
+  packageVersion: 1.5.0
+  assetPath: Assets/Synty/PolygonVikings/Models/Collision/Convex/SM_Prop_Fish_Dead_02_Convex.asset
+  uploadId: 883992

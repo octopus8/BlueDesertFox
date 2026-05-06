@@ -1,0 +1,17 @@
+fileFormatVersion: 2
+guid: ac2daf17e90dc6845bb80e486a5156c8
+timeCreated: 1579826518
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 43547754005146950
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 85664
+  packageName: POLYGON - Vikings Pack - Art by Synty
+  packageVersion: 1.5.0
+  assetPath: Assets/Synty/PolygonVikings/Models/Collision/Convex/SM_Prop_Boat_Broken_02_Convex
+    2.asset
+  uploadId: 883992

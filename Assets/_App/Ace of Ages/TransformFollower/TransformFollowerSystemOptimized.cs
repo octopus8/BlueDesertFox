@@ -10,18 +10,23 @@ using Unity.Burst;
 /// <remarks>
 /// This optimized approach works around the fundamental limitation by:
 /// 1. Collecting all Transform data on the main thread ONCE per frame into a native container
-/// 2. Processing all entities in a Burst-compiled job using the cached Transform data
+/// 2. Processing all entities in a Burst-compiled parallel job using the cached Transform data
 /// 
 /// This is much more efficient when you have many entities following Transforms,
 /// but still requires main thread access to read Transform data initially.
+/// 
+/// FIXED v2.0: Now uses ISystem with proper dependency chaining to prevent race conditions
+/// with rendering systems (e.g., GlobalTreeInstanceSystem frustum culling).
 /// 
 /// To use this instead of TransformFollowerSystem:
 /// 1. Disable TransformFollowerSystem (add [DisableAutoCreation] attribute)
 /// 2. Enable this system by removing [DisableAutoCreation] attribute below
 /// </remarks>
-[DisableAutoCreation] // Remove this to use the optimized version
+//[DisableAutoCreation] // Remove this to use the optimized version
 [RequireMatchingQueriesForUpdate]
-public partial class TransformFollowerSystemOptimized : SystemBase
+[UpdateInGroup(typeof(SimulationSystemGroup))]
+[UpdateBefore(typeof(TransformSystemGroup))]
+public partial struct TransformFollowerSystemOptimized : ISystem
 {
     private EntityQuery _followerQuery;
     private NativeList<TransformData> _transformDataCache;
@@ -32,9 +37,9 @@ public partial class TransformFollowerSystemOptimized : SystemBase
         public quaternion rotation;
     }
     
-    protected override void OnCreate()
+    public void OnCreate(ref SystemState state)
     {
-        _followerQuery = GetEntityQuery(
+        _followerQuery = state.GetEntityQuery(
             ComponentType.ReadWrite<LocalTransform>(),
             ComponentType.ReadOnly<TransformFollowerSettings>(),
             ComponentType.ReadOnly<TransformReference>()
@@ -43,7 +48,7 @@ public partial class TransformFollowerSystemOptimized : SystemBase
         _transformDataCache = new NativeList<TransformData>(Allocator.Persistent);
     }
     
-    protected override void OnDestroy()
+    public void OnDestroy(ref SystemState state)
     {
         if (_transformDataCache.IsCreated)
         {
@@ -51,7 +56,7 @@ public partial class TransformFollowerSystemOptimized : SystemBase
         }
     }
     
-    protected override void OnUpdate()
+    public void OnUpdate(ref SystemState state)
     {
         int entityCount = _followerQuery.CalculateEntityCount();
         
@@ -68,6 +73,7 @@ public partial class TransformFollowerSystemOptimized : SystemBase
         }
         
         // Step 1: Collect all Transform data on the main thread (cannot be avoided)
+        // Must use managed API since TransformReference is a managed component
         foreach (var transformRef in SystemAPI.Query<TransformReference>())
         {
             TransformData data = default;
@@ -81,15 +87,20 @@ public partial class TransformFollowerSystemOptimized : SystemBase
             _transformDataCache.Add(data);
         }
         
-        // Step 2: Process all entities in a Burst-compiled job
+        // Step 2: Process all entities in a Burst-compiled parallel job with proper dependency chaining
         var transformData = _transformDataCache.AsArray();
         float deltaTime = SystemAPI.Time.DeltaTime;
         
-        new TransformFollowerJob
+        var job = new TransformFollowerJob
         {
             transformData = transformData,
             deltaTime = deltaTime
-        }.ScheduleParallel();
+        };
+        
+        // ✅ CRITICAL FIX: Chain dependencies to prevent race conditions
+        // This ensures the job completes before rendering systems (like GlobalTreeInstanceSystem)
+        // read the updated LocalTransform components for frustum culling
+        state.Dependency = job.ScheduleParallel(state.Dependency);
     }
     
     [BurstCompile]
@@ -97,8 +108,6 @@ public partial class TransformFollowerSystemOptimized : SystemBase
     {
         [ReadOnly] public NativeArray<TransformData> transformData;
         public float deltaTime;
-        
-        private int _index;
         
         public void Execute(
             [EntityIndexInQuery] int entityIndexInQuery,

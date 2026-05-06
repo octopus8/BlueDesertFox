@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: a29b58c1b3ef94c4280090c5cc9db2ef
+timeCreated: 1579831989
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 43961781078677246
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 85664
+  packageName: POLYGON - Vikings Pack - Art by Synty
+  packageVersion: 1.5.0
+  assetPath: Assets/Synty/PolygonVikings/Models/Collision/Convex/SM_Env_Path_Wood_Plank_01_Snow_Convex.asset
+  uploadId: 883992

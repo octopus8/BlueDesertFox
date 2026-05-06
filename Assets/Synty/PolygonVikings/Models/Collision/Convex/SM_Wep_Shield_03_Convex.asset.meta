@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 523a0b52a7d500a46a3925aff3621a14
+timeCreated: 1579827661
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 43043341033826912
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 85664
+  packageName: POLYGON - Vikings Pack - Art by Synty
+  packageVersion: 1.5.0
+  assetPath: Assets/Synty/PolygonVikings/Models/Collision/Convex/SM_Wep_Shield_03_Convex.asset
+  uploadId: 883992

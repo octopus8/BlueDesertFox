@@ -1,0 +1,17 @@
+fileFormatVersion: 2
+guid: 85f67a05646ccca47a2283f6f877b418
+timeCreated: 1579833559
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 43475059206152446
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 85664
+  packageName: POLYGON - Vikings Pack - Art by Synty
+  packageVersion: 1.5.0
+  assetPath: Assets/Synty/PolygonVikings/Models/Collision/Convex/SM_Bld_Guard_Tower_01_Convex
+    4.asset
+  uploadId: 883992

@@ -66,6 +66,16 @@ public class TerrainConfigAuthoring : MonoBehaviour
     [Tooltip("Material to use for terrain rendering (should use URP Lit shader)")]
     public Material terrainMaterial;
     
+    [Header("Debug/Testing")]
+    [Tooltip("Enable terrain tile rendering (disable to test tree rendering only)")]
+    public bool renderTerrain = true;
+    
+    [Tooltip("Enable physics collider generation (disable for debugging/performance testing)")]
+    public bool enablePhysicsColliders = true;
+    
+    [Tooltip("Enable TerrainRenderingDebugSystem logging (disable to reduce console spam)")]
+    public bool enableRenderingDebug;
+    
     [Header("Physics Optimization")]
     [Range(1, 10)]
     [Tooltip("Maximum number of physics colliders created per frame to prevent stalls")]
@@ -87,7 +97,11 @@ public class TerrainConfigAuthoring : MonoBehaviour
     [Tooltip("Assign distant tiles (half/quarter resolution) to separate physics layer")]
     public bool usePhysicsLODLayers = true;
     
-    [Range(0, 31)]
+    [NaughtyAttributes.Layer]
+    [Tooltip("Physics layer index for close terrain (full resolution tiles)")]
+    public int closeTerrainPhysicsLayer = 0;
+    
+    [NaughtyAttributes.Layer]
     [Tooltip("Physics layer index for low-detail terrain (half/quarter resolution tiles)")]
     public int lowDetailPhysicsLayer = 0;
 
@@ -115,14 +129,19 @@ public class TerrainConfigAuthoring : MonoBehaviour
                 lodQuarterResolutionDistance = authoring.lodQuarterResolutionDistance,
                 maxColliderCacheMemoryMB = authoring.maxColliderCacheMemoryMB,
                 usePhysicsLODLayers = authoring.usePhysicsLODLayers,
-                lowDetailPhysicsLayer = authoring.lowDetailPhysicsLayer
+                closeTerrainPhysicsLayer = authoring.closeTerrainPhysicsLayer,
+                lowDetailPhysicsLayer = authoring.lowDetailPhysicsLayer,
+                // Debug/Testing
+                renderTerrain = authoring.renderTerrain,
+                enablePhysicsColliders = authoring.enablePhysicsColliders,
+                enableRenderingDebug = authoring.enableRenderingDebug
             });
             
-            // Create scroll config singleton
-            AddComponent(entity, new ScrollConfig
+            // Create scroll velocity singleton (starts inactive)
+            AddComponent(entity, new TerrainScrollVelocity
             {
-                enabled = authoring.scrollEnabled,
-                scrollSpeed = authoring.scrollSpeed
+                direction = float3.zero,
+                speed = 0f
             });
             
             // Create scroll offset singleton (starts at zero)
@@ -170,6 +189,12 @@ public class TerrainConfigAuthoring : MonoBehaviour
             AddComponentObject(entity, new PlayerTransformReference
             {
                 playerTransform = null
+            });
+            
+            // Add terrain material reference if assigned
+            AddComponentObject(entity, new TerrainMaterialReference
+            {
+                material = authoring.terrainMaterial
             });
         }
     }

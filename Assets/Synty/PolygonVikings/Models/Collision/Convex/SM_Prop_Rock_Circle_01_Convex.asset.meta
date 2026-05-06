@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 9896bfbbd722eee43b583b3caa2ab704
+timeCreated: 1579826178
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 43580439926933842
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 85664
+  packageName: POLYGON - Vikings Pack - Art by Synty
+  packageVersion: 1.5.0
+  assetPath: Assets/Synty/PolygonVikings/Models/Collision/Convex/SM_Prop_Rock_Circle_01_Convex.asset
+  uploadId: 883992

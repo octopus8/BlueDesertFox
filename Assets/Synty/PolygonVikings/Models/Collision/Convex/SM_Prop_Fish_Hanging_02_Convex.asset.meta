@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 4223138812163404f93cb3144a3088f5
+timeCreated: 1579826189
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 43970615767169396
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 85664
+  packageName: POLYGON - Vikings Pack - Art by Synty
+  packageVersion: 1.5.0
+  assetPath: Assets/Synty/PolygonVikings/Models/Collision/Convex/SM_Prop_Fish_Hanging_02_Convex.asset
+  uploadId: 883992
