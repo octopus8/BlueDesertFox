@@ -34,6 +34,7 @@ Welcome to the comprehensive documentation for the DOTS-based infinite terrain s
 - **[Physics System](PHYSICS_SYSTEM.md)** - LOD-based physics collider system
 - **[Rendering System](RENDERING_SYSTEM.md)** - How mesh rendering works with Entities Graphics
 - **[Tree Rendering System](TREE_RENDERING_SYSTEM.md)** - 🔄 **NEW v3.0** - Instanced rendering with spatial culling
+- **[Terrain Anchor System](TERRAIN_ANCHOR_SYSTEM.md)** - ✨ **NEW v3.0** - Spawn objects that move with scrolling terrain
 
 ### Reference
 - **[System Reference](SYSTEM_REFERENCE.md)** - 🔄 **Updated v3.0** - All 20+ systems with APIs

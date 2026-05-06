@@ -95,7 +95,7 @@ Documentation/
 │  ├─ All 20+ systems with APIs and examples
 │
 ├─ Features
-│  ├─ Auto-Scrolling, Physics, Rendering, Tree System
+│  ├─ Auto-Scrolling, Physics, Rendering, Tree System, Terrain Anchors
 │
 ├─ Performance
 │  ├─ Optimization Guide, History, Code Review

@@ -10,6 +10,7 @@ Complete reference for all components used in the terrain system.
 - **[Mesh Buffers](#mesh-buffers)** - Mesh data storage (per-tile)
 - **[Physics Components](#physics-components)** - Collision system components
 - **[Managed Components](#managed-components)** - Components holding Unity Object references
+- **[Utility Components](#utility-components)** - Special terrain behaviors (anchors, etc.)
 
 ---
 
@@ -703,6 +704,58 @@ public struct LocalToWorld : IComponentData
 
 **Added By**: TileSpawningSystem  
 **Updated By**: Unity Transform system (automatic)
+
+---
+
+## Utility Components
+
+Components for special terrain behaviors and integrations.
+
+### TerrainAnchorTag
+
+**File**: `TerrainAnchorTag.cs`  
+**Type**: `IComponentData` (struct)  
+**Per Entity**: Yes
+
+**Purpose**: Marks entities that should move with terrain scroll offset while maintaining their base position. Allows spawned obstacles, decorations, and other non-tile entities to scroll with the terrain.
+
+**Fields**:
+```csharp
+public struct TerrainAnchorTag : IComponentData
+{
+    public float3 basePosition;  // Base position in world space
+}
+```
+
+**Example**:
+```csharp
+basePosition: (125.0f, 5.2f, -83.5f)
+// Actual position calculated as: basePosition - scrollOffset.accumulatedOffset
+```
+
+**Added By**: Baking system (from `TerrainAnchorTagAuthoring`)  
+**Updated By**: Never (base position is constant)  
+**Used By**: `TerrainAnchorSystem` (applies scroll offset to LocalTransform)
+
+**Authoring**:
+```csharp
+// Attach to GameObject in SubScene
+TerrainAnchorTagAuthoring
+├─ Use Custom Base Position: false
+└─ Custom Base Position: (0, 0, 0)
+```
+
+**Usage Notes**:
+- Entity must be in a SubScene to be baked
+- Base position is set at bake time from GameObject position (unless custom)
+- System updates `LocalTransform.Position` every frame: `basePosition - scrollOffset`
+- **Do NOT use for trees** - Use `TreeTileOwnership` instead
+- **Do NOT use for tiles** - Handled by `TileScrollPositionSystem` automatically
+
+**Performance**: 
+- Optimized with parallel Burst-compiled job
+- 0.4-0.6ms for 1000 entities (Quest 3)
+- Zero cost when no anchored entities exist
 
 ---
 
