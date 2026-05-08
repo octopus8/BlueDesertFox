@@ -285,6 +285,7 @@ GameObject:
   - component: {fileID: 263055123}
   - component: {fileID: 263055124}
   - component: {fileID: 263055125}
+  - component: {fileID: 263055126}
   m_Layer: 0
   m_Name: PlayerShip
   m_TagString: Untagged
@@ -341,7 +342,21 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2c71f3be8d25b93429bac0846e411b60, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerShipAuthoring
-  bulletSpawnPoint: {fileID: 0}
+  bulletSpawnPoint: {fileID: 476052809}
+--- !u!114 &263055126
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 263055122}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 24a5e87fb04c437db5ed49a3efafeb43, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::BulletShooterAuthoring
+  fireRate: 0.2
+  bulletSpeed: 100
 --- !u!1 &476052809
 GameObject:
   m_ObjectHideFlags: 0
@@ -540,6 +555,52 @@ Transform:
   m_CorrespondingSourceObject: {fileID: 1179098101095210909, guid: 2a3b3f557fb287843b08dfe92a5a3d65, type: 3}
   m_PrefabInstance: {fileID: 512056376}
   m_PrefabAsset: {fileID: 0}
+--- !u!1 &582652029
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 582652031}
+  - component: {fileID: 582652030}
+  m_Layer: 0
+  m_Name: Pooling
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &582652030
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 582652029}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: cc0ffc3622fa4f8db0bc563e3e37d477, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::BulletPoolConfigAuthoring
+  initialPoolSize: 50
+  maxPoolSize: 100
+--- !u!4 &582652031
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 582652029}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1001 &582819465
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -6223,3 +6284,4 @@ SceneRoots:
   - {fileID: 263055123}
   - {fileID: 1371828255}
   - {fileID: 488271556}
+  - {fileID: 582652031}

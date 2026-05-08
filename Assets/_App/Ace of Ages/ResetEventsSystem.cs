@@ -6,6 +6,7 @@ partial struct ResetEventsSystem : ISystem
     [BurstCompile]
     public void OnUpdate(ref SystemState state)
     {
+        // Reset enemy spawner events
         foreach (var 
                      enemySpawner 
                  in SystemAPI.Query<
@@ -13,6 +14,16 @@ partial struct ResetEventsSystem : ISystem
                  >())
         {
             enemySpawner.ValueRW.doSpawn = false;
+        }
+        
+        // Reset bullet shooter events
+        foreach (var 
+                     bulletShooter 
+                 in SystemAPI.Query<
+                     RefRW<BulletShooter>
+                 >())
+        {
+            bulletShooter.ValueRW.doShoot = false;
         }
     }
 }

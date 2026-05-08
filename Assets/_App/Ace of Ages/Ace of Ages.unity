@@ -129,6 +129,8 @@ GameObject:
   m_Component:
   - component: {fileID: 132629395}
   - component: {fileID: 132629396}
+  - component: {fileID: 132629398}
+  - component: {fileID: 132629397}
   m_Layer: 0
   m_Name: Ace of Ages
   m_TagString: Untagged
@@ -166,6 +168,32 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 5ecb09c4ee15a094589bb325a11c30ba, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::DottyApp
+--- !u!114 &132629397
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 132629393}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 05a37e78090544979e06b50d59c4330c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::InputSystemActionsInitializer
+  actionAsset: {fileID: -944628639613478452, guid: 1f2ed7fbb5b54a141b84f76fe5ac1335, type: 3}
+  enableActionsOnStart: 1
+--- !u!114 &132629398
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 132629393}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a66a1bd33bb448a29638ad71fdd18774, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerShootingInput
 --- !u!1 &241762667
 GameObject:
   m_ObjectHideFlags: 0
