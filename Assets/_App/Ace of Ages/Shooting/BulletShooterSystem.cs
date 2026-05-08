@@ -62,18 +62,26 @@ public partial struct BulletShooterSystem : ISystem
                 continue;
             }
             
+            // Get the prefab's scale to preserve it
+            var prefabs = SystemAPI.GetSingleton<PrefabEntitiesReferences>();
+            float prefabScale = 1f;
+            if (SystemAPI.HasComponent<LocalTransform>(prefabs.bulletSimplePrefab))
+            {
+                prefabScale = SystemAPI.GetComponent<LocalTransform>(prefabs.bulletSimplePrefab).Scale;
+            }
+            
             // Get spawn point position and direction
             Transform spawnTransform = spawnPointRef.spawnPoint;
             float3 spawnPosition = spawnTransform.position;
             float3 forward = spawnTransform.forward;
             quaternion spawnRotation = spawnTransform.rotation;
             
-            // Set bullet transform
+            // Set bullet transform (preserving prefab scale)
             state.EntityManager.SetComponentData(bulletEntity, new LocalTransform
             {
                 Position = spawnPosition,
                 Rotation = spawnRotation,
-                Scale = 500f
+                Scale = prefabScale
             });
             
             // Set bullet velocity

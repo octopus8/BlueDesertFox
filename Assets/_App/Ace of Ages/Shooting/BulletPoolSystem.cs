@@ -50,6 +50,13 @@ public partial struct BulletPoolSystem : ISystem
             return;
         }
         
+        // Get the prefab's scale to preserve it
+        float prefabScale = 1f;
+        if (state.EntityManager.HasComponent<LocalTransform>(prefabs.bulletSimplePrefab))
+        {
+            prefabScale = state.EntityManager.GetComponentData<LocalTransform>(prefabs.bulletSimplePrefab).Scale;
+        }
+        
         // Pre-spawn initial pool of bullets
         for (int i = 0; i < config.initialPoolSize; i++)
         {
@@ -69,7 +76,7 @@ public partial struct BulletPoolSystem : ISystem
             {
                 Position = new float3(0, -10000, 0), // Far below map
                 Rotation = quaternion.identity,
-                Scale = 1f
+                Scale = prefabScale
             });
             
             // Ensure PhysicsVelocity exists and is zeroed
@@ -117,6 +124,13 @@ public partial struct BulletPoolSystem : ISystem
             return Entity.Null;
         }
         
+        // Get the prefab's scale to preserve it
+        float prefabScale = 1f;
+        if (state.EntityManager.HasComponent<LocalTransform>(prefabs.bulletSimplePrefab))
+        {
+            prefabScale = state.EntityManager.GetComponentData<LocalTransform>(prefabs.bulletSimplePrefab).Scale;
+        }
+        
         // Create new bullet
         Entity bullet = state.EntityManager.Instantiate(prefabs.bulletSimplePrefab);
         
@@ -132,7 +146,7 @@ public partial struct BulletPoolSystem : ISystem
         {
             Position = new float3(0, -10000, 0),
             Rotation = quaternion.identity,
-            Scale = 1f
+            Scale = prefabScale
         });
         
         if (!state.EntityManager.HasComponent<PhysicsVelocity>(bullet))
