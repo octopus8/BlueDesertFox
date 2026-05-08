@@ -1,4 +1,5 @@
 using Unity.Entities;
+using Unity.Mathematics;
 using UnityEngine;
 
 public class PlayerShipAuthoring : MonoBehaviour
@@ -12,11 +13,26 @@ public class PlayerShipAuthoring : MonoBehaviour
             Entity entity = GetEntity(TransformUsageFlags.Dynamic);
             AddComponent<PlayerShip>(entity);
             
-            // Add managed component to store bullet spawn point Transform reference
-            // This allows systems to access the spawn point position/rotation at runtime
-            AddComponentObject(entity, new BulletSpawnPointReference
+            // Calculate bullet spawn point offset relative to player ship
+            // This bakes the design-time spawn point position as a runtime offset
+            float3 localOffset = float3.zero;
+            quaternion localRotation = quaternion.identity;
+            
+            if (authoring.bulletSpawnPoint != null)
             {
-                spawnPoint = authoring.bulletSpawnPoint?.transform
+                // Get local position and rotation relative to the player ship
+                localOffset = authoring.bulletSpawnPoint.transform.localPosition;
+                localRotation = authoring.bulletSpawnPoint.transform.localRotation;
+            }
+            else
+            {
+                Debug.LogWarning("[PlayerShipAuthoring] bulletSpawnPoint is null, bullets will spawn at ship center", authoring);
+            }
+            
+            AddComponent(entity, new BulletSpawnPointReference
+            {
+                localOffset = localOffset,
+                localRotation = localRotation
             });
         }
     }
@@ -28,11 +44,16 @@ public struct PlayerShip : IComponentData
 }
 
 /// <summary>
-/// Managed component that holds a reference to the bullet spawn point Transform.
-/// This allows ECS systems to read the spawn point's position and rotation at runtime.
+/// Component that stores the bullet spawn point's offset relative to the PlayerShip.
+/// At bake time, this captures the spawn point's local position and rotation.
+/// At runtime, systems apply this offset to the ship's world transform.
 /// </summary>
-public class BulletSpawnPointReference : IComponentData
+public struct BulletSpawnPointReference : IComponentData
 {
-    public Transform spawnPoint;
+    /// <summary>Local offset from the ship's center to the bullet spawn point.</summary>
+    public float3 localOffset;
+    
+    /// <summary>Local rotation of the spawn point relative to the ship.</summary>
+    public quaternion localRotation;
 }
 
