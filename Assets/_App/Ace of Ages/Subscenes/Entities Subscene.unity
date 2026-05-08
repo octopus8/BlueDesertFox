@@ -284,6 +284,7 @@ GameObject:
   m_Component:
   - component: {fileID: 263055123}
   - component: {fileID: 263055124}
+  - component: {fileID: 263055125}
   m_Layer: 0
   m_Name: PlayerShip
   m_TagString: Untagged
@@ -306,6 +307,7 @@ Transform:
   m_Children:
   - {fileID: 512056377}
   - {fileID: 582819466}
+  - {fileID: 476052810}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &263055124
@@ -327,6 +329,50 @@ MonoBehaviour:
   offset: {x: 0, y: 0, z: 0}
   followRotation: 1
   smoothTime: 0
+--- !u!114 &263055125
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 263055122}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2c71f3be8d25b93429bac0846e411b60, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerShipAuthoring
+  bulletSpawnPoint: {fileID: 0}
+--- !u!1 &476052809
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 476052810}
+  m_Layer: 0
+  m_Name: Bullet Spawn Point
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &476052810
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 476052809}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: -0.0268, z: 0.1903}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 263055123}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1001 &488271556
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -505,6 +551,10 @@ PrefabInstance:
     - target: {fileID: 1122383940670264, guid: 01489deeeb7ca1744877c2e3e590d958, type: 3}
       propertyPath: m_Name
       value: SM_Ship_Fighter_01
+      objectReference: {fileID: 0}
+    - target: {fileID: 1122383940670264, guid: 01489deeeb7ca1744877c2e3e590d958, type: 3}
+      propertyPath: m_Layer
+      value: 13
       objectReference: {fileID: 0}
     - target: {fileID: 4147015843481072, guid: 01489deeeb7ca1744877c2e3e590d958, type: 3}
       propertyPath: m_LocalScale.x
@@ -5795,7 +5845,6 @@ MonoBehaviour:
   noisePersistence: 0.4
   terrainMaterial: {fileID: 2100000, guid: dc12ba763b59e3a4586cb235c2a074fc, type: 2}
   renderTerrain: 1
-  visualizeColliders: 1
   enablePhysicsColliders: 1
   enableRenderingDebug: 0
   maxCollidersCreatedPerFrame: 1
@@ -6146,7 +6195,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 70aa8d499d413c5439018216166e64ae, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PrefabEntitiesReferencesAuthoring
-  prefab: {fileID: 4484288786283341609, guid: 2a3b3f557fb287843b08dfe92a5a3d65, type: 3}
+  enemyZeroPrefab: {fileID: 4484288786283341609, guid: 2a3b3f557fb287843b08dfe92a5a3d65, type: 3}
+  bulletSimplePrefab: {fileID: 2379691029606754976, guid: 136a82eab0b56674b89d419dbdf94345, type: 3}
 --- !u!4 &2052678063
 Transform:
   m_ObjectHideFlags: 0

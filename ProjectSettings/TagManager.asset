@@ -18,9 +18,9 @@ TagManager:
   - HandPlayer
   - TerrainLowDetail
   - Terrain
-  - 
-  - 
-  - 
+  - Enemy
+  - Player
+  - PlayerProjectile
   - 
   - 
   - 

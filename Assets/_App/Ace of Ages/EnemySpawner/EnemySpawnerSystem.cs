@@ -48,15 +48,15 @@ partial struct EnemySpawnerSystem : ISystem
                     
                     // Get the prefab's scale to preserve it
                     float prefabScale = 1f;
-                    if (SystemAPI.HasComponent<LocalTransform>(prefabEntitiesReferences.prefabEntity))
+                    if (SystemAPI.HasComponent<LocalTransform>(prefabEntitiesReferences.enemyZeroEntity))
                     {
-                        prefabScale = SystemAPI.GetComponent<LocalTransform>(prefabEntitiesReferences.prefabEntity).Scale;
+                        prefabScale = SystemAPI.GetComponent<LocalTransform>(prefabEntitiesReferences.enemyZeroEntity).Scale;
                     }
                     
                     for (int i = 0; i < formationCount; i++)
                     {
                         // Use EntityCommandBuffer for structural changes
-                        Entity entity = ecb.Instantiate(prefabEntitiesReferences.prefabEntity);
+                        Entity entity = ecb.Instantiate(prefabEntitiesReferences.enemyZeroEntity);
                         
                         // Set the spline data on the spawned entity
                         ecb.AddComponent(entity, splineData);
@@ -124,7 +124,7 @@ partial struct EnemySpawnerSystem : ISystem
                             });
                             
                             // Ensure PhysicsVelocity component exists (required for movement system)
-                            if (!SystemAPI.HasComponent<PhysicsVelocity>(prefabEntitiesReferences.prefabEntity))
+                            if (!SystemAPI.HasComponent<PhysicsVelocity>(prefabEntitiesReferences.enemyZeroEntity))
                             {
                                 ecb.AddComponent(entity, new PhysicsVelocity
                                 {

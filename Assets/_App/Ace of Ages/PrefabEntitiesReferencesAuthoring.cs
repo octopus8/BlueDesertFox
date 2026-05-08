@@ -3,7 +3,8 @@ using UnityEngine;
 
 public class PrefabEntitiesReferencesAuthoring : MonoBehaviour
 {
-    public GameObject prefab;
+    public GameObject enemyZeroPrefab;
+    public GameObject bulletSimplePrefab;
 
 
     public class Baker : Baker<PrefabEntitiesReferencesAuthoring>
@@ -13,7 +14,8 @@ public class PrefabEntitiesReferencesAuthoring : MonoBehaviour
             Entity entity = GetEntity(TransformUsageFlags.Dynamic);
             AddComponent(entity, new PrefabEntitiesReferences
             {
-                prefabEntity = GetEntity(authoring.prefab, TransformUsageFlags.Dynamic)
+                enemyZeroEntity = GetEntity(authoring.enemyZeroPrefab, TransformUsageFlags.Dynamic),
+                bulletSimplePrefab = GetEntity(authoring.bulletSimplePrefab, TransformUsageFlags.Dynamic)
             });
         }
     }
@@ -23,5 +25,6 @@ public class PrefabEntitiesReferencesAuthoring : MonoBehaviour
 
 public struct PrefabEntitiesReferences : IComponentData
 {
-    public Entity prefabEntity;
+    public Entity enemyZeroEntity;
+    public Entity bulletSimplePrefab;
 }
