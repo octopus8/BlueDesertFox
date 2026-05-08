@@ -1,10 +1,12 @@
 using Unity.Entities;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using System.Collections;
 
 /// <summary>
 /// MonoBehaviour that handles player shooting input.
-/// Attach this to the player ship GameObject in the main scene (not in SubScene).
+/// Attach this to a GameObject in the main scene (not in SubScene).
+/// Waits for PlayerShip entity to be created from SubScene baking before initializing.
 /// Requires InputSystem.actions to be initialized (add InputSystemActionsInitializer to scene).
 /// </summary>
 public class PlayerShootingInput : MonoBehaviour
@@ -16,38 +18,62 @@ public class PlayerShootingInput : MonoBehaviour
     
     void Start()
     {
+        // Start coroutine to find entity (may take a few frames for SubScene to bake)
+        StartCoroutine(InitializeWhenPlayerShipReady());
+    }
+    
+    private IEnumerator InitializeWhenPlayerShipReady()
+    {
         // Get ECS World
         var world = World.DefaultGameObjectInjectionWorld;
         if (world == null)
         {
             Debug.LogError("[PlayerShootingInput] No default ECS world found");
             enabled = false;
-            return;
+            yield break;
         }
         
         _entityManager = world.EntityManager;
         
-        // Find player ship entity with BulletShooter component
-        var query = _entityManager.CreateEntityQuery(typeof(BulletShooter), typeof(PlayerShip));
-        var entities = query.ToEntityArray(Unity.Collections.Allocator.Temp);
+        // Wait for player ship entity to exist (SubScene baking may take a few frames)
+        Debug.Log("[PlayerShootingInput] Waiting for PlayerShip entity to be created...");
         
-        if (entities.Length == 0)
+        int retryCount = 0;
+        const int maxRetries = 300; // 5 seconds at 60fps
+        
+        while (retryCount < maxRetries)
         {
-            Debug.LogError("[PlayerShootingInput] No entity found with BulletShooter + PlayerShip components. Make sure BulletShooterAuthoring is attached to the player ship.");
+            // Find player ship entity with BulletShooter component
+            var query = _entityManager.CreateEntityQuery(typeof(BulletShooter), typeof(PlayerShip));
+            var entities = query.ToEntityArray(Unity.Collections.Allocator.Temp);
+            
+            if (entities.Length > 0)
+            {
+                _playerShipEntity = entities[0];
+                entities.Dispose();
+                query.Dispose();
+                
+                Debug.Log($"[PlayerShootingInput] Found PlayerShip entity after {retryCount} frames!");
+                
+                // Initialize input action
+                InitializeInputAction();
+                
+                _initialized = true;
+                Debug.Log("[PlayerShootingInput] Initialized successfully");
+                yield break;
+            }
+            
             entities.Dispose();
-            enabled = false;
-            return;
+            query.Dispose();
+            
+            retryCount++;
+            yield return null; // Wait one frame
         }
         
-        _playerShipEntity = entities[0];
-        entities.Dispose();
-        query.Dispose();
-        
-        // Initialize input action
-        InitializeInputAction();
-        
-        _initialized = true;
-        Debug.Log("[PlayerShootingInput] Initialized successfully");
+        // Failed to find entity after max retries
+        Debug.LogError($"[PlayerShootingInput] Failed to find PlayerShip entity after {maxRetries} frames. " +
+            "Make sure PlayerShipAuthoring and BulletShooterAuthoring are in the SubScene.");
+        enabled = false;
     }
     
     void OnEnable()
@@ -123,8 +149,9 @@ public class PlayerShootingInput : MonoBehaviour
             return;
         }
         
-        _fireAction.Enable();
+        InputSystem.actions.Enable(); // Enable whole asset
+        _fireAction.actionMap.Enable(); // Enable Player action map
+        _fireAction.Enable(); // Enable specific action
         Debug.Log("[PlayerShootingInput] Fire action initialized successfully");
     }
 }
-
