@@ -227,10 +227,13 @@ MonoBehaviour:
   fullResolutionColor: {r: 0, g: 1, b: 0, a: 1}
   halfResolutionColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
   quarterResolutionColor: {r: 1, g: 0.5, b: 0, a: 1}
+  maxTilesToRenderPerFrame: 40
+  maxVisualizationDistance: 500
   _tilesWithColliders: 0
   _fullResolutionCount: 0
   _halfResolutionCount: 0
   _quarterResolutionCount: 0
+  _tilesRenderedLastFrame: 0
 --- !u!4 &241762669
 Transform:
   m_ObjectHideFlags: 0
