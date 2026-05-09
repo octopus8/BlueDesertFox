@@ -5,6 +5,7 @@ public class PrefabEntitiesReferencesAuthoring : MonoBehaviour
 {
     public GameObject enemyZeroPrefab;
     public GameObject bulletSimplePrefab;
+    public GameObject dirtExplosionSmallPrefab;
 
 
     public class Baker : Baker<PrefabEntitiesReferencesAuthoring>
@@ -15,7 +16,8 @@ public class PrefabEntitiesReferencesAuthoring : MonoBehaviour
             AddComponent(entity, new PrefabEntitiesReferences
             {
                 enemyZeroEntity = GetEntity(authoring.enemyZeroPrefab, TransformUsageFlags.Dynamic),
-                bulletSimplePrefab = GetEntity(authoring.bulletSimplePrefab, TransformUsageFlags.Dynamic)
+                bulletSimplePrefab = GetEntity(authoring.bulletSimplePrefab, TransformUsageFlags.Dynamic),
+                dirtExplosionSmallPrefab = GetEntity(authoring.dirtExplosionSmallPrefab, TransformUsageFlags.Dynamic)
             });
         }
     }
@@ -27,4 +29,5 @@ public struct PrefabEntitiesReferences : IComponentData
 {
     public Entity enemyZeroEntity;
     public Entity bulletSimplePrefab;
+    public Entity dirtExplosionSmallPrefab;
 }
