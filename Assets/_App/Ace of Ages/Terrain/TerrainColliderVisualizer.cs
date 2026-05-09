@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
@@ -11,8 +12,8 @@ using Material = UnityEngine.Material;
 /// <summary>
 /// Visualizes terrain physics colliders as colored wireframes during gameplay (VR compatible).
 /// Colors represent LOD levels: Green (Full Resolution), Yellow (Half Resolution), Orange (Quarter Resolution).
-/// Draws the actual mesh geometry of each collider using GL immediate mode rendering.
-/// Works in VR on Quest 3 and all platforms.
+/// Draws the actual mesh geometry of each collider using Unity LineRenderer components.
+/// Fully compatible with Quest 3 and all VR platforms.
 /// </summary>
 public class TerrainColliderVisualizer : MonoBehaviour
 {
@@ -45,24 +46,20 @@ public class TerrainColliderVisualizer : MonoBehaviour
     [SerializeField] private int _tilesRenderedLastFrame = 0;
     
     private EntityManager _entityManager;
+    private GameObject _lineRendererContainer;
+    private List<LineRenderer> _lineRendererPool = new List<LineRenderer>();
+    private int _activeLineRenderers = 0;
     private Material _lineMaterial;
 
     private void Awake()
     {
-        // Create material for GL rendering
+        // Create container for line renderers
+        _lineRendererContainer = new GameObject("ColliderVisualizationLines");
+        _lineRendererContainer.transform.SetParent(transform);
+        _lineRendererContainer.transform.localPosition = Vector3.zero;
+        
+        // Create material for line rendering
         CreateLineMaterial();
-    }
-
-    private void OnEnable()
-    {
-        // Subscribe to render pipeline events for runtime rendering
-        RenderPipelineManager.endCameraRendering += OnEndCameraRendering;
-    }
-
-    private void OnDisable()
-    {
-        // Unsubscribe from render pipeline events
-        RenderPipelineManager.endCameraRendering -= OnEndCameraRendering;
     }
 
     private void OnDestroy()
@@ -74,6 +71,15 @@ public class TerrainColliderVisualizer : MonoBehaviour
                 Destroy(_lineMaterial);
             else
                 DestroyImmediate(_lineMaterial);
+        }
+        
+        // Cleanup line renderer container
+        if (_lineRendererContainer != null)
+        {
+            if (Application.isPlaying)
+                Destroy(_lineRendererContainer);
+            else
+                DestroyImmediate(_lineRendererContainer);
         }
     }
 
@@ -89,6 +95,25 @@ public class TerrainColliderVisualizer : MonoBehaviour
         
         // Update counts for inspector display
         UpdateCounts();
+    }
+    
+    void LateUpdate()
+    {
+        if (!enableVisualization || !Application.isPlaying)
+        {
+            // Hide all line renderers when disabled
+            HideAllLineRenderers();
+            return;
+        }
+            
+        if (_lineMaterial == null)
+            return;
+            
+        if (World.DefaultGameObjectInjectionWorld == null)
+            return;
+        
+        // Build line visualization
+        RenderColliderLines();
     }
     
     void UpdateCounts()
@@ -129,12 +154,11 @@ public class TerrainColliderVisualizer : MonoBehaviour
     
     private void CreateLineMaterial()
     {
-        // Try to find the Internal-Colored shader (works on all platforms including VR)
-        Shader shader = Shader.Find("Hidden/Internal-Colored");
+        // Create a simple unlit material with vertex colors for Quest 3 compatibility
+        Shader shader = Shader.Find("Sprites/Default");
         
         if (shader == null)
         {
-            // Fallback to Unlit/Color if Internal-Colored not found
             shader = Shader.Find("Unlit/Color");
         }
         
@@ -147,23 +171,52 @@ public class TerrainColliderVisualizer : MonoBehaviour
         _lineMaterial = new Material(shader);
         _lineMaterial.name = "TerrainColliderVisualizerLineMaterial";
         _lineMaterial.hideFlags = HideFlags.HideAndDontSave;
-        
-        // Configure material for proper rendering
-        _lineMaterial.SetInt("_ZWrite", 0); // No depth writing
-        _lineMaterial.SetInt("_ZTest", (int)UnityEngine.Rendering.CompareFunction.LessEqual); // Proper depth testing for VR
-        _lineMaterial.SetInt("_Cull", (int)UnityEngine.Rendering.CullMode.Off); // Draw both sides
     }
     
-    private void OnEndCameraRendering(ScriptableRenderContext context, Camera camera)
+    private LineRenderer GetOrCreateLineRenderer()
     {
-        if (!enableVisualization || !Application.isPlaying)
-            return;
-            
-        if (_lineMaterial == null)
-            return;
-            
-        if (World.DefaultGameObjectInjectionWorld == null)
-            return;
+        // Reuse existing line renderer if available
+        if (_activeLineRenderers < _lineRendererPool.Count)
+        {
+            var lr = _lineRendererPool[_activeLineRenderers];
+            lr.gameObject.SetActive(true);
+            _activeLineRenderers++;
+            return lr;
+        }
+        
+        // Create new line renderer
+        var go = new GameObject($"Line{_lineRendererPool.Count}");
+        go.transform.SetParent(_lineRendererContainer.transform);
+        go.transform.localPosition = Vector3.zero;
+        
+        var lineRenderer = go.AddComponent<LineRenderer>();
+        lineRenderer.material = _lineMaterial;
+        lineRenderer.startWidth = 0.05f; // 5cm lines - visible in VR
+        lineRenderer.endWidth = 0.05f;
+        lineRenderer.numCapVertices = 0;
+        lineRenderer.numCornerVertices = 0;
+        lineRenderer.useWorldSpace = true;
+        lineRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        lineRenderer.receiveShadows = false;
+        
+        _lineRendererPool.Add(lineRenderer);
+        _activeLineRenderers++;
+        return lineRenderer;
+    }
+    
+    private void HideAllLineRenderers()
+    {
+        for (int i = 0; i < _lineRendererPool.Count; i++)
+        {
+            _lineRendererPool[i].gameObject.SetActive(false);
+        }
+        _activeLineRenderers = 0;
+    }
+    
+    private void RenderColliderLines()
+    {
+        // Reset active line renderer count
+        _activeLineRenderers = 0;
         
         var em = World.DefaultGameObjectInjectionWorld.EntityManager;
         
@@ -193,13 +246,6 @@ public class TerrainColliderVisualizer : MonoBehaviour
             }
         }
         
-        // Apply material for GL rendering
-        _lineMaterial.SetPass(0);
-        
-        GL.PushMatrix();
-        GL.MultMatrix(Matrix4x4.identity); // Use world space
-        GL.Begin(GL.LINES);
-        
         int tilesRendered = 0;
         
         foreach (var entity in entities)
@@ -209,8 +255,8 @@ public class TerrainColliderVisualizer : MonoBehaviour
                 break;
             
             // Get tile position
-            var transform = em.GetComponentData<LocalTransform>(entity);
-            float3 tilePosition = transform.Position;
+            var tileTransform = em.GetComponentData<LocalTransform>(entity);
+            float3 tilePosition = tileTransform.Position;
             
             // Distance culling
             if (hasPlayerPos && maxVisualizationDistance > 0)
@@ -228,44 +274,30 @@ public class TerrainColliderVisualizer : MonoBehaviour
             var vertexBuffer = em.GetBuffer<VertexElement>(entity);
             var indexBuffer = em.GetBuffer<IndexElement>(entity);
             
-            // Draw wireframe using GL
-            DrawColliderWireframeGL(vertexBuffer, indexBuffer, tilePosition, wireframeColor);
+            // Draw wireframe lines using LineRenderers
+            DrawWireframeWithLineRenderers(vertexBuffer, indexBuffer, tilePosition, wireframeColor);
             
             tilesRendered++;
         }
         
-        GL.End();
-        GL.PopMatrix();
-        
         _tilesRenderedLastFrame = tilesRendered;
         
         entities.Dispose();
-    }
-    
-    private Color GetColorForLOD(TerrainPhysicsLODLevel lodLevel)
-    {
-        switch (lodLevel)
+        
+        // Hide unused line renderers
+        for (int i = _activeLineRenderers; i < _lineRendererPool.Count; i++)
         {
-            case TerrainPhysicsLODLevel.FullResolution:
-                return fullResolutionColor;
-            case TerrainPhysicsLODLevel.HalfResolution:
-                return halfResolutionColor;
-            case TerrainPhysicsLODLevel.QuarterResolution:
-                return quarterResolutionColor;
-            default:
-                return Color.gray;
+            _lineRendererPool[i].gameObject.SetActive(false);
         }
     }
     
-    private void DrawColliderWireframeGL(
+    private void DrawWireframeWithLineRenderers(
         DynamicBuffer<VertexElement> vertices,
         DynamicBuffer<IndexElement> indices,
         float3 tilePosition,
         Color color)
     {
-        GL.Color(color);
-        
-        // Draw each triangle edge using GL.LINES mode
+        // Draw each triangle edge as a line
         // Indices are stored as sequential triplets: [0,1,2], [3,4,5], etc.
         for (int i = 0; i < indices.Length; i += 3)
         {
@@ -284,15 +316,35 @@ public class TerrainColliderVisualizer : MonoBehaviour
             Vector3 v1 = (Vector3)(tilePosition + vertices[idx1].value);
             Vector3 v2 = (Vector3)(tilePosition + vertices[idx2].value);
             
-            // Draw triangle edges as lines
-            GL.Vertex3(v0.x, v0.y, v0.z);
-            GL.Vertex3(v1.x, v1.y, v1.z);
-            
-            GL.Vertex3(v1.x, v1.y, v1.z);
-            GL.Vertex3(v2.x, v2.y, v2.z);
-            
-            GL.Vertex3(v2.x, v2.y, v2.z);
-            GL.Vertex3(v0.x, v0.y, v0.z);
+            // Draw 3 edges of the triangle
+            DrawLine(v0, v1, color);
+            DrawLine(v1, v2, color);
+            DrawLine(v2, v0, color);
+        }
+    }
+    
+    private void DrawLine(Vector3 start, Vector3 end, Color color)
+    {
+        var lr = GetOrCreateLineRenderer();
+        lr.positionCount = 2;
+        lr.SetPosition(0, start);
+        lr.SetPosition(1, end);
+        lr.startColor = color;
+        lr.endColor = color;
+    }
+    
+    private Color GetColorForLOD(TerrainPhysicsLODLevel lodLevel)
+    {
+        switch (lodLevel)
+        {
+            case TerrainPhysicsLODLevel.FullResolution:
+                return fullResolutionColor;
+            case TerrainPhysicsLODLevel.HalfResolution:
+                return halfResolutionColor;
+            case TerrainPhysicsLODLevel.QuarterResolution:
+                return quarterResolutionColor;
+            default:
+                return Color.gray;
         }
     }
 }
