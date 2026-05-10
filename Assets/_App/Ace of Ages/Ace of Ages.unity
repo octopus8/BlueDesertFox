@@ -131,6 +131,7 @@ GameObject:
   - component: {fileID: 132629396}
   - component: {fileID: 132629398}
   - component: {fileID: 132629397}
+  - component: {fileID: 132629399}
   m_Layer: 0
   m_Name: Ace of Ages
   m_TagString: Untagged
@@ -194,6 +195,18 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a66a1bd33bb448a29638ad71fdd18774, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerShootingInput
+--- !u!114 &132629399
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 132629393}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a1eb6c7e2ab34dd789515f1ab3258ce3, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::FixBulletCollisionFilters
 --- !u!1 &241762667
 GameObject:
   m_ObjectHideFlags: 0
@@ -204,6 +217,7 @@ GameObject:
   m_Component:
   - component: {fileID: 241762669}
   - component: {fileID: 241762668}
+  - component: {fileID: 241762670}
   m_Layer: 0
   m_Name: Terrain Collider Visualizer
   m_TagString: Untagged
@@ -224,15 +238,10 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::TerrainColliderVisualizer
   enableVisualization: 1
-  fullResolutionColor: {r: 0, g: 1, b: 0, a: 1}
-  halfResolutionColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
-  quarterResolutionColor: {r: 1, g: 0.5, b: 0, a: 1}
+  colliderColor: {r: 0, g: 1, b: 0, a: 1}
   maxTilesToRenderPerFrame: 40
   maxVisualizationDistance: 500
   _tilesWithColliders: 0
-  _fullResolutionCount: 0
-  _halfResolutionCount: 0
-  _quarterResolutionCount: 0
   _tilesRenderedLastFrame: 0
 --- !u!4 &241762669
 Transform:
@@ -249,6 +258,18 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &241762670
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 241762667}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 030f4d4222e546c4a208560c25e3aae0, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::TerrainCollisionDiagnostic
 --- !u!1001 &250512250
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -595,7 +616,12 @@ PrefabInstance:
       propertyPath: m_Name
       value: XR Origin Hands (XR Rig)
       objectReference: {fileID: 0}
-    m_RemovedComponents: []
+    - target: {fileID: 5667465548851856616, guid: d6878e1999eb4b44a9f5a263af86c185, type: 3}
+      propertyPath: m_IsActive
+      value: 0
+      objectReference: {fileID: 0}
+    m_RemovedComponents:
+    - {fileID: 6873022368256633593, guid: d6878e1999eb4b44a9f5a263af86c185, type: 3}
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
     m_AddedComponents:

@@ -5900,7 +5900,7 @@ MonoBehaviour:
   scrollEnabled: 1
   scrollSpeed: 75
   noiseFrequency: 0.005
-  noiseAmplitude: 20
+  noiseAmplitude: 0.0001
   noiseOctaves: 2
   noiseLacunarity: 2
   noisePersistence: 0.4
@@ -5908,10 +5908,10 @@ MonoBehaviour:
   renderTerrain: 1
   enablePhysicsColliders: 1
   enableRenderingDebug: 0
-  maxCollidersCreatedPerFrame: 1
+  maxCollidersCreatedPerFrame: 20
   maxColliderDistance: 450
   maxColliderCacheMemoryMB: 50
-  terrainPhysicsLayer: 0
+  terrainPhysicsLayer: 11
 --- !u!4 &1528308291
 Transform:
   m_ObjectHideFlags: 0
@@ -5921,7 +5921,7 @@ Transform:
   m_GameObject: {fileID: 1528308289}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalPosition: {x: 0, y: 0.5, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -5954,7 +5954,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ea650e9e97214c68a8aab550673cff51, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerScrollVelocityAuthoring
-  speed: 50
+  speed: 0
   rotationSpeed: 50
   verticalSpeed: 20
   minVerticalPosition: -20
