@@ -78,7 +78,7 @@ public partial struct TerrainTreeSpawningSystemOptimized : ISystem
         if (config.maxTreesPerTile <= 0)
         {
 #if UNITY_EDITOR
-            UnityEngine.Debug.LogWarning("[TreeSpawnerOptimized] maxTreesPerTile <= 0, trees disabled");
+//            UnityEngine.Debug.LogWarning("[TreeSpawnerOptimized] maxTreesPerTile <= 0, trees disabled");
 #endif
             return;
         }
