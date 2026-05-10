@@ -4,24 +4,12 @@ using Unity.Entities;
 using Unity.Mathematics;
 
 /// <summary>
-/// LOD levels for terrain physics colliders based on distance to player.
-/// </summary>
-public enum TerrainPhysicsLODLevel : byte
-{
-    FullResolution = 0,      // Use all vertices
-    HalfResolution = 1,      // Use every 2nd vertex
-    QuarterResolution = 2,   // Use every 4th vertex
-    NoCollider = 3           // Too far away, no collider needed
-}
-
-/// <summary>
 /// Component storing cached distance from this tile to the player.
 /// Updated by TerrainDistanceTrackingSystem.
 /// </summary>
 public struct TerrainTileDistanceToPlayer : IComponentData
 {
     public float distance;
-    public TerrainPhysicsLODLevel lodLevel;
 }
 
 /// <summary>
@@ -42,7 +30,6 @@ public struct TerrainColliderBlob
     public BlobArray<int3> triangles;
     public int vertexCount;
     public int triangleCount;
-    public TerrainPhysicsLODLevel lodLevel;
     
     /// <summary>
     /// Creates a BlobAssetReference containing collider mesh data.
@@ -51,7 +38,6 @@ public struct TerrainColliderBlob
     public static BlobAssetReference<TerrainColliderBlob> Create(
         NativeArray<float3> sourceVertices,
         NativeArray<int3> sourceTriangles,
-        TerrainPhysicsLODLevel lodLevel,
         Allocator allocator)
     {
         var builder = new BlobBuilder(Allocator.Temp);
@@ -73,7 +59,6 @@ public struct TerrainColliderBlob
         
         root.vertexCount = sourceVertices.Length;
         root.triangleCount = sourceTriangles.Length;
-        root.lodLevel = lodLevel;
         
         var result = builder.CreateBlobAssetReference<TerrainColliderBlob>(allocator);
         builder.Dispose();
@@ -109,11 +94,10 @@ public struct ColliderPreparedTriangleElement : IBufferElementData
 
 /// <summary>
 /// Component indicating this tile needs collider preparation job to run.
-/// Added when mesh changes or LOD level changes.
+/// Added when mesh changes or collider needs to be created.
 /// </summary>
 public struct PhysicsColliderNeedsPreparation : IComponentData, IEnableableComponent
 {
-    public TerrainPhysicsLODLevel targetLOD;
 }
 
 /// <summary>
@@ -123,38 +107,35 @@ public struct PhysicsColliderNeedsPreparation : IComponentData, IEnableableCompo
 /// </summary>
 public struct PhysicsColliderPrepared : IComponentData
 {
-    public TerrainPhysicsLODLevel lodLevel;
     public int priority; // Distance-based priority (lower = closer = higher priority)
 }
 
 /// <summary>
 /// Key for caching collider BlobAssets based on generation parameters.
 /// Allows tiles with identical parameters to share the same cached collider.
+/// All tiles now use full-resolution geometry, so LOD is no longer part of the key.
 /// </summary>
 public struct ColliderCacheKey : IEquatable<ColliderCacheKey>
 {
     public int verticesPerSide;
-    public TerrainPhysicsLODLevel lodLevel;
     public uint noiseParamsHash; // Hash of noise parameters
     
     public bool Equals(ColliderCacheKey other)
     {
         return verticesPerSide == other.verticesPerSide &&
-               lodLevel == other.lodLevel &&
                noiseParamsHash == other.noiseParamsHash;
     }
     
     public override int GetHashCode()
     {
         return verticesPerSide.GetHashCode() ^
-               ((int)lodLevel << 8) ^
                (int)noiseParamsHash;
     }
     
     /// <summary>
     /// Creates a cache key from terrain configuration.
     /// </summary>
-    public static ColliderCacheKey FromConfig(TerrainTileConfig config, TerrainPhysicsLODLevel lodLevel)
+    public static ColliderCacheKey FromConfig(TerrainTileConfig config)
     {
         // Combine all noise parameters into a single hash
         uint hash = (uint)config.noiseFrequency.GetHashCode();
@@ -166,7 +147,6 @@ public struct ColliderCacheKey : IEquatable<ColliderCacheKey>
         return new ColliderCacheKey
         {
             verticesPerSide = config.verticesPerSide,
-            lodLevel = lodLevel,
             noiseParamsHash = hash
         };
     }

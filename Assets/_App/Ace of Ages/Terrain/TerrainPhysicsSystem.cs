@@ -13,11 +13,12 @@ using Unity.Profiling;
 #endif
 
 /// <summary>
-/// Optimized system that creates physics colliders for terrain tiles with LOD support, caching, and frame budgeting.
+/// Optimized system that creates physics colliders for terrain tiles with caching and frame budgeting.
 /// Three-phase architecture:
 /// 1. Cache lookup and sorting by priority
 /// 2. Main-thread MeshCollider.Create() with frame budget limit
 /// 3. LRU cache eviction when memory threshold exceeded
+/// All colliders use full-resolution geometry matching the rendered mesh.
 /// Target performance: <5ms during origin shifts (measured via profiler markers)
 /// </summary>
 [RequireMatchingQueriesForUpdate]
@@ -117,8 +118,8 @@ public partial class TerrainPhysicsSystem : SystemBase
                 var prepared = EntityManager.GetComponentData<PhysicsColliderPrepared>(entity);
                 var tile = EntityManager.GetComponentData<TerrainTile>(entity);
                 
-                // Calculate cache key
-                var cacheKey = ColliderCacheKey.FromConfig(config, prepared.lodLevel);
+                // Calculate cache key (all tiles with same config share same cached collider)
+                var cacheKey = ColliderCacheKey.FromConfig(config);
                 
 #if UNITY_EDITOR
                 using (s_CacheLookupMarker.Auto())
@@ -132,7 +133,7 @@ public partial class TerrainPhysicsSystem : SystemBase
                         _colliderCache[cacheKey] = cacheEntry;
                         
                         // Create PhysicsCollider from cached blob data
-                        CreatePhysicsColliderFromCache(entity, cacheEntry.blobAsset, prepared.lodLevel, config);
+                        CreatePhysicsColliderFromCache(entity, cacheEntry.blobAsset, config);
 //                        Debug.Log("# Created colliders: " + ++colliderCreateCount);
                         
                         // Clean up prepared buffers
@@ -174,7 +175,7 @@ public partial class TerrainPhysicsSystem : SystemBase
                     var collider = MeshCollider.Create(
                         vertices,
                         triangles,
-                        CreateCollisionFilter(prepared.lodLevel, config),
+                        CreateCollisionFilter(config),
                         Unity.Physics.Material.Default
                     );
                     
@@ -191,7 +192,7 @@ public partial class TerrainPhysicsSystem : SystemBase
                     EntityManager.AddComponent<PhysicsColliderValid>(entity);
                     
                     // Create BlobAsset for caching
-                    var blobAsset = TerrainColliderBlob.Create(vertices, triangles, prepared.lodLevel, Allocator.Persistent);
+                    var blobAsset = TerrainColliderBlob.Create(vertices, triangles, Allocator.Persistent);
                     
                     // Estimate memory usage: vertexCount * 12 bytes + triangleCount * 12 bytes
                     int estimatedMemory = vertices.Length * 12 + triangles.Length * 12;
@@ -236,7 +237,7 @@ public partial class TerrainPhysicsSystem : SystemBase
     /// <summary>
     /// Creates a PhysicsCollider from cached BlobAsset data.
     /// </summary>
-    private void CreatePhysicsColliderFromCache(Entity entity, BlobAssetReference<TerrainColliderBlob> cachedBlob, TerrainPhysicsLODLevel lodLevel, TerrainTileConfig config)
+    private void CreatePhysicsColliderFromCache(Entity entity, BlobAssetReference<TerrainColliderBlob> cachedBlob, TerrainTileConfig config)
     {
         ref var blobData = ref cachedBlob.Value;
         
@@ -258,7 +259,7 @@ public partial class TerrainPhysicsSystem : SystemBase
         var collider = MeshCollider.Create(
             vertices,
             triangles,
-            CreateCollisionFilter(lodLevel, config),
+            CreateCollisionFilter(config),
             Unity.Physics.Material.Default
         );
         
@@ -276,24 +277,12 @@ public partial class TerrainPhysicsSystem : SystemBase
     }
 
     /// <summary>
-    /// Creates collision filter based on LOD level and configuration.
-    /// Close tiles (full resolution) use closeTerrainPhysicsLayer.
-    /// Low-detail tiles (half/quarter resolution) use separate physics layer if enabled.
+    /// Creates collision filter for terrain colliders.
+    /// All terrain uses the same physics layer.
     /// </summary>
-    private CollisionFilter CreateCollisionFilter(TerrainPhysicsLODLevel lodLevel, TerrainTileConfig config)
+    private CollisionFilter CreateCollisionFilter(TerrainTileConfig config)
     {
-        uint layerMask;
-        
-        if (config.usePhysicsLODLayers && lodLevel >= TerrainPhysicsLODLevel.HalfResolution)
-        {
-            // Use low-detail layer for distant tiles
-            layerMask = 1u << config.lowDetailPhysicsLayer;
-        }
-        else
-        {
-            // Use close terrain layer for nearby tiles
-            layerMask = 1u << config.closeTerrainPhysicsLayer;
-        }
+        uint layerMask = 1u << config.terrainPhysicsLayer;
         
         return new CollisionFilter
         {

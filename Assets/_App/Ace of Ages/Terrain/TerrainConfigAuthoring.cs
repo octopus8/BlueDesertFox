@@ -77,33 +77,20 @@ public class TerrainConfigAuthoring : MonoBehaviour
     public bool enableRenderingDebug;
     
     [Header("Physics Optimization")]
-    [Range(1, 10)]
-    [Tooltip("Maximum number of physics colliders created per frame to prevent stalls")]
-    public int maxCollidersCreatedPerFrame = 3;
+    [Range(1, 20)]
+    [Tooltip("Maximum number of physics colliders created per frame to prevent stalls (increased for full-resolution colliders)")]
+    public int maxCollidersCreatedPerFrame = 6;
     
-    [Tooltip("Distance threshold for full-resolution colliders (uses all vertices)")]
-    public float lodFullResolutionDistance = 150f;
-    
-    [Tooltip("Distance threshold for half-resolution colliders (uses every 2nd vertex)")]
-    public float lodHalfResolutionDistance = 300f;
-    
-    [Tooltip("Distance threshold for quarter-resolution colliders (uses every 4th vertex)")]
-    public float lodQuarterResolutionDistance = 450f;
+    [Tooltip("Distance beyond which colliders are removed completely (no physics beyond this distance)")]
+    public float maxColliderDistance = 450f;
     
     [Range(10, 200)]
     [Tooltip("Maximum memory in megabytes for collider cache - oldest entries evicted when exceeded")]
     public int maxColliderCacheMemoryMB = 50;
     
-    [Tooltip("Assign distant tiles (half/quarter resolution) to separate physics layer")]
-    public bool usePhysicsLODLayers = true;
-    
     [NaughtyAttributes.Layer]
-    [Tooltip("Physics layer index for close terrain (full resolution tiles)")]
-    public int closeTerrainPhysicsLayer = 0;
-    
-    [NaughtyAttributes.Layer]
-    [Tooltip("Physics layer index for low-detail terrain (half/quarter resolution tiles)")]
-    public int lowDetailPhysicsLayer = 0;
+    [Tooltip("Physics layer index for all terrain colliders")]
+    public int terrainPhysicsLayer = 0;
 
     public class Baker : Baker<TerrainConfigAuthoring>
     {
@@ -124,13 +111,9 @@ public class TerrainConfigAuthoring : MonoBehaviour
                 noisePersistence = authoring.noisePersistence,
                 // Physics optimization
                 maxCollidersCreatedPerFrame = authoring.maxCollidersCreatedPerFrame,
-                lodFullResolutionDistance = authoring.lodFullResolutionDistance,
-                lodHalfResolutionDistance = authoring.lodHalfResolutionDistance,
-                lodQuarterResolutionDistance = authoring.lodQuarterResolutionDistance,
+                maxColliderDistance = authoring.maxColliderDistance,
                 maxColliderCacheMemoryMB = authoring.maxColliderCacheMemoryMB,
-                usePhysicsLODLayers = authoring.usePhysicsLODLayers,
-                closeTerrainPhysicsLayer = authoring.closeTerrainPhysicsLayer,
-                lowDetailPhysicsLayer = authoring.lowDetailPhysicsLayer,
+                terrainPhysicsLayer = authoring.terrainPhysicsLayer,
                 // Debug/Testing
                 renderTerrain = authoring.renderTerrain,
                 enablePhysicsColliders = authoring.enablePhysicsColliders,

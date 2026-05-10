@@ -9,7 +9,7 @@ using Unity.Profiling;
 
 /// <summary>
 /// System that prepares collider data asynchronously using Burst-compiled jobs.
-/// Applies LOD decimation to vertex/index data before main-thread MeshCollider.Create() call.
+/// Copies full-resolution vertex/index data for main-thread MeshCollider.Create() call.
 /// Calculates camera-aware priority to ensure tiles visible to camera are processed first.
 /// </summary>
 [UpdateInGroup(typeof(SimulationSystemGroup))]
@@ -120,9 +120,10 @@ public partial class CameraDataUpdateSystem : SystemBase
 }
 
 /// <summary>
-/// Burst-compiled job that prepares collider vertex and triangle data with LOD decimation.
+/// Burst-compiled job that prepares collider vertex and triangle data without LOD decimation.
 /// Runs in parallel for maximum performance.
 /// Calculates camera-aware priority: tiles in front of camera get higher priority than tiles behind.
+/// All colliders use full-resolution geometry matching the rendered mesh.
 /// </summary>
 [BurstCompile]
 [WithAll(typeof(PhysicsColliderNeedsPreparation))]
@@ -140,86 +141,37 @@ partial struct PrepareColliderDataJob : IJobEntity
         Entity entity,
         in DynamicBuffer<VertexElement> sourceVertices,
         in DynamicBuffer<IndexElement> sourceIndices,
-        in PhysicsColliderNeedsPreparation needsPrep,
         in TerrainTile tile,
         in TerrainTileDistanceToPlayer distanceData)
     {
-        // Determine vertex stride based on LOD level
-        int stride = 1;
-        switch (needsPrep.targetLOD)
+        // Use temporary lists to build collider data (full resolution - no decimation)
+        var preparedVertices = new NativeList<ColliderPreparedVertexElement>(sourceVertices.Length, Allocator.Temp);
+        var preparedTriangles = new NativeList<ColliderPreparedTriangleElement>(sourceIndices.Length / 3, Allocator.Temp);
+        
+        // Copy all vertices without decimation
+        for (int i = 0; i < sourceVertices.Length; i++)
         {
-            case TerrainPhysicsLODLevel.FullResolution:
-                stride = 1;
-                break;
-            case TerrainPhysicsLODLevel.HalfResolution:
-                stride = 2;
-                break;
-            case TerrainPhysicsLODLevel.QuarterResolution:
-                stride = 4;
-                break;
-            case TerrainPhysicsLODLevel.NoCollider:
-                // Should not happen, but handle gracefully
-                ecb.SetComponentEnabled<PhysicsColliderNeedsPreparation>(chunkIndex, entity, false);
-                return;
+            preparedVertices.Add(new ColliderPreparedVertexElement 
+            { 
+                value = sourceVertices[i].value 
+            });
         }
         
-        // Use temporary lists to build decimated data
-        var preparedVertices = new NativeList<ColliderPreparedVertexElement>(Allocator.Temp);
-        var preparedTriangles = new NativeList<ColliderPreparedTriangleElement>(Allocator.Temp);
-        
-        // Calculate decimated vertex count
-        int decimatedVerticesPerSide = (verticesPerSide - 1) / stride + 1;
-        
-        preparedVertices.Capacity = decimatedVerticesPerSide * decimatedVerticesPerSide;
-        
-        // Create vertex index mapping for triangle remapping
-        var vertexIndexMap = new NativeArray<int>(verticesPerSide * verticesPerSide, Allocator.Temp);
-        for (int i = 0; i < vertexIndexMap.Length; i++)
+        // Copy all triangles (convert from flat index array to int3 triangles)
+        for (int i = 0; i < sourceIndices.Length; i += 3)
         {
-            vertexIndexMap[i] = -1; // Mark as unmapped
-        }
-        
-        // Decimate vertices
-        int newVertexIndex = 0;
-        for (int z = 0; z < verticesPerSide; z += stride)
-        {
-            for (int x = 0; x < verticesPerSide; x += stride)
+            if (i + 2 < sourceIndices.Length)
             {
-                int sourceIndex = z * verticesPerSide + x;
-                
-                if (sourceIndex < sourceVertices.Length)
-                {
-                    preparedVertices.Add(new ColliderPreparedVertexElement 
-                    { 
-                        value = sourceVertices[sourceIndex].value 
-                    });
-                    
-                    vertexIndexMap[sourceIndex] = newVertexIndex;
-                    newVertexIndex++;
-                }
+                preparedTriangles.Add(new ColliderPreparedTriangleElement 
+                { 
+                    value = new int3(
+                        sourceIndices[i].value,
+                        sourceIndices[i + 1].value,
+                        sourceIndices[i + 2].value
+                    )
+                });
             }
         }
-        
-        // Rebuild triangles based on the decimated grid, instead of trying to preserve old ones.
-        // This guarantees a valid mesh and prevents empty triangle buffers.
-        decimatedVerticesPerSide = (verticesPerSide - 1) / stride + 1;
-        for (int z = 0; z < decimatedVerticesPerSide - 1; z++)
-        {
-            for (int x = 0; x < decimatedVerticesPerSide - 1; x++)
-            {
-                int i0 = z * decimatedVerticesPerSide + x;
-                int i1 = z * decimatedVerticesPerSide + x + 1;
-                int i2 = (z + 1) * decimatedVerticesPerSide + x;
-                int i3 = (z + 1) * decimatedVerticesPerSide + x + 1;
-
-                // First triangle
-                preparedTriangles.Add(new ColliderPreparedTriangleElement { value = new int3(i2, i1, i0) });
-                // Second triangle
-                preparedTriangles.Add(new ColliderPreparedTriangleElement { value = new int3(i2, i3, i1) });
-            }
-        }
-        
-        vertexIndexMap.Dispose();
         
         // Add the prepared buffers to the entity
         ecb.AddBuffer<ColliderPreparedVertexElement>(chunkIndex, entity).CopyFrom(preparedVertices.AsArray());
@@ -268,7 +220,6 @@ partial struct PrepareColliderDataJob : IJobEntity
         // Mark as prepared with camera-aware priority
         ecb.AddComponent(chunkIndex, entity, new PhysicsColliderPrepared
         {
-            lodLevel = needsPrep.targetLOD,
             priority = (int)combinedPriority
         });
         

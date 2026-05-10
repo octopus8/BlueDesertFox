@@ -5909,13 +5909,9 @@ MonoBehaviour:
   enablePhysicsColliders: 1
   enableRenderingDebug: 0
   maxCollidersCreatedPerFrame: 1
-  lodFullResolutionDistance: 350
-  lodHalfResolutionDistance: 450
-  lodQuarterResolutionDistance: 450
+  maxColliderDistance: 450
   maxColliderCacheMemoryMB: 50
-  usePhysicsLODLayers: 1
-  closeTerrainPhysicsLayer: 11
-  lowDetailPhysicsLayer: 10
+  terrainPhysicsLayer: 0
 --- !u!4 &1528308291
 Transform:
   m_ObjectHideFlags: 0
@@ -5987,8 +5983,8 @@ MonoBehaviour:
   lod1Distance: 400
   lod2Distance: 600
   lodHysteresis: 5
-  minTreesPerTile: 200
-  maxTreesPerTile: 200
+  minTreesPerTile: 0
+  maxTreesPerTile: 0
   minSpawnHeight: -100
   maxSpawnHeight: 100
   maxSlopeDegrees: 22.5

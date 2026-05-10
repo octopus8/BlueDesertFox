@@ -62,40 +62,17 @@ public partial class TerrainDistanceTrackingSystem : SystemBase
                 float2 tileCenter2D = new float2(tileCenter.x, tileCenter.z);
                 float distance = math.distance(tileCenter2D, playerPos2D);
                 
-                // Determine LOD level based on distance thresholds
-                TerrainPhysicsLODLevel newLodLevel;
-                if (distance < config.lodFullResolutionDistance)
-                {
-                    newLodLevel = TerrainPhysicsLODLevel.FullResolution;
-                }
-                else if (distance < config.lodHalfResolutionDistance)
-                {
-                    newLodLevel = TerrainPhysicsLODLevel.HalfResolution;
-                }
-                else if (distance < config.lodQuarterResolutionDistance)
-                {
-                    newLodLevel = TerrainPhysicsLODLevel.QuarterResolution;
-                }
-                else
-                {
-                    newLodLevel = TerrainPhysicsLODLevel.NoCollider;
-                }
+                // Determine if we need a collider based on distance
+                bool needsCollider = distance < config.maxColliderDistance;
                 
                 // Check if we have existing distance data
                 bool hasDistanceData = SystemAPI.HasComponent<TerrainTileDistanceToPlayer>(entity);
-                TerrainPhysicsLODLevel oldLodLevel = TerrainPhysicsLODLevel.NoCollider;
-                
-                if (hasDistanceData)
-                {
-                    var oldDistanceData = SystemAPI.GetComponent<TerrainTileDistanceToPlayer>(entity);
-                    oldLodLevel = oldDistanceData.lodLevel;
-                }
+                bool hadCollider = hasDistanceData; // Assume if we tracked distance, we had collider logic
                 
                 // Update or add distance component
                 var distanceData = new TerrainTileDistanceToPlayer
                 {
-                    distance = distance,
-                    lodLevel = newLodLevel
+                    distance = distance
                 };
                 
                 if (hasDistanceData)
@@ -107,35 +84,24 @@ public partial class TerrainDistanceTrackingSystem : SystemBase
                     ecb.AddComponent(entity, distanceData);
                 }
                 
-                // If LOD level changed and tile has mesh, mark for preparation
-                if (oldLodLevel != newLodLevel && tile.ValueRO.meshGenerated)
+                // If collider state changed and tile has mesh, mark for preparation or removal
+                if (tile.ValueRO.meshGenerated)
                 {
-                    // Only create colliders for tiles that need them
-                    if (newLodLevel != TerrainPhysicsLODLevel.NoCollider)
+                    if (needsCollider && !SystemAPI.HasComponent<PhysicsColliderValid>(entity))
                     {
-                        var needsPrep = new PhysicsColliderNeedsPreparation
-                        {
-                            targetLOD = newLodLevel
-                        };
-                        
-                        // Add or set the needs preparation component
+                        // Need to create collider
+                        // Add or enable the needs preparation component
                         if (SystemAPI.HasComponent<PhysicsColliderNeedsPreparation>(entity))
                         {
-                            ecb.SetComponent(entity, needsPrep);
+                            ecb.SetComponentEnabled<PhysicsColliderNeedsPreparation>(entity, true);
                         }
                         else
                         {
-                            ecb.AddComponent(entity, needsPrep);
-                        }
-                        ecb.SetComponentEnabled<PhysicsColliderNeedsPreparation>(entity, true);
-                        
-                        // Remove valid tag since we're changing LOD (only if it exists)
-                        if (SystemAPI.HasComponent<PhysicsColliderValid>(entity))
-                        {
-                            ecb.RemoveComponent<PhysicsColliderValid>(entity);
+                            ecb.AddComponent<PhysicsColliderNeedsPreparation>(entity);
+                            ecb.SetComponentEnabled<PhysicsColliderNeedsPreparation>(entity, true);
                         }
                     }
-                    else
+                    else if (!needsCollider)
                     {
                         // Too far away - remove collider components if present
                         if (SystemAPI.HasComponent<Unity.Physics.PhysicsCollider>(entity))

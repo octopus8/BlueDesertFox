@@ -11,8 +11,8 @@ using Material = UnityEngine.Material;
 
 /// <summary>
 /// Visualizes terrain physics colliders as colored wireframes during gameplay (VR compatible).
-/// Colors represent LOD levels: Green (Full Resolution), Yellow (Half Resolution), Orange (Quarter Resolution).
 /// Draws the actual mesh geometry of each collider using Unity LineRenderer components.
+/// All terrain uses full-resolution colliders - displayed in green.
 /// Fully compatible with Quest 3 and all VR platforms.
 /// </summary>
 public class TerrainColliderVisualizer : MonoBehaviour
@@ -21,15 +21,8 @@ public class TerrainColliderVisualizer : MonoBehaviour
     [Tooltip("Enable collider wireframe visualization")]
     public bool enableVisualization = true;
     
-    [Header("LOD Colors")]
-    [Tooltip("Color for full-resolution colliders (all vertices)")]
-    public Color fullResolutionColor = Color.green;
-    
-    [Tooltip("Color for half-resolution colliders (every 2nd vertex)")]
-    public Color halfResolutionColor = Color.yellow;
-    
-    [Tooltip("Color for quarter-resolution colliders (every 4th vertex)")]
-    public Color quarterResolutionColor = new Color(1f, 0.5f, 0f); // Orange
+    [Tooltip("Color for terrain colliders (all use full-resolution geometry)")]
+    public Color colliderColor = Color.green;
     
     [Header("Performance (Quest 3 Optimization)")]
     [Tooltip("Maximum tiles to render per frame. Quest 2: 20, Quest 3: 40, Desktop VR: -1 (unlimited)")]
@@ -40,9 +33,6 @@ public class TerrainColliderVisualizer : MonoBehaviour
     
     [Header("Info")]
     [SerializeField] private int _tilesWithColliders = 0;
-    [SerializeField] private int _fullResolutionCount = 0;
-    [SerializeField] private int _halfResolutionCount = 0;
-    [SerializeField] private int _quarterResolutionCount = 0;
     [SerializeField] private int _tilesRenderedLastFrame = 0;
     
     private EntityManager _entityManager;
@@ -123,33 +113,7 @@ public class TerrainColliderVisualizer : MonoBehaviour
             typeof(TerrainTileDistanceToPlayer)
         );
         _tilesWithColliders = query.CalculateEntityCount();
-        
-        // Count by LOD level
-        _fullResolutionCount = 0;
-        _halfResolutionCount = 0;
-        _quarterResolutionCount = 0;
-        
-        var entities = query.ToEntityArray(Allocator.Temp);
-        foreach (var entity in entities)
-        {
-            if (_entityManager.HasComponent<TerrainTileDistanceToPlayer>(entity))
-            {
-                var distanceData = _entityManager.GetComponentData<TerrainTileDistanceToPlayer>(entity);
-                switch (distanceData.lodLevel)
-                {
-                    case TerrainPhysicsLODLevel.FullResolution:
-                        _fullResolutionCount++;
-                        break;
-                    case TerrainPhysicsLODLevel.HalfResolution:
-                        _halfResolutionCount++;
-                        break;
-                    case TerrainPhysicsLODLevel.QuarterResolution:
-                        _quarterResolutionCount++;
-                        break;
-                }
-            }
-        }
-        entities.Dispose();
+        query.Dispose();
     }
     
     private void CreateLineMaterial()
@@ -266,16 +230,12 @@ public class TerrainColliderVisualizer : MonoBehaviour
                     continue;
             }
             
-            // Get LOD level to determine color
-            var distanceData = em.GetComponentData<TerrainTileDistanceToPlayer>(entity);
-            Color wireframeColor = GetColorForLOD(distanceData.lodLevel);
-            
             // Get mesh data
             var vertexBuffer = em.GetBuffer<VertexElement>(entity);
             var indexBuffer = em.GetBuffer<IndexElement>(entity);
             
-            // Draw wireframe lines using LineRenderers
-            DrawWireframeWithLineRenderers(vertexBuffer, indexBuffer, tilePosition, wireframeColor);
+            // Draw wireframe lines using LineRenderers (all terrain uses same color)
+            DrawWireframeWithLineRenderers(vertexBuffer, indexBuffer, tilePosition, colliderColor);
             
             tilesRendered++;
         }
@@ -332,21 +292,8 @@ public class TerrainColliderVisualizer : MonoBehaviour
         lr.startColor = color;
         lr.endColor = color;
     }
-    
-    private Color GetColorForLOD(TerrainPhysicsLODLevel lodLevel)
-    {
-        switch (lodLevel)
-        {
-            case TerrainPhysicsLODLevel.FullResolution:
-                return fullResolutionColor;
-            case TerrainPhysicsLODLevel.HalfResolution:
-                return halfResolutionColor;
-            case TerrainPhysicsLODLevel.QuarterResolution:
-                return quarterResolutionColor;
-            default:
-                return Color.gray;
-        }
-    }
 }
+
+
 
 
