@@ -5900,7 +5900,7 @@ MonoBehaviour:
   scrollEnabled: 1
   scrollSpeed: 75
   noiseFrequency: 0.005
-  noiseAmplitude: 0.0001
+  noiseAmplitude: 20
   noiseOctaves: 2
   noiseLacunarity: 2
   noisePersistence: 0.4
