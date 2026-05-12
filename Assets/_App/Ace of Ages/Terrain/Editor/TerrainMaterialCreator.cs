@@ -31,10 +31,6 @@ public static class TerrainMaterialCreator
             Debug.Log("[TerrainMaterialCreator] TerrainMaterial not found in Resources, creating it now...");
             CreateTerrainMaterial();
         }
-        else
-        {
-            Debug.Log("[TerrainMaterialCreator] TerrainMaterial found in Resources: " + AssetDatabase.GetAssetPath(material));
-        }
     }
 
     private static void CreateTerrainMaterial()
