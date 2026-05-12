@@ -131,7 +131,6 @@ GameObject:
   - component: {fileID: 132629396}
   - component: {fileID: 132629398}
   - component: {fileID: 132629397}
-  - component: {fileID: 132629399}
   m_Layer: 0
   m_Name: Ace of Ages
   m_TagString: Untagged
@@ -195,18 +194,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a66a1bd33bb448a29638ad71fdd18774, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerShootingInput
---- !u!114 &132629399
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 132629393}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: a1eb6c7e2ab34dd789515f1ab3258ce3, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::FixBulletCollisionFilters
 --- !u!1 &241762667
 GameObject:
   m_ObjectHideFlags: 0
@@ -217,7 +204,6 @@ GameObject:
   m_Component:
   - component: {fileID: 241762669}
   - component: {fileID: 241762668}
-  - component: {fileID: 241762670}
   m_Layer: 0
   m_Name: Terrain Collider Visualizer
   m_TagString: Untagged
@@ -258,18 +244,6 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &241762670
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 241762667}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 030f4d4222e546c4a208560c25e3aae0, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::TerrainCollisionDiagnostic
 --- !u!1001 &250512250
 PrefabInstance:
   m_ObjectHideFlags: 0
