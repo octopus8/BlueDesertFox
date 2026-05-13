@@ -6,6 +6,7 @@ public class PrefabEntitiesReferencesAuthoring : MonoBehaviour
     public GameObject enemyZeroPrefab;
     public GameObject bulletSimplePrefab;
     public GameObject dirtExplosionSmallPrefab;
+    public GameObject concreteTurretPrefab;
 
 
     public class Baker : Baker<PrefabEntitiesReferencesAuthoring>
