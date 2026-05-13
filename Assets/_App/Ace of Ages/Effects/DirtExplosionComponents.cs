@@ -17,6 +17,15 @@ public struct DirtExplosionData : IComponentData
     
     /// <summary>Whether the explosion is currently active (true) or pooled (false).</summary>
     public bool active;
+
+    /// <summary>
+    /// True once <see cref="DirtExplosionPlaySystem"/> has fired the VFX event for the
+    /// current activation. Cleared (set false) whenever the explosion is taken from the
+    /// pool so the burst re-triggers on every reuse. Without this, recycled
+    /// <see cref="UnityEngine.VFX.VisualEffect"/> companions never re-emit their
+    /// authored <c>OnPlay</c> burst.
+    /// </summary>
+    public bool triggered;
 }
 
 /// <summary>

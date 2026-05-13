@@ -57,11 +57,20 @@ public partial struct DirtExplosionLifecycleSystem : ISystem
         {
             Entity explosion = explosionsToReturn[i];
             
-            // Mark as inactive
+            // Mark as inactive. triggered=false so next activation re-fires the VFX.
             state.EntityManager.SetComponentData(explosion, new DirtExplosionData
             {
                 spawnTime = 0,
-                active = false
+                active = false,
+                triggered = false
+            });
+
+            // Re-park the terrain anchor below the map. TerrainAnchorSystem will keep this
+            // entity at y=-10000 (with harmless XZ drift) until the next activation rewrites
+            // basePosition.
+            state.EntityManager.SetComponentData(explosion, new TerrainAnchorTag
+            {
+                basePosition = new float3(0, -10000, 0)
             });
             
             // Move far away (off-screen)

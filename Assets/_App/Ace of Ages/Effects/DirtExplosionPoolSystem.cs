@@ -68,6 +68,15 @@ public partial struct DirtExplosionPoolSystem : ISystem
                 spawnTime = 0,
                 active = false
             });
+
+            // Tag as a terrain anchor so the explosion rides the terrain scroll once
+            // activated. Pooled entities are parked below the map; TerrainAnchorSystem will
+            // keep them there (apart from harmless XZ drift) until BulletCollisionSystem
+            // rewrites basePosition on activation.
+            state.EntityManager.AddComponentData(explosion, new TerrainAnchorTag
+            {
+                basePosition = new float3(0, -10000, 0)
+            });
             
             // Set initial transform far away (inactive explosions off-screen)
             state.EntityManager.SetComponentData(explosion, new LocalTransform
@@ -119,6 +128,11 @@ public partial struct DirtExplosionPoolSystem : ISystem
         {
             spawnTime = 0,
             active = false
+        });
+
+        state.EntityManager.AddComponentData(explosion, new TerrainAnchorTag
+        {
+            basePosition = new float3(0, -10000, 0)
         });
         
         state.EntityManager.SetComponentData(explosion, new LocalTransform

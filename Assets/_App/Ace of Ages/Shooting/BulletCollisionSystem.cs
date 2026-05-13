@@ -141,6 +141,13 @@ public partial struct BulletCollisionSystem : ISystem
             {
                 prefabScale = state.EntityManager.GetComponentData<LocalTransform>(prefabs.dirtExplosionSmallPrefab).Scale;
             }
+
+            // Sample the current scroll offset so the explosion's anchor base position
+            // tracks the tile under the impact. Fall back to zero if the terrain hasn't
+            // initialised yet - the anchor then degenerates to a fixed world position.
+            float3 scroll = SystemAPI.TryGetSingleton<ScrollOffset>(out var scrollOffsetSingleton)
+                ? scrollOffsetSingleton.accumulatedOffset
+                : float3.zero;
             
             for (int i = 0; i < terrainCollisionPositions.Length; i++)
             {
@@ -159,11 +166,20 @@ public partial struct BulletCollisionSystem : ISystem
                     Scale = prefabScale
                 });
                 
-                // Set explosion data (mark as active)
+                // Set explosion data (mark as active). triggered=false forces the
+                // DirtExplosionPlaySystem to re-fire the VFX event on this activation.
                 state.EntityManager.SetComponentData(explosion, new DirtExplosionData
                 {
                     spawnTime = SystemAPI.Time.ElapsedTime,
-                    active = true
+                    active = true,
+                    triggered = false
+                });
+
+                // Anchor to the terrain: basePosition - scrollOffset reproduces the impact
+                // position right now, then drifts at the same rate as the tile beneath it.
+                state.EntityManager.SetComponentData(explosion, new TerrainAnchorTag
+                {
+                    basePosition = terrainCollisionPositions[i] + scroll
                 });
             }
             
