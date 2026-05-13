@@ -61,6 +61,14 @@ public class TerrainConfigAuthoring : MonoBehaviour
     [Tooltip("Amplitude multiplier for each octave")]
     [Range(0f, 1f)]
     public float noisePersistence = 0.5f;
+
+    [Header("Continental Settings")]
+    [Tooltip("Frequency of the large-scale continental mask noise (lower = larger plains/mountain regions). Set to 0 to disable.")]
+    public float continentalFrequency = 0.0008f;
+
+    [Tooltip("Power curve applied to the continental mask. Values >1 bias more area toward flat plains; lower values allow more mountains.")]
+    [Range(0.1f, 8f)]
+    public float continentalExponent = 2.5f;
     
     [Header("Material")]
     [Tooltip("Material to use for terrain rendering (should use URP Lit shader)")]
@@ -109,6 +117,8 @@ public class TerrainConfigAuthoring : MonoBehaviour
                 noiseOctaves = authoring.noiseOctaves,
                 noiseLacunarity = authoring.noiseLacunarity,
                 noisePersistence = authoring.noisePersistence,
+                continentalFrequency = authoring.continentalFrequency,
+                continentalExponent = authoring.continentalExponent,
                 // Physics optimization
                 maxCollidersCreatedPerFrame = authoring.maxCollidersCreatedPerFrame,
                 maxColliderDistance = authoring.maxColliderDistance,
@@ -275,6 +285,8 @@ public class TerrainConfigAuthoring : MonoBehaviour
         noiseFrequency = Mathf.Max(0.0001f, noiseFrequency);
         noiseAmplitude = Mathf.Max(0f, noiseAmplitude);
         noiseLacunarity = Mathf.Max(1f, noiseLacunarity);
+        continentalFrequency = Mathf.Max(0f, continentalFrequency);
+        continentalExponent = Mathf.Max(0.1f, continentalExponent);
         
         // Set default search string if empty
         if (playerSearchMode == PlayerSearchMode.FindByName && string.IsNullOrEmpty(playerName))

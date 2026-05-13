@@ -199,6 +199,8 @@ public partial struct TerrainMeshGenerationSystem : ISystem
                         noiseOctaves = config.noiseOctaves,
                         noiseLacunarity = config.noiseLacunarity,
                         noisePersistence = config.noisePersistence,
+                        continentalFrequency = config.continentalFrequency,
+                        continentalExponent = config.continentalExponent,
                         vertexOffset = i * totalVertices,
                         indexOffset = i * totalIndices
                     };
@@ -343,6 +345,8 @@ public struct TileMeshJobData
     public int noiseOctaves;
     public float noiseLacunarity;
     public float noisePersistence;
+    public float continentalFrequency;
+    public float continentalExponent;
     public int vertexOffset;  // Offset in flat vertex arrays
     public int indexOffset;   // Offset in flat index array
 }
@@ -442,9 +446,21 @@ public struct GenerateTileMeshJob : IJobParallelFor
     
     /// <summary>
     /// Samples multi-octave noise at the given world position.
+    /// A continental mask (very low-frequency noise raised to a power) scales the amplitude
+    /// so that flat plains and tall mountains coexist naturally.
     /// </summary>
     private static float SampleNoise(double worldX, double worldZ, in TileMeshJobData data)
     {
+        // Continental mask: single low-frequency sample remapped to [0,1], then curved.
+        // Values near 0 → flat plains; values near 1 → full mountain amplitude.
+        float continentalMask = 1f;
+        if (data.continentalFrequency > 0f && data.continentalExponent > 0f)
+        {
+            float2 continentalPos = new float2((float)worldX, (float)worldZ) * data.continentalFrequency;
+            float rawContinent = noise.snoise(continentalPos) * 0.5f + 0.5f; // [0, 1]
+            continentalMask = math.pow(rawContinent, data.continentalExponent);
+        }
+
         float total = 0f;
         float frequency = data.noiseFrequency;
         float amplitude = data.noiseAmplitude;
@@ -452,7 +468,6 @@ public struct GenerateTileMeshJob : IJobParallelFor
         
         for (int i = 0; i < data.noiseOctaves; i++)
         {
-            // Sample noise using float (converted from double)
             float2 samplePos = new float2((float)worldX, (float)worldZ) * frequency;
             float noiseValue = noise.snoise(samplePos);
             
@@ -463,7 +478,7 @@ public struct GenerateTileMeshJob : IJobParallelFor
             frequency *= data.noiseLacunarity;
         }
         
-        return total / maxValue * data.noiseAmplitude;
+        return total / maxValue * data.noiseAmplitude * continentalMask;
     }
     
     /// <summary>

@@ -22,6 +22,11 @@ public struct TerrainTileConfig : IComponentData
     public int noiseOctaves;
     public float noiseLacunarity;
     public float noisePersistence;
+
+    // Continental mask: second low-frequency noise that biases amplitude
+    // so some regions stay flat (plains) and others rise to full amplitude (mountains)
+    public float continentalFrequency;  // e.g. 0.0008 — scale of plains vs mountain regions
+    public float continentalExponent;   // e.g. 2.5 — values >1 push more area toward flat
     
     // Physics optimization parameters
     /// <summary>Maximum number of physics colliders created per frame (prevents stalls).</summary>
