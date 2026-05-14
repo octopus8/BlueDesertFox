@@ -173,9 +173,20 @@ public partial struct TerrainTreeSpawningSystemOptimized : ISystem
         
         // Copy tree prefabs to native array for job access
         var objectPrefabs = new NativeArray<Entity>(objectPrefabCount, Allocator.TempJob);
+        var objectPrefabRotations = new NativeArray<quaternion>(objectPrefabCount, Allocator.TempJob);
         for (int i = 0; i < objectPrefabCount; i++)
         {
             objectPrefabs[i] = objectPrefabsBuffer[i].prefabEntity;
+            
+            // Get rotation from prefab if available
+            if (state.EntityManager.HasComponent<LocalTransform>(objectPrefabsBuffer[i].prefabEntity))
+            {
+                objectPrefabRotations[i] = state.EntityManager.GetComponentData<LocalTransform>(objectPrefabsBuffer[i].prefabEntity).Rotation;
+            }
+            else
+            {
+                objectPrefabRotations[i] = quaternion.identity;
+            }
         }
         
 #if UNITY_EDITOR
@@ -190,7 +201,8 @@ public partial struct TerrainTreeSpawningSystemOptimized : ISystem
                 hasLODConfig = hasLODConfig,
                 terrainConfig = terrainConfig,
                 cameraPosition = cameraData.position,
-                treeTypeCount = treeTypeCount
+                treeTypeCount = treeTypeCount,
+                objectPrefabRotations = objectPrefabRotations
             };
             
             state.Dependency = positionJob.ScheduleParallel(state.Dependency);
@@ -245,6 +257,7 @@ public partial struct TerrainTreeSpawningSystemOptimized : ISystem
         
         // Jobs will dispose these in their OnDestroy
         objectPrefabs.Dispose(state.Dependency);
+        objectPrefabRotations.Dispose(state.Dependency);
         tilesToProcess.Dispose(state.Dependency);
     }
 }
@@ -265,6 +278,7 @@ partial struct CalculateStaticObjectSpawnPositionsJob : IJobEntity
     [ReadOnly] public TerrainTileConfig terrainConfig;
     [ReadOnly] public float3 cameraPosition;
     [ReadOnly] public int treeTypeCount;
+    [ReadOnly] public NativeArray<quaternion> objectPrefabRotations;
     
     private void Execute(
         in TerrainTile tile,
@@ -357,8 +371,13 @@ partial struct CalculateStaticObjectSpawnPositionsJob : IJobEntity
             // Select random tree type
             int objectTypeIndex = random.NextInt(0, treeTypeCount);
             
-            // Calculate random Y-axis rotation
-            quaternion rotation = quaternion.RotateY(random.NextFloat(0f, math.PI * 2f));
+            // Get prefab rotation for LOD0 (all LODs of same type share rotation)
+            int prefabIndexLOD0 = objectTypeIndex * 3 + 0;
+            quaternion prefabRotation = objectPrefabRotations[prefabIndexLOD0];
+            
+            // Apply random Y-axis rotation on top of prefab rotation for variation
+            quaternion randomYRotation = quaternion.RotateY(random.NextFloat(0f, math.PI * 2f));
+            quaternion rotation = math.mul(randomYRotation, prefabRotation);
             
             // Calculate initial LOD based on distance to camera
             byte initialLODLevel = 0; // Default to highest detail

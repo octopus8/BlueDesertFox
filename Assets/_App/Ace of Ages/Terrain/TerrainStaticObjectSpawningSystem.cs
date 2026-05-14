@@ -289,6 +289,17 @@ public partial class TerrainTreeSpawningSystem : SystemBase
             int prefabIndexLOD0 = objectTypeIndex * 3 + 0;
             Entity objectPrefab = objectPrefabs[prefabIndexLOD0];
             
+            // Get rotation from prefab
+            quaternion prefabRotation = quaternion.identity;
+            if (EntityManager.HasComponent<LocalTransform>(objectPrefab))
+            {
+                prefabRotation = EntityManager.GetComponentData<LocalTransform>(objectPrefab).Rotation;
+            }
+            
+            // Apply random Y-axis rotation on top of prefab rotation for variation
+            quaternion randomYRotation = quaternion.RotateY(random.NextFloat(0f, math.PI * 2f));
+            quaternion finalRotation = math.mul(randomYRotation, prefabRotation);
+            
             Entity objectEntity = EntityManager.Instantiate(objectPrefab);
             
             if (EntityManager.HasComponent<Unity.Rendering.MaterialMeshInfo>(objectEntity))
@@ -316,12 +327,10 @@ public partial class TerrainTreeSpawningSystem : SystemBase
                 }
             }
             
-            quaternion rotation = quaternion.RotateY(random.NextFloat(0f, math.PI * 2f));
-            
             EntityManager.SetComponentData(objectEntity, new LocalTransform
             {
                 Position = tileTransform.Position + localPosition,
-                Rotation = rotation,
+                Rotation = finalRotation,
                 Scale = 1f
             });
             
