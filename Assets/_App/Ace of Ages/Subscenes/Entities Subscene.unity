@@ -6001,9 +6001,9 @@ MonoBehaviour:
     lod1SpawnWeight: 0.3
     lod2SpawnWeight: 0.1
   - objectTypeName: Concrete Turret
-    lod0: {fileID: 4336048289650952610, guid: 9106275d5527c964ca99e5f5ca30e128, type: 3}
-    lod1: {fileID: 4336048289650952610, guid: 9106275d5527c964ca99e5f5ca30e128, type: 3}
-    lod2: {fileID: 4336048289650952610, guid: 9106275d5527c964ca99e5f5ca30e128, type: 3}
+    lod0: {fileID: 6951138697554116676, guid: 9106275d5527c964ca99e5f5ca30e128, type: 3}
+    lod1: {fileID: 6951138697554116676, guid: 9106275d5527c964ca99e5f5ca30e128, type: 3}
+    lod2: {fileID: 6951138697554116676, guid: 9106275d5527c964ca99e5f5ca30e128, type: 3}
     lod0SpawnWeight: 0.6
     lod1SpawnWeight: 0.3
     lod2SpawnWeight: 0.1
