@@ -4,7 +4,7 @@ using UnityEngine;
 
 /// <summary>
 /// Debug system to monitor tree entity counts and cleanup issues.
-/// Enable/disable via TreeSpawnerConfigAuthoring.enableTreeLODDebug flag.
+/// Enable/disable via StaticObjectSpawnerConfigAuthoring.enableObjectLODDebug flag.
 /// </summary>
 [UpdateInGroup(typeof(SimulationSystemGroup))]
 [UpdateAfter(typeof(TileSpawningSystem))]
@@ -14,16 +14,16 @@ public partial struct TreeCleanupDebugSystem : ISystem
     
     public void OnCreate(ref SystemState state)
     {
-        state.RequireForUpdate<TreeTileOwnership>();
-        state.RequireForUpdate<TreeLODConfig>();
+        state.RequireForUpdate<StaticObjectTileOwnership>();
+        state.RequireForUpdate<StaticObjectLODConfig>();
         _lastLogTime = 0;
     }
     
     public void OnUpdate(ref SystemState state)
     {
         // Early exit if debug logging is disabled
-        var lodConfig = SystemAPI.GetSingleton<TreeLODConfig>();
-        if (!lodConfig.enableTreeLODDebug)
+        var lodConfig = SystemAPI.GetSingleton<StaticObjectLODConfig>();
+        if (!lodConfig.enableObjectLODDebug)
             return;
         
         // Log every 2 seconds
@@ -33,8 +33,8 @@ public partial struct TreeCleanupDebugSystem : ISystem
         _lastLogTime = state.WorldUnmanaged.Time.ElapsedTime;
         
         // Count trees
-        var treeQuery = SystemAPI.QueryBuilder().WithAll<TreeTileOwnership>().Build();
-        int treeCount = treeQuery.CalculateEntityCount();
+        var treeQuery = SystemAPI.QueryBuilder().WithAll<StaticObjectTileOwnership>().Build();
+        int objectCount = treeQuery.CalculateEntityCount();
         
         // Count tiles
         var tileQuery = SystemAPI.QueryBuilder().WithAll<TerrainTile>().Build();
@@ -42,12 +42,12 @@ public partial struct TreeCleanupDebugSystem : ISystem
         
         // Count tiles with trees spawned
         var tilesWithTreesQuery = SystemAPI.QueryBuilder()
-            .WithAll<TerrainTile, TreesSpawned>().Build();
+            .WithAll<TerrainTile, StaticObjectsSpawned>().Build();
         int tilesWithTrees = tilesWithTreesQuery.CalculateEntityCount();
         
         // Count orphaned trees (trees whose parent tile doesn't exist)
         int orphanedTrees = 0;
-        foreach (var ownership in SystemAPI.Query<RefRO<TreeTileOwnership>>())
+        foreach (var ownership in SystemAPI.Query<RefRO<StaticObjectTileOwnership>>())
         {
             if (!state.EntityManager.Exists(ownership.ValueRO.tileEntity))
             {

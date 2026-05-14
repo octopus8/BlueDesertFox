@@ -1,10 +1,10 @@
-# Tree Spawning System - Documentation
+# Static Object Spawning System - Documentation
 **Version:** 3.0  
 **Last Updated:** May 4, 2026
 
 ## Overview
 
-The Tree Spawning System procedurally places tree entities on terrain tiles after mesh generation, with configurable density, variation, and performance budgeting.
+The Static Object Spawning System procedurally places static object entities on terrain tiles after mesh generation, with configurable density, variation, and performance budgeting.
 
 **Related Documentation:**
 - **[Tree Rendering System](Documentation/TREE_RENDERING_SYSTEM.md)** - Instanced rendering, LOD, and culling (v3.0)
@@ -13,7 +13,7 @@ The Tree Spawning System procedurally places tree entities on terrain tiles afte
 
 ## Features
 
-- **Random Placement**: Trees placed at truly random XZ positions within tile bounds (not grid-aligned)
+- **Random Placement**: objects placed at truly random XZ positions within tile bounds (not grid-aligned)
 - **Bilinear Interpolation**: Height and normals sampled from mesh vertices using bilinear interpolation
 - **Deterministic**: Same tile always gets same tree layout (uses grid coordinate hash as seed)
 - **Scale Variation**: Random scale multipliers for visual variety
@@ -21,39 +21,39 @@ The Tree Spawning System procedurally places tree entities on terrain tiles afte
 - **Height Filtering**: Only spawn trees within specified height range
 - **Slope Filtering**: Avoid spawning on steep terrain
 - **Frame Budgeting**: Limits trees spawned per frame to prevent stuttering
-- **Non-Hierarchical**: Uses `TreeTileOwnership` component instead of parent-child hierarchy for better performance
+- **Non-Hierarchical**: Uses `StaticObjectTileOwnership` component instead of parent-child hierarchy for better performance
 
 ## Components
 
-### TreeSpawnerConfig (Singleton)
-Configuration for tree spawning behavior.
+### StaticObjectSpawnerConfig (Singleton)
+Configuration for static object spawning behavior.
 
 **Fields:**
-- `minTreesPerTile` - Minimum trees per tile
-- `maxTreesPerTile` - Maximum trees per tile
+- `minObjectsPerTile` - Minimum trees per tile
+- `maxObjectsPerTile` - Maximum trees per tile
 - `minTreeScale` - Minimum scale multiplier
 - `maxTreeScale` - Maximum scale multiplier
 - `minSpawnHeight` - Minimum Y coordinate for spawning
 - `maxSpawnHeight` - Maximum Y coordinate for spawning
 - `slopeThreshold` - Pre-calculated cosine of max slope angle
-- `maxTreesSpawnedPerFrame` - Performance budget
+- `maxStaticObjectsSpawnedPerFrame` - Performance budget
 
-### TreePrefabElement (Buffer)
-Stores references to tree prefab entities.
+### StaticObjectPrefabElement (Buffer)
+Stores references to object prefab entities.
 
 **Fields:**
 - `prefabEntity` - Entity prefab to instantiate
 
-### TreesSpawned (Tag)
+### StaticObjectsSpawned (Tag)
 Marks tiles that have had trees spawned.
 
-### SpawnedTreeReference (Buffer)
-Tracks tree entities spawned on a tile for cleanup.
+### SpawnedStaticObjectReference (Buffer)
+Tracks static object entities spawned on a tile for cleanup.
 
 **Fields:**
 - `treeEntity` - Entity reference to spawned tree
 
-### TreeTileOwnership (Component)
+### StaticObjectTileOwnership (Component)
 Tracks which terrain tile a tree belongs to and its local offset, without using parent-child hierarchy.
 
 **Fields:**
@@ -62,7 +62,7 @@ Tracks which terrain tile a tree belongs to and its local offset, without using 
 
 ## Systems
 
-### TerrainTreeSpawningSystem
+### TerrainStaticObjectSpawningSystem
 
 **Update Group**: `SimulationSystemGroup`  
 **Update After**: `TerrainRenderingSystem`  
@@ -71,16 +71,16 @@ Tracks which terrain tile a tree belongs to and its local offset, without using 
 **Purpose**: Spawns trees on terrain tiles after mesh is rendered.
 
 **Algorithm**:
-1. Query tiles with `MeshReference` + `meshGenerated=true` + no `TreesSpawned` tag
+1. Query tiles with `MeshReference` + `meshGenerated=true` + no `StaticObjectsSpawned` tag
 2. Enqueue tiles to pending queue
-3. Process tiles up to frame budget (`maxTreesSpawnedPerFrame`)
+3. Process tiles up to frame budget (`maxStaticObjectsSpawnedPerFrame`)
 4. For each tile:
    - Seed RNG with `gridCoordinate.GetHashCode()`
    - Determine random tree count (min-max range)
    - Loop: generate random XZ position, interpolate height/normal from mesh, check filters, spawn tree
-   - Add `TreeTileOwnership` component to track tile without parent-child hierarchy
-   - Store tree in tile's `SpawnedTreeReference` buffer for cleanup
-   - Add `TreesSpawned` tag
+   - Add `StaticObjectTileOwnership` component to track tile without parent-child hierarchy
+   - Store tree in tile's `SpawnedStaticObjectReference` buffer for cleanup
+   - Add `StaticObjectsSpawned` tag
 
 ### TreePositionUpdateSystem
 
@@ -92,14 +92,14 @@ Tracks which terrain tile a tree belongs to and its local offset, without using 
 
 **Algorithm**:
 1. Get `ComponentLookup<LocalTransform>` for tile positions
-2. Query all trees with `TreeTileOwnership` + `LocalTransform`
+2. Query all trees with `StaticObjectTileOwnership` + `LocalTransform`
 3. For each tree:
    - Check if owning tile still exists
    - Calculate new position: `tilePosition + localOffset`
    - Update tree's `LocalTransform.Position`
 
 **Performance**:
-- **Frame Budget**: Configurable via `maxTreesSpawnedPerFrame`
+- **Frame Budget**: Configurable via `maxStaticObjectsSpawnedPerFrame`
 - **Typical**: 10-20 trees spawned per frame = <1ms
 - **Profiler Markers**: `TerrainTrees.Spawning`, `TerrainTrees.Enqueue`, `TerrainTrees.Spawn`
 
@@ -112,18 +112,18 @@ Tracks which terrain tile a tree belongs to and its local offset, without using 
 
 ## Authoring
 
-### TreeSpawnerConfigAuthoring
+### StaticObjectSpawnerConfigAuthoring
 
 Place on the same GameObject as `TerrainConfigAuthoring`.
 
 **Inspector Fields**:
 ```
-Tree Prefabs
+object prefabs
 ├─ treePrefabs[] - Array of GameObject prefabs to convert to entities
 
 Spawn Density
-├─ minTreesPerTile (0-50, default: 5)
-└─ maxTreesPerTile (0-50, default: 15)
+├─ minObjectsPerTile (0-50, default: 5)
+└─ maxObjectsPerTile (0-50, default: 15)
 
 Tree Variation
 ├─ minTreeScale (0.1-2, default: 0.8)
@@ -135,18 +135,18 @@ Spawn Filtering
 └─ maxSlopeDegrees (0-90, default: 45)
 
 Performance
-└─ maxTreesSpawnedPerFrame (1-100, default: 20)
+└─ maxStaticObjectsSpawnedPerFrame (1-100, default: 20)
 ```
 
 **Baker**:
 - Converts GameObject prefabs to Entity prefabs via `GetEntity()`
 - Pre-calculates slope threshold: `cos(radians(maxSlopeDegrees))`
-- Creates singleton `TreeSpawnerConfig`
-- Populates `TreePrefabElement` buffer
+- Creates singleton `StaticObjectSpawnerConfig`
+- Populates `StaticObjectPrefabElement` buffer
 
 ## Setup Instructions
 
-### 1. Create Tree Prefabs
+### 1. Create object prefabs
 
 **Option A: SubScene Entities (Recommended)**
 1. Create tree GameObjects in a SubScene
@@ -154,15 +154,15 @@ Performance
 3. Ensure compatible with Entities Graphics
 
 **Option B: Standalone Prefabs**
-1. Create tree prefab GameObjects
+1. Create object prefab GameObjects
 2. Unity will convert to entity prefabs during baking
 3. Must have `LocalTransform` component (added automatically)
 
 ### 2. Configure Tree Spawner
 
 1. Find GameObject with `TerrainConfigAuthoring` component
-2. Add `TreeSpawnerConfigAuthoring` component
-3. Assign tree prefabs to `treePrefabs[]` array
+2. Add `StaticObjectSpawnerConfigAuthoring` component
+3. Assign object prefabs to `treePrefabs[]` array
 4. Configure density (min/max trees per tile)
 5. Set variation ranges (scale)
 6. Adjust filters (height, slope)
@@ -179,30 +179,30 @@ Performance
 
 ### High-End VR (RTX 4080+)
 ```
-maxTreesSpawnedPerFrame: 50
-maxTreesPerTile: 20
+maxStaticObjectsSpawnedPerFrame: 50
+maxObjectsPerTile: 20
 ```
 
 ### Mid-Range VR (RTX 3070)
 ```
-maxTreesSpawnedPerFrame: 20
-maxTreesPerTile: 15
+maxStaticObjectsSpawnedPerFrame: 20
+maxObjectsPerTile: 15
 ```
 
 ### Low-End VR (Quest 2)
 ```
-maxTreesSpawnedPerFrame: 10
-maxTreesPerTile: 8
+maxStaticObjectsSpawnedPerFrame: 10
+maxObjectsPerTile: 8
 ```
 
 ### Optimization Tips
 
-1. **Reduce Tree Count**: Lower `maxTreesPerTile` for better performance
+1. **Reduce Tree Count**: Lower `maxObjectsPerTile` for better performance
 2. **Simplify Prefabs**: Use low-poly tree models with LOD
 3. **Increase Slope Filter**: Higher `maxSlopeDegrees` = more spawn attempts = slower
-4. **Frame Budget**: Lower `maxTreesSpawnedPerFrame` if stuttering occurs
+4. **Frame Budget**: Lower `maxStaticObjectsSpawnedPerFrame` if stuttering occurs
 5. **Height Filter**: Narrow height range = fewer valid spawn positions = faster
-6. **Culling Distance**: Consider adding distance-based tree spawning (future feature)
+6. **Culling Distance**: Consider adding distance-based static object spawning (future feature)
 
 ## Implementation Details
 
@@ -252,7 +252,7 @@ EntityManager.SetComponentData(treeEntity, new LocalTransform
 
 **Tile Ownership (No Hierarchy)**:
 ```csharp
-EntityManager.AddComponentData(treeEntity, new TreeTileOwnership
+EntityManager.AddComponentData(treeEntity, new StaticObjectTileOwnership
 {
     tileEntity = tileEntity,
     localOffset = localPosition
@@ -277,11 +277,11 @@ float scale = random.NextFloat(config.minTreeScale, config.maxTreeScale);
 
 ### No Trees Spawning?
 
-**Check 1**: TreeSpawnerConfigAuthoring assigned?
+**Check 1**: StaticObjectSpawnerConfigAuthoring assigned?
 - Look for component on same GameObject as TerrainConfigAuthoring
 
-**Check 2**: Tree prefabs valid?
-- Console should show: `[TreeSpawner] Baked N tree prefabs`
+**Check 2**: object prefabs valid?
+- Console should show: `[TreeSpawner] Baked N object prefabs`
 - If 0, prefabs weren't converted correctly
 
 **Check 3**: Height/slope filters too restrictive?
@@ -294,7 +294,7 @@ float scale = random.NextFloat(config.minTreeScale, config.maxTreeScale);
 
 ### Trees Spawning Too Slowly?
 
-**Increase**: `maxTreesSpawnedPerFrame`
+**Increase**: `maxStaticObjectsSpawnedPerFrame`
 - Default 20 → try 50 or 100
 - Watch Profiler to ensure no stutter
 
@@ -311,7 +311,7 @@ float scale = random.NextFloat(config.minTreeScale, config.maxTreeScale);
 
 1. **Poisson Disk Sampling**: More even distribution, prevents clustering
 2. **Distance-Based Culling**: Don't spawn trees on distant tiles
-3. **LOD System**: Different tree prefabs based on distance
+3. **LOD System**: Different object prefabs based on distance
 4. **Biome Support**: Different tree types based on height/noise values
 5. **Density Maps**: Use textures to control tree placement
 6. **Wind Animation**: Add ECS system for tree swaying
@@ -319,8 +319,8 @@ float scale = random.NextFloat(config.minTreeScale, config.maxTreeScale);
 
 ## See Also
 
-- `TerrainMeshGenerationSystem.cs` - Mesh generation that precedes tree spawning
+- `TerrainMeshGenerationSystem.cs` - Mesh generation that precedes static object spawning
 - `TileSpawningSystem.cs` - Tile lifecycle management
-- `TerrainRenderingSystem.cs` - Mesh rendering that enables tree spawning
+- `TerrainRenderingSystem.cs` - Mesh rendering that enables static object spawning
 - `EXTENSIONS.md` - Other terrain customization ideas
 

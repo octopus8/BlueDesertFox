@@ -168,7 +168,7 @@ public partial struct TileSpawningSystem : ISystem
             ecb.AddBuffer<IndexElement>(tileEntity);
             
             // Add buffer for tracking spawned trees (for cleanup)
-            ecb.AddBuffer<SpawnedTreeReference>(tileEntity);
+            ecb.AddBuffer<SpawnedStaticObjectReference>(tileEntity);
         }
         
         // Despawn old tiles
@@ -176,17 +176,17 @@ public partial struct TileSpawningSystem : ISystem
         {
             if (_activeTiles.TryGetValue(gridCoord, out Entity tileEntity))
             {
-                // Explicitly destroy child trees BEFORE destroying tile
+                // Explicitly destroy child static objects BEFORE destroying tile
                 // While Parent component should auto-destroy children, explicit cleanup
-                // ensures trees are removed even if transform hierarchy isn't fully updated
-                if (state.EntityManager.HasBuffer<SpawnedTreeReference>(tileEntity))
+                // ensures objects are removed even if transform hierarchy isn't fully updated
+                if (state.EntityManager.HasBuffer<SpawnedStaticObjectReference>(tileEntity))
                 {
-                    var spawnedTrees = state.EntityManager.GetBuffer<SpawnedTreeReference>(tileEntity);
-                    foreach (var treeRef in spawnedTrees)
+                    var spawnedObjects = state.EntityManager.GetBuffer<SpawnedStaticObjectReference>(tileEntity);
+                    foreach (var objectRef in spawnedObjects)
                     {
-                        if (state.EntityManager.Exists(treeRef.treeEntity))
+                        if (state.EntityManager.Exists(objectRef.objectEntity))
                         {
-                            ecb.DestroyEntity(treeRef.treeEntity);
+                            ecb.DestroyEntity(objectRef.objectEntity);
                         }
                     }
                 }

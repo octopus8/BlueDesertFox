@@ -47,7 +47,7 @@ public partial struct TreeLODUpdateSystem : ISystem
     [BurstCompile]
     public void OnCreate(ref SystemState state)
     {
-        state.RequireForUpdate<TreeLODConfig>();
+        state.RequireForUpdate<StaticObjectLODConfig>();
         state.RequireForUpdate<PlayerTransformReference>();
         _activeChunks = new NativeList<int2>(20, Allocator.Persistent);
         _activeChunksSet = new NativeHashSet<int2>(20, Allocator.Persistent);
@@ -79,7 +79,7 @@ public partial struct TreeLODUpdateSystem : ISystem
         _frameCounter++;
         
         // Get configuration
-        var lodConfig = SystemAPI.GetSingleton<TreeLODConfig>();
+        var lodConfig = SystemAPI.GetSingleton<StaticObjectLODConfig>();
         
         // Get player position (must access managed component on main thread before Burst job)
         float3 playerPosition = float3.zero;
@@ -185,7 +185,7 @@ public partial struct TreeLODUpdateSystem : ISystem
             lod1Distance = lodConfig.lod1Distance,
             lod2Distance = lodConfig.lod2Distance,
             hysteresis = lodConfig.hysteresisDelta,
-            lodsPerTreeType = lodConfig.lodsPerTreeType,
+            lodsPerObjectType = lodConfig.lodsPerObjectType,
             activeChunksSet = _activeChunksSet,
             maxTreesPerFrame = MaxTreesPerFrame,
             frameCounter = _frameCounter // Pass frame counter for distance-tiered updates
@@ -202,11 +202,11 @@ public partial struct TreeLODUpdateSystem : ISystem
         _lastDeltaTime = SystemAPI.Time.DeltaTime;
         
         // Log periodically (must complete job first for accurate count)
-        if (lodConfig.enableTreeLODDebug && _frameCounter % 120 == 0)
+        if (lodConfig.enableObjectLODDebug && _frameCounter % 120 == 0)
         {
             state.Dependency.Complete();
             // Get tree count for logging
-            var query = SystemAPI.QueryBuilder().WithAll<GlobalTreeInstance, TreeChunkMembership>().Build();
+            var query = SystemAPI.QueryBuilder().WithAll<GlobalStaticObjectInstance, StaticObjectChunkMembership>().Build();
             int totalTrees = query.CalculateEntityCount();
             UnityEngine.Debug.Log($"[TreeLOD] Velocity: {velocity:F2} m/s, FrameSkip: {effectiveFrameSkip}, Processing {_activeChunks.Length} chunks (total: {totalTrees} trees)");
         }
@@ -224,24 +224,24 @@ public partial struct TreeLODUpdateSystem : ISystem
         [ReadOnly] public float lod1Distance;
         [ReadOnly] public float lod2Distance;
         [ReadOnly] public float hysteresis;
-        [ReadOnly] public int lodsPerTreeType;
+        [ReadOnly] public int lodsPerObjectType;
         [ReadOnly] public NativeHashSet<int2> activeChunksSet;
         [ReadOnly] public int maxTreesPerFrame;
         [ReadOnly] public int frameCounter; // For distance-tiered updates
         
         private void Execute(
             in LocalTransform transform,
-            ref GlobalTreeInstanceData instanceData,
-            in TreeChunkMembership chunkMembership)
+            ref GlobalStaticObjectInstanceData instanceData,
+            in StaticObjectChunkMembership chunkMembership)
         {
             // OPTIMIZED: O(1) chunk lookup using HashSet
             if (!activeChunksSet.Contains(chunkMembership.chunkCoord))
                 return;
             
             // Calculate 2D distance (XZ plane) from player to tree
-            float2 treePos2D = new float2(transform.Position.x, transform.Position.z);
+            float2 objectPos2D = new float2(transform.Position.x, transform.Position.z);
             float2 playerPos2D = new float2(playerPosition.x, playerPosition.z);
-            float distance = math.distance(treePos2D, playerPos2D);
+            float distance = math.distance(objectPos2D, playerPos2D);
             
             // OPTIMIZED v3.0: Distance-tiered updates (4 tiers)
             // Near trees (0-100m): Update every frame
@@ -262,8 +262,8 @@ public partial struct TreeLODUpdateSystem : ISystem
             // Update if LOD changed
             if (newLOD != currentLOD)
             {
-                // Calculate new mesh index: (treeTypeIndex * 3) + lodLevel
-                int newMeshIndex = (instanceData.treeTypeIndex * lodsPerTreeType) + newLOD;
+                // Calculate new mesh index: (objectTypeIndex * 3) + lodLevel
+                int newMeshIndex = (instanceData.objectTypeIndex * lodsPerObjectType) + newLOD;
                 
                 instanceData.meshIndex = newMeshIndex;
                 instanceData.materialIndex = newMeshIndex; // Same index for materials

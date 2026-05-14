@@ -19,7 +19,7 @@ public partial struct TreeSpatialChunkingSystem : ISystem
     [BurstCompile]
     public void OnCreate(ref SystemState state)
     {
-        state.RequireForUpdate<TreeLODConfig>();
+        state.RequireForUpdate<StaticObjectLODConfig>();
         state.RequireForUpdate<EndSimulationEntityCommandBufferSystem.Singleton>();
     }
 
@@ -44,21 +44,21 @@ public partial struct TreeSpatialChunkingSystem : ISystem
     
     /// <summary>
     /// Burst-compiled job that assigns chunk membership to trees that don't have it yet.
-    /// Explicitly excludes entities that already have TreeChunkMembership to prevent race conditions
+    /// Explicitly excludes entities that already have StaticObjectChunkMembership to prevent race conditions
     /// where entities are destroyed between job scheduling and ECB playback.
     /// </summary>
     [BurstCompile]
-    [WithNone(typeof(TreeChunkMembership))]
+    [WithNone(typeof(StaticObjectChunkMembership))]
     private partial struct AssignChunkJob : IJobEntity
     {
         public EntityCommandBuffer.ParallelWriter ecb;
         
         private void Execute(Entity entity, [ChunkIndexInQuery] int chunkIndex,
                             in LocalTransform transform,
-                            in GlobalTreeInstance _)
+                            in GlobalStaticObjectInstance _)
         {
             GetChunkCoord(in transform.Position, out int2 chunkCoord);
-            ecb.AddComponent(chunkIndex, entity, new TreeChunkMembership
+            ecb.AddComponent(chunkIndex, entity, new StaticObjectChunkMembership
             {
                 chunkCoord = chunkCoord
             });
@@ -72,8 +72,8 @@ public partial struct TreeSpatialChunkingSystem : ISystem
     private partial struct UpdateChunkJob : IJobEntity
     {
         private void Execute(in LocalTransform transform,
-                            ref TreeChunkMembership chunkMembership,
-                            in GlobalTreeInstance _)
+                            ref StaticObjectChunkMembership chunkMembership,
+                            in GlobalStaticObjectInstance _)
         {
             GetChunkCoord(in transform.Position, out int2 currentChunk);
             

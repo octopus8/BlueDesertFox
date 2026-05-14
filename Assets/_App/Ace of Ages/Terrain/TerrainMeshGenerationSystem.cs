@@ -266,13 +266,13 @@ public partial struct TerrainMeshGenerationSystem : ISystem
                         tile.meshGenerated = true;
                         tile.needsRegeneration = false;
                         
-                        // CRITICAL: Remove TreesSpawned tag so trees can respawn on regenerated mesh
-                        // This also cleans up old tree references
-                        if (state.EntityManager.HasComponent<TreesSpawned>(entity))
+                        // CRITICAL: Remove StaticObjectsSpawned tag so objects can respawn on regenerated mesh
+                        // This also cleans up old object references
+                        if (state.EntityManager.HasComponent<StaticObjectsSpawned>(entity))
                         {
-                            state.EntityManager.RemoveComponent<TreesSpawned>(entity);
+                            state.EntityManager.RemoveComponent<StaticObjectsSpawned>(entity);
 #if UNITY_EDITOR
-                            UnityEngine.Debug.Log($"[TerrainMesh] Removed TreesSpawned tag from regenerated tile {tile.gridCoordinate}");
+                            UnityEngine.Debug.Log($"[TerrainMesh] Removed StaticObjectsSpawned tag from regenerated tile {tile.gridCoordinate}");
 #endif
                         }
                     }

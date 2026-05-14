@@ -26,7 +26,7 @@ public partial class TreeLODDebugSystem : SystemBase
 
     protected override void OnCreate()
     {
-        RequireForUpdate<TreeLODConfig>();
+        RequireForUpdate<StaticObjectLODConfig>();
         _lod0Positions = new NativeList<float3>(1000, Allocator.Persistent);
         _lod1Positions = new NativeList<float3>(1000, Allocator.Persistent);
         _lod2Positions = new NativeList<float3>(1000, Allocator.Persistent);
@@ -54,8 +54,8 @@ public partial class TreeLODDebugSystem : SystemBase
         
         // Collect tree positions by LOD level
         foreach (var (transform, instanceData, chunkMembership) in 
-                 SystemAPI.Query<RefRO<LocalTransform>, RefRO<GlobalTreeInstanceData>, RefRO<TreeChunkMembership>>()
-                     .WithAll<GlobalTreeInstance>())
+                 SystemAPI.Query<RefRO<LocalTransform>, RefRO<GlobalStaticObjectInstanceData>, RefRO<StaticObjectChunkMembership>>()
+                     .WithAll<GlobalStaticObjectInstance>())
         {
             float3 pos = transform.ValueRO.Position;
             byte lod = instanceData.ValueRO.currentLODLevel;

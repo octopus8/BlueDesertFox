@@ -5916,7 +5916,7 @@ MonoBehaviour:
   scrollEnabled: 1
   scrollSpeed: 75
   noiseFrequency: 0.005
-  noiseAmplitude: 60
+  noiseAmplitude: 0.0001
   noiseOctaves: 4
   noiseLacunarity: 2
   noisePersistence: 0.5
@@ -5972,7 +5972,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ea650e9e97214c68a8aab550673cff51, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerScrollVelocityAuthoring
-  speed: 40
+  speed: 0
   rotationSpeed: 50
   verticalSpeed: 20
   minVerticalPosition: -20
@@ -5989,28 +5989,31 @@ MonoBehaviour:
   m_GameObject: {fileID: 1528308289}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 646f191bc5214b43ac58d451eecf980b, type: 3}
+  m_Script: {fileID: 11500000, guid: f17144813f71f9c4eab8e31b81e2c2db, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::TreeSpawnerConfigAuthoring
-  treeLODSets:
-  - treeTypeName: TestTree0
-    lod0: {fileID: 1880130991530675682, guid: 80855f484516335468ca4c9c49937f3a, type: 3}
-    lod1: {fileID: 268780033425554496, guid: 5cfabf8fb09c20f49b7721a267c890b8, type: 3}
-    lod2: {fileID: 4922588999693537203, guid: 1102ac1201d59f244ba5407dbaf9c0c1, type: 3}
-  lod0Distance: 75
-  lod1Distance: 400
-  lod2Distance: 600
+  m_EditorClassIdentifier: Assembly-CSharp::StaticObjectSpawnerConfigAuthoring
+  objectLODSets:
+  - objectTypeName: Test Tree
+    lod0: {fileID: 0}
+    lod1: {fileID: 0}
+    lod2: {fileID: 0}
+    lod0SpawnWeight: 0.6
+    lod1SpawnWeight: 0.3
+    lod2SpawnWeight: 0.1
+  lod0Distance: 50
+  lod1Distance: 150
+  lod2Distance: 300
   lodHysteresis: 5
-  minTreesPerTile: 100
-  maxTreesPerTile: 200
+  minObjectsPerTile: 5
+  maxObjectsPerTile: 15
   minSpawnHeight: -100
   maxSpawnHeight: 100
-  maxSlopeDegrees: 22.5
-  maxTreesSpawnedPerFrame: 12
-  enableTreeLODDebug: 0
+  maxSlopeDegrees: 45
+  maxObjectsSpawnedPerFrame: 20
+  enableObjectLODDebug: 0
   enableSpawnerDebug: 0
-  enableDistanceCulling: 0
-  maxTreeRenderDistance: 400
+  enableDistanceCulling: 1
+  maxObjectRenderDistance: 400
   maxUniqueBatches: 32
   vrFrameSkipScrolling: 4
   playerVelocityThreshold: 0.5

@@ -23,7 +23,7 @@ using Unity.Profiling;
 /// - Optimized batch conversion with native array operations
 /// </summary>
 [UpdateInGroup(typeof(PresentationSystemGroup))]
-public partial class GlobalTreeInstanceSystem : SystemBase
+public partial class GlobalStaticObjectInstanceSystem : SystemBase
 {
     /// <summary>
     /// Native struct for batch data - replaces managed TreeBatch class.
@@ -66,21 +66,21 @@ public partial class GlobalTreeInstanceSystem : SystemBase
         public bool EnableSpatialCulling;
         public float GridCellSize;
         
-        private void Execute(in LocalTransform transform, in GlobalTreeInstanceData instanceData)
+        private void Execute(in LocalTransform transform, in GlobalStaticObjectInstanceData instanceData)
         {
             // Validate indices
             if (instanceData.meshIndex < 0 || instanceData.meshIndex >= MeshArrayLength ||
                 instanceData.materialIndex < 0 || instanceData.materialIndex >= MaterialArrayLength)
                 return;
             
-            float3 treePos = transform.Position;
+            float3 objectPos = transform.Position;
             
             // OPTIMIZATION v3.0: Spatial grid culling FIRST (cheapest check - O(1) hash lookup)
             if (EnableSpatialCulling)
             {
                 int2 gridCell = new int2(
-                    (int)math.floor(treePos.x / GridCellSize),
-                    (int)math.floor(treePos.z / GridCellSize)
+                    (int)math.floor(objectPos.x / GridCellSize),
+                    (int)math.floor(objectPos.z / GridCellSize)
                 );
                 
                 if (!VisibleGridCells.Contains(gridCell))
@@ -91,9 +91,9 @@ public partial class GlobalTreeInstanceSystem : SystemBase
             if (EnableDistanceCulling)
             {
                 // 2D distance check (XZ plane) - cheaper than 3D
-                float2 treePos2D = new float2(treePos.x, treePos.z);
+                float2 objectPos2D = new float2(objectPos.x, objectPos.z);
                 float2 playerPos2D = new float2(PlayerPosition.x, PlayerPosition.z);
-                float distanceSq = math.distancesq(treePos2D, playerPos2D);
+                float distanceSq = math.distancesq(objectPos2D, playerPos2D);
                 
                 if (distanceSq > MaxRenderDistance * MaxRenderDistance)
                     return;
@@ -112,7 +112,7 @@ public partial class GlobalTreeInstanceSystem : SystemBase
                     float planeDistance = plane.w;
                     
                     // Distance from point to plane
-                    float dist = math.dot(planeNormal, treePos) + planeDistance;
+                    float dist = math.dot(planeNormal, objectPos) + planeDistance;
                     
                     // If tree is completely outside this plane, skip it
                     if (dist < -treeRadius)
@@ -126,7 +126,7 @@ public partial class GlobalTreeInstanceSystem : SystemBase
             
             // Add transform matrix to batch
             var matrix = Matrix4x4.TRS(
-                treePos,
+                objectPos,
                 transform.Rotation,
                 new Vector3(transform.Scale, transform.Scale, transform.Scale)
             );
@@ -332,13 +332,13 @@ public partial class GlobalTreeInstanceSystem : SystemBase
         }
         
         // Get LOD config once for distance culling and debug logging
-        var lodConfig = SystemAPI.GetSingleton<TreeLODConfig>();
+        var lodConfig = SystemAPI.GetSingleton<StaticObjectLODConfig>();
         int maxUniqueBatches = lodConfig.maxUniqueBatches > 0 ? lodConfig.maxUniqueBatches : 32;
         
         // Get distance culling settings from config
         bool enableDistanceCulling = lodConfig.enableDistanceCulling;
-        float maxRenderDistance = lodConfig.maxTreeRenderDistance > 0 
-            ? lodConfig.maxTreeRenderDistance 
+        float maxRenderDistance = lodConfig.maxObjectRenderDistance > 0 
+            ? lodConfig.maxObjectRenderDistance 
             : DefaultMaxRenderDistance; // Fallback to default if not set
         
         // Get player position for distance culling
@@ -356,19 +356,19 @@ public partial class GlobalTreeInstanceSystem : SystemBase
         }
         
         // Count trees to ensure hashmap has enough capacity
-        int treeCount = _treeQuery.CalculateEntityCount();
+        int objectCount = _treeQuery.CalculateEntityCount();
         
         // Resize hashmap if needed (with 20% buffer for safety)
-        int requiredCapacity = (int)(treeCount * 1.2f);
+        int requiredCapacity = (int)(objectCount * 1.2f);
         if (_batchMatrices.Capacity < requiredCapacity)
         {
             _batchMatrices.Dispose();
             _batchMatrices = new NativeParallelMultiHashMap<int, Matrix4x4>(requiredCapacity, Allocator.Persistent);
             
             // Log resize event if debug logging is enabled
-            if (lodConfig.enableTreeLODDebug)
+            if (lodConfig.enableObjectLODDebug)
             {
-                Debug.Log($"[GlobalTreeInstance] Resized hashmap to capacity {requiredCapacity} for {treeCount} trees");
+                Debug.Log($"[GlobalStaticObjectInstance] Resized hashmap to capacity {requiredCapacity} for {objectCount} trees");
             }
         }
 
@@ -412,16 +412,16 @@ public partial class GlobalTreeInstanceSystem : SystemBase
             }
             enableFrustumCulling = true;
         }
-        else if (lodConfig.enableTreeLODDebug && _frameCount % 60 == 0)
+        else if (lodConfig.enableObjectLODDebug && _frameCount % 60 == 0)
         {
-            Debug.LogWarning("[GlobalTreeInstance] Camera is NULL - frustum culling disabled!");
+            Debug.LogWarning("[GlobalStaticObjectInstance] Camera is NULL - frustum culling disabled!");
         }
         
         // Debug log when distance culling is disabled (helps users understand performance)
-        if (!enableDistanceCulling && lodConfig.enableTreeLODDebug && _frameCount % 300 == 0)
+        if (!enableDistanceCulling && lodConfig.enableObjectLODDebug && _frameCount % 300 == 0)
         {
-            Debug.Log("[GlobalTreeInstance] Distance culling is DISABLED - all trees rendering regardless of distance. " +
-                      "Enable 'Enable Distance Culling' in TreeSpawnerConfigAuthoring for better VR performance.");
+            Debug.Log("[GlobalStaticObjectInstance] Distance culling is DISABLED - all trees rendering regardless of distance. " +
+                      "Enable 'Enable Distance Culling' in StaticObjectSpawnerConfigAuthoring for better VR performance.");
         }
         
         // Schedule parallel Burst-compiled job to collect tree matrices
@@ -458,7 +458,7 @@ public partial class GlobalTreeInstanceSystem : SystemBase
             tempBatchKeys = _tempBatchKeys,
             tempUniqueKeys = _tempUniqueKeys,
             maxUniqueBatches = maxUniqueBatches,
-            enableDebug = lodConfig.enableTreeLODDebug
+            enableDebug = lodConfig.enableObjectLODDebug
         };
         
         Dependency = convertJob.Schedule(Dependency);
@@ -472,27 +472,27 @@ public partial class GlobalTreeInstanceSystem : SystemBase
         // Update profiler counters
         DirtyBatchCount.Sample(_dirtyBatchKeys.Count);
         StableBatchCount.Sample(_activeBatchIndices.Length - _dirtyBatchKeys.Count);
-        TreesCulledSpatial.Sample(treeCount - _batchMatrices.Count());
+        TreesCulledSpatial.Sample(objectCount - _batchMatrices.Count());
         
         DrawMarker.Begin();
 #endif
 
         // OPTIMIZED v3.0: Batch  capacity validation (3-tier logging)
-        if (lodConfig.enableTreeLODDebug && _activeBatchIndices.Length > 0)
+        if (lodConfig.enableObjectLODDebug && _activeBatchIndices.Length > 0)
         {
             float capacityPercent = (_activeBatchIndices.Length / (float)maxUniqueBatches) * 100f;
             
             if (capacityPercent >= 100f)
             {
-                Debug.LogError($"[GlobalTreeInstance] Batch capacity at 100%! ({_activeBatchIndices.Length}/{maxUniqueBatches}) - Some batches may be dropped. Increase maxUniqueBatches in TreeLODConfig.");
+                Debug.LogError($"[GlobalStaticObjectInstance] Batch capacity at 100%! ({_activeBatchIndices.Length}/{maxUniqueBatches}) - Some batches may be dropped. Increase maxUniqueBatches in StaticObjectLODConfig.");
             }
             else if (capacityPercent >= 80f && _frameCount % 300 == 0) // Log every 5 seconds
             {
-                Debug.LogWarning($"[GlobalTreeInstance] Batch capacity at {capacityPercent:F0}% ({_activeBatchIndices.Length}/{maxUniqueBatches}) - Consider increasing maxUniqueBatches.");
+                Debug.LogWarning($"[GlobalStaticObjectInstance] Batch capacity at {capacityPercent:F0}% ({_activeBatchIndices.Length}/{maxUniqueBatches}) - Consider increasing maxUniqueBatches.");
             }
             else if (capacityPercent >= 50f && _frameCount % 600 == 0) // Log every 10 seconds
             {
-                Debug.Log($"[GlobalTreeInstance] Batch capacity at {capacityPercent:F0}% ({_activeBatchIndices.Length}/{maxUniqueBatches})");
+                Debug.Log($"[GlobalStaticObjectInstance] Batch capacity at {capacityPercent:F0}% ({_activeBatchIndices.Length}/{maxUniqueBatches})");
             }
         }
 
@@ -566,7 +566,7 @@ public partial class GlobalTreeInstanceSystem : SystemBase
 #endif
         
         // Reduced logging frequency: only every 60 frames (~1 second at 60 FPS)
-        if (lodConfig.enableTreeLODDebug && _frameCount % 60 == 0 && totalRendered > 0)
+        if (lodConfig.enableObjectLODDebug && _frameCount % 60 == 0 && totalRendered > 0)
         {
             string cullingStatus = enableDistanceCulling 
                 ? $"distance culling: {maxRenderDistance:F0}m" 
@@ -577,7 +577,7 @@ public partial class GlobalTreeInstanceSystem : SystemBase
             int dirtyCount = _dirtyBatchKeys.Count;
             int stableCount = _activeBatchIndices.Length - dirtyCount;
             
-            Debug.Log($"[GlobalTreeInstance] Rendered {totalRendered}/{treeCount} trees in {totalDrawCalls} draw calls " +
+            Debug.Log($"[GlobalStaticObjectInstance] Rendered {totalRendered}/{objectCount} trees in {totalDrawCalls} draw calls " +
                       $"({_activeBatchIndices.Length} batches: {dirtyCount} dirty, {stableCount} stable, {cullingStatus}{spatialStatus})");
         }
     }
@@ -610,7 +610,7 @@ public partial class GlobalTreeInstanceSystem : SystemBase
     private const float DefaultMaxRenderDistance = 400f; // Quest 3 recommended: 300-400m (used as fallback if config not set)
     
     // ✅ Cached rendering data to avoid GC allocations every frame
-    private GlobalTreeRenderingData _cachedRenderingData;
+    private GlobalStaticObjectRenderingData _cachedRenderingData;
     
     // ✅ Pooled managed array for Graphics API (avoids GC allocations)
     private Matrix4x4[] _renderMatrixArrayManaged;
@@ -620,13 +620,13 @@ public partial class GlobalTreeInstanceSystem : SystemBase
     
 #if UNITY_EDITOR
     // Profiler markers for performance instrumentation
-    private static readonly ProfilerMarker ProfilerMarker = new ProfilerMarker("GlobalTreeInstance.Render");
-    private static readonly ProfilerMarker CollectMarker = new ProfilerMarker("GlobalTreeInstance.Collect");
-    private static readonly ProfilerMarker DrawMarker = new ProfilerMarker("GlobalTreeInstance.Draw");
-    private static readonly ProfilerMarker ConvertMarker = new ProfilerMarker("GlobalTreeInstance.Convert");
-    private static readonly ProfilerMarker SpatialCullMarker = new ProfilerMarker("GlobalTreeInstance.SpatialCull");
-    private static readonly ProfilerMarker DirtyCheckMarker = new ProfilerMarker("GlobalTreeInstance.DirtyCheck");
-    private static readonly ProfilerMarker MemoryCopyMarker = new ProfilerMarker("GlobalTreeInstance.MemCopy");
+    private static readonly ProfilerMarker ProfilerMarker = new ProfilerMarker("GlobalStaticObjectInstance.Render");
+    private static readonly ProfilerMarker CollectMarker = new ProfilerMarker("GlobalStaticObjectInstance.Collect");
+    private static readonly ProfilerMarker DrawMarker = new ProfilerMarker("GlobalStaticObjectInstance.Draw");
+    private static readonly ProfilerMarker ConvertMarker = new ProfilerMarker("GlobalStaticObjectInstance.Convert");
+    private static readonly ProfilerMarker SpatialCullMarker = new ProfilerMarker("GlobalStaticObjectInstance.SpatialCull");
+    private static readonly ProfilerMarker DirtyCheckMarker = new ProfilerMarker("GlobalStaticObjectInstance.DirtyCheck");
+    private static readonly ProfilerMarker MemoryCopyMarker = new ProfilerMarker("GlobalStaticObjectInstance.MemCopy");
     
     // Profiler counters for detailed metrics
     private static readonly Unity.Profiling.ProfilerCounter<int> DirtyBatchCount = 
@@ -636,21 +636,21 @@ public partial class GlobalTreeInstanceSystem : SystemBase
     private static readonly Unity.Profiling.ProfilerCounter<int> TreesCulledSpatial = 
         new Unity.Profiling.ProfilerCounter<int>(Unity.Profiling.ProfilerCategory.Render, "Trees Culled (Spatial)", Unity.Profiling.ProfilerMarkerDataUnit.Count);
     
-    private int _lastTreeCount;
+    private int _lastobjectCount;
     private int _lastBatchCount;
 #endif
 
     protected override void OnCreate()
     {
         // Require the tree spawner config (same entity has rendering data)
-        RequireForUpdate<TreeSpawnerConfig>();
-        RequireForUpdate<TreeLODConfig>(); // Need config for maxUniqueBatches
+        RequireForUpdate<StaticObjectSpawnerConfig>();
+        RequireForUpdate<StaticObjectLODConfig>(); // Need config for maxUniqueBatches
         
         // Create entity query for tree counting
         _treeQuery = GetEntityQuery(
-            ComponentType.ReadOnly<GlobalTreeInstance>(),
+            ComponentType.ReadOnly<GlobalStaticObjectInstance>(),
             ComponentType.ReadOnly<LocalTransform>(),
-            ComponentType.ReadOnly<GlobalTreeInstanceData>()
+            ComponentType.ReadOnly<GlobalStaticObjectInstanceData>()
         );
         
         // Cache main camera for frustum culling
@@ -658,7 +658,7 @@ public partial class GlobalTreeInstanceSystem : SystemBase
         
         // Get LOD config for initialization parameters (use default if not available yet)
         int maxBatches = 32; // Default value
-        if (SystemAPI.TryGetSingleton<TreeLODConfig>(out var lodConfig))
+        if (SystemAPI.TryGetSingleton<StaticObjectLODConfig>(out var lodConfig))
         {
             maxBatches = lodConfig.maxUniqueBatches > 0 ? lodConfig.maxUniqueBatches : 32;
         }
@@ -702,10 +702,10 @@ public partial class GlobalTreeInstanceSystem : SystemBase
     protected override void OnStartRunning()
     {
         // ✅ Cache rendering data once to avoid GC allocations every frame
-        var configEntity = SystemAPI.GetSingletonEntity<TreeSpawnerConfig>();
-        if (EntityManager.HasComponent<GlobalTreeRenderingData>(configEntity))
+        var configEntity = SystemAPI.GetSingletonEntity<StaticObjectSpawnerConfig>();
+        if (EntityManager.HasComponent<GlobalStaticObjectRenderingData>(configEntity))
         {
-            _cachedRenderingData = EntityManager.GetComponentData<GlobalTreeRenderingData>(configEntity);
+            _cachedRenderingData = EntityManager.GetComponentData<GlobalStaticObjectRenderingData>(configEntity);
         }
     }
     

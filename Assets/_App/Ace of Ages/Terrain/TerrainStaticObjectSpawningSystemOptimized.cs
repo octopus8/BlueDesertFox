@@ -42,8 +42,8 @@ public partial struct TerrainTreeSpawningSystemOptimized : ISystem
     [BurstCompile]
     public void OnCreate(ref SystemState state)
     {
-        state.RequireForUpdate<TreeSpawnerConfig>();
-        state.RequireForUpdate<TreePrefabElement>();
+        state.RequireForUpdate<StaticObjectSpawnerConfig>();
+        state.RequireForUpdate<StaticObjectPrefabElement>();
         state.RequireForUpdate<CameraDataSingleton>();
         state.RequireForUpdate<TerrainTileConfig>();
         state.RequireForUpdate<BeginSimulationEntityCommandBufferSystem.Singleton>();
@@ -73,20 +73,20 @@ public partial struct TerrainTreeSpawningSystemOptimized : ISystem
     [BurstCompile]
     public void OnUpdate(ref SystemState state)
     {
-        var config = SystemAPI.GetSingleton<TreeSpawnerConfig>();
+        var config = SystemAPI.GetSingleton<StaticObjectSpawnerConfig>();
         
-        if (config.maxTreesPerTile <= 0)
+        if (config.maxObjectsPerTile <= 0)
         {
 #if UNITY_EDITOR
-//            UnityEngine.Debug.LogWarning("[TreeSpawnerOptimized] maxTreesPerTile <= 0, trees disabled");
+//            UnityEngine.Debug.LogWarning("[TreeSpawnerOptimized] maxObjectsPerTile <= 0, trees disabled");
 #endif
             return;
         }
         
-        var configEntity = SystemAPI.GetSingletonEntity<TreeSpawnerConfig>();
-        var treePrefabsBuffer = state.EntityManager.GetBuffer<TreePrefabElement>(configEntity, true);
+        var configEntity = SystemAPI.GetSingletonEntity<StaticObjectSpawnerConfig>();
+        var objectPrefabsBuffer = state.EntityManager.GetBuffer<StaticObjectPrefabElement>(configEntity, true);
         
-        if (treePrefabsBuffer.Length == 0)
+        if (objectPrefabsBuffer.Length == 0)
         {
 #if UNITY_EDITOR
             UnityEngine.Debug.LogWarning("[TreeSpawnerOptimized] No tree prefabs configured!");
@@ -95,13 +95,13 @@ public partial struct TerrainTreeSpawningSystemOptimized : ISystem
         }
         
         // Calculate number of tree types (3 LODs per type)
-        var treePrefabCount = treePrefabsBuffer.Length;
-        var treeTypeCount = treePrefabCount / 3; // 3 LODs per tree type
+        var objectPrefabCount = objectPrefabsBuffer.Length;
+        var treeTypeCount = objectPrefabCount / 3; // 3 LODs per tree type
         
         if (treeTypeCount == 0)
         {
 #if UNITY_EDITOR
-            UnityEngine.Debug.LogWarning($"[TreeSpawnerOptimized] Not enough prefabs for LOD system. Need at least 3, have {treePrefabCount}");
+            UnityEngine.Debug.LogWarning($"[TreeSpawnerOptimized] Not enough prefabs for LOD system. Need at least 3, have {objectPrefabCount}");
 #endif
             return;
         }
@@ -110,18 +110,18 @@ public partial struct TerrainTreeSpawningSystemOptimized : ISystem
         var cameraData = SystemAPI.GetSingleton<CameraDataSingleton>();
         
         // Get LOD config if available
-        TreeLODConfig lodConfig = default;
-        bool hasLODConfig = SystemAPI.HasSingleton<TreeLODConfig>();
+        StaticObjectLODConfig lodConfig = default;
+        bool hasLODConfig = SystemAPI.HasSingleton<StaticObjectLODConfig>();
         if (hasLODConfig)
         {
-            lodConfig = SystemAPI.GetSingleton<TreeLODConfig>();
+            lodConfig = SystemAPI.GetSingleton<StaticObjectLODConfig>();
         }
         
-        // Check for tiles that need tree spawning and ensure they have TreeSpawnPosition buffer
+        // Check for tiles that need tree spawning and ensure they have StaticObjectSpawnPosition buffer
         // Use WithAll to only process tiles that already have the buffer (added by previous frame's ECB)
         foreach (var (tile, entity) in SystemAPI.Query<RefRO<TerrainTile>>()
-            .WithAll<MeshReference, TreeSpawnPosition>()
-            .WithNone<TreesSpawned>()
+            .WithAll<MeshReference, StaticObjectSpawnPosition>()
+            .WithNone<StaticObjectsSpawned>()
             .WithEntityAccess())
         {
             if (tile.ValueRO.meshGenerated && _queuedEntities.Add(entity))
@@ -130,7 +130,7 @@ public partial struct TerrainTreeSpawningSystemOptimized : ISystem
             }
         }
         
-        // For tiles that don't have TreeSpawnPosition buffer yet, add via ECB
+        // For tiles that don't have StaticObjectSpawnPosition buffer yet, add via ECB
         // This will be processed at end of frame, so trees spawn next frame
         var ecbSystem = SystemAPI.GetSingleton<BeginSimulationEntityCommandBufferSystem.Singleton>();
         var ecbForBuffers = ecbSystem.CreateCommandBuffer(state.WorldUnmanaged);
@@ -138,12 +138,12 @@ public partial struct TerrainTreeSpawningSystemOptimized : ISystem
         int tilesNeedingBuffer = 0;
         foreach (var (tile, entity) in SystemAPI.Query<RefRO<TerrainTile>>()
             .WithAll<MeshReference>()
-            .WithNone<TreesSpawned, TreeSpawnPosition>()
+            .WithNone<StaticObjectsSpawned, StaticObjectSpawnPosition>()
             .WithEntityAccess())
         {
             if (tile.ValueRO.meshGenerated)
             {
-                ecbForBuffers.AddBuffer<TreeSpawnPosition>(entity);
+                ecbForBuffers.AddBuffer<StaticObjectSpawnPosition>(entity);
                 tilesNeedingBuffer++;
             }
         }
@@ -152,7 +152,7 @@ public partial struct TerrainTreeSpawningSystemOptimized : ISystem
         {
             if (tilesNeedingBuffer > 0)
             {
-                UnityEngine.Debug.Log($"[TreeSpawnerOptimized] Adding TreeSpawnPosition buffer to {tilesNeedingBuffer} tiles (will spawn next frame)");
+                UnityEngine.Debug.Log($"[TreeSpawnerOptimized] Adding StaticObjectSpawnPosition buffer to {tilesNeedingBuffer} tiles (will spawn next frame)");
             }
             if (_pendingTiles.Count > 0)
             {
@@ -172,10 +172,10 @@ public partial struct TerrainTreeSpawningSystemOptimized : ISystem
         var terrainConfig = SystemAPI.GetSingleton<TerrainTileConfig>();
         
         // Copy tree prefabs to native array for job access
-        var treePrefabs = new NativeArray<Entity>(treePrefabCount, Allocator.TempJob);
-        for (int i = 0; i < treePrefabCount; i++)
+        var objectPrefabs = new NativeArray<Entity>(objectPrefabCount, Allocator.TempJob);
+        for (int i = 0; i < objectPrefabCount; i++)
         {
-            treePrefabs[i] = treePrefabsBuffer[i].prefabEntity;
+            objectPrefabs[i] = objectPrefabsBuffer[i].prefabEntity;
         }
         
 #if UNITY_EDITOR
@@ -183,7 +183,7 @@ public partial struct TerrainTreeSpawningSystemOptimized : ISystem
 #endif
         {
             // Schedule parallel job to calculate tree spawn positions
-            var positionJob = new CalculateTreeSpawnPositionsJob
+            var positionJob = new CalculateStaticObjectSpawnPositionsJob
             {
                 config = config,
                 lodConfig = lodConfig,
@@ -202,7 +202,7 @@ public partial struct TerrainTreeSpawningSystemOptimized : ISystem
         
         // Count trees to spawn this frame (frame budgeting)
         int tilesProcessed = 0;
-        int maxTilesThisFrame = math.max(1, config.maxTreesSpawnedPerFrame / math.max(1, config.maxTreesPerTile));
+        int maxTilesThisFrame = math.max(1, config.maxObjectsSpawnedPerFrame / math.max(1, config.maxObjectsPerTile));
         
         // Collect tiles to process this frame (respecting frame budget)
         var tilesToProcess = new NativeList<Entity>(maxTilesThisFrame, Allocator.TempJob);
@@ -215,7 +215,7 @@ public partial struct TerrainTreeSpawningSystemOptimized : ISystem
             if (!state.EntityManager.Exists(tileEntity))
                 continue;
             
-            if (state.EntityManager.HasComponent<TreesSpawned>(tileEntity))
+            if (state.EntityManager.HasComponent<StaticObjectsSpawned>(tileEntity))
                 continue;
             
             tilesToProcess.Add(tileEntity);
@@ -235,7 +235,7 @@ public partial struct TerrainTreeSpawningSystemOptimized : ISystem
             var instantiateJob = new InstantiateTreesJob
             {
                 ecb = ecb.AsParallelWriter(),
-                treePrefabs = treePrefabs,
+                objectPrefabs = objectPrefabs,
                 treeTypeCount = treeTypeCount,
                 tilesToProcess = tilesToProcess.AsArray()
             };
@@ -244,7 +244,7 @@ public partial struct TerrainTreeSpawningSystemOptimized : ISystem
         }
         
         // Jobs will dispose these in their OnDestroy
-        treePrefabs.Dispose(state.Dependency);
+        objectPrefabs.Dispose(state.Dependency);
         tilesToProcess.Dispose(state.Dependency);
     }
 }
@@ -252,15 +252,15 @@ public partial struct TerrainTreeSpawningSystemOptimized : ISystem
 /// <summary>
 /// Burst-compiled parallel job that calculates tree spawn positions on tiles.
 /// Performs bilinear interpolation, height/slope filtering, and LOD calculation.
-/// Writes results to TreeSpawnPosition buffer for deferred instantiation.
+/// Writes results to StaticObjectSpawnPosition buffer for deferred instantiation.
 /// </summary>
 [BurstCompile]
 [WithAll(typeof(MeshReference))]
-[WithNone(typeof(TreesSpawned))]
-partial struct CalculateTreeSpawnPositionsJob : IJobEntity
+[WithNone(typeof(StaticObjectsSpawned))]
+partial struct CalculateStaticObjectSpawnPositionsJob : IJobEntity
 {
-    [ReadOnly] public TreeSpawnerConfig config;
-    [ReadOnly] public TreeLODConfig lodConfig;
+    [ReadOnly] public StaticObjectSpawnerConfig config;
+    [ReadOnly] public StaticObjectLODConfig lodConfig;
     [ReadOnly] public bool hasLODConfig;
     [ReadOnly] public TerrainTileConfig terrainConfig;
     [ReadOnly] public float3 cameraPosition;
@@ -271,7 +271,7 @@ partial struct CalculateTreeSpawnPositionsJob : IJobEntity
         in LocalTransform tileTransform,
         in DynamicBuffer<VertexElement> vertices,
         in DynamicBuffer<NormalElement> normals,
-        ref DynamicBuffer<TreeSpawnPosition> spawnPositions)
+        ref DynamicBuffer<StaticObjectSpawnPosition> spawnPositions)
     {
         if (vertices.Length == 0 || normals.Length == 0)
         {
@@ -284,17 +284,17 @@ partial struct CalculateTreeSpawnPositionsJob : IJobEntity
         // Deterministic random based on grid coordinate
         var random = new Random((uint)(tile.gridCoordinate.GetHashCode() + 12345));
         
-        int treeCount = random.NextInt(config.minTreesPerTile, config.maxTreesPerTile + 1);
+        int objectCount = random.NextInt(config.minObjectsPerTile, config.maxObjectsPerTile + 1);
         
-        int actualTreesSpawned = 0;
-        int maxAttempts = treeCount * 3;
+        int actualStaticObjectsSpawned = 0;
+        int maxAttempts = objectCount * 3;
         int attempts = 0;
         
         int vPerSide = terrainConfig.verticesPerSide;
         float tileSize = terrainConfig.tileSize;
         float halfTileSize = tileSize * 0.5f;
         
-        while (actualTreesSpawned < treeCount && attempts < maxAttempts)
+        while (actualStaticObjectsSpawned < objectCount && attempts < maxAttempts)
         {
             attempts++;
             
@@ -355,7 +355,7 @@ partial struct CalculateTreeSpawnPositionsJob : IJobEntity
                 continue;
             
             // Select random tree type
-            int treeTypeIndex = random.NextInt(0, treeTypeCount);
+            int objectTypeIndex = random.NextInt(0, treeTypeCount);
             
             // Calculate random Y-axis rotation
             quaternion rotation = quaternion.RotateY(random.NextFloat(0f, math.PI * 2f));
@@ -367,9 +367,9 @@ partial struct CalculateTreeSpawnPositionsJob : IJobEntity
             if (hasLODConfig)
             {
                 // Calculate 2D distance from tree to camera
-                float2 treePos2D = new float2(worldPosition.x, worldPosition.z);
+                float2 objectPos2D = new float2(worldPosition.x, worldPosition.z);
                 float2 cameraPos2D = new float2(cameraPosition.x, cameraPosition.z);
-                initialDistance = math.distance(treePos2D, cameraPos2D);
+                initialDistance = math.distance(objectPos2D, cameraPos2D);
                 
                 // Determine initial LOD level based on distance
                 if (initialDistance >= lodConfig.lod1Distance)
@@ -381,43 +381,43 @@ partial struct CalculateTreeSpawnPositionsJob : IJobEntity
             }
             
             // Calculate mesh index based on tree type and initial LOD
-            int initialMeshIndex = (treeTypeIndex * 3) + initialLODLevel;
+            int initialMeshIndex = (objectTypeIndex * 3) + initialLODLevel;
             
             // Add spawn position to buffer
-            spawnPositions.Add(new TreeSpawnPosition
+            spawnPositions.Add(new StaticObjectSpawnPosition
             {
                 localPosition = localPosition,
                 worldPosition = worldPosition,
                 rotation = rotation,
-                treeTypeIndex = treeTypeIndex,
+                objectTypeIndex = objectTypeIndex,
                 initialLODLevel = initialLODLevel,
                 initialDistance = initialDistance,
                 initialMeshIndex = initialMeshIndex
             });
             
-            actualTreesSpawned++;
+            actualStaticObjectsSpawned++;
         }
     }
 }
 
 /// <summary>
 /// Burst-compiled parallel job that instantiates tree entities using EntityCommandBuffer.
-/// Reads TreeSpawnPosition buffer and creates entities with all required components.
-/// Clears TreeSpawnPosition buffer after processing to prevent memory accumulation.
+/// Reads StaticObjectSpawnPosition buffer and creates entities with all required components.
+/// Clears StaticObjectSpawnPosition buffer after processing to prevent memory accumulation.
 /// </summary>
 [BurstCompile]
 partial struct InstantiateTreesJob : IJobEntity
 {
     public EntityCommandBuffer.ParallelWriter ecb;
     
-    [ReadOnly] public NativeArray<Entity> treePrefabs;
+    [ReadOnly] public NativeArray<Entity> objectPrefabs;
     [ReadOnly] public int treeTypeCount;
     [ReadOnly] public NativeArray<Entity> tilesToProcess;
     
     private void Execute(
         [ChunkIndexInQuery] int chunkIndex,
         Entity tileEntity,
-        in DynamicBuffer<TreeSpawnPosition> spawnPositions)
+        in DynamicBuffer<StaticObjectSpawnPosition> spawnPositions)
     {
         // Only process tiles in our frame budget list
         bool shouldProcess = false;
@@ -435,8 +435,8 @@ partial struct InstantiateTreesJob : IJobEntity
             return;
         }
         
-        // Ensure tile has SpawnedTreeReference buffer
-        var spawnedTreesBuffer = ecb.AddBuffer<SpawnedTreeReference>(chunkIndex, tileEntity);
+        // Ensure tile has SpawnedStaticObjectReference buffer
+        var spawnedTreesBuffer = ecb.AddBuffer<SpawnedStaticObjectReference>(chunkIndex, tileEntity);
         
         // Instantiate each tree
         for (int i = 0; i < spawnPositions.Length; i++)
@@ -444,18 +444,18 @@ partial struct InstantiateTreesJob : IJobEntity
             var spawnData = spawnPositions[i];
             
             // Always spawn with LOD0 prefab (highest detail)
-            int prefabIndexLOD0 = spawnData.treeTypeIndex * 3 + 0;
-            Entity treePrefab = treePrefabs[prefabIndexLOD0];
+            int prefabIndexLOD0 = spawnData.objectTypeIndex * 3 + 0;
+            Entity objectPrefab = objectPrefabs[prefabIndexLOD0];
             
             // Instantiate tree entity
-            Entity treeEntity = ecb.Instantiate(chunkIndex, treePrefab);
+            Entity objectEntity = ecb.Instantiate(chunkIndex, objectPrefab);
             
             // Remove Unity Rendering components (we use custom global instancing)
-            ecb.RemoveComponent<Unity.Rendering.MaterialMeshInfo>(chunkIndex, treeEntity);
-            ecb.RemoveComponent<Unity.Rendering.RenderBounds>(chunkIndex, treeEntity);
+            ecb.RemoveComponent<Unity.Rendering.MaterialMeshInfo>(chunkIndex, objectEntity);
+            ecb.RemoveComponent<Unity.Rendering.RenderBounds>(chunkIndex, objectEntity);
             
             // Set transform
-            ecb.SetComponent(chunkIndex, treeEntity, new LocalTransform
+            ecb.SetComponent(chunkIndex, objectEntity, new LocalTransform
             {
                 Position = spawnData.worldPosition,
                 Rotation = spawnData.rotation,
@@ -463,36 +463,36 @@ partial struct InstantiateTreesJob : IJobEntity
             });
             
             // Add tree-specific components
-            ecb.AddComponent(chunkIndex, treeEntity, new TreeTileOwnership
+            ecb.AddComponent(chunkIndex, objectEntity, new StaticObjectTileOwnership
             {
                 tileEntity = tileEntity,
                 localOffset = spawnData.localPosition
             });
             
-            ecb.AddComponent<GlobalTreeInstance>(chunkIndex, treeEntity);
+            ecb.AddComponent<GlobalStaticObjectInstance>(chunkIndex, objectEntity);
             
-            ecb.AddComponent(chunkIndex, treeEntity, new GlobalTreeInstanceData
+            ecb.AddComponent(chunkIndex, objectEntity, new GlobalStaticObjectInstanceData
             {
                 meshIndex = spawnData.initialMeshIndex,
                 materialIndex = spawnData.initialMeshIndex,
                 prefabIndex = prefabIndexLOD0,
-                treeTypeIndex = spawnData.treeTypeIndex,
+                objectTypeIndex = spawnData.objectTypeIndex,
                 currentLODLevel = spawnData.initialLODLevel,
                 lastDistanceToPlayer = spawnData.initialDistance
             });
             
             // Add to tile's spawned tree tracking
-            spawnedTreesBuffer.Add(new SpawnedTreeReference
+            spawnedTreesBuffer.Add(new SpawnedStaticObjectReference
             {
-                treeEntity = treeEntity
+                objectEntity = objectEntity
             });
         }
         
         // Mark tile as having trees spawned
-        ecb.AddComponent<TreesSpawned>(chunkIndex, tileEntity);
+        ecb.AddComponent<StaticObjectsSpawned>(chunkIndex, tileEntity);
         
         // Clear spawn positions buffer (immediate cleanup to prevent memory accumulation)
-        var clearBuffer = ecb.SetBuffer<TreeSpawnPosition>(chunkIndex, tileEntity);
+        var clearBuffer = ecb.SetBuffer<StaticObjectSpawnPosition>(chunkIndex, tileEntity);
         clearBuffer.Clear();
     }
 }

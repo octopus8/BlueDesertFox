@@ -18,15 +18,15 @@ public partial class TerrainTreeSpawningSystem : SystemBase
 {
     private NativeQueue<Entity> _pendingTiles;
     private NativeHashSet<Entity> _queuedEntities;
-    private int _treesSpawnedThisFrame;
+    private int _StaticObjectsSpawnedThisFrame;
     
     // Cached managed data to avoid GC allocations from repeated GetComponentData() calls
-    private TreePrefabMeshMaterialData _cachedMeshMaterialData;
+    private StaticObjectPrefabMeshMaterialData _cachedMeshMaterialData;
 
     protected override void OnCreate()
     {
-        RequireForUpdate<TreeSpawnerConfig>();
-        RequireForUpdate<TreePrefabElement>();
+        RequireForUpdate<StaticObjectSpawnerConfig>();
+        RequireForUpdate<StaticObjectPrefabElement>();
         
         _pendingTiles = new NativeQueue<Entity>(Allocator.Persistent);
         _queuedEntities = new NativeHashSet<Entity>(64, Allocator.Persistent);
@@ -43,16 +43,16 @@ public partial class TerrainTreeSpawningSystem : SystemBase
     protected override void OnStartRunning()
     {
         // Cache the managed component data once to avoid GC allocations from repeated GetComponentData() calls
-        var configEntity = SystemAPI.GetSingletonEntity<TreeSpawnerConfig>();
-        if (EntityManager.HasComponent<TreePrefabMeshMaterialData>(configEntity))
+        var configEntity = SystemAPI.GetSingletonEntity<StaticObjectSpawnerConfig>();
+        if (EntityManager.HasComponent<StaticObjectPrefabMeshMaterialData>(configEntity))
         {
-            _cachedMeshMaterialData = EntityManager.GetComponentData<TreePrefabMeshMaterialData>(configEntity);
+            _cachedMeshMaterialData = EntityManager.GetComponentData<StaticObjectPrefabMeshMaterialData>(configEntity);
         }
     }
 
     protected override void OnUpdate()
     {
-        var config = SystemAPI.GetSingleton<TreeSpawnerConfig>();
+        var config = SystemAPI.GetSingleton<StaticObjectSpawnerConfig>();
 /*        
         // Early exit if rendering is disabled - no need to spawn trees
         var terrainConfig = SystemAPI.GetSingleton<TerrainTileConfig>();
@@ -61,15 +61,15 @@ public partial class TerrainTreeSpawningSystem : SystemBase
             return;
         }
 */        
-        if (config.maxTreesPerTile <= 0)
+        if (config.maxObjectsPerTile <= 0)
         {
             return;
         }
         
-        var configEntity = SystemAPI.GetSingletonEntity<TreeSpawnerConfig>();
-        var treePrefabsBuffer = EntityManager.GetBuffer<TreePrefabElement>(configEntity);
+        var configEntity = SystemAPI.GetSingletonEntity<StaticObjectSpawnerConfig>();
+        var objectPrefabsBuffer = EntityManager.GetBuffer<StaticObjectPrefabElement>(configEntity);
         
-        if (treePrefabsBuffer.Length == 0)
+        if (objectPrefabsBuffer.Length == 0)
         {
             return;
         }
@@ -81,30 +81,30 @@ public partial class TerrainTreeSpawningSystem : SystemBase
         }
         
         // Calculate number of tree types (3 LODs per type)
-        var treePrefabCount = treePrefabsBuffer.Length;
-        var treeTypeCount = treePrefabCount / 3; // 3 LODs per tree type
+        var objectPrefabCount = objectPrefabsBuffer.Length;
+        var treeTypeCount = objectPrefabCount / 3; // 3 LODs per tree type
         
         if (treeTypeCount == 0)
         {
             return;
         }
         
-        var treePrefabs = new NativeArray<Entity>(treePrefabCount, Allocator.Temp);
+        var objectPrefabs = new NativeArray<Entity>(objectPrefabCount, Allocator.Temp);
         
-        var treeMeshes = _cachedMeshMaterialData.meshes;
-        var treeMaterials = _cachedMeshMaterialData.materials;
+        var objectMeshes = _cachedMeshMaterialData.meshes;
+        var objectMaterials = _cachedMeshMaterialData.materials;
         
-        for (int i = 0; i < treePrefabCount; i++)
+        for (int i = 0; i < objectPrefabCount; i++)
         {
-            treePrefabs[i] = treePrefabsBuffer[i].prefabEntity;
+            objectPrefabs[i] = objectPrefabsBuffer[i].prefabEntity;
         }
         
         // Get LOD config if available
-        TreeLODConfig lodConfig = default;
-        bool hasLODConfig = SystemAPI.HasSingleton<TreeLODConfig>();
+        StaticObjectLODConfig lodConfig = default;
+        bool hasLODConfig = SystemAPI.HasSingleton<StaticObjectLODConfig>();
         if (hasLODConfig)
         {
-            lodConfig = SystemAPI.GetSingleton<TreeLODConfig>();
+            lodConfig = SystemAPI.GetSingleton<StaticObjectLODConfig>();
         }
         
         // Get player position for initial LOD calculation
@@ -119,7 +119,7 @@ public partial class TerrainTreeSpawningSystem : SystemBase
         
         foreach (var (tile, entity) in SystemAPI.Query<RefRO<TerrainTile>>()
             .WithAll<MeshReference>()
-            .WithNone<TreesSpawned>()
+            .WithNone<StaticObjectsSpawned>()
             .WithEntityAccess())
         {
             if (tile.ValueRO.meshGenerated)
@@ -131,9 +131,9 @@ public partial class TerrainTreeSpawningSystem : SystemBase
             }
         }
 
-        _treesSpawnedThisFrame = 0;
+        _StaticObjectsSpawnedThisFrame = 0;
         
-        while (_pendingTiles.Count > 0 && _treesSpawnedThisFrame < config.maxTreesSpawnedPerFrame)
+        while (_pendingTiles.Count > 0 && _StaticObjectsSpawnedThisFrame < config.maxObjectsSpawnedPerFrame)
         {
             Entity tileEntity = _pendingTiles.Dequeue();
             
@@ -142,26 +142,26 @@ public partial class TerrainTreeSpawningSystem : SystemBase
             if (!EntityManager.Exists(tileEntity))
                 continue;
             
-            if (EntityManager.HasComponent<TreesSpawned>(tileEntity))
+            if (EntityManager.HasComponent<StaticObjectsSpawned>(tileEntity))
             {
                 continue;
             }
             
-            int treesSpawned = SpawnTreesOnTile(tileEntity, config, treePrefabs, treeMeshes, treeMaterials);
-            _treesSpawnedThisFrame += treesSpawned;
+            int StaticObjectsSpawned = SpawnTreesOnTile(tileEntity, config, objectPrefabs, objectMeshes, objectMaterials);
+            _StaticObjectsSpawnedThisFrame += StaticObjectsSpawned;
             
-            EntityManager.AddComponent<TreesSpawned>(tileEntity);
+            EntityManager.AddComponent<StaticObjectsSpawned>(tileEntity);
             
-            if (_treesSpawnedThisFrame >= config.maxTreesSpawnedPerFrame)
+            if (_StaticObjectsSpawnedThisFrame >= config.maxObjectsSpawnedPerFrame)
                 break;
         }
 
-        treePrefabs.Dispose();
+        objectPrefabs.Dispose();
     }
 
-    private int SpawnTreesOnTile(Entity tileEntity, TreeSpawnerConfig config, NativeArray<Entity> treePrefabs, Mesh[] treeMeshes, Material[] treeMaterials)
+    private int SpawnTreesOnTile(Entity tileEntity, StaticObjectSpawnerConfig config, NativeArray<Entity> objectPrefabs, Mesh[] objectMeshes, Material[] objectMaterials)
     {
-        var prefabCount = treePrefabs.Length;
+        var prefabCount = objectPrefabs.Length;
         if (prefabCount == 0)
             return 0;
         
@@ -175,14 +175,14 @@ public partial class TerrainTreeSpawningSystem : SystemBase
         var terrainConfig = SystemAPI.GetSingleton<TerrainTileConfig>();
         
         // Get LOD config and player position for initial LOD calculation
-        TreeLODConfig lodConfig = default;
+        StaticObjectLODConfig lodConfig = default;
         float3 playerPosition = float3.zero;
-        bool hasLODConfig = SystemAPI.HasSingleton<TreeLODConfig>();
+        bool hasLODConfig = SystemAPI.HasSingleton<StaticObjectLODConfig>();
         bool hasPlayerRef = false;
         
         if (hasLODConfig)
         {
-            lodConfig = SystemAPI.GetSingleton<TreeLODConfig>();
+            lodConfig = SystemAPI.GetSingleton<StaticObjectLODConfig>();
         }
         
         if (SystemAPI.ManagedAPI.TryGetSingleton<PlayerTransformReference>(out var playerRef) &&
@@ -192,9 +192,9 @@ public partial class TerrainTreeSpawningSystem : SystemBase
             hasPlayerRef = true;
         }
         
-        if (!EntityManager.HasBuffer<SpawnedTreeReference>(tileEntity))
+        if (!EntityManager.HasBuffer<SpawnedStaticObjectReference>(tileEntity))
         {
-            EntityManager.AddBuffer<SpawnedTreeReference>(tileEntity);
+            EntityManager.AddBuffer<SpawnedStaticObjectReference>(tileEntity);
         }
         
         var vertices = EntityManager.GetBuffer<VertexElement>(tileEntity);
@@ -217,19 +217,19 @@ public partial class TerrainTreeSpawningSystem : SystemBase
         
         var random = new Unity.Mathematics.Random((uint)(tile.gridCoordinate.GetHashCode() + 12345));
         
-        int treeCount = random.NextInt(config.minTreesPerTile, config.maxTreesPerTile + 1);
+        int objectCount = random.NextInt(config.minObjectsPerTile, config.maxObjectsPerTile + 1);
         
-        var tempSpawnedTrees = new NativeList<Entity>(treeCount, Allocator.Temp);
+        var tempSpawnedTrees = new NativeList<Entity>(objectCount, Allocator.Temp);
         
-        int actualTreesSpawned = 0;
-        int maxAttempts = treeCount * 3;
+        int actualStaticObjectsSpawned = 0;
+        int maxAttempts = objectCount * 3;
         int attempts = 0;
         
         int vPerSide = terrainConfig.verticesPerSide;
         float tileSize = terrainConfig.tileSize;
         float halfTileSize = tileSize * 0.5f;
         
-        while (actualTreesSpawned < treeCount && attempts < maxAttempts)
+        while (actualStaticObjectsSpawned < objectCount && attempts < maxAttempts)
         {
             attempts++;
             
@@ -283,26 +283,26 @@ public partial class TerrainTreeSpawningSystem : SystemBase
                 continue;
             
             // Select tree type (not individual LOD prefab)
-            int treeTypeIndex = random.NextInt(0, treeTypeCount);
+            int objectTypeIndex = random.NextInt(0, treeTypeCount);
             
             // Always spawn with LOD0 prefab (highest detail)
-            int prefabIndexLOD0 = treeTypeIndex * 3 + 0;
-            Entity treePrefab = treePrefabs[prefabIndexLOD0];
+            int prefabIndexLOD0 = objectTypeIndex * 3 + 0;
+            Entity objectPrefab = objectPrefabs[prefabIndexLOD0];
             
-            Entity treeEntity = EntityManager.Instantiate(treePrefab);
+            Entity objectEntity = EntityManager.Instantiate(objectPrefab);
             
-            if (EntityManager.HasComponent<Unity.Rendering.MaterialMeshInfo>(treeEntity))
+            if (EntityManager.HasComponent<Unity.Rendering.MaterialMeshInfo>(objectEntity))
             {
-                EntityManager.RemoveComponent<Unity.Rendering.MaterialMeshInfo>(treeEntity);
+                EntityManager.RemoveComponent<Unity.Rendering.MaterialMeshInfo>(objectEntity);
             }
-            if (EntityManager.HasComponent<Unity.Rendering.RenderBounds>(treeEntity))
+            if (EntityManager.HasComponent<Unity.Rendering.RenderBounds>(objectEntity))
             {
-                EntityManager.RemoveComponent<Unity.Rendering.RenderBounds>(treeEntity);
+                EntityManager.RemoveComponent<Unity.Rendering.RenderBounds>(objectEntity);
             }
             
-            if (EntityManager.HasBuffer<LinkedEntityGroup>(treeEntity))
+            if (EntityManager.HasBuffer<LinkedEntityGroup>(objectEntity))
             {
-                var linkedGroup = EntityManager.GetBuffer<LinkedEntityGroup>(treeEntity);
+                var linkedGroup = EntityManager.GetBuffer<LinkedEntityGroup>(objectEntity);
                 foreach (var linkedEntity in linkedGroup)
                 {
                     if (EntityManager.HasComponent<Unity.Rendering.MaterialMeshInfo>(linkedEntity.Value))
@@ -318,20 +318,20 @@ public partial class TerrainTreeSpawningSystem : SystemBase
             
             quaternion rotation = quaternion.RotateY(random.NextFloat(0f, math.PI * 2f));
             
-            EntityManager.SetComponentData(treeEntity, new LocalTransform
+            EntityManager.SetComponentData(objectEntity, new LocalTransform
             {
                 Position = tileTransform.Position + localPosition,
                 Rotation = rotation,
                 Scale = 1f
             });
             
-            EntityManager.AddComponentData(treeEntity, new TreeTileOwnership
+            EntityManager.AddComponentData(objectEntity, new StaticObjectTileOwnership
             {
                 tileEntity = tileEntity,
                 localOffset = localPosition
             });
             
-            EntityManager.AddComponent<GlobalTreeInstance>(treeEntity);
+            EntityManager.AddComponent<GlobalStaticObjectInstance>(objectEntity);
             
             // Calculate initial LOD based on distance to player
             byte initialLODLevel = 0; // Default to highest detail
@@ -340,9 +340,9 @@ public partial class TerrainTreeSpawningSystem : SystemBase
             if (hasPlayerRef && hasLODConfig)
             {
                 // Calculate 2D distance from tree to player
-                float2 treePos2D = new float2(worldPosition.x, worldPosition.z);
+                float2 objectPos2D = new float2(worldPosition.x, worldPosition.z);
                 float2 playerPos2D = new float2(playerPosition.x, playerPosition.z);
-                initialDistance = math.distance(treePos2D, playerPos2D);
+                initialDistance = math.distance(objectPos2D, playerPos2D);
                 
                 // Determine initial LOD level based on distance
                 if (initialDistance >= lodConfig.lod1Distance)
@@ -354,32 +354,32 @@ public partial class TerrainTreeSpawningSystem : SystemBase
             }
             
             // Calculate mesh index based on tree type and initial LOD
-            int initialMeshIndex = (treeTypeIndex * 3) + initialLODLevel;
+            int initialMeshIndex = (objectTypeIndex * 3) + initialLODLevel;
             
             // Use index-based approach for optimized rendering
-            EntityManager.AddComponentData(treeEntity, new GlobalTreeInstanceData
+            EntityManager.AddComponentData(objectEntity, new GlobalStaticObjectInstanceData
             {
                 meshIndex = initialMeshIndex,
                 materialIndex = initialMeshIndex,
                 prefabIndex = prefabIndexLOD0, // Store LOD0 prefab index for reference
-                treeTypeIndex = treeTypeIndex,
+                objectTypeIndex = objectTypeIndex,
                 currentLODLevel = initialLODLevel,
                 lastDistanceToPlayer = initialDistance
             });
             
-            tempSpawnedTrees.Add(treeEntity);
+            tempSpawnedTrees.Add(objectEntity);
             
-            actualTreesSpawned++;
+            actualStaticObjectsSpawned++;
         }
         
         if (tempSpawnedTrees.Length > 0)
         {
-            var spawnedTreesBuffer = EntityManager.GetBuffer<SpawnedTreeReference>(tileEntity);
-            foreach (var treeEntity in tempSpawnedTrees)
+            var spawnedTreesBuffer = EntityManager.GetBuffer<SpawnedStaticObjectReference>(tileEntity);
+            foreach (var objectEntity in tempSpawnedTrees)
             {
-                spawnedTreesBuffer.Add(new SpawnedTreeReference
+                spawnedTreesBuffer.Add(new SpawnedStaticObjectReference
                 {
-                    treeEntity = treeEntity
+                    objectEntity = objectEntity
                 });
             }
         }
@@ -389,13 +389,13 @@ public partial class TerrainTreeSpawningSystem : SystemBase
         tempSpawnedTrees.Dispose();
         
         // Log tree spawning results if debug logging is enabled
-        if (hasLODConfig && lodConfig.enableTreeLODDebug)
+        if (hasLODConfig && lodConfig.enableObjectLODDebug)
         {
-            int failedAttempts = attempts - actualTreesSpawned;
-            UnityEngine.Debug.Log($"[TreeSpawner] Tile {tile.gridCoordinate}: Spawned {actualTreesSpawned}/{treeCount} trees ({failedAttempts} filtered by height/slope)");
+            int failedAttempts = attempts - actualStaticObjectsSpawned;
+            UnityEngine.Debug.Log($"[TreeSpawner] Tile {tile.gridCoordinate}: Spawned {actualStaticObjectsSpawned}/{objectCount} trees ({failedAttempts} filtered by height/slope)");
         }
         
-        return actualTreesSpawned;
+        return actualStaticObjectsSpawned;
     }
 }
 

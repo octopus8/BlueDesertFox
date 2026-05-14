@@ -261,3 +261,4 @@ Located in `Assets/_App/Ace of Ages/Terrain/`:
 - **Formation Movement**: `FormationMovementSystem` integrates with terrain scroll velocity - entities compensate for scrolling during approach/exit phases to maintain correct world positions
 - **Movement Phase Transitions**: Threshold-based state machine - entities automatically progress through phases based on distance checks, no manual state management required
 - **EnemySpawner Positioning**: Spawn point calculated perpendicular to spline start (Z-axis direction), using player position for off-camera placement
+- **Static Object LOD Weights**: `StaticObjectLODWeights` buffer determines initial LOD spawn distribution per object type - weights normalized to sum to 1.0 during baking, used for weighted random selection at spawn time (separate from distance-based runtime LOD transitions)

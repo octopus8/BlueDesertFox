@@ -271,80 +271,80 @@ public class TerrainMaterialReference : IComponentData
 }
 
 /// <summary>
-/// Singleton component that configures tree spawning on terrain tiles.
+/// Singleton component that configures static object spawning on terrain tiles.
 /// </summary>
-public struct TreeSpawnerConfig : IComponentData
+public struct StaticObjectSpawnerConfig : IComponentData
 {
-    /// <summary>Minimum number of trees to spawn per tile.</summary>
-    public int minTreesPerTile;
+    /// <summary>Minimum number of Objects to spawn per tile.</summary>
+    public int minObjectsPerTile;
     
-    /// <summary>Maximum number of trees to spawn per tile.</summary>
-    public int maxTreesPerTile;
+    /// <summary>Maximum number of Objects to spawn per tile.</summary>
+    public int maxObjectsPerTile;
     
-    /// <summary>Minimum height (Y coordinate) for tree spawning.</summary>
+    /// <summary>Minimum height (Y coordinate) for static object spawning.</summary>
     public float minSpawnHeight;
     
-    /// <summary>Maximum height (Y coordinate) for tree spawning.</summary>
+    /// <summary>Maximum height (Y coordinate) for static object spawning.</summary>
     public float maxSpawnHeight;
     
     /// <summary>Pre-calculated slope threshold (cosine of max slope angle) for filtering steep terrain.</summary>
     public float slopeThreshold;
     
-    /// <summary>Maximum number of trees to spawn per frame (performance budgeting).</summary>
-    public int maxTreesSpawnedPerFrame;
+    /// <summary>Maximum number of Objects to spawn per frame (performance budgeting).</summary>
+    public int maxObjectsSpawnedPerFrame;
     
-    /// <summary>Enable debug logging for tree spawner system.</summary>
+    /// <summary>Enable debug logging for static object spawner system.</summary>
     public bool enableSpawnerDebug;
 }
 
 /// <summary>
-/// Buffer element that stores a reference to a tree prefab entity for random selection.
+/// Buffer element that stores a reference to a object prefab entity for random selection.
 /// </summary>
-public struct TreePrefabElement : IBufferElementData
+public struct StaticObjectPrefabElement : IBufferElementData
 {
-    /// <summary>The entity prefab to instantiate for this tree type.</summary>
+    /// <summary>The entity prefab to instantiate for this object type.</summary>
     public Entity prefabEntity;
 }
 
 /// <summary>
-/// Managed component that stores mesh and material references for all tree prefabs.
-/// Used during tree spawning to assign GlobalTreeInstanceData without runtime lookups.
+/// Managed component that stores mesh and material references for all static object prefabs.
+/// Used during static object spawning to assign GlobalTreeInstanceData without runtime lookups.
 /// Must be a class (not struct) to hold managed Unity object references.
-/// Singleton component stored on the same entity as TreeSpawnerConfig.
+/// Singleton component stored on the same entity as StaticObjectSpawnerConfig.
 /// </summary>
-public class TreePrefabMeshMaterialData : IComponentData
+public class StaticObjectPrefabMeshMaterialData : IComponentData
 {
-    /// <summary>Array of meshes, one per tree prefab (same index as TreePrefabElement buffer).</summary>
+    /// <summary>Array of meshes, one per tree prefab (same index as StaticObjectPrefabElement buffer).</summary>
     public Mesh[] meshes;
     
-    /// <summary>Array of materials, one per tree prefab (same index as TreePrefabElement buffer).</summary>
+    /// <summary>Array of materials, one per object prefab (same index as StaticObjectPrefabElement buffer).</summary>
     public Material[] materials;
 }
 
 /// <summary>
-/// Tag component indicating that trees have been spawned for this tile.
+/// Tag component indicating that static objects have been spawned for this tile.
 /// </summary>
-public struct TreesSpawned : IComponentData
+public struct StaticObjectsSpawned : IComponentData
 {
 }
 
 /// <summary>
-/// Temporary buffer element storing calculated tree spawn data for deferred instantiation.
+/// Temporary buffer element storing calculated static object spawn data for deferred instantiation.
 /// Calculated by Burst job, consumed by ECB-based instantiation job, then cleared same frame.
 /// </summary>
-public struct TreeSpawnPosition : IBufferElementData
+public struct StaticObjectSpawnPosition : IBufferElementData
 {
     /// <summary>Position relative to tile origin (tile-local space).</summary>
     public float3 localPosition;
     
-    /// <summary>World-space position for the tree.</summary>
+    /// <summary>World-space position for the object.</summary>
     public float3 worldPosition;
     
     /// <summary>Random Y-axis rotation for visual variety.</summary>
     public quaternion rotation;
     
-    /// <summary>Tree type index (0 to N-1 where N is number of tree types).</summary>
-    public int treeTypeIndex;
+    /// <summary>Object type index (0 to N-1 where N is number of object types).</summary>
+    public int objectTypeIndex;
     
     /// <summary>Initial LOD level based on distance to camera (0=LOD0, 1=LOD1, 2=LOD2).</summary>
     public byte initialLODLevel;
@@ -352,26 +352,26 @@ public struct TreeSpawnPosition : IBufferElementData
     /// <summary>Initial distance to player/camera for LOD calculation.</summary>
     public float initialDistance;
     
-    /// <summary>Initial mesh index based on tree type and LOD level.</summary>
+    /// <summary>Initial mesh index based on object type and LOD level.</summary>
     public int initialMeshIndex;
 }
 
 /// <summary>
-/// Buffer element that stores references to trees spawned on this tile for cleanup.
+/// Buffer element that stores references to static objects spawned on this tile for cleanup.
 /// </summary>
-public struct SpawnedTreeReference : IBufferElementData
+public struct SpawnedStaticObjectReference : IBufferElementData
 {
-    /// <summary>The entity of a tree spawned on this tile.</summary>
-    public Entity treeEntity;
+    /// <summary>The entity of a static object spawned on this tile.</summary>
+    public Entity objectEntity;
 }
 
 /// <summary>
-/// Component that tracks which terrain tile a tree belongs to and its local offset.
-/// Used to update tree positions when tiles move, without using parent-child hierarchy.
+/// Component that tracks which terrain tile a static object belongs to and its local offset.
+/// Used to update object positions when tiles move, without using parent-child hierarchy.
 /// </summary>
-public struct TreeTileOwnership : IComponentData
+public struct StaticObjectTileOwnership : IComponentData
 {
-    /// <summary>The terrain tile entity this tree belongs to.</summary>
+    /// <summary>The terrain tile entity this object belongs to.</summary>
     public Entity tileEntity;
     
     /// <summary>Local position offset from tile origin (relative to tile's position).</summary>
@@ -379,32 +379,32 @@ public struct TreeTileOwnership : IComponentData
 }
 
 /// <summary>
-/// Tag component marking a tree entity for global instance rendering.
-/// Trees with this tag are rendered via Graphics.DrawMeshInstanced instead of individual ECS rendering.
-/// This dramatically reduces draw calls by batching trees with the same mesh/material.
+/// Tag component marking a static object entity for global instance rendering.
+/// Objects with this tag are rendered via Graphics.DrawMeshInstanced instead of individual ECS rendering.
+/// This dramatically reduces draw calls by batching objects with the same mesh/material.
 /// </summary>
-public struct GlobalTreeInstance : IComponentData
+public struct GlobalStaticObjectInstance : IComponentData
 {
 }
 
 /// <summary>
-/// Unmanaged component storing indices for global tree instance rendering.
+/// Unmanaged component storing indices for global static object instance rendering.
 /// Uses indices instead of direct references for Burst compatibility and better performance.
-/// References the GlobalTreeRenderingData singleton to resolve actual mesh/material.
+/// References the GlobalStaticObjectRenderingData singleton to resolve actual mesh/material.
 /// </summary>
-public struct GlobalTreeInstanceData : IComponentData
+public struct GlobalStaticObjectInstanceData : IComponentData
 {
-    /// <summary>Index into the GlobalTreeRenderingData.meshes array.</summary>
+    /// <summary>Index into the GlobalStaticObjectRenderingData.meshes array.</summary>
     public int meshIndex;
     
-    /// <summary>Index into the GlobalTreeRenderingData.materials array.</summary>
+    /// <summary>Index into the GlobalStaticObjectRenderingData.materials array.</summary>
     public int materialIndex;
     
-    /// <summary>Index of the tree prefab in the TreePrefabElement buffer (for debugging).</summary>
+    /// <summary>Index of the object prefab in the StaticObjectPrefabElement buffer (for debugging).</summary>
     public int prefabIndex;
     
-    /// <summary>Tree type index (0 to N-1 where N is number of tree types). Used to calculate LOD mesh indices.</summary>
-    public int treeTypeIndex;
+    /// <summary>Object type index (0 to N-1 where N is number of object types). Used to calculate LOD mesh indices.</summary>
+    public int objectTypeIndex;
     
     /// <summary>Current LOD level (0=highest detail, 2=lowest detail).</summary>
     public byte currentLODLevel;
@@ -414,10 +414,10 @@ public struct GlobalTreeInstanceData : IComponentData
 }
 
 /// <summary>
-/// Singleton configuration for tree mesh LOD system.
+/// Singleton configuration for static object mesh LOD system.
 /// Controls distance-based LOD switching with hysteresis to prevent flickering.
 /// </summary>
-public struct TreeLODConfig : IComponentData
+public struct StaticObjectLODConfig : IComponentData
 {
     /// <summary>Distance threshold for LOD0->LOD1 transition (meters).</summary>
     public float lod0Distance;
@@ -425,26 +425,26 @@ public struct TreeLODConfig : IComponentData
     /// <summary>Distance threshold for LOD1->LOD2 transition (meters).</summary>
     public float lod1Distance;
     
-    /// <summary>Distance beyond which trees use LOD2 (meters).</summary>
+    /// <summary>Distance beyond which objects use LOD2 (meters).</summary>
     public float lod2Distance;
     
     /// <summary>Hysteresis buffer to prevent LOD flickering (meters). Adds/subtracts from thresholds.</summary>
     public float hysteresisDelta;
     
-    /// <summary>Number of LOD levels per tree type (hardcoded to 3).</summary>
-    public int lodsPerTreeType;
+    /// <summary>Number of LOD levels per object type (hardcoded to 3).</summary>
+    public int lodsPerObjectType;
     
     /// <summary>Maximum number of spatial chunks to update per frame for LOD calculations.</summary>
     public int maxChunksUpdatedPerFrame;
     
-    /// <summary>Whether to enable tree LOD and spawning debug logging (disable to reduce console spam).</summary>
-    public bool enableTreeLODDebug;
+    /// <summary>Whether to enable object LOD and spawning debug logging (disable to reduce console spam).</summary>
+    public bool enableObjectLODDebug;
     
-    /// <summary>Enable distance-based culling for tree rendering (trees beyond maxTreeRenderDistance won't render).</summary>
+    /// <summary>Enable distance-based culling for object rendering (objects beyond maxObjectRenderDistance won't render).</summary>
     public bool enableDistanceCulling;
     
-    /// <summary>Maximum distance to render trees in meters. Trees beyond this distance are culled (not rendered). Quest 3 recommended: 300-500m.</summary>
-    public float maxTreeRenderDistance;
+    /// <summary>Maximum distance to render trees in meters. objects beyond this distance are culled (not rendered). Quest 3 recommended: 300-500m.</summary>
+    public float maxObjectRenderDistance;
     
     // QUEST 3 VR OPTIMIZATIONS
     
@@ -459,27 +459,48 @@ public struct TreeLODConfig : IComponentData
 }
 
 /// <summary>
-/// Component tracking which spatial chunk a tree belongs to for efficient LOD updates.
+/// Component tracking which spatial chunk a static object belongs to for efficient LOD updates.
 /// Chunks are 100m x 100m grid cells used to batch LOD update calculations.
 /// </summary>
-public struct TreeChunkMembership : IComponentData
+public struct StaticObjectChunkMembership : IComponentData
 {
     /// <summary>2D chunk coordinate (X, Z grid position).</summary>
     public int2 chunkCoord;
 }
 
 /// <summary>
-/// Singleton managed component that stores mesh and material arrays for all tree types.
-/// This allows thousands of tree entities to reference these arrays via indices,
+/// Singleton managed component that stores mesh and material arrays for all static object types.
+/// This allows thousands of object entities to reference these arrays via indices,
 /// dramatically reducing managed component lookups and enabling Burst compilation.
-/// Stored on the same entity as TreeSpawnerConfig.
+/// Stored on the same entity as StaticObjectSpawnerConfig.
 /// </summary>
-public class GlobalTreeRenderingData : IComponentData
+public class GlobalStaticObjectRenderingData : IComponentData
 {
-    /// <summary>Array of unique meshes used by tree prefabs.</summary>
+    /// <summary>Array of unique meshes used by object prefabs.</summary>
     public Mesh[] meshes;
     
-    /// <summary>Array of unique materials used by tree prefabs.</summary>
+    /// <summary>Array of unique materials used by object prefabs.</summary>
     public Material[] materials;
 }
+
+/// <summary>
+/// Buffer element that stores LOD spawn weight configuration for each object type.
+/// Determines the probability distribution for spawning objects at different LOD levels.
+/// Weights should be normalized to sum to 1.0 during baking.
+/// </summary>
+public struct StaticObjectLODWeights : IBufferElementData
+{
+    /// <summary>Object type index (0 to N-1 where N is number of object types).</summary>
+    public int objectTypeIndex;
+    
+    /// <summary>Spawn probability weight for LOD0 (highest detail). Range [0.0, 1.0].</summary>
+    public float lod0Weight;
+    
+    /// <summary>Spawn probability weight for LOD1 (medium detail). Range [0.0, 1.0].</summary>
+    public float lod1Weight;
+    
+    /// <summary>Spawn probability weight for LOD2 (lowest detail). Range [0.0, 1.0].</summary>
+    public float lod2Weight;
+}
+
 

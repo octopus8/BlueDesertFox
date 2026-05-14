@@ -12,14 +12,14 @@ using Unity.Transforms;
 [UpdateInGroup(typeof(TransformSystemGroup))]
 [UpdateAfter(typeof(TileScrollPositionSystem))]
 [BurstCompile]
-public partial struct TreePositionUpdateSystem : ISystem
+public partial struct objectPositionUpdateSystem : ISystem
 {
     private ComponentLookup<LocalTransform> _tileTransformLookup;
 
     [BurstCompile]
     public void OnCreate(ref SystemState state)
     {
-        state.RequireForUpdate<TreeTileOwnership>();
+        state.RequireForUpdate<StaticObjectTileOwnership>();
         _tileTransformLookup = state.GetComponentLookup<LocalTransform>(true);
     }
 
@@ -30,7 +30,7 @@ public partial struct TreePositionUpdateSystem : ISystem
         _tileTransformLookup.Update(ref state);
         
         // Schedule parallel job to update tree positions
-        var updateJob = new TreePositionUpdateJob
+        var updateJob = new objectPositionUpdateJob
         {
             tileTransformLookup = _tileTransformLookup
         };
@@ -43,7 +43,7 @@ public partial struct TreePositionUpdateSystem : ISystem
     /// Runs across multiple threads for maximum performance with constantly moving tiles.
     /// </summary>
     [BurstCompile]
-    private partial struct TreePositionUpdateJob : IJobEntity
+    private partial struct objectPositionUpdateJob : IJobEntity
     {
         [ReadOnly]
         [NativeDisableParallelForRestriction]
@@ -51,7 +51,7 @@ public partial struct TreePositionUpdateSystem : ISystem
         public ComponentLookup<LocalTransform> tileTransformLookup;
         
         private void Execute(
-            in TreeTileOwnership ownership,
+            in StaticObjectTileOwnership ownership,
             ref LocalTransform transform)
         {
             // Check if tile still exists
