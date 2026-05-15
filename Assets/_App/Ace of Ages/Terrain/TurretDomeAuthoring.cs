@@ -1,4 +1,5 @@
 using Unity.Entities;
+using Unity.Mathematics;
 using UnityEngine;
 
 /// <summary>
@@ -46,4 +47,10 @@ public struct TurretDome : IComponentData
 
     /// <summary>Current Y-axis angle in radians, tracked per entity for smooth interpolation.</summary>
     public float currentYAngle;
+
+    /// <summary>
+    /// 3D world-space intercept point written each frame by TurretAimingSystem.
+    /// Read by TurretBarrelSystem to compute the barrel's pitch angle.
+    /// </summary>
+    public float3 interceptPoint;
 }

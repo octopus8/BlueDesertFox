@@ -12,8 +12,10 @@ using Unity.Transforms;
 ///   2. Derives the player's velocity relative to each turret from TerrainScrollVelocity:
 ///      since turrets scroll with the terrain, the player effectively approaches at
 ///      (TerrainScrollVelocity.direction * speed) in the turret's reference frame.
-///   3. Schedules a Burst parallel job that solves the quadratic intercept equation and
-///      writes a Y-axis rotation to LocalTransform.Rotation on every TurretDome entity.
+///   3. Schedules a Burst parallel job that solves the quadratic intercept equation,
+///      writes a Y-axis rotation to LocalTransform.Rotation on every TurretDome entity,
+///      and stores the 3D world-space intercept point in TurretDome.interceptPoint for
+///      TurretBarrelSystem to use for pitch calculation.
 ///
 /// Runs after objectPositionUpdateSystem so turret world positions are already current.
 /// Only writes LocalTransform.Rotation; objectPositionUpdateSystem writes Position separately.
@@ -50,6 +52,7 @@ public partial struct TurretAimingSystem : ISystem
         {
             playerPos = playerPos,
             playerVelocity = playerVelocity,
+            playerPosY = playerPos.y,
             deltaTime = deltaTime
         };
         state.Dependency = job.ScheduleParallel(state.Dependency);
@@ -58,14 +61,16 @@ public partial struct TurretAimingSystem : ISystem
     /// <summary>
     /// Burst-compiled parallel job. For each TurretDome entity it:
     ///   - Solves the XZ-plane intercept quadratic for the smallest positive flight time.
-    ///   - Converts the intercept direction to a Y-axis quaternion.
+    ///   - Converts the intercept displacement to a Y-axis quaternion for the dome rotation.
     ///   - Smooth-lerps from the current angle toward the target at dome.rotationSpeed deg/s.
+    ///   - Stores the 3D world-space intercept point in dome.interceptPoint for barrel pitch use.
     /// </summary>
     [BurstCompile]
     private partial struct TurretAimJob : IJobEntity
     {
         [ReadOnly] public float3 playerPos;
         [ReadOnly] public float3 playerVelocity;
+        [ReadOnly] public float playerPosY;
         [ReadOnly] public float deltaTime;
 
         private void Execute(ref TurretDome dome, ref LocalTransform transform)
@@ -77,9 +82,20 @@ public partial struct TurretAimingSystem : ISystem
             float2 v = new float2(playerVelocity.x, playerVelocity.z);
             float b = dome.bulletSpeed;
 
-            float targetAngleRad = SolveInterceptAngle(d, v, b);
+            // Solve returns the XZ displacement from turret to intercept point.
+            float2 interceptXZ = SolveIntercept(d, v, b);
 
-            // Smooth-lerp from current angle to target
+            // Store 3D world-space intercept (Y = player height; no vertical scroll velocity).
+            dome.interceptPoint = new float3(
+                turretPos.x + interceptXZ.x,
+                playerPosY,
+                turretPos.z + interceptXZ.y);
+
+            // Derive Y-axis aim angle from the same intercept vector.
+            float2 aimDir = math.normalizesafe(interceptXZ, new float2(0f, 1f));
+            float targetAngleRad = math.atan2(aimDir.x, aimDir.y);
+
+            // Smooth-lerp from current angle to target.
             float newAngleRad;
             if (dome.rotationSpeed <= 0f)
             {
@@ -102,23 +118,20 @@ public partial struct TurretAimingSystem : ISystem
 
         /// <summary>
         /// Solves the 2-D ballistic intercept problem for a target at displacement d moving at velocity v,
-        /// with a projectile of speed b. Returns the Y-axis angle (radians) the turret should face.
+        /// with a projectile of speed b. Returns the XZ displacement from turret to the intercept point.
         ///
         /// Equation: |d + v*t|² = (b*t)²  →  (|v|²-b²)t² + 2·dot(d,v)·t + |d|² = 0
         ///
-        /// Falls back to direct aim when no positive solution exists (e.g. bullet too slow).
+        /// Falls back to direct aim (returns d) when no positive solution exists.
         /// </summary>
-        private static float SolveInterceptAngle(float2 d, float2 v, float bulletSpeed)
+        private static float2 SolveIntercept(float2 d, float2 v, float bulletSpeed)
         {
-            float2 aimDir;
-
             float vv = math.dot(v, v);
             float bb = bulletSpeed * bulletSpeed;
             float a = vv - bb;
             float bCoeff = 2f * math.dot(d, v);
             float c = math.dot(d, d);
 
-            bool solved = false;
             float bestT = float.MaxValue;
 
             if (math.abs(a) < 1e-4f)
@@ -128,10 +141,7 @@ public partial struct TurretAimingSystem : ISystem
                 {
                     float t = -c / bCoeff;
                     if (t > 0f)
-                    {
                         bestT = t;
-                        solved = true;
-                    }
                 }
             }
             else
@@ -145,24 +155,12 @@ public partial struct TurretAimingSystem : ISystem
 
                     if (t1 > 1e-4f) bestT = t1;
                     if (t2 > 1e-4f && t2 < bestT) bestT = t2;
-
-                    solved = bestT < float.MaxValue;
                 }
             }
 
-            if (solved)
-            {
-                float2 interceptXZ = d + v * bestT;
-                aimDir = math.normalizesafe(interceptXZ, new float2(0f, 1f));
-            }
-            else
-            {
-                // Fallback: aim directly at the player's current position.
-                aimDir = math.normalizesafe(d, new float2(0f, 1f));
-            }
-
-            // atan2(x, z) gives the Y-axis angle measured from +Z (forward).
-            return math.atan2(aimDir.x, aimDir.y);
+            // Return world-XZ displacement from turret to intercept.
+            // Falls back to d (direct aim toward current player position) if no solution.
+            return bestT < float.MaxValue ? d + v * bestT : d;
         }
     }
 }
