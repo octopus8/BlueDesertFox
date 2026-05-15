@@ -5994,16 +5994,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::StaticObjectSpawnerConfigAuthoring
   objectLODSets:
   - objectTypeName: Test Tree
-    lod0: {fileID: 1880130991530675682, guid: 80855f484516335468ca4c9c49937f3a, type: 3}
-    lod1: {fileID: 268780033425554496, guid: 5cfabf8fb09c20f49b7721a267c890b8, type: 3}
-    lod2: {fileID: 4922588999693537203, guid: 1102ac1201d59f244ba5407dbaf9c0c1, type: 3}
-    lod0SpawnWeight: 0.6
-    lod1SpawnWeight: 0.3
-    lod2SpawnWeight: 0.1
-  - objectTypeName: Concrete Turret
-    lod0: {fileID: 6951138697554116676, guid: 9106275d5527c964ca99e5f5ca30e128, type: 3}
-    lod1: {fileID: 6951138697554116676, guid: 9106275d5527c964ca99e5f5ca30e128, type: 3}
-    lod2: {fileID: 6951138697554116676, guid: 9106275d5527c964ca99e5f5ca30e128, type: 3}
+    lod0: {fileID: 1790061847135392082, guid: 8b37e4c2e6d60d143bb98776db4935d6, type: 3}
+    lod1: {fileID: 1790061847135392082, guid: 8b37e4c2e6d60d143bb98776db4935d6, type: 3}
+    lod2: {fileID: 1790061847135392082, guid: 8b37e4c2e6d60d143bb98776db4935d6, type: 3}
     lod0SpawnWeight: 0.6
     lod1SpawnWeight: 0.3
     lod2SpawnWeight: 0.1
