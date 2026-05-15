@@ -194,6 +194,7 @@ GameObject:
   - component: {fileID: 1866689404124981373}
   - component: {fileID: 9195574352161187201}
   - component: {fileID: 685373418441959219}
+  - component: {fileID: 2039847561234098765}
   m_Layer: 0
   m_Name: howitzer_barrel
   m_TagString: Untagged
@@ -287,3 +288,15 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   bulletSpeed: 30
   rotationSpeed: 90
+--- !u!114 &2039847561234098765
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8664413412423131727}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ed8f90343e1b4ff9806b02a5407eb82f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
