@@ -489,7 +489,8 @@ partial struct InstantiateTreesJob : IJobEntity
             });
             
             ecb.AddComponent<GlobalStaticObjectInstance>(chunkIndex, objectEntity);
-            
+            ecb.AddComponent<PendingStaticObjectRendererStrip>(chunkIndex, objectEntity);
+
             ecb.AddComponent(chunkIndex, objectEntity, new GlobalStaticObjectInstanceData
             {
                 meshIndex = spawnData.initialMeshIndex,

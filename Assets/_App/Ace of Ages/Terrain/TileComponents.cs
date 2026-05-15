@@ -388,6 +388,14 @@ public struct GlobalStaticObjectInstance : IComponentData
 }
 
 /// <summary>
+/// One-frame marker after ECB instantiate: stripped render components must be applied to all
+/// entities in LinkedEntityGroup once instantiation has played back (parallel ECB cannot enumerate children beforehand).
+/// </summary>
+public struct PendingStaticObjectRendererStrip : IComponentData
+{
+}
+
+/// <summary>
 /// Unmanaged component storing indices for global static object instance rendering.
 /// Uses indices instead of direct references for Burst compatibility and better performance.
 /// References the GlobalStaticObjectRenderingData singleton to resolve actual mesh/material.
