@@ -164,16 +164,12 @@ public class StaticObjectSpawnerConfigAuthoring : MonoBehaviour
             // Add buffer for LOD spawn weights
             var lodWeightsBuffer = AddBuffer<StaticObjectLODWeights>(entity);
             
-            // Calculate total mesh count (3 LODs per object type)
             int objectTypeCount = authoring.objectLODSets.Length;
-            int totalMeshCount = objectTypeCount * 3;
-            
-            // Create arrays for mesh/material references (flattened: [Obj0_LOD0, Obj0_LOD1, Obj0_LOD2, Obj1_LOD0, ...])
-            var objectMeshes = new Mesh[totalMeshCount];
-            var objectMaterials = new Material[totalMeshCount];
             int validObjectTypes = 0;
             
-            // Convert GameObject prefabs to entity prefabs and extract mesh/material for each LOD
+            // Convert GameObject prefabs to entity prefabs for each LOD set.
+            // Entities.Graphics will bake MaterialMeshInfo onto each prefab entity automatically;
+            // StaticObjectLODMeshInfoInitSystem reads those IDs at runtime to build the lookup buffer.
             for (int objectTypeIndex = 0; objectTypeIndex < objectTypeCount; objectTypeIndex++)
             {
                 var lodSet = authoring.objectLODSets[objectTypeIndex];
@@ -184,10 +180,8 @@ public class StaticObjectSpawnerConfigAuthoring : MonoBehaviour
                     continue;
                 }
                 
-                // Array to hold LOD prefabs [LOD0, LOD1, LOD2]
                 GameObject[] lodPrefabs = new GameObject[] { lodSet.lod0, lodSet.lod1, lodSet.lod2 };
                 
-                // Validate that at least LOD0 exists
                 if (lodPrefabs[0] == null)
                 {
                     Debug.LogError($"[StaticObjectSpawner] Object type '{lodSet.objectTypeName}' missing LOD0 (required)! Skipping this object type.", authoring);
@@ -200,7 +194,7 @@ public class StaticObjectSpawnerConfigAuthoring : MonoBehaviour
                 float normalizedLOD1Weight = 0.3f;
                 float normalizedLOD2Weight = 0.1f;
                 
-                if (totalWeight > 0.001f) // Avoid division by zero
+                if (totalWeight > 0.001f)
                 {
                     normalizedLOD0Weight = lodSet.lod0SpawnWeight / totalWeight;
                     normalizedLOD1Weight = lodSet.lod1SpawnWeight / totalWeight;
@@ -211,7 +205,6 @@ public class StaticObjectSpawnerConfigAuthoring : MonoBehaviour
                     Debug.LogWarning($"[StaticObjectSpawner] Object type '{lodSet.objectTypeName}' has zero total LOD weight! Using default distribution (60/30/10).", authoring);
                 }
                 
-                // Store normalized LOD weights in buffer
                 lodWeightsBuffer.Add(new StaticObjectLODWeights
                 {
                     objectTypeIndex = validObjectTypes,
@@ -220,114 +213,53 @@ public class StaticObjectSpawnerConfigAuthoring : MonoBehaviour
                     lod2Weight = normalizedLOD2Weight
                 });
                 
-                // Process each LOD level
-                Mesh[] lodMeshes = new Mesh[3];
-                Material[] lodMaterials = new Material[3];
-                
                 for (int lodLevel = 0; lodLevel < 3; lodLevel++)
                 {
                     GameObject lodPrefab = lodPrefabs[lodLevel];
                     
                     if (lodPrefab != null)
                     {
-                        // Extract mesh
-                        var meshFilter = lodPrefab.GetComponentInChildren<MeshFilter>();
-                        if (meshFilter != null && meshFilter.sharedMesh != null)
+                        // Ensure GPU instancing is enabled on every material — BRG requires this to
+                        // batch multiple instances into a single draw call.
+                        foreach (var renderer in lodPrefab.GetComponentsInChildren<MeshRenderer>(true))
                         {
-                            lodMeshes[lodLevel] = meshFilter.sharedMesh;
+                            foreach (var mat in renderer.sharedMaterials)
+                            {
+                                if (mat != null && !mat.enableInstancing)
+                                {
+                                    mat.enableInstancing = true;
+#if UNITY_EDITOR
+                                    UnityEditor.EditorUtility.SetDirty(mat);
+#endif
+                                    Debug.Log($"[StaticObjectSpawner] Enabled GPU instancing on material '{mat.name}' for '{lodSet.objectTypeName}' LOD{lodLevel}.", mat);
+                                }
+                            }
                         }
-                        else
-                        {
-                            Debug.LogWarning($"[StaticObjectSpawner] Object '{lodSet.objectTypeName}' LOD{lodLevel} missing MeshFilter/sharedMesh", authoring);
-                        }
-                        
-                        // Extract material
-                        var meshRenderer = lodPrefab.GetComponentInChildren<MeshRenderer>();
-                        if (meshRenderer != null && meshRenderer.sharedMaterial != null)
-                        {
-                            lodMaterials[lodLevel] = meshRenderer.sharedMaterial;
-                        }
-                        else
-                        {
-                            Debug.LogWarning($"[StaticObjectSpawner] Object '{lodSet.objectTypeName}' LOD{lodLevel} missing MeshRenderer/sharedMaterial", authoring);
-                        }
-                        
-                        // Convert to entity prefab and store in buffer (one entry per LOD)
+
                         Entity prefabEntity = GetEntity(lodPrefab, TransformUsageFlags.Dynamic);
-                        objectPrefabBuffer.Add(new StaticObjectPrefabElement
-                        {
-                            prefabEntity = prefabEntity
-                        });
+                        objectPrefabBuffer.Add(new StaticObjectPrefabElement { prefabEntity = prefabEntity });
                     }
                     else
                     {
-                        // Apply fallback logic for missing LODs
+                        // Fallback: reuse best available lower LOD prefab.
+                        GameObject fallbackPrefab = lodLevel == 1 ? lodPrefabs[0]
+                            : (lodPrefabs[1] != null ? lodPrefabs[1] : lodPrefabs[0]);
+                        
                         if (lodLevel == 1)
-                        {
-                            // LOD1 missing -> use LOD0
-                            lodMeshes[1] = lodMeshes[0];
-                            lodMaterials[1] = lodMaterials[0];
                             Debug.LogWarning($"[StaticObjectSpawner] Object '{lodSet.objectTypeName}' LOD1 missing, using LOD0 as fallback", authoring);
-                            
-                            // Create a prefab entity reference (use LOD0's prefab)
-                            if (lodPrefabs[0] != null)
-                            {
-                                Entity prefabEntity = GetEntity(lodPrefabs[0], TransformUsageFlags.Dynamic);
-                                objectPrefabBuffer.Add(new StaticObjectPrefabElement { prefabEntity = prefabEntity });
-                            }
-                        }
-                        else if (lodLevel == 2)
+                        else
+                            Debug.LogWarning($"[StaticObjectSpawner] Object '{lodSet.objectTypeName}' LOD2 missing, using LOD{(lodPrefabs[1] != null ? "1" : "0")} as fallback", authoring);
+                        
+                        if (fallbackPrefab != null)
                         {
-                            // LOD2 missing -> use LOD1 (or LOD0 if LOD1 also missing)
-                            lodMeshes[2] = lodMeshes[1] != null ? lodMeshes[1] : lodMeshes[0];
-                            lodMaterials[2] = lodMaterials[1] != null ? lodMaterials[1] : lodMaterials[0];
-                            Debug.LogWarning($"[StaticObjectSpawner] Object '{lodSet.objectTypeName}' LOD2 missing, using LOD{(lodMeshes[1] != null ? "1" : "0")} as fallback", authoring);
-                            
-                            // Create a prefab entity reference (use best available LOD)
-                            GameObject fallbackPrefab = lodPrefabs[1] != null ? lodPrefabs[1] : lodPrefabs[0];
-                            if (fallbackPrefab != null)
-                            {
-                                Entity prefabEntity = GetEntity(fallbackPrefab, TransformUsageFlags.Dynamic);
-                                objectPrefabBuffer.Add(new StaticObjectPrefabElement { prefabEntity = prefabEntity });
-                            }
+                            Entity prefabEntity = GetEntity(fallbackPrefab, TransformUsageFlags.Dynamic);
+                            objectPrefabBuffer.Add(new StaticObjectPrefabElement { prefabEntity = prefabEntity });
                         }
                     }
                 }
                 
-                // Store meshes/materials in flattened array
-                int baseIndex = validObjectTypes * 3;
-                objectMeshes[baseIndex + 0] = lodMeshes[0];
-                objectMeshes[baseIndex + 1] = lodMeshes[1];
-                objectMeshes[baseIndex + 2] = lodMeshes[2];
-                objectMaterials[baseIndex + 0] = lodMaterials[0];
-                objectMaterials[baseIndex + 1] = lodMaterials[1];
-                objectMaterials[baseIndex + 2] = lodMaterials[2];
-                
                 Debug.Log($"[StaticObjectSpawner] Baked object type '{lodSet.objectTypeName}' with {(lodPrefabs[1] != null ? "3" : lodPrefabs[2] != null ? "2" : "1")} LOD levels (spawn weights: {normalizedLOD0Weight:F2}/{normalizedLOD1Weight:F2}/{normalizedLOD2Weight:F2})");
                 validObjectTypes++;
-            }
-            
-            // Add managed component with mesh/material data (legacy - still used by spawning system)
-            if (validObjectTypes > 0)
-            {
-                int validMeshCount = validObjectTypes * 3;
-                var finalMeshes = new Mesh[validMeshCount];
-                var finalMaterials = new Material[validMeshCount];
-                System.Array.Copy(objectMeshes, finalMeshes, validMeshCount);
-                System.Array.Copy(objectMaterials, finalMaterials, validMeshCount);
-                
-                AddComponentObject(entity, new StaticObjectPrefabMeshMaterialData
-                {
-                    meshes = finalMeshes,
-                    materials = finalMaterials
-                });
-                
-                // Add new GlobalStaticObjectRenderingData singleton for optimized rendering system
-                AddComponentObject(entity, new GlobalStaticObjectRenderingData
-                {
-                    meshes = finalMeshes,
-                    materials = finalMaterials
-                });
             }
             
             if (objectPrefabBuffer.Length == 0)

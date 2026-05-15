@@ -19,9 +19,6 @@ public partial class TerrainTreeSpawningSystem : SystemBase
     private NativeQueue<Entity> _pendingTiles;
     private NativeHashSet<Entity> _queuedEntities;
     private int _StaticObjectsSpawnedThisFrame;
-    
-    // Cached managed data to avoid GC allocations from repeated GetComponentData() calls
-    private StaticObjectPrefabMeshMaterialData _cachedMeshMaterialData;
 
     protected override void OnCreate()
     {
@@ -38,16 +35,6 @@ public partial class TerrainTreeSpawningSystem : SystemBase
             _pendingTiles.Dispose();
         if (_queuedEntities.IsCreated)
             _queuedEntities.Dispose();
-    }
-
-    protected override void OnStartRunning()
-    {
-        // Cache the managed component data once to avoid GC allocations from repeated GetComponentData() calls
-        var configEntity = SystemAPI.GetSingletonEntity<StaticObjectSpawnerConfig>();
-        if (EntityManager.HasComponent<StaticObjectPrefabMeshMaterialData>(configEntity))
-        {
-            _cachedMeshMaterialData = EntityManager.GetComponentData<StaticObjectPrefabMeshMaterialData>(configEntity);
-        }
     }
 
     protected override void OnUpdate()
@@ -74,12 +61,6 @@ public partial class TerrainTreeSpawningSystem : SystemBase
             return;
         }
         
-        // Use cached mesh/material data (fetched once in OnStartRunning) to avoid GC allocations
-        if (_cachedMeshMaterialData == null || _cachedMeshMaterialData.meshes == null || _cachedMeshMaterialData.materials == null)
-        {
-            return;
-        }
-        
         // Calculate number of tree types (3 LODs per type)
         var objectPrefabCount = objectPrefabsBuffer.Length;
         var treeTypeCount = objectPrefabCount / 3; // 3 LODs per tree type
@@ -90,9 +71,6 @@ public partial class TerrainTreeSpawningSystem : SystemBase
         }
         
         var objectPrefabs = new NativeArray<Entity>(objectPrefabCount, Allocator.Temp);
-        
-        var objectMeshes = _cachedMeshMaterialData.meshes;
-        var objectMaterials = _cachedMeshMaterialData.materials;
         
         for (int i = 0; i < objectPrefabCount; i++)
         {
@@ -147,7 +125,7 @@ public partial class TerrainTreeSpawningSystem : SystemBase
                 continue;
             }
             
-            int StaticObjectsSpawned = SpawnTreesOnTile(tileEntity, config, objectPrefabs, objectMeshes, objectMaterials);
+            int StaticObjectsSpawned = SpawnTreesOnTile(tileEntity, config, objectPrefabs);
             _StaticObjectsSpawnedThisFrame += StaticObjectsSpawned;
             
             EntityManager.AddComponent<StaticObjectsSpawned>(tileEntity);
@@ -159,7 +137,7 @@ public partial class TerrainTreeSpawningSystem : SystemBase
         objectPrefabs.Dispose();
     }
 
-    private int SpawnTreesOnTile(Entity tileEntity, StaticObjectSpawnerConfig config, NativeArray<Entity> objectPrefabs, Mesh[] objectMeshes, Material[] objectMaterials)
+    private int SpawnTreesOnTile(Entity tileEntity, StaticObjectSpawnerConfig config, NativeArray<Entity> objectPrefabs)
     {
         var prefabCount = objectPrefabs.Length;
         if (prefabCount == 0)
@@ -365,12 +343,9 @@ public partial class TerrainTreeSpawningSystem : SystemBase
             // Calculate mesh index based on tree type and initial LOD
             int initialMeshIndex = (objectTypeIndex * 3) + initialLODLevel;
             
-            // Use index-based approach for optimized rendering
             EntityManager.AddComponentData(objectEntity, new GlobalStaticObjectInstanceData
             {
-                meshIndex = initialMeshIndex,
-                materialIndex = initialMeshIndex,
-                prefabIndex = prefabIndexLOD0, // Store LOD0 prefab index for reference
+                prefabIndex = prefabIndexLOD0,
                 objectTypeIndex = objectTypeIndex,
                 currentLODLevel = initialLODLevel,
                 lastDistanceToPlayer = initialDistance

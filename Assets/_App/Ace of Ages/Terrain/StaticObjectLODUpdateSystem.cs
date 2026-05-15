@@ -2,6 +2,7 @@ using Unity.Burst;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
+using Unity.Rendering;
 using Unity.Transforms;
 
 #if UNITY_EDITOR
@@ -48,6 +49,7 @@ public partial struct TreeLODUpdateSystem : ISystem
     public void OnCreate(ref SystemState state)
     {
         state.RequireForUpdate<StaticObjectLODConfig>();
+        state.RequireForUpdate<StaticObjectLODMeshInfoReady>();
         state.RequireForUpdate<PlayerTransformReference>();
         _activeChunks = new NativeList<int2>(20, Allocator.Persistent);
         _activeChunksSet = new NativeHashSet<int2>(20, Allocator.Persistent);
@@ -177,6 +179,13 @@ public partial struct TreeLODUpdateSystem : ISystem
         s_ChunkFilterMarker.Data.End();
 #endif
         
+        // Read LOD MaterialMeshInfo lookup from config entity buffer (TempJob — disposed after job completes).
+        var configEntity = SystemAPI.GetSingletonEntity<StaticObjectLODConfig>();
+        var lodInfoBuffer = state.EntityManager.GetBuffer<StaticObjectLODMaterialMeshInfoElement>(configEntity, isReadOnly: true);
+        var lodMeshInfos = new NativeArray<MaterialMeshInfo>(lodInfoBuffer.Length, Allocator.TempJob);
+        for (int i = 0; i < lodInfoBuffer.Length; i++)
+            lodMeshInfos[i] = lodInfoBuffer[i].materialMeshInfo;
+        
         // Schedule Burst-compiled job for LOD updates with distance-tiered filtering
         var updateJob = new TreeLODUpdateJob
         {
@@ -188,10 +197,12 @@ public partial struct TreeLODUpdateSystem : ISystem
             lodsPerObjectType = lodConfig.lodsPerObjectType,
             activeChunksSet = _activeChunksSet,
             maxTreesPerFrame = MaxTreesPerFrame,
-            frameCounter = _frameCounter // Pass frame counter for distance-tiered updates
+            frameCounter = _frameCounter, // Pass frame counter for distance-tiered updates
+            lodMeshInfos = lodMeshInfos
         };
         
         state.Dependency = updateJob.ScheduleParallel(state.Dependency);
+        lodMeshInfos.Dispose(state.Dependency);
         
 #if UNITY_EDITOR
         s_ProfilerMarker.Data.End();
@@ -214,6 +225,8 @@ public partial struct TreeLODUpdateSystem : ISystem
     
     /// <summary>
     /// Burst-compiled job that updates tree LOD levels in parallel.
+    /// On a LOD change, writes the correct <see cref="MaterialMeshInfo"/> directly to the entity
+    /// so Entities.Graphics (BRG) immediately switches the rendered mesh/material.
     /// OPTIMIZED v3.0: Added distance-tiered updates (4 tiers: 0-100m, 100-200m, 200-300m, 300m+).
     /// </summary>
     [BurstCompile]
@@ -228,10 +241,12 @@ public partial struct TreeLODUpdateSystem : ISystem
         [ReadOnly] public NativeHashSet<int2> activeChunksSet;
         [ReadOnly] public int maxTreesPerFrame;
         [ReadOnly] public int frameCounter; // For distance-tiered updates
+        [ReadOnly] public NativeArray<MaterialMeshInfo> lodMeshInfos;
         
         private void Execute(
             in LocalTransform transform,
             ref GlobalStaticObjectInstanceData instanceData,
+            ref MaterialMeshInfo materialMeshInfo,
             in StaticObjectChunkMembership chunkMembership)
         {
             // OPTIMIZED: O(1) chunk lookup using HashSet
@@ -259,14 +274,14 @@ public partial struct TreeLODUpdateSystem : ISystem
             byte currentLOD = instanceData.currentLODLevel;
             byte newLOD = DetermineLODLevel(distance, currentLOD, lod0Distance, lod1Distance, lod2Distance, hysteresis);
             
-            // Update if LOD changed
+            // Update if LOD changed — write MaterialMeshInfo so BRG switches mesh/material.
             if (newLOD != currentLOD)
             {
-                // Calculate new mesh index: (objectTypeIndex * 3) + lodLevel
                 int newMeshIndex = (instanceData.objectTypeIndex * lodsPerObjectType) + newLOD;
                 
-                instanceData.meshIndex = newMeshIndex;
-                instanceData.materialIndex = newMeshIndex; // Same index for materials
+                if (lodMeshInfos.Length > newMeshIndex)
+                    materialMeshInfo = lodMeshInfos[newMeshIndex];
+                
                 instanceData.currentLODLevel = newLOD;
             }
             

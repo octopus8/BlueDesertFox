@@ -5972,7 +5972,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ea650e9e97214c68a8aab550673cff51, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerScrollVelocityAuthoring
-  speed: 0
+  speed: 40
   rotationSpeed: 50
   verticalSpeed: 20
   minVerticalPosition: -20
@@ -5994,9 +5994,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::StaticObjectSpawnerConfigAuthoring
   objectLODSets:
   - objectTypeName: Test Tree
-    lod0: {fileID: 1790061847135392082, guid: 8b37e4c2e6d60d143bb98776db4935d6, type: 3}
-    lod1: {fileID: 1790061847135392082, guid: 8b37e4c2e6d60d143bb98776db4935d6, type: 3}
-    lod2: {fileID: 1790061847135392082, guid: 8b37e4c2e6d60d143bb98776db4935d6, type: 3}
+    lod0: {fileID: 1790061847135392082, guid: 950686e73ad800141937263f45a9e2fe, type: 3}
+    lod1: {fileID: 1790061847135392082, guid: 950686e73ad800141937263f45a9e2fe, type: 3}
+    lod2: {fileID: 1790061847135392082, guid: 950686e73ad800141937263f45a9e2fe, type: 3}
     lod0SpawnWeight: 0.6
     lod1SpawnWeight: 0.3
     lod2SpawnWeight: 0.1
@@ -6004,8 +6004,8 @@ MonoBehaviour:
   lod1Distance: 150
   lod2Distance: 307.06
   lodHysteresis: 5
-  minObjectsPerTile: 200
-  maxObjectsPerTile: 200
+  minObjectsPerTile: 75
+  maxObjectsPerTile: 75
   minSpawnHeight: -100
   maxSpawnHeight: 100
   maxSlopeDegrees: 45
@@ -6013,7 +6013,7 @@ MonoBehaviour:
   enableObjectLODDebug: 0
   enableSpawnerDebug: 0
   enableDistanceCulling: 1
-  maxObjectRenderDistance: 400
+  maxObjectRenderDistance: 1000
   maxUniqueBatches: 32
   vrFrameSkipScrolling: 4
   playerVelocityThreshold: 0.5

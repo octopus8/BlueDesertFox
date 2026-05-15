@@ -306,20 +306,6 @@ public struct StaticObjectPrefabElement : IBufferElementData
     public Entity prefabEntity;
 }
 
-/// <summary>
-/// Managed component that stores mesh and material references for all static object prefabs.
-/// Used during static object spawning to assign GlobalTreeInstanceData without runtime lookups.
-/// Must be a class (not struct) to hold managed Unity object references.
-/// Singleton component stored on the same entity as StaticObjectSpawnerConfig.
-/// </summary>
-public class StaticObjectPrefabMeshMaterialData : IComponentData
-{
-    /// <summary>Array of meshes, one per tree prefab (same index as StaticObjectPrefabElement buffer).</summary>
-    public Mesh[] meshes;
-    
-    /// <summary>Array of materials, one per object prefab (same index as StaticObjectPrefabElement buffer).</summary>
-    public Material[] materials;
-}
 
 /// <summary>
 /// Tag component indicating that static objects have been spawned for this tile.
@@ -379,9 +365,8 @@ public struct StaticObjectTileOwnership : IComponentData
 }
 
 /// <summary>
-/// Tag component marking a static object entity for global instance rendering.
-/// Objects with this tag are rendered via Graphics.DrawMeshInstanced instead of individual ECS rendering.
-/// This dramatically reduces draw calls by batching objects with the same mesh/material.
+/// Tag component marking a static object entity as part of the static object system.
+/// Root entities with this tag are rendered via Entities.Graphics (BRG) using their MaterialMeshInfo component.
 /// </summary>
 public struct GlobalStaticObjectInstance : IComponentData
 {
@@ -396,18 +381,11 @@ public struct PendingStaticObjectRendererStrip : IComponentData
 }
 
 /// <summary>
-/// Unmanaged component storing indices for global static object instance rendering.
-/// Uses indices instead of direct references for Burst compatibility and better performance.
-/// References the GlobalStaticObjectRenderingData singleton to resolve actual mesh/material.
+/// Unmanaged component storing LOD state for static object instance rendering.
+/// The actual mesh/material is stored in the entity's MaterialMeshInfo component (Entities.Graphics).
 /// </summary>
 public struct GlobalStaticObjectInstanceData : IComponentData
 {
-    /// <summary>Index into the GlobalStaticObjectRenderingData.meshes array.</summary>
-    public int meshIndex;
-    
-    /// <summary>Index into the GlobalStaticObjectRenderingData.materials array.</summary>
-    public int materialIndex;
-    
     /// <summary>Index of the object prefab in the StaticObjectPrefabElement buffer (for debugging).</summary>
     public int prefabIndex;
     
@@ -477,18 +455,23 @@ public struct StaticObjectChunkMembership : IComponentData
 }
 
 /// <summary>
-/// Singleton managed component that stores mesh and material arrays for all static object types.
-/// This allows thousands of object entities to reference these arrays via indices,
-/// dramatically reducing managed component lookups and enabling Burst compilation.
-/// Stored on the same entity as StaticObjectSpawnerConfig.
+/// Buffer element storing the pre-registered MaterialMeshInfo for each LOD slot.
+/// Index = objectTypeIndex * lodsPerObjectType + lodLevel.
+/// Populated at world startup by StaticObjectLODMeshInfoInitSystem from baked prefab entities.
+/// Used by the LOD update and spawning systems to switch mesh/material via Entities.Graphics.
 /// </summary>
-public class GlobalStaticObjectRenderingData : IComponentData
+public struct StaticObjectLODMaterialMeshInfoElement : IBufferElementData
 {
-    /// <summary>Array of unique meshes used by object prefabs.</summary>
-    public Mesh[] meshes;
-    
-    /// <summary>Array of unique materials used by object prefabs.</summary>
-    public Material[] materials;
+    public Unity.Rendering.MaterialMeshInfo materialMeshInfo;
+}
+
+/// <summary>
+/// Tag component placed on the config entity once StaticObjectLODMeshInfoInitSystem has finished
+/// populating the StaticObjectLODMaterialMeshInfoElement buffer.
+/// Systems that need the LOD MaterialMeshInfo lookup table gate on this tag.
+/// </summary>
+public struct StaticObjectLODMeshInfoReady : IComponentData
+{
 }
 
 /// <summary>

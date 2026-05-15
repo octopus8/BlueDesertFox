@@ -2,6 +2,7 @@ using Unity.Burst;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
+using Unity.Rendering;
 using Unity.Transforms;
 
 #if UNITY_EDITOR
@@ -44,6 +45,7 @@ public partial struct TerrainTreeSpawningSystemOptimized : ISystem
     {
         state.RequireForUpdate<StaticObjectSpawnerConfig>();
         state.RequireForUpdate<StaticObjectPrefabElement>();
+        state.RequireForUpdate<StaticObjectLODMeshInfoReady>();
         state.RequireForUpdate<CameraDataSingleton>();
         state.RequireForUpdate<TerrainTileConfig>();
         state.RequireForUpdate<BeginSimulationEntityCommandBufferSystem.Singleton>();
@@ -239,6 +241,12 @@ public partial struct TerrainTreeSpawningSystemOptimized : ISystem
             UnityEngine.Debug.Log($"[TreeSpawnerOptimized] Processing {tilesToProcess.Length} tiles this frame (budget: {maxTilesThisFrame})");
         }
         
+        // Read LOD MaterialMeshInfo lookup table from config entity buffer.
+        var lodInfoBuffer = state.EntityManager.GetBuffer<StaticObjectLODMaterialMeshInfoElement>(configEntity, isReadOnly: true);
+        var lodMeshInfos = new NativeArray<MaterialMeshInfo>(lodInfoBuffer.Length, Allocator.TempJob);
+        for (int i = 0; i < lodInfoBuffer.Length; i++)
+            lodMeshInfos[i] = lodInfoBuffer[i].materialMeshInfo;
+        
 #if UNITY_EDITOR
         using (s_InstantiationMarker.Auto())
 #endif
@@ -249,7 +257,8 @@ public partial struct TerrainTreeSpawningSystemOptimized : ISystem
                 ecb = ecb.AsParallelWriter(),
                 objectPrefabs = objectPrefabs,
                 treeTypeCount = treeTypeCount,
-                tilesToProcess = tilesToProcess.AsArray()
+                tilesToProcess = tilesToProcess.AsArray(),
+                lodMeshInfos = lodMeshInfos
             };
             
             state.Dependency = instantiateJob.ScheduleParallel(state.Dependency);
@@ -259,6 +268,7 @@ public partial struct TerrainTreeSpawningSystemOptimized : ISystem
         objectPrefabs.Dispose(state.Dependency);
         objectPrefabRotations.Dispose(state.Dependency);
         tilesToProcess.Dispose(state.Dependency);
+        lodMeshInfos.Dispose(state.Dependency);
     }
 }
 
@@ -432,6 +442,7 @@ partial struct InstantiateTreesJob : IJobEntity
     [ReadOnly] public NativeArray<Entity> objectPrefabs;
     [ReadOnly] public int treeTypeCount;
     [ReadOnly] public NativeArray<Entity> tilesToProcess;
+    [ReadOnly] public NativeArray<MaterialMeshInfo> lodMeshInfos;
     
     private void Execute(
         [ChunkIndexInQuery] int chunkIndex,
@@ -462,16 +473,12 @@ partial struct InstantiateTreesJob : IJobEntity
         {
             var spawnData = spawnPositions[i];
             
-            // Always spawn with LOD0 prefab (highest detail)
+            // Always spawn with LOD0 prefab (highest detail) so the entity has all baked components.
             int prefabIndexLOD0 = spawnData.objectTypeIndex * 3 + 0;
             Entity objectPrefab = objectPrefabs[prefabIndexLOD0];
             
-            // Instantiate tree entity
+            // Instantiate entity (retains MaterialMeshInfo / RenderBounds from Entities.Graphics baking).
             Entity objectEntity = ecb.Instantiate(chunkIndex, objectPrefab);
-            
-            // Remove Unity Rendering components (we use custom global instancing)
-            ecb.RemoveComponent<Unity.Rendering.MaterialMeshInfo>(chunkIndex, objectEntity);
-            ecb.RemoveComponent<Unity.Rendering.RenderBounds>(chunkIndex, objectEntity);
             
             // Set transform
             ecb.SetComponent(chunkIndex, objectEntity, new LocalTransform
@@ -480,6 +487,11 @@ partial struct InstantiateTreesJob : IJobEntity
                 Rotation = spawnData.rotation,
                 Scale = 1f
             });
+            
+            // Override MaterialMeshInfo with the correct initial LOD slot so a far-away object
+            // does not briefly show LOD0 before the LOD-update system runs.
+            if (lodMeshInfos.Length > spawnData.initialMeshIndex)
+                ecb.SetComponent(chunkIndex, objectEntity, lodMeshInfos[spawnData.initialMeshIndex]);
             
             // Add tree-specific components
             ecb.AddComponent(chunkIndex, objectEntity, new StaticObjectTileOwnership
@@ -493,8 +505,6 @@ partial struct InstantiateTreesJob : IJobEntity
 
             ecb.AddComponent(chunkIndex, objectEntity, new GlobalStaticObjectInstanceData
             {
-                meshIndex = spawnData.initialMeshIndex,
-                materialIndex = spawnData.initialMeshIndex,
                 prefabIndex = prefabIndexLOD0,
                 objectTypeIndex = spawnData.objectTypeIndex,
                 currentLODLevel = spawnData.initialLODLevel,
