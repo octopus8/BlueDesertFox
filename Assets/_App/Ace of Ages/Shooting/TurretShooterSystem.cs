@@ -178,7 +178,8 @@ public partial struct TurretShooterSystem : ISystem
             {
                 spawnPosition = shot.spawnPos,
                 creationTime  = currentTime,
-                active        = true
+                active        = true,
+                linearVelocityTerrainRelative = shot.bulletVelocity + terrainVelocity
             });
 
         }

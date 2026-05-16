@@ -98,7 +98,8 @@ public partial struct BulletShooterSystem : ISystem
             {
                 spawnPosition = spawnPosition,
                 creationTime = SystemAPI.Time.ElapsedTime,
-                active = true
+                active = true,
+                linearVelocityTerrainRelative = bulletVelocity + terrainVelocity
             });
             
             // Update last fire time

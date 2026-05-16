@@ -68,7 +68,8 @@ public partial struct BulletPoolSystem : ISystem
             {
                 spawnPosition = float3.zero,
                 creationTime = 0,
-                active = false
+                active = false,
+                linearVelocityTerrainRelative = float3.zero
             });
             
             // Set initial transform far away (inactive bullets off-screen)
@@ -139,7 +140,8 @@ public partial struct BulletPoolSystem : ISystem
         {
             spawnPosition = float3.zero,
             creationTime = 0,
-            active = false
+            active = false,
+            linearVelocityTerrainRelative = float3.zero
         });
         
         state.EntityManager.SetComponentData(bullet, new LocalTransform

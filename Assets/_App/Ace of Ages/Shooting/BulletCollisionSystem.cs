@@ -105,7 +105,8 @@ public partial struct BulletCollisionSystem : ISystem
             {
                 spawnPosition = float3.zero,
                 creationTime = 0,
-                active = false
+                active = false,
+                linearVelocityTerrainRelative = float3.zero
             });
             
             // Reset velocity

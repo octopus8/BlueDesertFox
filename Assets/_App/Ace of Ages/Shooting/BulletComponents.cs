@@ -21,6 +21,14 @@ public struct BulletData : IComponentData
     
     /// <summary>Whether the bullet is currently active (true) or pooled (false).</summary>
     public bool active;
+
+    /// <summary>
+    /// Ballistic velocity in the scrolling-terrain sense: world linear velocity plus terrain scroll velocity
+    /// at spawn (<c>PhysicsVelocity.Linear + terrainVelocity</c>). Each physics tick we set
+    /// <see cref="Unity.Physics.PhysicsVelocity.Linear"/> to this minus current scroll velocity so bullets stay
+    /// correct when <see cref="TerrainScrollVelocity.direction"/> changes (e.g. player turns).
+    /// </summary>
+    public float3 linearVelocityTerrainRelative;
 }
 
 /// <summary>
