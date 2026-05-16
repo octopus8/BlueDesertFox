@@ -120,6 +120,19 @@ public class PlayerTransformReference : IComponentData
 }
 
 /// <summary>
+/// Smoothed world-space horizontal velocity of the player for ballistic intercept (turrets etc.).
+/// Updated by <see cref="PlayerTargetVelocityEstimateSystem"/> from finite differences on
+/// <see cref="PlayerTransformReference"/>.
+/// </summary>
+public struct PlayerTargetVelocity : IComponentData
+{
+    /// <summary>Smoothed velocity on XZ (world units/sec); Y kept at 0.</summary>
+    public float3 horizontal;
+    public float3 lastWorldPosition;
+    public bool hasPrevious;
+}
+
+/// <summary>
 /// Component that stores search parameters for finding the player GameObject at runtime.
 /// This is baked into the entity so it can find the target after subscenes load.
 /// </summary>

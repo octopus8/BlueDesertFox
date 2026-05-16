@@ -183,6 +183,8 @@ public class TerrainConfigAuthoring : MonoBehaviour
             {
                 playerTransform = null
             });
+
+            AddComponent(entity, new PlayerTargetVelocity());
             
             // Add terrain material reference if assigned
             AddComponentObject(entity, new TerrainMaterialReference
