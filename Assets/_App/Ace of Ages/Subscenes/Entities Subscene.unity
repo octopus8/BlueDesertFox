@@ -6004,8 +6004,8 @@ MonoBehaviour:
   lod1Distance: 150
   lod2Distance: 307.06
   lodHysteresis: 5
-  minObjectsPerTile: 75
-  maxObjectsPerTile: 75
+  minObjectsPerTile: 25
+  maxObjectsPerTile: 25
   minSpawnHeight: -100
   maxSpawnHeight: 100
   maxSlopeDegrees: 45
