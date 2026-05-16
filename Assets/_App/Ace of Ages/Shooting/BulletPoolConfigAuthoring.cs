@@ -10,10 +10,10 @@ public class BulletPoolConfigAuthoring : MonoBehaviour
 {
     [Header("Bullet Pool Configuration")]
     [Tooltip("Number of bullets to pre-spawn at initialization")]
-    [SerializeField] private int initialPoolSize = 50;
+    [SerializeField] private int initialPoolSize = 300;
     
     [Tooltip("Maximum number of bullets that can exist in the pool")]
-    [SerializeField] private int maxPoolSize = 100;
+    [SerializeField] private int maxPoolSize = 600;
     
     public class Baker : Baker<BulletPoolConfigAuthoring>
     {

@@ -585,8 +585,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: cc0ffc3622fa4f8db0bc563e3e37d477, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::BulletPoolConfigAuthoring
-  initialPoolSize: 50
-  maxPoolSize: 100
+  initialPoolSize: 3000
+  maxPoolSize: 5000
 --- !u!4 &582652031
 Transform:
   m_ObjectHideFlags: 0

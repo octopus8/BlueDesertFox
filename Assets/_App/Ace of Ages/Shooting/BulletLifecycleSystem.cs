@@ -15,7 +15,7 @@ using UnityEngine;
 [UpdateAfter(typeof(BulletShooterSystem))]
 public partial struct BulletLifecycleSystem : ISystem
 {
-    private const double BULLET_MAX_LIFETIME = 2.0;
+    private const double BULLET_MAX_LIFETIME = 4.0;
     
     public void OnCreate(ref SystemState state)
     {

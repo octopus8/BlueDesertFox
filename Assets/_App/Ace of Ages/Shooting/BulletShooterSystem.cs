@@ -74,8 +74,9 @@ public partial struct BulletShooterSystem : ISystem
                 Scale = prefabScale
             });
             
-            // Add terrain scroll velocity so the bullet moves relative to the terrain frame.
-            // Without this the bullet would appear to drift backward as the terrain scrolls under it.
+            // Subtract terrain scroll velocity so the bullet travels at bulletSpeed in the terrain
+            // reference frame. Tiles move at -terrainVelocity in world space; subtracting gives the
+            // correct terrain-anchored trajectory.
             float3 terrainVelocity = float3.zero;
             if (SystemAPI.HasSingleton<TerrainScrollVelocity>())
             {
@@ -83,7 +84,7 @@ public partial struct BulletShooterSystem : ISystem
                 terrainVelocity = sv.direction * sv.speed;
             }
             
-            float3 bulletVelocity = forward * shooter.ValueRO.bulletSpeed + terrainVelocity;
+            float3 bulletVelocity = forward * shooter.ValueRO.bulletSpeed - terrainVelocity;
             
             // Set bullet velocity
             state.EntityManager.SetComponentData(bulletEntity, new PhysicsVelocity

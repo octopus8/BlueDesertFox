@@ -14,14 +14,15 @@ using UnityEngine;
 ///       TurretBarrelSystem [TransformSystemGroup] — sets barrel world position/rotation
 ///         TurretShooterSystem [SimulationSystemGroup, UpdateAfter(TransformSystemGroup)]
 ///
-/// Follows the zero-GC two-phase pattern required by Unity ECS:
-///   Phase 1 (inside foreach): evaluate timing/state, collect pending shots, update shooter
-///            state via RefRW — no structural changes.
-///   Phase 2 (after foreach): call BulletPoolSystem.GetFromPool and configure each bullet —
-///            structural changes (pool growth via Instantiate/AddComponentData) are safe here.
+/// Phase 1 (inside foreach): evaluate burst/cooldown state, collect pending shots, update
+///   TurretShooterState via RefRW — no structural changes.
+/// Phase 2 (after foreach): call BulletPoolSystem.GetFromPool and configure each bullet.
+///   Also writes LocalToWorld directly so the renderer sees the correct position on the
+///   same frame the bullet is spawned (LocalToWorldSystem has already run this frame).
 ///
-/// Bullet velocity = (direction to intercept * bulletSpeed) + terrain scroll velocity,
-/// matching BulletShooterSystem so bullets move in the terrain reference frame.
+/// Bullet velocity = (direction to intercept * bulletSpeed) - terrainScrollVelocity.
+/// Tiles move at -terrainScrollVelocity in world space, so subtracting gives the correct
+/// terrain-frame velocity matching BulletShooterSystem.
 /// </summary>
 [UpdateInGroup(typeof(SimulationSystemGroup))]
 [UpdateAfter(typeof(TransformSystemGroup))]
@@ -29,7 +30,6 @@ public partial struct TurretShooterSystem : ISystem
 {
     private ComponentLookup<TurretDome> _domeLookup;
 
-    // Blittable struct carrying everything needed to spawn one bullet, collected in Phase 1.
     private struct PendingShot
     {
         public float3     spawnPos;
@@ -45,7 +45,6 @@ public partial struct TurretShooterSystem : ISystem
         _domeLookup = state.GetComponentLookup<TurretDome>(isReadOnly: true);
     }
 
-    // Not [BurstCompile] — accesses BulletPoolSystem (managed system ref) and Debug.Log.
     public void OnUpdate(ref SystemState state)
     {
         _domeLookup.Update(ref state);
@@ -72,18 +71,13 @@ public partial struct TurretShooterSystem : ISystem
 
         double currentTime = SystemAPI.Time.ElapsedTime;
 
-        // Diagnostic: count matching barrel entities once per ~120 frames.
-        bool logThisFrame = ((int)(currentTime * 10) % 120) == 0;
-
         // Phase 1: evaluate burst/cooldown state and collect shots to fire.
-        // All writes here go through RefRW — no structural changes, safe inside the iterator.
+        // All writes go through RefRW — no structural changes, safe inside the iterator.
         var pendingShots = new NativeList<PendingShot>(16, Allocator.Temp);
-        int barrelCount = 0;
 
         foreach (var (shooterRef, barrelTag, barrelTransform) in
             SystemAPI.Query<RefRW<TurretShooterState>, RefRO<TurretBarrelTag>, RefRO<LocalTransform>>())
         {
-            barrelCount++;
             ref var shooter = ref shooterRef.ValueRW;
 
             // Cooldown expiry
@@ -114,15 +108,11 @@ public partial struct TurretShooterSystem : ISystem
 
             // Dome must be available for intercept data
             if (!_domeLookup.HasComponent(barrelTag.ValueRO.domeEntity))
-            {
-                if (logThisFrame)
-                    Debug.LogWarning($"[TurretShooterSystem] Barrel entity dome lookup failed (domeEntity={barrelTag.ValueRO.domeEntity})");
                 continue;
-            }
 
             var dome = _domeLookup[barrelTag.ValueRO.domeEntity];
 
-            // Compute muzzle world position and rotation
+            // Compute muzzle world position and rotation from barrel transform + baked local offset
             var barrelTf = barrelTransform.ValueRO;
             float3 spawnPos = barrelTf.Position + math.rotate(barrelTf.Rotation, shooter.spawnLocalOffset);
             quaternion spawnRot = math.mul(barrelTf.Rotation, shooter.spawnLocalRotation);
@@ -133,22 +123,18 @@ public partial struct TurretShooterSystem : ISystem
             if (interceptDist < 0.01f)
                 continue;
 
-            float3 bulletVelocity = (toIntercept / interceptDist) * dome.bulletSpeed + terrainVelocity;
+            float3 bulletVelocity = (toIntercept / interceptDist) * dome.bulletSpeed - terrainVelocity;
 
             pendingShots.Add(new PendingShot
             {
-                spawnPos      = spawnPos,
-                spawnRot      = spawnRot,
+                spawnPos       = spawnPos,
+                spawnRot       = spawnRot,
                 bulletVelocity = bulletVelocity
             });
 
-            // Advance burst state (RefRW write — no structural change)
             shooter.bulletsRemainingInBurst--;
             shooter.lastShotTime = currentTime;
         }
-
-        if (logThisFrame)
-            Debug.Log($"[TurretShooterSystem] barrels={barrelCount} pendingShots={pendingShots.Length} t={currentTime:F1}");
 
         // Phase 2: spawn bullets outside the query iterator.
         // GetFromPool may call Instantiate/AddComponentData (structural changes) — safe here.
@@ -158,17 +144,29 @@ public partial struct TurretShooterSystem : ISystem
 
             Entity bulletEntity = poolSystem.GetFromPool(ref state);
             if (bulletEntity == Entity.Null)
-            {
-                Debug.LogWarning("[TurretShooterSystem] Bullet pool exhausted");
                 continue;
-            }
 
-            state.EntityManager.SetComponentData(bulletEntity, new LocalTransform
+            var lt = new LocalTransform
             {
                 Position = shot.spawnPos,
                 Rotation = shot.spawnRot,
                 Scale    = prefabScale
-            });
+            };
+
+            state.EntityManager.SetComponentData(bulletEntity, lt);
+
+            // Write LocalToWorld directly so the renderer shows the bullet at the correct
+            // position on this frame. LocalToWorldSystem already ran inside TransformSystemGroup
+            // (before this system), so without this the bullet would render at (0,-10000,0)
+            // until the next frame.
+            bool hasL2W = state.EntityManager.HasComponent<LocalToWorld>(bulletEntity);
+            if (hasL2W)
+            {
+                state.EntityManager.SetComponentData(bulletEntity, new LocalToWorld
+                {
+                    Value = float4x4.TRS(shot.spawnPos, shot.spawnRot, new float3(prefabScale))
+                });
+            }
 
             state.EntityManager.SetComponentData(bulletEntity, new PhysicsVelocity
             {
@@ -182,6 +180,7 @@ public partial struct TurretShooterSystem : ISystem
                 creationTime  = currentTime,
                 active        = true
             });
+
         }
 
         pendingShots.Dispose();
