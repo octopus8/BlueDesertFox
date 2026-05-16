@@ -135,11 +135,11 @@ public partial struct TurretBarrelSystem : ISystem
             barrel.currentPitchAngle = newPitch;
 
             // ---- Rotation ----
-            // dome.Rotation × RotateX(pitch) × localRotation
-            // RotateX(pitch) is applied before localRotation so it rotates
-            // around the dome's horizontal X axis, independent of model orientation.
+            // dome.Rotation × RotateX(-pitch) × localRotation
+            // RotateX(θ) maps forward (0,0,1) → (0,−sinθ, cosθ), so positive θ pitches DOWN.
+            // Negate so that a positive pitchDelta (= aim above neutral) pitches UP.
             transform.Rotation = math.mul(domeRot,
-                                 math.mul(quaternion.RotateX(newPitch), barrel.localRotation));
+                                 math.mul(quaternion.RotateX(-newPitch), barrel.localRotation));
         }
     }
 }
