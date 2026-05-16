@@ -7,15 +7,15 @@ using Unity.Transforms;
 using UnityEngine;
 
 /// <summary>
-/// System that manages bullet lifecycle - returns bullets to pool when they exceed max distance.
-/// Uses distance-based cleanup (200m from spawn point).
+/// System that manages bullet lifecycle - returns bullets to pool when they exceed max lifetime.
+/// Uses time-based TTL (2 seconds) rather than world-space distance so that bullets fired with
+/// terrain scroll velocity baked in expire consistently regardless of scroll speed.
 /// </summary>
 [UpdateInGroup(typeof(SimulationSystemGroup))]
 [UpdateAfter(typeof(BulletShooterSystem))]
 public partial struct BulletLifecycleSystem : ISystem
 {
-    private const float MAX_BULLET_DISTANCE = 200f;
-    private const float MAX_BULLET_DISTANCE_SQ = MAX_BULLET_DISTANCE * MAX_BULLET_DISTANCE;
+    private const double BULLET_MAX_LIFETIME = 2.0;
     
     public void OnCreate(ref SystemState state)
     {
@@ -31,12 +31,14 @@ public partial struct BulletLifecycleSystem : ISystem
         
         ref var poolSystem = ref state.WorldUnmanaged.GetUnsafeSystemRef<BulletPoolSystem>(poolSystemHandle);
         
+        double currentTime = SystemAPI.Time.ElapsedTime;
+        
         // Collect bullets to return to pool (can't modify during iteration)
         var bulletsToReturn = new NativeList<Entity>(32, Allocator.Temp);
         
         // Check all active bullets
-        foreach (var (bulletData, transform, entity) in 
-            SystemAPI.Query<RefRO<BulletData>, RefRO<LocalTransform>>()
+        foreach (var (bulletData, entity) in 
+            SystemAPI.Query<RefRO<BulletData>>()
                 .WithAll<Bullet>()
                 .WithEntityAccess())
         {
@@ -44,13 +46,8 @@ public partial struct BulletLifecycleSystem : ISystem
             if (!bulletData.ValueRO.active)
                 continue;
             
-            // Calculate distance from spawn point
-            float3 currentPosition = transform.ValueRO.Position;
-            float3 spawnPosition = bulletData.ValueRO.spawnPosition;
-            float distanceSq = math.distancesq(currentPosition, spawnPosition);
-            
-            // Return to pool if beyond max distance
-            if (distanceSq > MAX_BULLET_DISTANCE_SQ)
+            // Return to pool when the bullet exceeds its max lifetime
+            if (currentTime - bulletData.ValueRO.creationTime > BULLET_MAX_LIFETIME)
             {
                 bulletsToReturn.Add(entity);
             }
@@ -90,7 +87,7 @@ public partial struct BulletLifecycleSystem : ISystem
         
         if (bulletsToReturn.Length > 0)
         {
-            Debug.Log($"[BulletLifecycleSystem] Returned {bulletsToReturn.Length} bullets to pool (distance cleanup)");
+            Debug.Log($"[BulletLifecycleSystem] Returned {bulletsToReturn.Length} bullets to pool (lifetime expired)");
         }
         
         bulletsToReturn.Dispose();

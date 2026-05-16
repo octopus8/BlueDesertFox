@@ -8,6 +8,7 @@ using UnityEngine;
 /// <summary>
 /// System that spawns bullets when BulletShooter.doShoot is true.
 /// Gets bullets from the pool, positions them at the spawn point using entity transform + offset, and fires them forward.
+/// Bullet velocity includes the terrain scroll velocity so bullets fly relative to the terrain reference frame.
 /// </summary>
 [UpdateBefore(typeof(ResetEventsSystem))]
 public partial struct BulletShooterSystem : ISystem
@@ -73,10 +74,21 @@ public partial struct BulletShooterSystem : ISystem
                 Scale = prefabScale
             });
             
+            // Add terrain scroll velocity so the bullet moves relative to the terrain frame.
+            // Without this the bullet would appear to drift backward as the terrain scrolls under it.
+            float3 terrainVelocity = float3.zero;
+            if (SystemAPI.HasSingleton<TerrainScrollVelocity>())
+            {
+                var sv = SystemAPI.GetSingleton<TerrainScrollVelocity>();
+                terrainVelocity = sv.direction * sv.speed;
+            }
+            
+            float3 bulletVelocity = forward * shooter.ValueRO.bulletSpeed + terrainVelocity;
+            
             // Set bullet velocity
             state.EntityManager.SetComponentData(bulletEntity, new PhysicsVelocity
             {
-                Linear = forward * shooter.ValueRO.bulletSpeed,
+                Linear = bulletVelocity,
                 Angular = float3.zero
             });
             
@@ -91,7 +103,7 @@ public partial struct BulletShooterSystem : ISystem
             // Update last fire time
             shooter.ValueRW.lastFireTime = SystemAPI.Time.ElapsedTime;
             
-            Debug.Log($"[BulletShooterSystem] Fired bullet at position {spawnPosition}, velocity {forward * shooter.ValueRO.bulletSpeed}");
+            Debug.Log($"[BulletShooterSystem] Fired bullet at position {spawnPosition}, velocity {bulletVelocity} (scroll contribution: {terrainVelocity})");
         }
     }
 }
