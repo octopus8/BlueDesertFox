@@ -5994,9 +5994,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::StaticObjectSpawnerConfigAuthoring
   objectLODSets:
   - objectTypeName: Test Tree
-    lod0: {fileID: 1790061847135392082, guid: 8b37e4c2e6d60d143bb98776db4935d6, type: 3}
-    lod1: {fileID: 1790061847135392082, guid: 8b37e4c2e6d60d143bb98776db4935d6, type: 3}
-    lod2: {fileID: 1790061847135392082, guid: 8b37e4c2e6d60d143bb98776db4935d6, type: 3}
+    lod0: {fileID: 1790061847135392082, guid: 58b757e6aea1c17429f6c67f76781fe5, type: 3}
+    lod1: {fileID: 1790061847135392082, guid: 58b757e6aea1c17429f6c67f76781fe5, type: 3}
+    lod2: {fileID: 1790061847135392082, guid: 58b757e6aea1c17429f6c67f76781fe5, type: 3}
     lod0SpawnWeight: 0.6
     lod1SpawnWeight: 0.3
     lod2SpawnWeight: 0.1
