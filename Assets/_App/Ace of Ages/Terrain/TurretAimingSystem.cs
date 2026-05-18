@@ -9,9 +9,8 @@ using Unity.Transforms;
 ///
 /// Each frame the system:
 ///   1. Reads the player's world position from PlayerTransformReference (managed, main thread).
-///   2. Uses time derivative of that position (from <see cref="PlayerTargetVelocity"/>) plus
-///      terrain scroll velocity so the aim vector matches d/dt (player − turret) on the XZ plane:
-///      turrets move at −scrollVelocity with tiles, so relative velocity = V_player_world + scrollVelocity.
+///   2. Uses terrain scroll direction and speed only for predictive lead on the XZ plane (player
+///      locomotion is ignored).
 ///   3. Schedules a Burst parallel job that solves the quadratic intercept equation,
 ///      writes a Y-axis rotation to LocalTransform.Rotation on every TurretDome entity,
 ///      and stores the 3D world-space intercept point in TurretDome.interceptPoint for
@@ -44,13 +43,8 @@ public partial struct TurretAimingSystem : ISystem
         var scrollVel = SystemAPI.GetSingleton<TerrainScrollVelocity>();
         float3 scrollVelocity = scrollVel.direction * scrollVel.speed;
 
-        float3 playerWorldHorizontal = float3.zero;
-        if (SystemAPI.TryGetSingleton(out PlayerTargetVelocity aimKinematics))
-            playerWorldHorizontal = aimKinematics.horizontal;
-
-        // Intercept equation assumes constant target velocity in the plane. Relative motion of
-        // player vs turret: d/dt(P − T) = V_player − V_turret, with V_turret = −scrollVelocity.
-        float3 playerVelocity = playerWorldHorizontal + scrollVelocity;
+        // Lead from scroll only: ignore player-relative motion (VR locomotion etc.).
+        float3 playerVelocity = scrollVelocity;
 
         float deltaTime = SystemAPI.Time.DeltaTime;
 
