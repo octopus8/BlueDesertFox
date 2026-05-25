@@ -212,13 +212,6 @@ public struct PlayerTerrainScrollVelocityConfig : IComponentData
     public float rotationSpeed;
     
     /// <summary>
-    /// Vertical movement speed in units per second at maximum pitch (90 degrees up/down).
-    /// The actual vertical speed scales proportionally with the player's pitch angle.
-    /// Positive values: looking up moves world origin upward, looking down moves it downward.
-    /// </summary>
-    public float verticalSpeed;
-    
-    /// <summary>
     /// Minimum Y position for the world origin (prevents moving too far down).
     /// </summary>
     public float minVerticalPosition;

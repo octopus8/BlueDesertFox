@@ -4,7 +4,7 @@ using UnityEngine;
 /// <summary>
 /// Authoring component for player-based scroll velocity with world origin tracking rotation.
 /// Scrolls terrain in the direction the player is facing, with rotation based on world origin orientation.
-/// Supports vertical movement based on player pitch angle.
+/// Vertical movement and scroll speed are derived from pitch angle: level flight = full scroll, nose-up = full vertical.
 /// Only one velocity provider (PlayerScrollVelocityAuthoring or ConstantScrollVelocityAuthoring) should be in the scene.
 /// </summary>
 public class PlayerScrollVelocityAuthoring : MonoBehaviour
@@ -24,9 +24,6 @@ public class PlayerScrollVelocityAuthoring : MonoBehaviour
     public float rotationSpeed = 2.0f;
     
     [Header("Vertical Movement")]
-    [Tooltip("Vertical movement speed in units per second at maximum pitch (90°). Speed scales proportionally with pitch angle. Looking up moves world origin upward, looking down moves it downward.")]
-    public float verticalSpeed = 10f;
-    
     [Tooltip("Minimum Y position for the world origin (prevents moving too far down)")]
     public float minVerticalPosition = -100f;
     
@@ -53,7 +50,6 @@ public class PlayerScrollVelocityAuthoring : MonoBehaviour
             {
                 speed = authoring.speed,
                 rotationSpeed = authoring.rotationSpeed,
-                verticalSpeed = authoring.verticalSpeed,
                 minVerticalPosition = authoring.minVerticalPosition,
                 maxVerticalPosition = authoring.maxVerticalPosition
             });

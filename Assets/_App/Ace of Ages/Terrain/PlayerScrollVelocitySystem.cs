@@ -2,9 +2,10 @@ using Unity.Entities;
 using Unity.Mathematics;
 
 /// <summary>
-/// System that provides scroll velocity based on the player's facing direction and rotates world origin based on player roll.
-/// Reads PlayerTransformReference and WorldOriginTransformReference, calculates scroll direction,
-/// writes to TerrainScrollVelocity singleton, rotates the world origin based on player's local roll angle.
+/// Drives terrain scroll and vertical world-origin movement from a single speed value distributed by pitch angle.
+/// At pitch = 0 (level): terrain scrolls at full speed, vertical = 0.
+/// At pitch = 90 (nose-up): scroll = 0, vertical rises at full speed.
+/// Also rotates the world origin based on player roll (bank-to-turn steering).
 /// Only runs when PlayerTerrainScrollVelocityConfig exists in the scene.
 /// </summary>
 [UpdateInGroup(typeof(SimulationSystemGroup))]
@@ -40,10 +41,16 @@ public partial class PlayerScrollVelocitySystem : SystemBase
         else
             baseScrollDirection = new float3(0, 0, 1); // Default forward if no valid direction
         
-        // Update the scroll direction and speed in the TerrainScrollVelocity singleton.
+        // Decompose speed into horizontal scroll and vertical components using pitch angle.
+        // playerForward.y == sin(pitch), so cos(pitch) gives the horizontal factor.
+        // At pitch = 0 (level):    scroll = speed, vertical = 0
+        // At pitch = 90 (nose-up): scroll = 0,     vertical = speed
+        float sinPitch = playerForward.y;
+        float cosPitch = math.sqrt(1f - sinPitch * sinPitch);
+
         RefRW<TerrainScrollVelocity> scrollVelocity = SystemAPI.GetSingletonRW<TerrainScrollVelocity>();
         scrollVelocity.ValueRW.direction = baseScrollDirection;
-        scrollVelocity.ValueRW.speed = config.speed;
+        scrollVelocity.ValueRW.speed = config.speed * cosPitch;
 
         // Rotate world origin based on player's bank angle (local Z-axis rotation)
         if (worldOriginRef?.worldOriginTransform != null)
@@ -67,16 +74,9 @@ public partial class PlayerScrollVelocitySystem : SystemBase
             worldOriginRef.worldOriginTransform.rotation *= UnityEngine.Quaternion.Euler(0, rotationAmount, 0);
         }
         
-        // Calculate vertical movement based on player pitch angle
-        // Extract pitch from player's forward vector Y component
-        float pitchRadians = math.asin(playerForward.y);
-        float pitchDegrees = math.degrees(pitchRadians);
-        
-        // Calculate vertical velocity proportional to pitch angle (normalized to ±90 degrees)
-        // At 90° up: pitchDegrees = 90, verticalVelocity = +verticalSpeed
-        // At 0° (horizon): pitchDegrees = 0, verticalVelocity = 0
-        // At -90° down: pitchDegrees = -90, verticalVelocity = -verticalSpeed
-        float verticalVelocity = (pitchDegrees / 90f) * config.verticalSpeed;
+        // Vertical velocity is the sin(pitch) portion of the total speed.
+        // Nose-up (positive pitch) raises the world origin; nose-down lowers it.
+        float verticalVelocity = config.speed * sinPitch;
         
         // Apply vertical movement with clamping
         UnityEngine.Vector3 currentPosition = worldOriginRef.worldOriginTransform.position;
