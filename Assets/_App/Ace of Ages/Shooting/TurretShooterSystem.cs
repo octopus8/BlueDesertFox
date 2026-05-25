@@ -124,7 +124,13 @@ public partial struct TurretShooterSystem : ISystem
             if (interceptDist < 0.01f)
                 continue;
 
-            float3 bulletVelocity = (toIntercept / interceptDist) * dome.bulletSpeed - terrainVelocity;
+            float3 desiredDir = toIntercept / interceptDist;
+            float3 muzzleForward = math.rotate(spawnRot, math.forward());
+            float cosAngle = math.dot(math.normalizesafe(muzzleForward), desiredDir);
+            if (math.acos(math.clamp(cosAngle, -1f, 1f)) > shooter.maxFireAngleRadians)
+                continue;
+
+            float3 bulletVelocity = desiredDir * dome.bulletSpeed - terrainVelocity;
 
             pendingShots.Add(new PendingShot
             {

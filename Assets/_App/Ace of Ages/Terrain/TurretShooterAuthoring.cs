@@ -28,6 +28,10 @@ public class TurretShooterAuthoring : MonoBehaviour
     [Tooltip("Seconds to wait after a full burst before the next one begins.")]
     public float cooldownDuration = 3f;
 
+    [Header("Aim Gate")]
+    [Tooltip("Maximum angle (degrees) between muzzle forward and the intercept aim direction before firing is allowed.")]
+    public float maxFireAngleDegrees = 8f;
+
     private class Baker : Baker<TurretShooterAuthoring>
     {
         public override void Bake(TurretShooterAuthoring authoring)
@@ -59,6 +63,7 @@ public class TurretShooterAuthoring : MonoBehaviour
                 bulletsPerBurst           = authoring.bulletsPerBurst,
                 burstIntraDelay           = authoring.burstIntraDelay,
                 cooldownDuration          = authoring.cooldownDuration,
+                maxFireAngleRadians       = math.radians(authoring.maxFireAngleDegrees),
                 spawnLocalOffset          = spawnLocalOffset,
                 spawnLocalRotation        = spawnLocalRotation,
                 bulletsRemainingInBurst   = authoring.bulletsPerBurst,
@@ -86,6 +91,9 @@ public struct TurretShooterState : IComponentData
 
     /// <summary>Seconds to wait between bursts.</summary>
     public float cooldownDuration;
+
+    /// <summary>Maximum angle (radians) between muzzle forward and intercept aim direction required to fire.</summary>
+    public float maxFireAngleRadians;
 
     /// <summary>Bullet spawn point local position relative to the barrel pivot (baked from a child GameObject).</summary>
     public float3 spawnLocalOffset;

@@ -413,6 +413,7 @@ MonoBehaviour:
   bulletsPerBurst: 3
   burstIntraDelay: 0.15
   cooldownDuration: 5
+  maxFireAngleDegrees: 8
 --- !u!1 &8823755312855149532
 GameObject:
   m_ObjectHideFlags: 0
