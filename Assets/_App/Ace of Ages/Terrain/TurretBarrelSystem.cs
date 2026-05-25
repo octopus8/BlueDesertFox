@@ -31,6 +31,7 @@ public partial struct TurretBarrelSystem : ISystem
 {
     private ComponentLookup<LocalTransform> _domeTransformLookup;
     private ComponentLookup<TurretDome> _domeDataLookup;
+    private ComponentLookup<TurretShooterState> _shooterLookup;
 
     [BurstCompile]
     public void OnCreate(ref SystemState state)
@@ -38,6 +39,7 @@ public partial struct TurretBarrelSystem : ISystem
         state.RequireForUpdate<TurretBarrelTag>();
         _domeTransformLookup = state.GetComponentLookup<LocalTransform>(true);
         _domeDataLookup = state.GetComponentLookup<TurretDome>(true);
+        _shooterLookup = state.GetComponentLookup<TurretShooterState>(true);
     }
 
     [BurstCompile]
@@ -45,11 +47,13 @@ public partial struct TurretBarrelSystem : ISystem
     {
         _domeTransformLookup.Update(ref state);
         _domeDataLookup.Update(ref state);
+        _shooterLookup.Update(ref state);
 
         var job = new TurretBarrelUpdateJob
         {
             domeTransformLookup = _domeTransformLookup,
             domeDataLookup = _domeDataLookup,
+            shooterLookup = _shooterLookup,
             deltaTime = SystemAPI.Time.DeltaTime
         };
         state.Dependency = job.ScheduleParallel(state.Dependency);
@@ -76,9 +80,14 @@ public partial struct TurretBarrelSystem : ISystem
         [NativeDisableParallelForRestriction]
         public ComponentLookup<TurretDome> domeDataLookup;
 
+        [ReadOnly]
+        [NativeDisableParallelForRestriction]
+        [NativeDisableContainerSafetyRestriction]
+        public ComponentLookup<TurretShooterState> shooterLookup;
+
         [ReadOnly] public float deltaTime;
 
-        private void Execute(ref TurretBarrelTag barrel, ref LocalTransform transform)
+        private void Execute(Entity entity, ref TurretBarrelTag barrel, ref LocalTransform transform)
         {
             if (!domeTransformLookup.HasComponent(barrel.domeEntity) ||
                 !domeDataLookup.HasComponent(barrel.domeEntity))
@@ -94,9 +103,17 @@ public partial struct TurretBarrelSystem : ISystem
             float3 barrelPos = domePos + math.rotate(domeRot, barrel.localOffset);
             transform.Position = barrelPos;
 
-            // ---- Pitch ----
+            // ---- Pitch (aim from neutral-pitch muzzle when TurretShooterState is present) ----
+            float3 aimOrigin = barrelPos;
+            if (shooterLookup.HasComponent(entity))
+            {
+                var shooter = shooterLookup[entity];
+                quaternion neutralBarrelRot = math.mul(domeRot, barrel.localRotation);
+                aimOrigin = barrelPos + math.rotate(neutralBarrelRot, shooter.spawnLocalOffset);
+            }
+
             float3 intercept = domeData.interceptPoint;
-            float3 toIntercept = intercept - barrelPos;
+            float3 toIntercept = intercept - aimOrigin;
             float interceptDist = math.length(toIntercept);
 
             float pitchTarget = barrel.currentPitchAngle; // hold current angle if no valid intercept

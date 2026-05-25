@@ -47,6 +47,13 @@ public class TurretShooterAuthoring : MonoBehaviour
                 Debug.LogWarning("[TurretShooterAuthoring] bulletSpawnPoint is null — bullets will spawn at the barrel pivot.", authoring);
             }
 
+            // Muzzle position in dome-local space at neutral pitch (for ballistic intercept solve).
+            var barrelTransform = authoring.transform;
+            float3 launchInDomeLocal = (float3)barrelTransform.localPosition
+                + math.rotate((quaternion)barrelTransform.localRotation, spawnLocalOffset);
+
+            AddComponent(entity, new TurretLaunchOffset { domeLocalOffset = launchInDomeLocal });
+
             AddComponent(entity, new TurretShooterState
             {
                 bulletsPerBurst           = authoring.bulletsPerBurst,
@@ -99,4 +106,14 @@ public struct TurretShooterState : IComponentData
 
     /// <summary>ElapsedTime at which the current cooldown expires and the next burst begins.</summary>
     public double cooldownEndsAt;
+}
+
+/// <summary>
+/// Baked muzzle position in dome-local space at neutral barrel pitch (barrel localPosition + rotated spawn offset).
+/// Added to the barrel entity by <see cref="TurretShooterAuthoring"/>.
+/// <see cref="TurretAimingSystem"/> maps this to the parent dome via <see cref="TurretBarrelTag.domeEntity"/>.
+/// </summary>
+public struct TurretLaunchOffset : IComponentData
+{
+    public float3 domeLocalOffset;
 }

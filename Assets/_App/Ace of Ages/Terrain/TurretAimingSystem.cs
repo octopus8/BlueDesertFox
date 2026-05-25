@@ -11,7 +11,8 @@ using Unity.Transforms;
 ///   1. Reads the player's world position from PlayerTransformReference (managed, main thread).
 ///   2. Uses terrain scroll direction and speed only for predictive lead on the XZ plane (player
 ///      locomotion is ignored).
-///   3. Schedules a Burst parallel job that solves the quadratic intercept equation,
+///   3. Schedules a Burst parallel job that solves the quadratic intercept equation from the
+///      muzzle launch point (dome position + <see cref="TurretLaunchOffset"/> when baked),
 ///      writes a Y-axis rotation to LocalTransform.Rotation on every TurretDome entity,
 ///      and stores the 3D world-space intercept point in TurretDome.interceptPoint for
 ///      TurretBarrelSystem to use for pitch calculation.
@@ -48,13 +49,22 @@ public partial struct TurretAimingSystem : ISystem
 
         float deltaTime = SystemAPI.Time.DeltaTime;
 
+        var domeLaunchOffsets = new NativeHashMap<Entity, float3>(16, Allocator.TempJob);
+        foreach (var (barrel, launchOffset) in
+            SystemAPI.Query<RefRO<TurretBarrelTag>, RefRO<TurretLaunchOffset>>())
+        {
+            domeLaunchOffsets[barrel.ValueRO.domeEntity] = launchOffset.ValueRO.domeLocalOffset;
+        }
+
         var job = new TurretAimJob
         {
             playerPos = playerPos,
             playerVelocity = playerVelocity,
-            deltaTime = deltaTime
+            deltaTime = deltaTime,
+            domeLaunchOffsets = domeLaunchOffsets.AsReadOnly()
         };
         state.Dependency = job.ScheduleParallel(state.Dependency);
+        state.Dependency = domeLaunchOffsets.Dispose(state.Dependency);
     }
 
     /// <summary>
@@ -72,23 +82,32 @@ public partial struct TurretAimingSystem : ISystem
         [ReadOnly] public float3 playerVelocity;
         [ReadOnly] public float deltaTime;
 
-        private void Execute(ref TurretDome dome, ref LocalTransform transform)
+        [ReadOnly] public NativeHashMap<Entity, float3>.ReadOnly domeLaunchOffsets;
+
+        private void Execute(Entity entity, ref TurretDome dome, ref LocalTransform transform)
         {
-            float3 turretPos = transform.Position;
+            float3 domePos = transform.Position;
+            quaternion domeRot = transform.Rotation;
+
+            float3 launchLocal = float3.zero;
+            if (domeLaunchOffsets.TryGetValue(entity, out float3 offset))
+                launchLocal = offset;
+
+            float3 launchPos = domePos + math.rotate(domeRot, launchLocal);
 
             // Work entirely in the XZ plane for horizontal (Y-axis) aiming.
-            float2 d = new float2(playerPos.x - turretPos.x, playerPos.z - turretPos.z);
+            float2 d = new float2(playerPos.x - launchPos.x, playerPos.z - launchPos.z);
             float2 v = new float2(playerVelocity.x, playerVelocity.z);
             float b = dome.bulletSpeed;
 
-            // Solve returns the XZ displacement from turret to intercept point.
+            // Solve returns the XZ displacement from launch point to intercept point.
             float2 interceptXZ = SolveIntercept(d, v, b);
 
             // Store 3D world-space intercept. Y = player's current height (no vertical lead).
             dome.interceptPoint = new float3(
-                turretPos.x + interceptXZ.x,
+                launchPos.x + interceptXZ.x,
                 playerPos.y,
-                turretPos.z + interceptXZ.y);
+                launchPos.z + interceptXZ.y);
 
             // Derive Y-axis aim angle from the same intercept vector.
             float2 aimDir = math.normalizesafe(interceptXZ, new float2(0f, 1f));
@@ -117,7 +136,7 @@ public partial struct TurretAimingSystem : ISystem
 
         /// <summary>
         /// Solves the 2-D ballistic intercept problem for a target at displacement d moving at velocity v,
-        /// with a projectile of speed b. Returns the XZ displacement from turret to the intercept point.
+        /// with a projectile of speed b. Returns the XZ displacement from launch origin to the intercept point.
         ///
         /// Equation: |d + v*t|² = (b*t)²  →  (|v|²-b²)t² + 2·dot(d,v)·t + |d|² = 0
         ///
@@ -157,7 +176,7 @@ public partial struct TurretAimingSystem : ISystem
                 }
             }
 
-            // Return world-XZ displacement from turret to intercept.
+            // Return world-XZ displacement from launch origin to intercept.
             // Falls back to d (direct aim toward current player position) if no solution.
             return bestT < float.MaxValue ? d + v * bestT : d;
         }

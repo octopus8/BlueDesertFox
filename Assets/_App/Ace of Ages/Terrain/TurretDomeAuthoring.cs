@@ -49,8 +49,8 @@ public struct TurretDome : IComponentData
     public float currentYAngle;
 
     /// <summary>
-    /// 3D world-space intercept point written each frame by TurretAimingSystem.
-    /// Read by TurretBarrelSystem to compute the barrel's pitch angle.
+    /// 3D world-space intercept point written each frame by TurretAimingSystem (solved from muzzle when
+    /// <see cref="TurretLaunchOffset"/> is baked on the barrel). Read by TurretBarrelSystem and TurretShooterSystem.
     /// </summary>
     public float3 interceptPoint;
 }

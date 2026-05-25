@@ -20,7 +20,8 @@ using UnityEngine;
 ///   Also writes LocalToWorld directly so the renderer sees the correct position on the
 ///   same frame the bullet is spawned (LocalToWorldSystem has already run this frame).
 ///
-/// Bullet velocity = (direction to intercept * bulletSpeed) - terrainScrollVelocity.
+/// Bullet velocity = (direction from muzzle to intercept * bulletSpeed) - terrainScrollVelocity.
+/// Intercept is solved from the muzzle in TurretAimingSystem when TurretLaunchOffset is baked on the dome.
 /// Tiles move at -terrainScrollVelocity in world space, so subtracting gives the correct
 /// terrain-frame velocity matching BulletShooterSystem.
 /// </summary>
