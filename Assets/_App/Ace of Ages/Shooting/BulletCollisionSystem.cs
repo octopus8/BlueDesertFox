@@ -4,7 +4,6 @@ using Unity.Mathematics;
 using Unity.Physics;
 using Unity.Physics.Systems;
 using Unity.Transforms;
-using UnityEngine;
 
 /// <summary>
 /// System that detects bullet collisions and returns them to the pool.
@@ -14,182 +13,143 @@ using UnityEngine;
 [UpdateAfter(typeof(PhysicsSystemGroup))]
 public partial struct BulletCollisionSystem : ISystem
 {
+    private ComponentLookup<Bullet> _bulletLookup;
+    private ComponentLookup<BulletData> _bulletDataLookup;
+    private ComponentLookup<TerrainTile> _terrainTileLookup;
+    private ComponentLookup<LocalTransform> _localTransformLookup;
+    private ComponentLookup<PhysicsVelocity> _physicsVelocityLookup;
+
     public void OnCreate(ref SystemState state)
     {
         state.RequireForUpdate<Bullet>();
         state.RequireForUpdate<SimulationSingleton>();
         state.RequireForUpdate<PhysicsWorldSingleton>();
         state.RequireForUpdate<PrefabEntitiesReferences>();
+
+        _bulletLookup = state.GetComponentLookup<Bullet>(isReadOnly: true);
+        _bulletDataLookup = state.GetComponentLookup<BulletData>(isReadOnly: false);
+        _terrainTileLookup = state.GetComponentLookup<TerrainTile>(isReadOnly: true);
+        _localTransformLookup = state.GetComponentLookup<LocalTransform>(isReadOnly: false);
+        _physicsVelocityLookup = state.GetComponentLookup<PhysicsVelocity>(isReadOnly: false);
     }
-    
+
     public void OnUpdate(ref SystemState state)
     {
-        // Get reference to pool system
         var poolSystemHandle = state.World.GetExistingSystem<BulletPoolSystem>();
         if (poolSystemHandle == SystemHandle.Null)
             return;
-        
+
         ref var poolSystem = ref state.WorldUnmanaged.GetUnsafeSystemRef<BulletPoolSystem>(poolSystemHandle);
-        
-        // Get reference to dirt explosion pool system
+
         var explosionPoolSystemHandle = state.World.GetExistingSystem<DirtExplosionPoolSystem>();
         bool hasExplosionPool = explosionPoolSystemHandle != SystemHandle.Null;
-        ref var explosionPoolSystem = ref state.WorldUnmanaged.GetUnsafeSystemRef<DirtExplosionPoolSystem>(explosionPoolSystemHandle);
-        
-        // Get physics simulation
+
+        _bulletLookup.Update(ref state);
+        _bulletDataLookup.Update(ref state);
+        _terrainTileLookup.Update(ref state);
+        _localTransformLookup.Update(ref state);
+        _physicsVelocityLookup.Update(ref state);
+
         var simulationSingleton = SystemAPI.GetSingleton<SimulationSingleton>();
-        
-        // IMPORTANT: Complete the physics simulation dependency before reading collision events
-        // This ensures all physics jobs have finished writing to the collision event stream
+
         state.Dependency.Complete();
-        
-        // Collect bullets that collided and their collision positions
-        var bulletsToReturn = new NativeList<Entity>(32, Allocator.Temp);
+
+        var bulletsToReturn = new NativeHashSet<Entity>(32, Allocator.Temp);
         var terrainCollisionPositions = new NativeList<float3>(32, Allocator.Temp);
-        
-        // Iterate through all collision events
+
         var collisionEvents = simulationSingleton.AsSimulation().CollisionEvents;
         foreach (var collisionEvent in collisionEvents)
         {
             Entity entityA = collisionEvent.EntityA;
             Entity entityB = collisionEvent.EntityB;
-            
-            // Check if either entity is a bullet
-            bool aIsBullet = state.EntityManager.HasComponent<Bullet>(entityA);
-            bool bIsBullet = state.EntityManager.HasComponent<Bullet>(entityB);
-            
-            // Check if either entity is terrain
-            bool aIsTerrain = state.EntityManager.HasComponent<TerrainTile>(entityA);
-            bool bIsTerrain = state.EntityManager.HasComponent<TerrainTile>(entityB);
-            
+
+            bool aIsBullet = _bulletLookup.HasComponent(entityA);
+            bool bIsBullet = _bulletLookup.HasComponent(entityB);
+            bool aIsTerrain = _terrainTileLookup.HasComponent(entityA);
+            bool bIsTerrain = _terrainTileLookup.HasComponent(entityB);
+
             if (aIsBullet)
-            {
-                var bulletData = state.EntityManager.GetComponentData<BulletData>(entityA);
-                if (bulletData.active && !bulletsToReturn.Contains(entityA))
-                {
-                    bulletsToReturn.Add(entityA);
-                    
-                    // If bullet hit terrain, record position for explosion spawn
-                    if (bIsTerrain)
-                    {
-                        var bulletTransform = state.EntityManager.GetComponentData<LocalTransform>(entityA);
-                        terrainCollisionPositions.Add(bulletTransform.Position);
-                    }
-                }
-            }
-            
+                TryCollectBullet(entityA, bIsTerrain, bulletsToReturn, terrainCollisionPositions);
+
             if (bIsBullet)
-            {
-                var bulletData = state.EntityManager.GetComponentData<BulletData>(entityB);
-                if (bulletData.active && !bulletsToReturn.Contains(entityB))
-                {
-                    bulletsToReturn.Add(entityB);
-                    
-                    // If bullet hit terrain, record position for explosion spawn
-                    if (aIsTerrain)
-                    {
-                        var bulletTransform = state.EntityManager.GetComponentData<LocalTransform>(entityB);
-                        terrainCollisionPositions.Add(bulletTransform.Position);
-                    }
-                }
-            }
+                TryCollectBullet(entityB, aIsTerrain, bulletsToReturn, terrainCollisionPositions);
         }
-        
-        // Return collided bullets to pool
-        for (int i = 0; i < bulletsToReturn.Length; i++)
+
+        foreach (Entity bullet in bulletsToReturn)
         {
-            Entity bullet = bulletsToReturn[i];
-            
-            // Mark as inactive
-            state.EntityManager.SetComponentData(bullet, new BulletData
-            {
-                spawnPosition = float3.zero,
-                creationTime = 0,
-                active = false,
-                linearVelocityTerrainRelative = float3.zero
-            });
-            
-            // Reset velocity
-            if (state.EntityManager.HasComponent<PhysicsVelocity>(bullet))
-            {
-                state.EntityManager.SetComponentData(bullet, new PhysicsVelocity
-                {
-                    Linear = float3.zero,
-                    Angular = float3.zero
-                });
-            }
-            
-            // Move far away (off-screen)
-            var transform = state.EntityManager.GetComponentData<LocalTransform>(bullet);
-            transform.Position = new float3(0, -10000, 0);
-            state.EntityManager.SetComponentData(bullet, transform);
-            
-            // Return to pool
-            poolSystem.ReturnToPool(bullet);
+            BulletPoolUtilities.DeactivateAndReturn(
+                bullet,
+                ref poolSystem,
+                ref _bulletDataLookup,
+                ref _localTransformLookup,
+                ref _physicsVelocityLookup);
         }
-        
-        if (bulletsToReturn.Length > 0)
-        {
-            Debug.Log($"[BulletCollisionSystem] Returned {bulletsToReturn.Length} bullets to pool (collision cleanup)");
-        }
-        
-        // Spawn dirt explosions for terrain collisions
+
         if (hasExplosionPool && terrainCollisionPositions.Length > 0)
         {
+            ref var explosionPoolSystem =
+                ref state.WorldUnmanaged.GetUnsafeSystemRef<DirtExplosionPoolSystem>(explosionPoolSystemHandle);
+
             var prefabs = SystemAPI.GetSingleton<PrefabEntitiesReferences>();
             float prefabScale = 1f;
-            if (state.EntityManager.HasComponent<LocalTransform>(prefabs.dirtExplosionSmallPrefab))
-            {
-                prefabScale = state.EntityManager.GetComponentData<LocalTransform>(prefabs.dirtExplosionSmallPrefab).Scale;
-            }
+            if (SystemAPI.HasComponent<LocalTransform>(prefabs.dirtExplosionSmallPrefab))
+                prefabScale = SystemAPI.GetComponent<LocalTransform>(prefabs.dirtExplosionSmallPrefab).Scale;
 
-            // Sample the current scroll offset so the explosion's anchor base position
-            // tracks the tile under the impact. Fall back to zero if the terrain hasn't
-            // initialised yet - the anchor then degenerates to a fixed world position.
             float3 scroll = SystemAPI.TryGetSingleton<ScrollOffset>(out var scrollOffsetSingleton)
                 ? scrollOffsetSingleton.accumulatedOffset
                 : float3.zero;
-            
+
+            double spawnTime = SystemAPI.Time.ElapsedTime;
+
             for (int i = 0; i < terrainCollisionPositions.Length; i++)
             {
                 Entity explosion = explosionPoolSystem.GetFromPool(ref state);
                 if (explosion == Entity.Null)
-                {
-                    Debug.LogWarning("[BulletCollisionSystem] Failed to get dirt explosion from pool");
                     continue;
-                }
-                
-                // Set explosion transform at collision point
-                state.EntityManager.SetComponentData(explosion, new LocalTransform
+
+                float3 impactPos = terrainCollisionPositions[i];
+
+                SystemAPI.SetComponent(explosion, new LocalTransform
                 {
-                    Position = terrainCollisionPositions[i],
-                    Rotation = quaternion.identity, // Upward-facing VFX
+                    Position = impactPos,
+                    Rotation = quaternion.identity,
                     Scale = prefabScale
                 });
-                
-                // Set explosion data (mark as active). triggered=false forces the
-                // DirtExplosionPlaySystem to re-fire the VFX event on this activation.
-                state.EntityManager.SetComponentData(explosion, new DirtExplosionData
+
+                SystemAPI.SetComponent(explosion, new DirtExplosionData
                 {
-                    spawnTime = SystemAPI.Time.ElapsedTime,
+                    spawnTime = spawnTime,
                     active = true,
                     triggered = false
                 });
 
-                // Anchor to the terrain: basePosition - scrollOffset reproduces the impact
-                // position right now, then drifts at the same rate as the tile beneath it.
-                state.EntityManager.SetComponentData(explosion, new TerrainAnchorTag
+                SystemAPI.SetComponent(explosion, new TerrainAnchorTag
                 {
-                    basePosition = terrainCollisionPositions[i] + scroll
+                    basePosition = impactPos + scroll
                 });
             }
-            
-            Debug.Log($"[BulletCollisionSystem] Spawned {terrainCollisionPositions.Length} dirt explosions at terrain collision points");
         }
-        
+
         bulletsToReturn.Dispose();
         terrainCollisionPositions.Dispose();
     }
+
+    private void TryCollectBullet(
+        Entity bullet,
+        bool hitTerrain,
+        NativeHashSet<Entity> bulletsToReturn,
+        NativeList<float3> terrainCollisionPositions)
+    {
+        if (!_bulletDataLookup.HasComponent(bullet))
+            return;
+
+        var bulletData = _bulletDataLookup[bullet];
+        if (!bulletData.active || bulletsToReturn.Contains(bullet))
+            return;
+
+        bulletsToReturn.Add(bullet);
+
+        if (hitTerrain && _localTransformLookup.HasComponent(bullet))
+            terrainCollisionPositions.Add(_localTransformLookup[bullet].Position);
+    }
 }
-
-
