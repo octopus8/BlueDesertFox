@@ -69,7 +69,9 @@ public class TurretShooterAuthoring : MonoBehaviour
                 bulletsRemainingInBurst   = authoring.bulletsPerBurst,
                 lastShotTime              = 0,
                 inCooldown                = false,
-                cooldownEndsAt            = 0
+                cooldownEndsAt            = 0,
+                burstLineOfSightEvaluated = false,
+                burstTerrainBlocked       = false
             });
         }
     }
@@ -114,6 +116,12 @@ public struct TurretShooterState : IComponentData
 
     /// <summary>ElapsedTime at which the current cooldown expires and the next burst begins.</summary>
     public double cooldownEndsAt;
+
+    /// <summary>True after terrain line-of-sight has been raycast for the current burst.</summary>
+    public bool burstLineOfSightEvaluated;
+
+    /// <summary>Cached terrain raycast result for the current burst (valid when burstLineOfSightEvaluated is true).</summary>
+    public bool burstTerrainBlocked;
 }
 
 /// <summary>

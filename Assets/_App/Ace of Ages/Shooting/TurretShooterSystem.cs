@@ -24,11 +24,16 @@ using UnityEngine;
 /// Intercept is solved from the muzzle in TurretAimingSystem when TurretLaunchOffset is baked on the dome.
 /// Tiles move at -terrainScrollVelocity in world space, so subtracting gives the correct
 /// terrain-frame velocity matching BulletShooterSystem.
+///
+/// Before the first shot of each burst, a physics ray from the muzzle toward the intercept point
+/// checks for terrain colliders along the bullet path; the result is cached for the rest of the burst.
 /// </summary>
 [UpdateInGroup(typeof(SimulationSystemGroup))]
 [UpdateAfter(typeof(TransformSystemGroup))]
 public partial struct TurretShooterSystem : ISystem
 {
+    private const float RayOriginOffset = 0.1f;
+
     private ComponentLookup<TurretDome> _domeLookup;
 
     private struct PendingShot
@@ -49,6 +54,14 @@ public partial struct TurretShooterSystem : ISystem
     public void OnUpdate(ref SystemState state)
     {
         _domeLookup.Update(ref state);
+
+        bool canCheckTerrain = SystemAPI.TryGetSingleton<TerrainTileConfig>(out var terrainConfig)
+            && terrainConfig.enablePhysicsColliders
+            && SystemAPI.HasSingleton<PhysicsWorldSingleton>();
+
+        bool physicsWorldReady = false;
+        CollisionWorld collisionWorld = default;
+        CollisionFilter terrainRayFilter = default;
 
         var poolSystemHandle = state.World.GetExistingSystem<BulletPoolSystem>();
         if (poolSystemHandle == SystemHandle.Null)
@@ -100,6 +113,8 @@ public partial struct TurretShooterSystem : ISystem
             {
                 shooter.inCooldown = true;
                 shooter.cooldownEndsAt = currentTime + shooter.cooldownDuration;
+                shooter.burstLineOfSightEvaluated = false;
+                shooter.burstTerrainBlocked = false;
                 continue;
             }
 
@@ -129,6 +144,31 @@ public partial struct TurretShooterSystem : ISystem
             float cosAngle = math.dot(math.normalizesafe(muzzleForward), desiredDir);
             if (math.acos(math.clamp(cosAngle, -1f, 1f)) > shooter.maxFireAngleRadians)
                 continue;
+
+            if (canCheckTerrain)
+            {
+                if (!shooter.burstLineOfSightEvaluated)
+                {
+                    EnsurePhysicsWorldReady(
+                        ref state,
+                        terrainConfig,
+                        ref physicsWorldReady,
+                        ref collisionWorld,
+                        ref terrainRayFilter);
+                    shooter.burstTerrainBlocked = TerrainBlocksShot(
+                        collisionWorld, terrainRayFilter, spawnPos, desiredDir, interceptDist);
+                    shooter.burstLineOfSightEvaluated = true;
+                }
+
+                if (shooter.burstTerrainBlocked)
+                {
+                    shooter.inCooldown = true;
+                    shooter.cooldownEndsAt = currentTime + shooter.cooldownDuration;
+                    shooter.burstLineOfSightEvaluated = false;
+                    shooter.burstTerrainBlocked = false;
+                    continue;
+                }
+            }
 
             float3 bulletVelocity = desiredDir * dome.bulletSpeed - terrainVelocity;
 
@@ -192,5 +232,51 @@ public partial struct TurretShooterSystem : ISystem
         }
 
         pendingShots.Dispose();
+    }
+
+    private void EnsurePhysicsWorldReady(
+        ref SystemState state,
+        in TerrainTileConfig terrainConfig,
+        ref bool physicsWorldReady,
+        ref CollisionWorld collisionWorld,
+        ref CollisionFilter terrainRayFilter)
+    {
+        if (physicsWorldReady)
+            return;
+
+        state.Dependency.Complete();
+        collisionWorld = SystemAPI.GetSingleton<PhysicsWorldSingleton>().PhysicsWorld.CollisionWorld;
+        uint terrainLayerMask = 1u << terrainConfig.terrainPhysicsLayer;
+        terrainRayFilter = new CollisionFilter
+        {
+            BelongsTo = ~0u,
+            CollidesWith = terrainLayerMask,
+            GroupIndex = 0
+        };
+        physicsWorldReady = true;
+    }
+
+    /// <summary>
+    /// Returns true when a terrain tile collider lies on the segment from muzzle to intercept.
+    /// </summary>
+    private static bool TerrainBlocksShot(
+        CollisionWorld collisionWorld,
+        CollisionFilter terrainFilter,
+        float3 spawnPos,
+        float3 direction,
+        float interceptDistance)
+    {
+        float rayLength = math.max(interceptDistance - RayOriginOffset, 0.01f);
+        float3 rayStart = spawnPos + direction * RayOriginOffset;
+        float3 rayEnd = spawnPos + direction * (RayOriginOffset + rayLength);
+
+        var rayInput = new RaycastInput
+        {
+            Start = rayStart,
+            End = rayEnd,
+            Filter = terrainFilter
+        };
+
+        return collisionWorld.CastRay(rayInput);
     }
 }

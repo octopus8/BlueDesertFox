@@ -13,7 +13,7 @@ using UnityEngine.VFX;
 /// <see cref="VisualEffect.initialEventName"/> burst: the auto-OnPlay only happens once,
 /// during the companion GameObject's first <c>OnEnable</c>. Neither <see cref="VisualEffect.Reinit"/>
 /// nor <see cref="VisualEffect.Play"/> alone will resend the event - only an explicit
-/// <see cref="VisualEffect.SendEvent(string)"/> will. We do all three for robustness.
+/// <see cref="VisualEffect.SendEvent(int)"/> will. We do all three for robustness.
 ///
 /// Runs in <see cref="PresentationSystemGroup"/> with <c>OrderLast = true</c> so the
 /// per-entity companion is guaranteed to exist and have been transform-synced by Entities
@@ -25,7 +25,8 @@ using UnityEngine.VFX;
 [UpdateInGroup(typeof(PresentationSystemGroup), OrderLast = true)]
 public partial class DirtExplosionPlaySystem : SystemBase
 {
-    private string _cachedInitialEvent;
+    /// <summary>Matches <c>m_InitialEventName</c> on DirtExplosionSmall.prefab. Use int overload to avoid SendEvent(string) GC.</summary>
+    private static readonly int InitialEventId = Shader.PropertyToID("OnPlay");
 
     protected override void OnCreate()
     {
@@ -52,13 +53,6 @@ public partial class DirtExplosionPlaySystem : SystemBase
             if (vfx == null)
                 continue;
 
-            // initialEventName is authored on the prefab and constant at runtime; cache once.
-            if (_cachedInitialEvent == null)
-            {
-                var authored = vfx.initialEventName;
-                _cachedInitialEvent = string.IsNullOrEmpty(authored) ? "OnPlay" : authored;
-            }
-
             // Force the companion transform to match the entity right now, in case the
             // standard companion-transform sync has not run yet this frame for newly
             // activated pool entries.
@@ -67,7 +61,7 @@ public partial class DirtExplosionPlaySystem : SystemBase
             vfx.pause = false;
             vfx.Reinit();
             vfx.Play();
-            vfx.SendEvent(_cachedInitialEvent);
+            vfx.SendEvent(InitialEventId);
 
             d.triggered = true;
         }
