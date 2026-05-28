@@ -614,8 +614,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2428c6a881424ca79566dedf5c8f5796, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::DirtExplosionPoolConfigAuthoring
-  initialPoolSize: 2000
-  maxPoolSize: 2000
+  initialPoolSize: 200
+  maxPoolSize: 200
   lifetime: 2.5
 --- !u!1001 &582819465
 PrefabInstance:
@@ -5916,7 +5916,7 @@ MonoBehaviour:
   scrollEnabled: 1
   scrollSpeed: 75
   noiseFrequency: 0.005
-  noiseAmplitude: 60
+  noiseAmplitude: 0.0001
   noiseOctaves: 4
   noiseLacunarity: 2
   noisePersistence: 0.5
