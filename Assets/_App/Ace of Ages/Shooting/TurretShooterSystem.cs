@@ -138,6 +138,10 @@ public partial struct TurretShooterSystem : ISystem
             float interceptDist = math.length(toIntercept);
             if (interceptDist < 0.01f)
                 continue;
+            if (interceptDist > shooter.maxFireDistance)
+            {
+                continue;
+            }
 
             float3 desiredDir = toIntercept / interceptDist;
             float3 muzzleForward = math.rotate(spawnRot, math.forward());

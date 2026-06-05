@@ -28,9 +28,12 @@ public class TurretShooterAuthoring : MonoBehaviour
     [Tooltip("Seconds to wait after a full burst before the next one begins.")]
     public float cooldownDuration = 3f;
 
-    [Header("Aim Gate")]
+    [Header("Shoot Gate")]
     [Tooltip("Maximum angle (degrees) between muzzle forward and the intercept aim direction before firing is allowed.")]
     public float maxFireAngleDegrees = 8f;
+
+    [Tooltip("Maximum distance between muzzle and the target before firing is allowed.")]
+    public float maxFireDistance = 100;
 
     private class Baker : Baker<TurretShooterAuthoring>
     {
@@ -64,6 +67,7 @@ public class TurretShooterAuthoring : MonoBehaviour
                 burstIntraDelay           = authoring.burstIntraDelay,
                 cooldownDuration          = authoring.cooldownDuration,
                 maxFireAngleRadians       = math.radians(authoring.maxFireAngleDegrees),
+                maxFireDistance          =  authoring.maxFireDistance,
                 spawnLocalOffset          = spawnLocalOffset,
                 spawnLocalRotation        = spawnLocalRotation,
                 bulletsRemainingInBurst   = authoring.bulletsPerBurst,
@@ -96,6 +100,9 @@ public struct TurretShooterState : IComponentData
 
     /// <summary>Maximum angle (radians) between muzzle forward and intercept aim direction required to fire.</summary>
     public float maxFireAngleRadians;
+
+    /// <summary>Maximum distance between muzzle and target required to fire.</summary>
+    public float maxFireDistance;
 
     /// <summary>Bullet spawn point local position relative to the barrel pivot (baked from a child GameObject).</summary>
     public float3 spawnLocalOffset;
