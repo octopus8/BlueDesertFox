@@ -29,14 +29,23 @@ public struct TerrainTileConfig : IComponentData
     public float continentalExponent;   // e.g. 2.5 — values >1 push more area toward flat
     
     // Physics optimization parameters
-    /// <summary>Maximum number of physics colliders created per frame (prevents stalls).</summary>
+    /// <summary>Maximum number of terrain meshes generated per frame (prevents stalls).</summary>
     public int maxCollidersCreatedPerFrame;
+
+    /// <summary>Maximum number of physics colliders created per frame (main-thread MeshCollider.Create budget).</summary>
+    public int maxPhysicsCollidersCreatedPerFrame;
     
     /// <summary>Distance threshold beyond which colliders are removed completely.</summary>
     public float maxColliderDistance;
     
     /// <summary>Maximum memory in megabytes for collider cache (LRU eviction when exceeded).</summary>
     public int maxColliderCacheMemoryMB;
+
+    /// <summary>Distance within which physics colliders use full mesh resolution.</summary>
+    public float physicsColliderFullResolutionDistance;
+
+    /// <summary>Vertex stride for physics colliders beyond full-resolution distance (2 = half resolution).</summary>
+    public int physicsColliderVertexStride;
     
     /// <summary>Physics layer index for terrain colliders.</summary>
     public int terrainPhysicsLayer;

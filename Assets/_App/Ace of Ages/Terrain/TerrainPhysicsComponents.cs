@@ -2,6 +2,7 @@ using System;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
+using Unity.Physics;
 
 /// <summary>
 /// Component storing cached distance from this tile to the player.
@@ -111,6 +112,15 @@ public struct PhysicsColliderPrepared : IComponentData
 }
 
 /// <summary>
+/// Holds a created MeshCollider blob awaiting registration with the physics world next frame.
+/// Separates expensive MeshCollider.Create from PhysicsCollider component addition.
+/// </summary>
+public struct PhysicsColliderRegistrationPending : IComponentData
+{
+    public BlobAssetReference<Collider> collider;
+}
+
+/// <summary>
 /// Key for caching collider BlobAssets based on generation parameters.
 /// Allows tiles with identical parameters to share the same cached collider.
 /// All tiles now use full-resolution geometry, so LOD is no longer part of the key.
@@ -160,6 +170,30 @@ public struct ColliderCacheEntry
     public BlobAssetReference<TerrainColliderBlob> blobAsset;
     public long lastAccessFrame;
     public int estimatedMemoryBytes;
+}
+
+/// <summary>
+/// Resolves the effective per-frame physics collider creation budget from terrain config.
+/// Uses the minimum of both budget fields so either inspector slider caps physics work.
+/// </summary>
+public static class TerrainPhysicsBudget
+{
+    public static int GetCreationBudget(in TerrainTileConfig config)
+    {
+        int budget = int.MaxValue;
+
+        if (config.maxPhysicsCollidersCreatedPerFrame > 0)
+        {
+            budget = math.min(budget, config.maxPhysicsCollidersCreatedPerFrame);
+        }
+
+        if (config.maxCollidersCreatedPerFrame > 0)
+        {
+            budget = math.min(budget, config.maxCollidersCreatedPerFrame);
+        }
+
+        return math.max(1, budget == int.MaxValue ? 4 : budget);
+    }
 }
 
 

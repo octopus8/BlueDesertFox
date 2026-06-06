@@ -9,8 +9,7 @@ using Unity.Profiling;
 
 /// <summary>
 /// System that prepares collider data asynchronously using Burst-compiled jobs.
-/// Copies full-resolution vertex/index data for main-thread MeshCollider.Create() call.
-/// Calculates camera-aware priority to ensure tiles visible to camera are processed first.
+/// Applies distance-based vertex decimation to reduce MeshCollider.Create cost on distant tiles.
 /// </summary>
 [UpdateInGroup(typeof(SimulationSystemGroup))]
 [UpdateAfter(typeof(TerrainMeshGenerationSystem))]
@@ -26,7 +25,7 @@ public partial struct TerrainColliderPreparationSystem : ISystem
     {
         state.RequireForUpdate<TerrainTileConfig>();
         state.RequireForUpdate<EndSimulationEntityCommandBufferSystem.Singleton>();
-        state.RequireForUpdate<CameraDataSingleton>(); // Require the new singleton
+        state.RequireForUpdate<CameraDataSingleton>();
         _query = state.GetEntityQuery(
             ComponentType.ReadOnly<PhysicsColliderNeedsPreparation>(),
             ComponentType.ReadOnly<VertexElement>(),
@@ -43,20 +42,16 @@ public partial struct TerrainColliderPreparationSystem : ISystem
 #endif
         {
             var config = SystemAPI.GetSingleton<TerrainTileConfig>();
-            
-            // Early exit if physics colliders are disabled
+
             if (!config.enablePhysicsColliders)
             {
                 return;
             }
-            
+
             var cameraData = SystemAPI.GetSingleton<CameraDataSingleton>();
-            
-            // Get the ECB singleton and create a command buffer
             var ecbSingleton = SystemAPI.GetSingleton<EndSimulationEntityCommandBufferSystem.Singleton>();
             var ecb = ecbSingleton.CreateCommandBuffer(state.WorldUnmanaged);
 
-            // Schedule job to prepare collider data
             var job = new PrepareColliderDataJob
             {
                 ecb = ecb.AsParallelWriter(),
@@ -64,17 +59,16 @@ public partial struct TerrainColliderPreparationSystem : ISystem
                 tileSize = config.tileSize,
                 cameraPosition = cameraData.position,
                 cameraForward = cameraData.forward,
-                viewDistance = config.viewDistance
+                viewDistance = config.viewDistance,
+                physicsColliderFullResolutionDistance = config.physicsColliderFullResolutionDistance,
+                physicsColliderVertexStride = math.max(1, config.physicsColliderVertexStride)
             };
-            
-            // Schedule against the filtered query
+
             state.Dependency = job.ScheduleParallel(_query, state.Dependency);
         }
     }
 }
 
-// This new system will run on the main thread to get the managed camera data
-// and write it to a Burst-compatible singleton for other systems to use.
 public struct CameraDataSingleton : IComponentData
 {
     public float3 position;
@@ -87,7 +81,6 @@ public partial class CameraDataUpdateSystem : SystemBase
 {
     protected override void OnCreate()
     {
-        // Ensure the singleton exists
         if (!SystemAPI.HasSingleton<CameraDataSingleton>())
         {
             EntityManager.CreateEntity(typeof(CameraDataSingleton));
@@ -106,11 +99,10 @@ public partial class CameraDataUpdateSystem : SystemBase
             cameraPosition = playerRef.playerTransform.position;
             cameraForward = math.normalize(new float3(
                 playerRef.playerTransform.forward.x,
-                0, // Project to XZ plane
+                0,
                 playerRef.playerTransform.forward.z));
         }
 
-        // Write to the singleton
         SystemAPI.SetSingleton(new CameraDataSingleton
         {
             position = cameraPosition,
@@ -119,12 +111,6 @@ public partial class CameraDataUpdateSystem : SystemBase
     }
 }
 
-/// <summary>
-/// Burst-compiled job that prepares collider vertex and triangle data without LOD decimation.
-/// Runs in parallel for maximum performance.
-/// Calculates camera-aware priority: tiles in front of camera get higher priority than tiles behind.
-/// All colliders use full-resolution geometry matching the rendered mesh.
-/// </summary>
 [BurstCompile]
 [WithAll(typeof(PhysicsColliderNeedsPreparation))]
 partial struct PrepareColliderDataJob : IJobEntity
@@ -135,7 +121,9 @@ partial struct PrepareColliderDataJob : IJobEntity
     public float3 cameraPosition;
     public float3 cameraForward;
     public float viewDistance;
-    
+    public float physicsColliderFullResolutionDistance;
+    public int physicsColliderVertexStride;
+
     public void Execute(
         [ChunkIndexInQuery] int chunkIndex,
         Entity entity,
@@ -144,86 +132,121 @@ partial struct PrepareColliderDataJob : IJobEntity
         in TerrainTile tile,
         in TerrainTileDistanceToPlayer distanceData)
     {
-        // Use temporary lists to build collider data (full resolution - no decimation)
-        var preparedVertices = new NativeList<ColliderPreparedVertexElement>(sourceVertices.Length, Allocator.Temp);
-        var preparedTriangles = new NativeList<ColliderPreparedTriangleElement>(sourceIndices.Length / 3, Allocator.Temp);
-        
-        // Copy all vertices without decimation
-        for (int i = 0; i < sourceVertices.Length; i++)
-        {
-            preparedVertices.Add(new ColliderPreparedVertexElement 
-            { 
-                value = sourceVertices[i].value 
-            });
-        }
-        
-        // Copy all triangles (convert from flat index array to int3 triangles)
-        for (int i = 0; i < sourceIndices.Length; i += 3)
-        {
-            if (i + 2 < sourceIndices.Length)
-            {
-                preparedTriangles.Add(new ColliderPreparedTriangleElement 
-                { 
-                    value = new int3(
-                        sourceIndices[i].value,
-                        sourceIndices[i + 1].value,
-                        sourceIndices[i + 2].value
-                    )
-                });
-            }
-        }
-        
-        // Add the prepared buffers to the entity
+        int stride = distanceData.distance <= physicsColliderFullResolutionDistance
+            ? 1
+            : physicsColliderVertexStride;
+
+        ColliderMeshDecimation.BuildDecimatedMesh(
+            sourceVertices,
+            sourceIndices,
+            verticesPerSide,
+            stride,
+            out NativeList<ColliderPreparedVertexElement> preparedVertices,
+            out NativeList<ColliderPreparedTriangleElement> preparedTriangles);
+
         ecb.AddBuffer<ColliderPreparedVertexElement>(chunkIndex, entity).CopyFrom(preparedVertices.AsArray());
         ecb.AddBuffer<ColliderPreparedTriangleElement>(chunkIndex, entity).CopyFrom(preparedTriangles.AsArray());
-        
+
         preparedVertices.Dispose();
         preparedTriangles.Dispose();
-        
-        // Calculate camera-aware priority
-        // Lower priority value = higher actual priority (processed first)
-        
-        // Calculate tile center position
+
         float2 tileCenter = new float2(
             tile.gridCoordinate.x * tileSize + tileSize * 0.5f,
             tile.gridCoordinate.y * tileSize + tileSize * 0.5f
         );
-        
-        // Vector from camera to tile (2D, XZ plane)
+
         float2 cameraPos2D = new float2(cameraPosition.x, cameraPosition.z);
         float2 toTile = tileCenter - cameraPos2D;
         float distance = math.length(toTile);
-        
-        // Normalize distance to 0-1 range based on view distance
         float normalizedDistance = math.clamp(distance / viewDistance, 0f, 1f);
-        
-        // Calculate dot product with camera forward (2D projection)
+
         float2 cameraForward2D = math.normalize(new float2(cameraForward.x, cameraForward.z));
-        float2 toTileNormalized = math.normalize(toTile);
-        if (math.lengthsq(toTile) < 0.001f) toTileNormalized = cameraForward2D; // Avoid NaN if tile is at camera center
+        float2 toTileNormalized = math.lengthsq(toTile) < 0.001f
+            ? cameraForward2D
+            : math.normalize(toTile);
         float dotProduct = math.dot(cameraForward2D, toTileNormalized);
-        
-        // Convert dot product from [-1, 1] to [0, 1] where:
-        // 1.0 = directly in front
-        // 0.5 = perpendicular
-        // 0.0 = behind camera
         float viewScore = (dotProduct + 1f) * 0.5f;
-        
-        // Combined priority: weight view direction more heavily than distance
-        // Formula: priority = (1 - viewScore) * 1000 + normalizedDistance * 500
-        // This means:
-        // - Tiles in front of camera (viewScore=1.0) get priority 0-500 (based on distance)
-        // - Tiles behind camera (viewScore=0.0) get priority 1000-1500 (based on distance)
-        // - Closer tiles within same viewing direction get higher priority
         float combinedPriority = (1f - viewScore) * 1000f + normalizedDistance * 500f;
-        
-        // Mark as prepared with camera-aware priority
+
         ecb.AddComponent(chunkIndex, entity, new PhysicsColliderPrepared
         {
             priority = (int)combinedPriority
         });
-        
-        // Remove needs preparation flag
+
         ecb.SetComponentEnabled<PhysicsColliderNeedsPreparation>(chunkIndex, entity, false);
+    }
+}
+
+[BurstCompile]
+static class ColliderMeshDecimation
+{
+    [BurstCompile]
+    public static void BuildDecimatedMesh(
+        in DynamicBuffer<VertexElement> sourceVertices,
+        in DynamicBuffer<IndexElement> sourceIndices,
+        int verticesPerSide,
+        int stride,
+        out NativeList<ColliderPreparedVertexElement> preparedVertices,
+        out NativeList<ColliderPreparedTriangleElement> preparedTriangles)
+    {
+        stride = math.max(1, stride);
+
+        if (stride == 1)
+        {
+            preparedVertices = new NativeList<ColliderPreparedVertexElement>(sourceVertices.Length, Allocator.Temp);
+            preparedTriangles = new NativeList<ColliderPreparedTriangleElement>(sourceIndices.Length / 3, Allocator.Temp);
+
+            for (int i = 0; i < sourceVertices.Length; i++)
+            {
+                preparedVertices.Add(new ColliderPreparedVertexElement { value = sourceVertices[i].value });
+            }
+
+            for (int i = 0; i + 2 < sourceIndices.Length; i += 3)
+            {
+                preparedTriangles.Add(new ColliderPreparedTriangleElement
+                {
+                    value = new int3(
+                        sourceIndices[i].value,
+                        sourceIndices[i + 1].value,
+                        sourceIndices[i + 2].value)
+                });
+            }
+
+            return;
+        }
+
+        int decimatedPerSide = (verticesPerSide - 1) / stride + 1;
+        int decimatedVertexCount = decimatedPerSide * decimatedPerSide;
+        int decimatedTriangleCount = (decimatedPerSide - 1) * (decimatedPerSide - 1) * 2;
+
+        preparedVertices = new NativeList<ColliderPreparedVertexElement>(decimatedVertexCount, Allocator.Temp);
+        preparedTriangles = new NativeList<ColliderPreparedTriangleElement>(decimatedTriangleCount, Allocator.Temp);
+
+        for (int z = 0; z < decimatedPerSide; z++)
+        {
+            int srcZ = math.min(z * stride, verticesPerSide - 1);
+            for (int x = 0; x < decimatedPerSide; x++)
+            {
+                int srcX = math.min(x * stride, verticesPerSide - 1);
+                int srcIndex = srcZ * verticesPerSide + srcX;
+                preparedVertices.Add(new ColliderPreparedVertexElement { value = sourceVertices[srcIndex].value });
+            }
+        }
+
+        for (int z = 0; z < decimatedPerSide - 1; z++)
+        {
+            for (int x = 0; x < decimatedPerSide - 1; x++)
+            {
+                int i = z * decimatedPerSide + x;
+                preparedTriangles.Add(new ColliderPreparedTriangleElement
+                {
+                    value = new int3(i, i + decimatedPerSide, i + 1)
+                });
+                preparedTriangles.Add(new ColliderPreparedTriangleElement
+                {
+                    value = new int3(i + 1, i + decimatedPerSide, i + decimatedPerSide + 1)
+                });
+            }
+        }
     }
 }

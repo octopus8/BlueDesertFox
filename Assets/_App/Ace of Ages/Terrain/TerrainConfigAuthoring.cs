@@ -86,8 +86,12 @@ public class TerrainConfigAuthoring : MonoBehaviour
     
     [Header("Physics Optimization")]
     [Range(1, 20)]
-    [Tooltip("Maximum number of physics colliders created per frame to prevent stalls (increased for full-resolution colliders)")]
+    [Tooltip("Maximum number of terrain meshes generated per frame (Burst jobs)")]
     public int maxCollidersCreatedPerFrame = 6;
+
+    [Range(1, 8)]
+    [Tooltip("Maximum number of physics colliders created per frame (main-thread MeshCollider.Create). Keep low for VR (3-4).")]
+    public int maxPhysicsCollidersCreatedPerFrame = 4;
     
     [Tooltip("Distance beyond which colliders are removed completely (no physics beyond this distance)")]
     public float maxColliderDistance = 450f;
@@ -95,6 +99,13 @@ public class TerrainConfigAuthoring : MonoBehaviour
     [Range(10, 200)]
     [Tooltip("Maximum memory in megabytes for collider cache - oldest entries evicted when exceeded")]
     public int maxColliderCacheMemoryMB = 50;
+
+    [Tooltip("Tiles closer than this distance use full-resolution physics meshes. Beyond this, vertex stride is applied.")]
+    public float physicsColliderFullResolutionDistance = 128f;
+
+    [Range(1, 4)]
+    [Tooltip("Sample every Nth vertex for physics beyond full-resolution distance. 2 = ~4x fewer triangles.")]
+    public int physicsColliderVertexStride = 2;
     
     [NaughtyAttributes.Layer]
     [Tooltip("Physics layer index for all terrain colliders")]
@@ -121,8 +132,11 @@ public class TerrainConfigAuthoring : MonoBehaviour
                 continentalExponent = authoring.continentalExponent,
                 // Physics optimization
                 maxCollidersCreatedPerFrame = authoring.maxCollidersCreatedPerFrame,
+                maxPhysicsCollidersCreatedPerFrame = authoring.maxPhysicsCollidersCreatedPerFrame,
                 maxColliderDistance = authoring.maxColliderDistance,
                 maxColliderCacheMemoryMB = authoring.maxColliderCacheMemoryMB,
+                physicsColliderFullResolutionDistance = authoring.physicsColliderFullResolutionDistance,
+                physicsColliderVertexStride = math.max(1, authoring.physicsColliderVertexStride),
                 terrainPhysicsLayer = authoring.terrainPhysicsLayer,
                 // Debug/Testing
                 renderTerrain = authoring.renderTerrain,
