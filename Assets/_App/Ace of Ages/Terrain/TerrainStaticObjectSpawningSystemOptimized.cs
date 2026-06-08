@@ -191,6 +191,17 @@ public partial struct TerrainTreeSpawningSystemOptimized : ISystem
             }
         }
         
+        // Copy object type spawn weights for weighted type selection
+        var typeSpawnWeightsBuffer = state.EntityManager.GetBuffer<StaticObjectTypeSpawnWeight>(configEntity, true);
+        var objectTypeSpawnWeights = new NativeArray<float>(treeTypeCount, Allocator.TempJob);
+        float equalTypeWeight = treeTypeCount > 0 ? 1f / treeTypeCount : 1f;
+        for (int i = 0; i < treeTypeCount; i++)
+        {
+            objectTypeSpawnWeights[i] = i < typeSpawnWeightsBuffer.Length
+                ? typeSpawnWeightsBuffer[i].weight
+                : equalTypeWeight;
+        }
+        
 #if UNITY_EDITOR
         using (s_PositionCalcMarker.Auto())
 #endif
@@ -204,7 +215,8 @@ public partial struct TerrainTreeSpawningSystemOptimized : ISystem
                 terrainConfig = terrainConfig,
                 cameraPosition = cameraData.position,
                 treeTypeCount = treeTypeCount,
-                objectPrefabRotations = objectPrefabRotations
+                objectPrefabRotations = objectPrefabRotations,
+                objectTypeSpawnWeights = objectTypeSpawnWeights
             };
             
             state.Dependency = positionJob.ScheduleParallel(state.Dependency);
@@ -267,6 +279,7 @@ public partial struct TerrainTreeSpawningSystemOptimized : ISystem
         // Jobs will dispose these in their OnDestroy
         objectPrefabs.Dispose(state.Dependency);
         objectPrefabRotations.Dispose(state.Dependency);
+        objectTypeSpawnWeights.Dispose(state.Dependency);
         tilesToProcess.Dispose(state.Dependency);
         lodMeshInfos.Dispose(state.Dependency);
     }
@@ -289,6 +302,7 @@ partial struct CalculateStaticObjectSpawnPositionsJob : IJobEntity
     [ReadOnly] public float3 cameraPosition;
     [ReadOnly] public int treeTypeCount;
     [ReadOnly] public NativeArray<quaternion> objectPrefabRotations;
+    [ReadOnly] public NativeArray<float> objectTypeSpawnWeights;
     
     private void Execute(
         in TerrainTile tile,
@@ -378,8 +392,19 @@ partial struct CalculateStaticObjectSpawnPositionsJob : IJobEntity
             if (normal.y < config.slopeThreshold)
                 continue;
             
-            // Select random tree type
-            int objectTypeIndex = random.NextInt(0, treeTypeCount);
+            // Select object type using normalized spawn weights
+            float typeRoll = random.NextFloat(0f, 1f);
+            float cumulativeTypeWeight = 0f;
+            int objectTypeIndex = treeTypeCount - 1;
+            for (int typeIndex = 0; typeIndex < treeTypeCount; typeIndex++)
+            {
+                cumulativeTypeWeight += objectTypeSpawnWeights[typeIndex];
+                if (typeRoll < cumulativeTypeWeight)
+                {
+                    objectTypeIndex = typeIndex;
+                    break;
+                }
+            }
             
             // Get prefab rotation for LOD0 (all LODs of same type share rotation)
             int prefabIndexLOD0 = objectTypeIndex * 3 + 0;
