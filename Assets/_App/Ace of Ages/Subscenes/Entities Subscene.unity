@@ -6002,6 +6002,13 @@ MonoBehaviour:
     lod0SpawnWeight: 0.6
     lod1SpawnWeight: 0.3
     lod2SpawnWeight: 0.1
+  - objectTypeName: Turret
+    lod0: {fileID: 1790061847135392082, guid: 8b37e4c2e6d60d143bb98776db4935d6, type: 3}
+    lod1: {fileID: 1790061847135392082, guid: 8b37e4c2e6d60d143bb98776db4935d6, type: 3}
+    lod2: {fileID: 1790061847135392082, guid: 950686e73ad800141937263f45a9e2fe, type: 3}
+    lod0SpawnWeight: 0.6
+    lod1SpawnWeight: 0.3
+    lod2SpawnWeight: 0.1
   lod0Distance: 50
   lod1Distance: 150
   lod2Distance: 307.06
