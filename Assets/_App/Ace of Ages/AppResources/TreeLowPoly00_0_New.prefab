@@ -12,7 +12,7 @@ GameObject:
   - component: {fileID: 4645095208263671462}
   - component: {fileID: 5812071685220835922}
   m_Layer: 0
-  m_Name: TEST TREE
+  m_Name: TreeLowPoly00_0_New
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -40,7 +40,7 @@ MeshFilter:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1790061847135392082}
-  m_Mesh: {fileID: 4740938080591924505, guid: 535f5796cdc8600428e1773f9f5b6cce, type: 3}
+  m_Mesh: {fileID: 4740938080591924505, guid: e2e60a97507aac14a8f616d5f5076d94, type: 3}
 --- !u!23 &5812071685220835922
 MeshRenderer:
   m_ObjectHideFlags: 0

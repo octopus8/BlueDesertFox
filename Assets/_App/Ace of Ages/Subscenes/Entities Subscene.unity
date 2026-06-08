@@ -5997,8 +5997,8 @@ MonoBehaviour:
   objectLODSets:
   - objectTypeName: Test Tree
     lod0: {fileID: 1790061847135392082, guid: 3f54f0a690281804a9fa0bb6a0b2c43f, type: 3}
-    lod1: {fileID: 1790061847135392082, guid: 3f54f0a690281804a9fa0bb6a0b2c43f, type: 3}
-    lod2: {fileID: 1790061847135392082, guid: 3f54f0a690281804a9fa0bb6a0b2c43f, type: 3}
+    lod1: {fileID: 268780033425554496, guid: 5cfabf8fb09c20f49b7721a267c890b8, type: 3}
+    lod2: {fileID: 4922588999693537203, guid: 1102ac1201d59f244ba5407dbaf9c0c1, type: 3}
     lod0SpawnWeight: 0.6
     lod1SpawnWeight: 0.3
     lod2SpawnWeight: 0.1
