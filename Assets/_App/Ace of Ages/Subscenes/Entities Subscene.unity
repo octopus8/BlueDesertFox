@@ -356,7 +356,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::BulletShooterAuthoring
   fireRate: 0.2
-  bulletSpeed: 100
+  bulletSpeed: 80
 --- !u!1 &476052809
 GameObject:
   m_ObjectHideFlags: 0
@@ -462,7 +462,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 919132149155446097, guid: 87f4999611a81074d84b81fdce75df7b, type: 3}
       propertyPath: m_IsActive
-      value: 1
+      value: 0
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -5914,7 +5914,7 @@ MonoBehaviour:
   viewDistance: 1100
   verticesPerSide: 16
   scrollEnabled: 1
-  scrollSpeed: 75
+  scrollSpeed: 0
   noiseFrequency: 0.005
   noiseAmplitude: 60
   noiseOctaves: 4
@@ -5931,7 +5931,7 @@ MonoBehaviour:
   maxColliderDistance: 450
   maxColliderCacheMemoryMB: 50
   physicsColliderFullResolutionDistance: 128
-  physicsColliderVertexStride: 2
+  physicsColliderVertexStride: 1
   terrainPhysicsLayer: 11
 --- !u!4 &1528308291
 Transform:
@@ -5975,8 +5975,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ea650e9e97214c68a8aab550673cff51, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerScrollVelocityAuthoring
-  speed: 40
-  rotationSpeed: 50
+  speed: 20
+  rotationSpeed: 20
   minVerticalPosition: -20
   maxVerticalPosition: 40
   worldOriginSearchMode: 0
@@ -6002,7 +6002,7 @@ MonoBehaviour:
     lod0SpawnWeight: 0.6
     lod1SpawnWeight: 0.3
     lod2SpawnWeight: 0.1
-    objectTypeSpawnWeight: 10
+    objectTypeSpawnWeight: 20
   - objectTypeName: Turret
     lod0: {fileID: 1790061847135392082, guid: 8b37e4c2e6d60d143bb98776db4935d6, type: 3}
     lod1: {fileID: 1790061847135392082, guid: 8b37e4c2e6d60d143bb98776db4935d6, type: 3}
@@ -6015,8 +6015,8 @@ MonoBehaviour:
   lod1Distance: 150
   lod2Distance: 307.06
   lodHysteresis: 5
-  minObjectsPerTile: 50
-  maxObjectsPerTile: 100
+  minObjectsPerTile: 25
+  maxObjectsPerTile: 200
   minSpawnHeight: -100
   maxSpawnHeight: 100
   maxSlopeDegrees: 45

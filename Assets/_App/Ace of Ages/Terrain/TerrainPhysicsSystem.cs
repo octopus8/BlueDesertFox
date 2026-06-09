@@ -232,8 +232,10 @@ namespace _App.Ace_of_Ages.Terrain
 
                         ecb.AddComponent(entity, new PhysicsColliderRegistrationPending { collider = collider });
                         ecb.RemoveComponent<PhysicsColliderPrepared>(entity);
-                        ecb.RemoveComponent<ColliderPreparedVertexElement>(entity);
-                        ecb.RemoveComponent<ColliderPreparedTriangleElement>(entity);
+                        // Keep ColliderPreparedVertexElement/ColliderPreparedTriangleElement so the
+                        // TerrainColliderVisualizer can draw the actual baked collider geometry.
+                        // These are removed by TerrainDistanceTrackingSystem.RemoveColliderState when
+                        // the collider itself is removed, keeping the overlay in lockstep with physics.
                         budget--;
                     }
                     catch (Exception e)
