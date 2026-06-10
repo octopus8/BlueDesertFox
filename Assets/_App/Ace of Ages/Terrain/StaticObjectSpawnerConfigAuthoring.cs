@@ -65,11 +65,11 @@ public class StaticObjectSpawnerConfigAuthoring : MonoBehaviour
     
     [Header("Spawn Density")]
     [Tooltip("Minimum number of objects per tile")]
-    [Range(0, 200)]
+    [Range(0, 300)]
     public int minObjectsPerTile = 5;
     
     [Tooltip("Maximum number of objects per tile")]
-    [Range(0, 200)]
+    [Range(0, 300)]
     public int maxObjectsPerTile = 15;
     
     [Header("Spawn Filtering")]
