@@ -5997,15 +5997,15 @@ MonoBehaviour:
   objectLODSets:
   - objectTypeName: Test Tree
     lod0: {fileID: 1790061847135392082, guid: 3f54f0a690281804a9fa0bb6a0b2c43f, type: 3}
-    lod1: {fileID: 268780033425554496, guid: 5cfabf8fb09c20f49b7721a267c890b8, type: 3}
+    lod1: {fileID: 4922588999693537203, guid: 1102ac1201d59f244ba5407dbaf9c0c1, type: 3}
     lod2: {fileID: 4922588999693537203, guid: 1102ac1201d59f244ba5407dbaf9c0c1, type: 3}
     lod0SpawnWeight: 0.7
     lod1SpawnWeight: 0.4
     lod2SpawnWeight: 0.2
-    objectTypeSpawnWeight: 1
+    objectTypeSpawnWeight: 120
   - objectTypeName: Turret
     lod0: {fileID: 1790061847135392082, guid: 8b37e4c2e6d60d143bb98776db4935d6, type: 3}
-    lod1: {fileID: 1790061847135392082, guid: 8b37e4c2e6d60d143bb98776db4935d6, type: 3}
+    lod1: {fileID: 1790061847135392082, guid: 950686e73ad800141937263f45a9e2fe, type: 3}
     lod2: {fileID: 1790061847135392082, guid: 950686e73ad800141937263f45a9e2fe, type: 3}
     lod0SpawnWeight: 0.6
     lod1SpawnWeight: 0.3
@@ -6015,8 +6015,8 @@ MonoBehaviour:
   lod1Distance: 150
   lod2Distance: 307.06
   lodHysteresis: 5
-  minObjectsPerTile: 5
-  maxObjectsPerTile: 5
+  minObjectsPerTile: 300
+  maxObjectsPerTile: 300
   minSpawnHeight: -100
   maxSpawnHeight: 100
   maxSlopeDegrees: 45
