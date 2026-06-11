@@ -22,6 +22,7 @@ using Unity.Transforms;
 /// </summary>
 [UpdateInGroup(typeof(TransformSystemGroup))]
 [UpdateAfter(typeof(objectPositionUpdateSystem))]
+[UpdateBefore(typeof(LocalToWorldSystem))]
 public partial struct TurretAimingSystem : ISystem
 {
     public void OnCreate(ref SystemState state)

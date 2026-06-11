@@ -27,11 +27,13 @@ using Unity.Transforms;
 [BurstCompile]
 [UpdateInGroup(typeof(TransformSystemGroup))]
 [UpdateAfter(typeof(TurretAimingSystem))]
+[UpdateBefore(typeof(LocalToWorldSystem))]
 public partial struct TurretBarrelSystem : ISystem
 {
     private ComponentLookup<LocalTransform> _domeTransformLookup;
     private ComponentLookup<TurretDome> _domeDataLookup;
     private ComponentLookup<TurretShooterState> _shooterLookup;
+    private ComponentLookup<LocalToWorld> _localToWorldLookup;
 
     [BurstCompile]
     public void OnCreate(ref SystemState state)
@@ -40,6 +42,7 @@ public partial struct TurretBarrelSystem : ISystem
         _domeTransformLookup = state.GetComponentLookup<LocalTransform>(true);
         _domeDataLookup = state.GetComponentLookup<TurretDome>(true);
         _shooterLookup = state.GetComponentLookup<TurretShooterState>(true);
+        _localToWorldLookup = state.GetComponentLookup<LocalToWorld>(false);
     }
 
     [BurstCompile]
@@ -48,12 +51,14 @@ public partial struct TurretBarrelSystem : ISystem
         _domeTransformLookup.Update(ref state);
         _domeDataLookup.Update(ref state);
         _shooterLookup.Update(ref state);
+        _localToWorldLookup.Update(ref state);
 
         var job = new TurretBarrelUpdateJob
         {
             domeTransformLookup = _domeTransformLookup,
             domeDataLookup = _domeDataLookup,
             shooterLookup = _shooterLookup,
+            localToWorldLookup = _localToWorldLookup,
             deltaTime = SystemAPI.Time.DeltaTime
         };
         state.Dependency = job.ScheduleParallel(state.Dependency);
@@ -84,6 +89,9 @@ public partial struct TurretBarrelSystem : ISystem
         [NativeDisableParallelForRestriction]
         [NativeDisableContainerSafetyRestriction]
         public ComponentLookup<TurretShooterState> shooterLookup;
+
+        [NativeDisableParallelForRestriction]
+        public ComponentLookup<LocalToWorld> localToWorldLookup;
 
         [ReadOnly] public float deltaTime;
 
@@ -157,6 +165,14 @@ public partial struct TurretBarrelSystem : ISystem
             // Negate so that a positive pitchDelta (= aim above neutral) pitches UP.
             transform.Rotation = math.mul(domeRot,
                                  math.mul(quaternion.RotateX(-newPitch), barrel.localRotation));
+
+            if (localToWorldLookup.HasComponent(entity))
+            {
+                localToWorldLookup[entity] = new LocalToWorld
+                {
+                    Value = float4x4.TRS(transform.Position, transform.Rotation, transform.Scale)
+                };
+            }
         }
     }
 }
