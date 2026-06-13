@@ -15,8 +15,10 @@ public class BulletPoolConfigAuthoring : MonoBehaviour
     [Tooltip("Maximum number of bullets that can exist in the pool")]
     [SerializeField] private int maxPoolSize = 600;
     
+    /// <summary>Bakes the inspector-configured pool sizes into a <see cref="BulletPoolConfig"/> singleton component.</summary>
     public class Baker : Baker<BulletPoolConfigAuthoring>
     {
+        /// <inheritdoc/>
         public override void Bake(BulletPoolConfigAuthoring authoring)
         {
             Entity entity = GetEntity(TransformUsageFlags.Dynamic);

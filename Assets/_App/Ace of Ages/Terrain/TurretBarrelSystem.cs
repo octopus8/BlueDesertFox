@@ -35,6 +35,7 @@ public partial struct TurretBarrelSystem : ISystem
     private ComponentLookup<TurretShooterState> _shooterLookup;
     private ComponentLookup<LocalToWorld> _localToWorldLookup;
 
+    /// <summary>Registers the <see cref="TurretBarrelTag"/> requirement and caches all component lookup handles.</summary>
     [BurstCompile]
     public void OnCreate(ref SystemState state)
     {
@@ -45,6 +46,10 @@ public partial struct TurretBarrelSystem : ISystem
         _localToWorldLookup = state.GetComponentLookup<LocalToWorld>(false);
     }
 
+    /// <summary>
+    /// Updates all component lookup handles and schedules <c>TurretBarrelUpdateJob</c> in parallel to
+    /// position and pitch all barrel entities relative to their dome entities.
+    /// </summary>
     [BurstCompile]
     public void OnUpdate(ref SystemState state)
     {
@@ -95,6 +100,11 @@ public partial struct TurretBarrelSystem : ISystem
 
         [ReadOnly] public float deltaTime;
 
+        /// <summary>
+        /// Positions the barrel at the dome's world position plus the local offset, transforms the
+        /// desired aim direction into dome-local space, computes and smooth-lerps pitch, and writes
+        /// the final barrel rotation as <c>domeRot × RotateX(pitch) × localRotation</c>.
+        /// </summary>
         private void Execute(Entity entity, ref TurretBarrelTag barrel, ref LocalTransform transform)
         {
             if (!domeTransformLookup.HasComponent(barrel.domeEntity) ||

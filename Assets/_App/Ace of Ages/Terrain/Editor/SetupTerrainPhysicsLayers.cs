@@ -7,6 +7,13 @@ using UnityEngine;
 /// </summary>
 public class SetupTerrainPhysicsLayers : Editor
 {
+    /// <summary>
+    /// Ensures the <c>Terrain</c> physics layer exists in the Project Settings Tag Manager
+    /// (adding it to the first available slot if absent), then disables collision between the
+    /// <c>Terrain</c> layer and AutoHand's <c>Grabbable</c> layer so grabbed objects cannot
+    /// accidentally collide with terrain mesh colliders.
+    /// Accessible via the <c>Tools → Terrain → Setup Physics Layer</c> menu.
+    /// </summary>
     [MenuItem("Tools/Terrain/Setup Physics Layer")]
     public static void SetupPhysicsLayers()
     {

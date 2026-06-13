@@ -7,11 +7,23 @@ using Unity.Transforms;
 using UnityEngine;
 
 
+/// <summary>
+/// Moves entities with a <see cref="SplineFollower"/> component along their associated spline each frame.
+/// Only processes entities in the <see cref="MovementPhase.FollowingSpline"/> phase (or entities
+/// without a <see cref="FormationMovementState"/> for backwards compatibility).
+/// Compensates for terrain scroll velocity so that spline-following enemies maintain correct
+/// world-relative speeds. Supports bowling-pin formation offsets via <see cref="FormationPosition"/>.
+/// <para>Disabled by default (<c>[DisableAutoCreation]</c>); enable for spline-following gameplay.</para>
+/// </summary>
 [DisableAutoCreation]
 partial struct SplineFollowerSystem : ISystem
 {
     private const bool useJobs = true;
     
+    /// <summary>
+    /// Schedules the <see cref="SplineFollowerJob"/> to advance all eligible spline-following
+    /// entities in parallel, applying formation offsets and terrain scroll compensation.
+    /// </summary>
     [BurstCompile]
     public void OnUpdate(ref SystemState state)
     {
@@ -48,14 +60,31 @@ partial struct SplineFollowerSystem : ISystem
 }
 
 
+/// <summary>
+/// Burst-compiled parallel job that advances each spline-following entity along its pre-sampled
+/// spline, applies bowling-pin formation offsets, compensates for terrain scroll velocity, and
+/// smoothly interpolates the entity's position and rotation toward the computed spline target.
+/// </summary>
 [BurstCompile]
 public partial struct SplineFollowerJob : IJobEntity
 {
+    /// <summary>Elapsed time in seconds since the last frame.</summary>
     public float deltaTime;
+    /// <summary>
+    /// Current terrain scroll velocity vector. Projected onto the spline tangent to offset the
+    /// entity's effective speed so that world-relative closing speed remains constant.
+    /// </summary>
     public float3 scrollVelocity;
+    /// <summary>Read-only lookup for <see cref="FormationPosition"/> to apply bowling-pin offsets.</summary>
     [ReadOnly] public ComponentLookup<FormationPosition> formationPositionLookup;
+    /// <summary>Read-only lookup for <see cref="FormationMovementState"/> to filter by movement phase.</summary>
     [ReadOnly] public ComponentLookup<FormationMovementState> movementStateLookup;
     
+    /// <summary>
+    /// Advances the entity along the spline, applies formation lateral/forward offsets, compensates
+    /// for terrain scroll velocity, and smoothly interpolates the entity's transform each frame.
+    /// Skips entities not in the <see cref="MovementPhase.FollowingSpline"/> phase.
+    /// </summary>
     public void Execute(
         Entity entity,
         ref LocalTransform localTransform, 

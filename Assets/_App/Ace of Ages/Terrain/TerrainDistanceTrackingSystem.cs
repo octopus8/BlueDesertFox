@@ -22,11 +22,18 @@ public partial class TerrainDistanceTrackingSystem : SystemBase
     private static readonly ProfilerMarker s_ProfilerMarker = new ProfilerMarker("TerrainPhysics.DistanceTracking");
 #endif
 
+    /// <summary>Registers the <see cref="TerrainTileConfig"/> requirement before running.</summary>
     protected override void OnCreate()
     {
         RequireForUpdate<TerrainTileConfig>();
     }
 
+    /// <summary>
+    /// For each terrain tile, calculates its world-space distance to the player and assigns
+    /// the appropriate physics LOD level. Tiles needing a collider update receive a
+    /// <c>PhysicsColliderNeedsPreparation</c> component via an <see cref="EntityCommandBuffer"/>.
+    /// Skips processing if physics colliders are disabled or the player is not tracked.
+    /// </summary>
     protected override void OnUpdate()
     {
 #if UNITY_EDITOR
@@ -143,6 +150,7 @@ public partial class TerrainDistanceTrackingSystem : SystemBase
         }
     }
 
+    /// <summary>Removes stale physics collider and physics velocity components from <paramref name="entity"/> via ECB when they exist, used when a tile moves to a higher-LOD distance tier.</summary>
     private static void RemoveColliderState(Entity entity, EntityCommandBuffer ecb, EntityManager entityManager)
     {
         if (entityManager.HasComponent<Unity.Physics.PhysicsCollider>(entity))
@@ -198,8 +206,10 @@ public partial class TerrainDistanceTrackingSystem : SystemBase
         public float distance;
     }
 
+    /// <summary>Sorts <see cref="PrepCandidate"/> entries by ascending distance so nearest tiles are processed first.</summary>
     struct PrepCandidateComparer : IComparer<PrepCandidate>
     {
+        /// <inheritdoc/>
         public int Compare(PrepCandidate a, PrepCandidate b)
         {
             return a.distance.CompareTo(b.distance);

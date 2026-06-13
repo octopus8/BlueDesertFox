@@ -13,6 +13,7 @@ using Unity.Mathematics;
 [UpdateBefore(typeof(TransformFollowerSystem))]
 public partial class PlayerScrollVelocitySystem : SystemBase
 {
+    /// <summary>Registers required singletons: scroll velocity, player config, player transform reference, and world origin.</summary>
     protected override void OnCreate()
     {
         RequireForUpdate<TerrainScrollVelocity>();
@@ -21,6 +22,11 @@ public partial class PlayerScrollVelocitySystem : SystemBase
         RequireForUpdate<WorldOriginTransformReference>();
     }
 
+    /// <summary>
+    /// Reads the player ship's pitch and bank angles, distributes the configured <c>speed</c> between
+    /// horizontal scroll and vertical movement, writes the resulting <see cref="TerrainScrollVelocity"/>,
+    /// and optionally rotates the world-origin Transform based on bank angle.
+    /// </summary>
     protected override void OnUpdate()
     {
         var config = SystemAPI.GetSingleton<PlayerTerrainScrollVelocityConfig>();

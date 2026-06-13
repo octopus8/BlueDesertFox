@@ -28,11 +28,18 @@ public partial class DirtExplosionPlaySystem : SystemBase
     /// <summary>Matches <c>m_InitialEventName</c> on DirtExplosionSmall.prefab. Use int overload to avoid SendEvent(string) GC.</summary>
     private static readonly int InitialEventId = Shader.PropertyToID("OnPlay");
 
+    /// <summary>Registers the <see cref="DirtExplosion"/> requirement so the system only runs when explosions exist.</summary>
     protected override void OnCreate()
     {
         RequireForUpdate<DirtExplosion>();
     }
 
+    /// <summary>
+    /// Finds newly activated (untriggered) explosion entities, repositions their companion
+    /// <see cref="VisualEffect"/> GameObject, then calls <c>Reinit()</c>, <c>Play()</c>, and
+    /// <c>SendEvent("OnPlay")</c> to replay the burst even though it is a pooled reuse.
+    /// Sets <see cref="DirtExplosionData.triggered"/> to prevent re-firing on subsequent frames.
+    /// </summary>
     protected override void OnUpdate()
     {
         var em = EntityManager;

@@ -24,6 +24,7 @@ public partial class TreeLODDebugSystem : SystemBase
     private NativeList<float3> _lod2Positions;
     private NativeHashSet<int2> _activeChunks;
 
+    /// <summary>Registers <see cref="StaticObjectLODConfig"/> requirement and allocates persistent native collections for per-LOD position lists and chunk tracking.</summary>
     protected override void OnCreate()
     {
         RequireForUpdate<StaticObjectLODConfig>();
@@ -33,6 +34,7 @@ public partial class TreeLODDebugSystem : SystemBase
         _activeChunks = new NativeHashSet<int2>(100, Allocator.Persistent);
     }
 
+    /// <summary>Disposes all persistent native collections allocated in <see cref="OnCreate"/>.</summary>
     protected override void OnDestroy()
     {
         if (_lod0Positions.IsCreated) _lod0Positions.Dispose();
@@ -41,6 +43,10 @@ public partial class TreeLODDebugSystem : SystemBase
         if (_activeChunks.IsCreated) _activeChunks.Dispose();
     }
 
+    /// <summary>
+    /// When <see cref="EnableVisualization"/> is true, collects all tree world positions into per-LOD
+    /// lists and records active spatial chunks for <see cref="OnDrawGizmos"/> to render.
+    /// </summary>
     protected override void OnUpdate()
     {
         if (!EnableVisualization)
@@ -77,7 +83,7 @@ public partial class TreeLODDebugSystem : SystemBase
         }
     }
     
-    // Draw gizmos in Scene view
+    /// <summary>Renders color-coded gizmo spheres for each tree LOD level and draws active spatial chunk boundaries in the Scene view.</summary>
     void OnDrawGizmos()
     {
         if (!EnableVisualization || !_lod0Positions.IsCreated)

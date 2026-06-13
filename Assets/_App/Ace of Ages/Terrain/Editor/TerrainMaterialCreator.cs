@@ -15,12 +15,19 @@ public static class TerrainMaterialCreator
         EditorApplication.delayCall += CheckAndCreateMaterial;
     }
 
+    /// <summary>
+    /// Creates (or recreates) the <c>TerrainMaterial</c> URP Lit asset at
+    /// <c>Assets/Resources/TerrainMaterial.mat</c> with default greenish-gray colour settings
+    /// and pings the asset in the Project window when done.
+    /// Accessible via the <c>Tools → Terrain → Create Terrain Material</c> menu.
+    /// </summary>
     [MenuItem("Tools/Terrain/Create Terrain Material")]
     public static void CreateMaterialMenuItem()
     {
         CreateTerrainMaterial();
     }
 
+    /// <summary>Checks whether <c>TerrainMaterial</c> exists in <c>Resources</c> and calls <see cref="CreateTerrainMaterial"/> if it is missing. Invoked automatically on editor load via <see cref="EditorApplication.delayCall"/>.</summary>
     private static void CheckAndCreateMaterial()
     {
         // Check if material exists in Resources
@@ -33,6 +40,7 @@ public static class TerrainMaterialCreator
         }
     }
 
+    /// <summary>Creates the <c>Assets/Resources/TerrainMaterial.mat</c> URP Lit asset with default greenish-gray albedo and saves it to disk.</summary>
     private static void CreateTerrainMaterial()
     {
         // Ensure Resources folder exists

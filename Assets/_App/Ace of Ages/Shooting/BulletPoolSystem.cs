@@ -16,6 +16,10 @@ public partial struct BulletPoolSystem : ISystem
     private NativeQueue<Entity> _pooledBullets;
     private bool _initialized;
     
+    /// <summary>
+    /// Allocates the pooled bullet queue and registers system requirements for
+    /// <see cref="BulletPoolConfig"/> and <see cref="PrefabEntitiesReferences"/>.
+    /// </summary>
     [BurstCompile]
     public void OnCreate(ref SystemState state)
     {
@@ -26,6 +30,7 @@ public partial struct BulletPoolSystem : ISystem
         _initialized = false;
     }
     
+    /// <summary>Disposes the pooled bullet queue and frees all associated native memory.</summary>
     [BurstCompile]
     public void OnDestroy(ref SystemState state)
     {
@@ -35,6 +40,11 @@ public partial struct BulletPoolSystem : ISystem
         }
     }
     
+    /// <summary>
+    /// On the first frame, pre-instantiates <see cref="BulletPoolConfig.initialPoolSize"/> bullet
+    /// entities from the <see cref="PrefabEntitiesReferences.bulletSimplePrefab"/>, initialises them
+    /// as inactive at off-screen positions, and enqueues them in the pool. Runs only once.
+    /// </summary>
     public void OnUpdate(ref SystemState state)
     {
         // Only initialize once
@@ -106,8 +116,12 @@ public partial struct BulletPoolSystem : ISystem
     }
     
     /// <summary>
-    /// Gets a bullet entity from the pool. Returns Entity.Null if pool is empty.
+    /// Retrieves an inactive bullet entity from the pool for reuse. If the pool is empty and
+    /// below <see cref="BulletPoolConfig.maxPoolSize"/>, a new bullet entity is instantiated and
+    /// returned. Returns <see cref="Entity.Null"/> if the pool is both empty and at max capacity.
     /// </summary>
+    /// <param name="state">The current <see cref="SystemState"/> used to access the <see cref="EntityManager"/>.</param>
+    /// <returns>A pooled or newly-created bullet entity, or <see cref="Entity.Null"/> if unavailable.</returns>
     public Entity GetFromPool(ref SystemState state)
     {
         if (_pooledBullets.Count > 0)
@@ -165,8 +179,11 @@ public partial struct BulletPoolSystem : ISystem
     }
     
     /// <summary>
-    /// Returns a bullet entity to the pool for reuse.
+    /// Returns an active bullet entity to the pool so it can be reused on a future spawn.
+    /// The caller is responsible for resetting the entity's state (position, velocity, data)
+    /// before or after returning it. Does nothing if <paramref name="bullet"/> is <see cref="Entity.Null"/>.
     /// </summary>
+    /// <param name="bullet">The bullet entity to return to the pool.</param>
     public void ReturnToPool(Entity bullet)
     {
         if (bullet != Entity.Null)

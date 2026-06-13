@@ -15,11 +15,17 @@ public class TransformFollowerDebugger : MonoBehaviour
     [TextArea(10, 20)]
     public string debugOutput = "";
     
+    /// <summary>Runs the debug check automatically on scene start.</summary>
     void Start()
     {
         DebugTransformFollowerSetup();
     }
     
+    /// <summary>
+    /// Queries the ECS world for <see cref="TransformFollowerSettings"/> entities and attempts to
+    /// locate the target GameObject named <see cref="searchName"/>, logging a full status report
+    /// to both <see cref="debugOutput"/> and the Console. Also accessible via the context menu.
+    /// </summary>
     [ContextMenu("Debug TransformFollower Setup")]
     void DebugTransformFollowerSetup()
     {
@@ -147,11 +153,13 @@ public class TransformFollowerDebugger : MonoBehaviour
         Debug.Log(debugOutput);
     }
     
+    /// <summary>Appends <paramref name="message"/> to <see cref="debugOutput"/> with a trailing newline.</summary>
     void Log(string message)
     {
         debugOutput += message + "\n";
     }
     
+    /// <summary>Returns the full scene hierarchy path of <paramref name="obj"/> (e.g. <c>"Root/Child/Leaf"</c>).</summary>
     string GetGameObjectPath(GameObject obj)
     {
         string path = obj.name;
@@ -164,6 +172,7 @@ public class TransformFollowerDebugger : MonoBehaviour
         return path;
     }
     
+    /// <summary>Re-runs the debug check when the <c>D</c> key is pressed in play mode.</summary>
     void Update()
     {
         // Press D key to re-run debug

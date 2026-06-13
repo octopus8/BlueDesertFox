@@ -20,6 +20,7 @@ public partial class TerrainTreeSpawningSystem : SystemBase
     private NativeHashSet<Entity> _queuedEntities;
     private int _StaticObjectsSpawnedThisFrame;
 
+    /// <summary>Registers required config singletons and allocates persistent pending-tile queue and de-duplication set.</summary>
     protected override void OnCreate()
     {
         RequireForUpdate<StaticObjectSpawnerConfig>();
@@ -29,6 +30,7 @@ public partial class TerrainTreeSpawningSystem : SystemBase
         _queuedEntities = new NativeHashSet<Entity>(64, Allocator.Persistent);
     }
 
+    /// <summary>Disposes the persistent tile queue and de-duplication set.</summary>
     protected override void OnDestroy()
     {
         if (_pendingTiles.IsCreated)
@@ -37,6 +39,11 @@ public partial class TerrainTreeSpawningSystem : SystemBase
             _queuedEntities.Dispose();
     }
 
+    /// <summary>
+    /// Queues tiles that have generated meshes but not yet spawned trees, then processes up to
+    /// <see cref="StaticObjectSpawnerConfig.frameBudget"/> tiles per frame using deterministic random
+    /// placement on the tile mesh via <see cref="SpawnTreesOnTile"/>.
+    /// </summary>
     protected override void OnUpdate()
     {
         var config = SystemAPI.GetSingleton<StaticObjectSpawnerConfig>();
@@ -137,6 +144,11 @@ public partial class TerrainTreeSpawningSystem : SystemBase
         objectPrefabs.Dispose();
     }
 
+    /// <summary>
+    /// Instantiates static objects on the given tile using deterministic random placement —
+    /// sampling the tile's vertex/normal buffers for height and slope — and returns the number
+    /// of objects successfully spawned. Skips tiles with invalid mesh data.
+    /// </summary>
     private int SpawnTreesOnTile(Entity tileEntity, StaticObjectSpawnerConfig config, NativeArray<Entity> objectPrefabs)
     {
         var prefabCount = objectPrefabs.Length;

@@ -14,12 +14,18 @@ using Unity.Physics.Systems;
 [UpdateBefore(typeof(PhysicsSystemGroup))]
 public partial struct BulletTerrainScrollVelocitySystem : ISystem
 {
+    /// <summary>Registers the <see cref="Bullet"/> requirement so the system only runs when bullets exist.</summary>
     [BurstCompile]
     public void OnCreate(ref SystemState state)
     {
         state.RequireForUpdate<Bullet>();
     }
 
+    /// <summary>
+    /// Reads the current <see cref="TerrainScrollVelocity"/> and reapplies each active bullet's
+    /// terrain-relative velocity (<see cref="BulletData.linearVelocityTerrainRelative"/> minus scroll
+    /// velocity) to <see cref="PhysicsVelocity.Linear"/> before physics integration this fixed step.
+    /// </summary>
     [BurstCompile]
     public void OnUpdate(ref SystemState state)
     {

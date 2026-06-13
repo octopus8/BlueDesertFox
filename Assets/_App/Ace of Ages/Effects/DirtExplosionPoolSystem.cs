@@ -15,6 +15,10 @@ public partial struct DirtExplosionPoolSystem : ISystem
     private NativeQueue<Entity> _pooledExplosions;
     private bool _initialized;
     
+    /// <summary>
+    /// Allocates the pooled explosion queue and registers system requirements for
+    /// <see cref="DirtExplosionConfig"/> and <see cref="PrefabEntitiesReferences"/>.
+    /// </summary>
     [BurstCompile]
     public void OnCreate(ref SystemState state)
     {
@@ -25,6 +29,7 @@ public partial struct DirtExplosionPoolSystem : ISystem
         _initialized = false;
     }
     
+    /// <summary>Disposes the pooled explosion queue and frees all associated native memory.</summary>
     [BurstCompile]
     public void OnDestroy(ref SystemState state)
     {
@@ -34,6 +39,12 @@ public partial struct DirtExplosionPoolSystem : ISystem
         }
     }
     
+    /// <summary>
+    /// On the first frame, pre-instantiates <see cref="DirtExplosionConfig.initialPoolSize"/> explosion
+    /// entities from the <see cref="PrefabEntitiesReferences.dirtExplosionSmallPrefab"/>, initialises them
+    /// as inactive at off-screen positions with a <see cref="TerrainAnchorTag"/>, and enqueues them.
+    /// Runs only once.
+    /// </summary>
     public void OnUpdate(ref SystemState state)
     {
         // Only initialize once
@@ -94,8 +105,12 @@ public partial struct DirtExplosionPoolSystem : ISystem
     }
     
     /// <summary>
-    /// Gets a dirt explosion entity from the pool. Returns Entity.Null if pool is empty.
+    /// Retrieves an inactive dirt explosion entity from the pool for reuse. If the pool is empty
+    /// and below <see cref="DirtExplosionConfig.maxPoolSize"/>, a new explosion entity is instantiated.
+    /// Returns <see cref="Entity.Null"/> if the pool is both empty and at max capacity.
     /// </summary>
+    /// <param name="state">The current <see cref="SystemState"/> used to access the <see cref="EntityManager"/>.</param>
+    /// <returns>A pooled or newly-created explosion entity, or <see cref="Entity.Null"/> if unavailable.</returns>
     public Entity GetFromPool(ref SystemState state)
     {
         if (_pooledExplosions.Count > 0)
@@ -151,8 +166,11 @@ public partial struct DirtExplosionPoolSystem : ISystem
     }
     
     /// <summary>
-    /// Returns a dirt explosion entity to the pool for reuse.
+    /// Returns an active explosion entity to the pool so it can be reused on a future impact.
+    /// The caller is responsible for resetting the entity's state before or after returning it.
+    /// Does nothing if <paramref name="explosion"/> is <see cref="Entity.Null"/>.
     /// </summary>
+    /// <param name="explosion">The explosion entity to return to the pool.</param>
     public void ReturnToPool(Entity explosion)
     {
         if (explosion != Entity.Null)

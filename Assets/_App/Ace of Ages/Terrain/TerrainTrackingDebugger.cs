@@ -21,6 +21,11 @@ public class TerrainTrackingDebugger : MonoBehaviour
     private string _playerName;
     private int _activeTileCount;
     
+    /// <summary>
+    /// Queries the ECS world for <see cref="PlayerTrackingSearch"/>, <see cref="PlayerTransformReference"/>,
+    /// <see cref="TerrainTileConfig"/>, and active <see cref="TerrainTile"/> entities, then logs a
+    /// comprehensive status report to the Console. Available via the component context menu.
+    /// </summary>
     [ContextMenu("Check Tracking Status")]
     public void CheckTrackingStatus()
     {
@@ -107,6 +112,7 @@ public class TerrainTrackingDebugger : MonoBehaviour
         Debug.Log("=== End Status ===");
     }
     
+    /// <summary>Logs a Console message showing whether exactly one entity with component <typeparamref name="T"/> exists, to verify ECS config singleton presence.</summary>
     private void CheckConfigComponent<T>(EntityManager em, string name) where T : struct, IComponentData
     {
         var query = em.CreateEntityQuery(typeof(T));
@@ -124,6 +130,11 @@ public class TerrainTrackingDebugger : MonoBehaviour
         query.Dispose();
     }
     
+    /// <summary>
+    /// Logs the tracked player's current world position and distance from the world origin to the Console.
+    /// Useful for diagnosing floating-point precision warnings at extreme distances.
+    /// Available via the component context menu.
+    /// </summary>
     [ContextMenu("Get Player Position")]
     public void GetPlayerPosition()
     {
@@ -163,6 +174,10 @@ public class TerrainTrackingDebugger : MonoBehaviour
         query.Dispose();
     }
     
+    /// <summary>
+    /// Logs the grid coordinates and mesh-generation state of up to 10 active terrain tile entities
+    /// to the Console, along with the total count. Available via the component context menu.
+    /// </summary>
     [ContextMenu("List All Terrain Tiles")]
     public void ListTerrainTiles()
     {
@@ -190,6 +205,7 @@ public class TerrainTrackingDebugger : MonoBehaviour
         query.Dispose();
     }
     
+    /// <summary>Calls <see cref="UpdateStatus"/> each frame to keep the on-screen GUI overlay current, and re-runs <see cref="CheckTrackingStatus"/> when <c>autoRefresh</c> is enabled.</summary>
     private void Update()
     {
         // Update status for GUI
@@ -206,6 +222,7 @@ public class TerrainTrackingDebugger : MonoBehaviour
         }
     }
     
+    /// <summary>Polls the ECS world for the <see cref="PlayerTransformReference"/> singleton and updates the <c>_trackingValid</c> flag and status string used by the on-screen GUI.</summary>
     private void UpdateStatus()
     {
         var world = World.DefaultGameObjectInjectionWorld;
@@ -247,6 +264,7 @@ public class TerrainTrackingDebugger : MonoBehaviour
         tileQuery.Dispose();
     }
     
+    /// <summary>Logs the current tracking valid/invalid status and player position (if available) to the Console.</summary>
     private void LogStatus()
     {
         if (_trackingValid)
@@ -259,6 +277,7 @@ public class TerrainTrackingDebugger : MonoBehaviour
         }
     }
     
+    /// <summary>Renders an overlay box showing tracking status and player position in the Game view when <c>showGUI</c> is enabled.</summary>
     private void OnGUI()
     {
         if (!showGUI) return;

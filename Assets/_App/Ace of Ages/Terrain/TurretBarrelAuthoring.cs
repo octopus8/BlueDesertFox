@@ -28,8 +28,10 @@ public class TurretBarrelAuthoring : MonoBehaviour
              "Change to (0,-1,0) or (0,1,0) if the barrel doesn't aim correctly.")]
     public Vector3 modelForwardAxis = Vector3.forward;
 
+    /// <summary>Bakes pitch settings, dome entity reference, neutral elevation angle, local offset, and local rotation into a <see cref="TurretBarrelTag"/> component.</summary>
     private class Baker : Baker<TurretBarrelAuthoring>
     {
+        /// <inheritdoc/>
         public override void Bake(TurretBarrelAuthoring authoring)
         {
             var entity = GetEntity(TransformUsageFlags.Dynamic);

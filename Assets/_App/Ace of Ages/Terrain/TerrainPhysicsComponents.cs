@@ -10,6 +10,7 @@ using Unity.Physics;
 /// </summary>
 public struct TerrainTileDistanceToPlayer : IComponentData
 {
+    /// <summary>Distance in world units from this tile's centre to the player position.</summary>
     public float distance;
 }
 
@@ -27,9 +28,13 @@ public struct PhysicsColliderValid : IComponentData
 /// </summary>
 public struct TerrainColliderBlob
 {
+    /// <summary>Vertex positions for the collider mesh, stored in tile-local or world space.</summary>
     public BlobArray<float3> vertices;
+    /// <summary>Triangle index triples (CCW winding) referencing entries in <see cref="vertices"/>.</summary>
     public BlobArray<int3> triangles;
+    /// <summary>Total number of vertices in the collider mesh.</summary>
     public int vertexCount;
+    /// <summary>Total number of triangles in the collider mesh.</summary>
     public int triangleCount;
     
     /// <summary>
@@ -73,6 +78,7 @@ public struct TerrainColliderBlob
 /// </summary>
 public struct TerrainPhysicsColliderComponent : IComponentData
 {
+    /// <summary>Reference to the cached blob asset holding the pre-baked collider mesh data.</summary>
     public BlobAssetReference<TerrainColliderBlob> colliderData;
 }
 
@@ -82,6 +88,7 @@ public struct TerrainPhysicsColliderComponent : IComponentData
 /// </summary>
 public struct ColliderPreparedVertexElement : IBufferElementData
 {
+    /// <summary>World-space vertex position written by the Burst preparation job.</summary>
     public float3 value;
 }
 
@@ -90,6 +97,7 @@ public struct ColliderPreparedVertexElement : IBufferElementData
 /// </summary>
 public struct ColliderPreparedTriangleElement : IBufferElementData
 {
+    /// <summary>Triangle index triple (x, y, z = vertex indices) written by the Burst preparation job.</summary>
     public int3 value;
 }
 
@@ -108,7 +116,11 @@ public struct PhysicsColliderNeedsPreparation : IComponentData, IEnableableCompo
 /// </summary>
 public struct PhysicsColliderPrepared : IComponentData
 {
-    public int priority; // Distance-based priority (lower = closer = higher priority)
+    /// <summary>
+    /// Distance-based priority score for this tile's collider creation.
+    /// Lower values indicate tiles closer to the camera and are processed first.
+    /// </summary>
+    public int priority;
 }
 
 /// <summary>
@@ -117,6 +129,7 @@ public struct PhysicsColliderPrepared : IComponentData
 /// </summary>
 public struct PhysicsColliderRegistrationPending : IComponentData
 {
+    /// <summary>The fully-created Unity Physics collider blob awaiting registration with the physics world.</summary>
     public BlobAssetReference<Collider> collider;
 }
 
@@ -127,15 +140,20 @@ public struct PhysicsColliderRegistrationPending : IComponentData
 /// </summary>
 public struct ColliderCacheKey : IEquatable<ColliderCacheKey>
 {
+    /// <summary>Number of vertices per side of the tile grid, identifying the mesh resolution.</summary>
     public int verticesPerSide;
-    public uint noiseParamsHash; // Hash of noise parameters
+    /// <summary>Combined hash of all noise parameters (<c>frequency</c>, <c>amplitude</c>, <c>octaves</c>, etc.)
+    /// used to distinguish tiles generated with different terrain configurations.</summary>
+    public uint noiseParamsHash;
     
+    /// <summary>Returns <c>true</c> if both keys have identical resolution and noise parameter hashes.</summary>
     public bool Equals(ColliderCacheKey other)
     {
         return verticesPerSide == other.verticesPerSide &&
                noiseParamsHash == other.noiseParamsHash;
     }
     
+    /// <inheritdoc/>
     public override int GetHashCode()
     {
         return verticesPerSide.GetHashCode() ^
@@ -167,8 +185,11 @@ public struct ColliderCacheKey : IEquatable<ColliderCacheKey>
 /// </summary>
 public struct ColliderCacheEntry
 {
+    /// <summary>The cached blob asset containing pre-baked collider geometry for a specific key.</summary>
     public BlobAssetReference<TerrainColliderBlob> blobAsset;
+    /// <summary>Frame number when this entry was last accessed, used by the LRU eviction policy.</summary>
     public long lastAccessFrame;
+    /// <summary>Estimated memory footprint of <see cref="blobAsset"/> in bytes, used to enforce the memory budget.</summary>
     public int estimatedMemoryBytes;
 }
 
@@ -178,6 +199,14 @@ public struct ColliderCacheEntry
 /// </summary>
 public static class TerrainPhysicsBudget
 {
+    /// <summary>
+    /// Returns the effective maximum number of physics colliders that may be created in a single frame.
+    /// Takes the minimum of <see cref="TerrainTileConfig.maxPhysicsCollidersCreatedPerFrame"/> and
+    /// <see cref="TerrainTileConfig.maxCollidersCreatedPerFrame"/> (when either is positive), ensuring
+    /// either inspector slider can cap physics work. Returns at least 1.
+    /// </summary>
+    /// <param name="config">The terrain tile configuration containing the budget settings.</param>
+    /// <returns>Maximum colliders to create this frame (always &gt;= 1).</returns>
     public static int GetCreationBudget(in TerrainTileConfig config)
     {
         int budget = int.MaxValue;

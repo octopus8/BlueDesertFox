@@ -15,11 +15,17 @@ using Unity.Entities;
 [UpdateAfter(typeof(EndSimulationEntityCommandBufferSystem))]
 public partial struct StaticObjectLinkedRendererStripSystem : ISystem
 {
+    /// <summary>Registers the <see cref="PendingStaticObjectRendererStrip"/> requirement.</summary>
     public void OnCreate(ref SystemState state)
     {
         state.RequireForUpdate<PendingStaticObjectRendererStrip>();
     }
 
+    /// <summary>
+    /// For each entity tagged <see cref="PendingStaticObjectRendererStrip"/>, detaches the Parent
+    /// hierarchy (removes <c>Parent</c> and <c>Child</c> components) and assigns
+    /// <see cref="StaticObjectTileOwnership"/> to each child so it can be individually scroll-positioned.
+    /// </summary>
     public void OnUpdate(ref SystemState state)
     {
         var pendingRoots = new NativeList<Entity>(Allocator.Temp);

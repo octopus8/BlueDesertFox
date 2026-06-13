@@ -40,6 +40,10 @@ public partial struct TerrainTreeSpawningSystemOptimized : ISystem
     private static readonly ProfilerMarker s_InstantiationMarker = new ProfilerMarker("TreeSpawner.Instantiation");
 #endif
 
+    /// <summary>
+    /// Registers required singletons and allocates all persistent native collections (pending tile queue,
+    /// de-duplication set, pooled vertex and normal buffers) used during spawning.
+    /// </summary>
     [BurstCompile]
     public void OnCreate(ref SystemState state)
     {
@@ -59,6 +63,7 @@ public partial struct TerrainTreeSpawningSystemOptimized : ISystem
         _normalBuffer = new NativeList<float3>(1024, Allocator.Persistent);
     }
 
+    /// <summary>Disposes all persistent native collections allocated in <see cref="OnCreate"/>.</summary>
     [BurstCompile]
     public void OnDestroy(ref SystemState state)
     {
@@ -72,6 +77,12 @@ public partial struct TerrainTreeSpawningSystemOptimized : ISystem
             _normalBuffer.Dispose();
     }
 
+    /// <summary>
+    /// Queues tiles ready for tree spawning (mesh generated, not yet spawned), then within the frame
+    /// budget schedules <c>CalculateStaticObjectSpawnPositionsJob</c> (Burst parallel) followed by
+    /// <c>InstantiateTreesJob</c> (Burst) to stamp static objects onto the tile with deterministic
+    /// random placement and proper LOD assignment.
+    /// </summary>
     [BurstCompile]
     public void OnUpdate(ref SystemState state)
     {
@@ -304,6 +315,11 @@ partial struct CalculateStaticObjectSpawnPositionsJob : IJobEntity
     [ReadOnly] public NativeArray<quaternion> objectPrefabRotations;
     [ReadOnly] public NativeArray<float> objectTypeSpawnWeights;
     
+    /// <summary>
+    /// For this tile, generates deterministic random XZ positions, samples the tile mesh for height
+    /// and slope via bilinear interpolation, applies height/slope filters, and appends accepted
+    /// positions to the <see cref="StaticObjectSpawnPosition"/> buffer for instantiation.
+    /// </summary>
     private void Execute(
         in TerrainTile tile,
         in LocalTransform tileTransform,
@@ -469,6 +485,11 @@ partial struct InstantiateTreesJob : IJobEntity
     [ReadOnly] public NativeArray<Entity> tilesToProcess;
     [ReadOnly] public NativeArray<MaterialMeshInfo> lodMeshInfos;
     
+    /// <summary>
+    /// Reads the <see cref="StaticObjectSpawnPosition"/> buffer, instantiates prefab entities via ECB
+    /// at the computed world positions, sets initial LOD <see cref="MaterialMeshInfo"/>, and clears
+    /// the buffer to prevent memory accumulation.
+    /// </summary>
     private void Execute(
         [ChunkIndexInQuery] int chunkIndex,
         Entity tileEntity,

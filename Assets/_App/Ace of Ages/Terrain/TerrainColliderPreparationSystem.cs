@@ -21,6 +21,11 @@ public partial struct TerrainColliderPreparationSystem : ISystem
 
     private EntityQuery _query;
 
+    /// <summary>
+    /// Builds the tile query for entities with <c>PhysicsColliderNeedsPreparation</c> enabled,
+    /// and registers required singletons (<see cref="TerrainTileConfig"/>,
+    /// <see cref="EndSimulationEntityCommandBufferSystem.Singleton"/>, and <see cref="CameraDataSingleton"/>).
+    /// </summary>
     public void OnCreate(ref SystemState state)
     {
         state.RequireForUpdate<TerrainTileConfig>();
@@ -35,6 +40,12 @@ public partial struct TerrainColliderPreparationSystem : ISystem
         );
     }
 
+    /// <summary>
+    /// Schedules the Burst-compiled <c>PrepareColliderDataJob</c> in parallel for all tiles that
+    /// need collider preparation, applying distance-based vertex decimation based on camera proximity
+    /// and writing the prepared buffers via <see cref="EntityCommandBuffer"/>.
+    /// Skips processing if physics colliders are disabled in <see cref="TerrainTileConfig"/>.
+    /// </summary>
     public void OnUpdate(ref SystemState state)
     {
 #if UNITY_EDITOR
@@ -69,16 +80,29 @@ public partial struct TerrainColliderPreparationSystem : ISystem
     }
 }
 
+/// <summary>
+/// Singleton ECS component that holds the camera's current world-space position and forward direction.
+/// Updated each frame by <see cref="CameraDataUpdateSystem"/> from the player's <see cref="Transform"/>.
+/// Used by <see cref="TerrainColliderPreparationSystem"/> to compute camera-aware collider priority scores.
+/// </summary>
 public struct CameraDataSingleton : IComponentData
 {
+    /// <summary>World-space position of the camera (or player transform) this frame.</summary>
     public float3 position;
+    /// <summary>Normalized world-space forward direction of the camera this frame.</summary>
     public float3 forward;
 }
 
+/// <summary>
+/// Reads the player's <see cref="Transform"/> position and forward vector from <see cref="PlayerTransformReference"/>
+/// each frame and writes them to the <see cref="CameraDataSingleton"/> so that Burst-compiled jobs can access
+/// camera data without managed object references. Runs before <see cref="TerrainColliderPreparationSystem"/>.
+/// </summary>
 [UpdateInGroup(typeof(SimulationSystemGroup))]
 [UpdateBefore(typeof(TerrainColliderPreparationSystem))]
 public partial class CameraDataUpdateSystem : SystemBase
 {
+    /// <summary>Creates the <see cref="CameraDataSingleton"/> entity if it does not already exist.</summary>
     protected override void OnCreate()
     {
         if (!SystemAPI.HasSingleton<CameraDataSingleton>())
@@ -87,6 +111,11 @@ public partial class CameraDataUpdateSystem : SystemBase
         }
     }
 
+    /// <summary>
+    /// Reads the player transform's position and XZ-projected forward direction and writes them
+    /// to the <see cref="CameraDataSingleton"/>. Falls back to zero position and +Z forward when
+    /// no player is tracked.
+    /// </summary>
     protected override void OnUpdate()
     {
         float3 cameraPosition = float3.zero;
@@ -124,6 +153,11 @@ partial struct PrepareColliderDataJob : IJobEntity
     public float physicsColliderFullResolutionDistance;
     public int physicsColliderVertexStride;
 
+    /// <summary>
+    /// Determines the vertex stride based on the tile's distance to the player, calls
+    /// <see cref="ColliderMeshDecimation.BuildDecimatedMesh"/> to produce a simplified vertex/triangle
+    /// buffer, and adds the output components to the tile entity via ECB for physics collider creation.
+    /// </summary>
     public void Execute(
         [ChunkIndexInQuery] int chunkIndex,
         Entity entity,
@@ -177,9 +211,25 @@ partial struct PrepareColliderDataJob : IJobEntity
     }
 }
 
+/// <summary>
+/// Burst-compiled utility for building a decimated collider mesh from a terrain tile's vertex buffer.
+/// Produces a lower-resolution mesh by sampling every <c>stride</c>-th vertex in the grid,
+/// reducing the polygon count for distant tiles to lower <c>MeshCollider.Create</c> cost.
+/// </summary>
 [BurstCompile]
 static class ColliderMeshDecimation
 {
+    /// <summary>
+    /// Decimates the source vertex and index buffers using the given vertex <paramref name="stride"/>,
+    /// writing the resulting vertices and triangles into newly allocated <see cref="NativeList{T}"/> outputs.
+    /// The caller is responsible for disposing both output lists.
+    /// </summary>
+    /// <param name="sourceVertices">Full-resolution vertex buffer from the terrain tile.</param>
+    /// <param name="sourceIndices">Full-resolution index buffer from the terrain tile.</param>
+    /// <param name="verticesPerSide">Number of vertices per edge of the square tile grid.</param>
+    /// <param name="stride">Vertex sampling stride (1 = full resolution, 2 = half, etc.).</param>
+    /// <param name="preparedVertices">Output list of decimated vertex positions (Temp allocated).</param>
+    /// <param name="preparedTriangles">Output list of decimated triangle indices (Temp allocated).</param>
     [BurstCompile]
     public static void BuildDecimatedMesh(
         in DynamicBuffer<VertexElement> sourceVertices,

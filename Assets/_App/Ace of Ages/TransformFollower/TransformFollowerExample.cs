@@ -29,6 +29,7 @@ public class TransformFollowerExample : MonoBehaviour
     private EntityManager _entityManager;
     private Entity _entityToFollow;
     
+    /// <summary>Caches the <see cref="EntityManager"/> reference and logs guidance on entity-from-GameObject lookup patterns.</summary>
     void Start()
     {
         // Get the entity manager from the default world
@@ -55,6 +56,7 @@ public class TransformFollowerExample : MonoBehaviour
         }
     }
     
+    /// <summary>Checks for the <see cref="updateTargetKey"/> press and calls <see cref="UpdateFollowerTarget"/> when triggered.</summary>
     void Update()
     {
         if (Input.GetKeyDown(updateTargetKey))
@@ -160,7 +162,7 @@ public class TransformFollowerExample : MonoBehaviour
         return newEntity;
     }
     
-    // Debug visualization
+    /// <summary>Draws Scene-view gizmos showing the target position and offset when this GameObject is selected.</summary>
     void OnDrawGizmosSelected()
     {
         if (targetToFollow != null)

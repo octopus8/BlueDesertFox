@@ -10,12 +10,18 @@ using Unity.Transforms;
 [UpdateAfter(typeof(TransformSystemGroup))]
 public partial struct DirtExplosionLifecycleSystem : ISystem
 {
+    /// <summary>Registers <see cref="DirtExplosion"/> and <see cref="DirtExplosionConfig"/> requirements.</summary>
     public void OnCreate(ref SystemState state)
     {
         state.RequireForUpdate<DirtExplosion>();
         state.RequireForUpdate<DirtExplosionConfig>();
     }
 
+    /// <summary>
+    /// Iterates all active dirt explosion entities and, for any whose elapsed time since
+    /// <see cref="DirtExplosionData.spawnTime"/> exceeds <see cref="DirtExplosionConfig.lifetime"/>,
+    /// resets their state, moves them below the map, and returns them to the <see cref="DirtExplosionPoolSystem"/>.
+    /// </summary>
     public void OnUpdate(ref SystemState state)
     {
         var poolSystemHandle = state.World.GetExistingSystem<DirtExplosionPoolSystem>();

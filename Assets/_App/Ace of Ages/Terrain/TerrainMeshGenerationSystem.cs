@@ -28,6 +28,10 @@ public partial struct TerrainMeshGenerationSystem : ISystem
     private static readonly ProfilerMarker s_PrioritySortMarker = new ProfilerMarker("TerrainMesh.PrioritySort");
 #endif
 
+    /// <summary>
+    /// Allocates the pending-tile priority queue and registers the <see cref="TerrainTileConfig"/>
+    /// singleton requirement.
+    /// </summary>
     public void OnCreate(ref SystemState state)
     {
         state.RequireForUpdate<TerrainTileConfig>();
@@ -35,6 +39,7 @@ public partial struct TerrainMeshGenerationSystem : ISystem
         _pendingTiles = new NativeQueue<Entity>(Allocator.Persistent);
     }
     
+    /// <summary>Disposes the pending-tile native queue and frees all associated memory.</summary>
     [BurstCompile]
     public void OnDestroy(ref SystemState state)
     {
@@ -42,6 +47,11 @@ public partial struct TerrainMeshGenerationSystem : ISystem
             _pendingTiles.Dispose();
     }
 
+    /// <summary>
+    /// Queues tiles that need mesh generation, sorts them by camera-aware priority (closer and
+    /// more forward-facing tiles first), and processes up to <c>maxCollidersCreatedPerFrame</c>
+    /// tiles per frame using parallel Burst-compiled <see cref="GenerateTileMeshJob"/> jobs.
+    /// </summary>
     public void OnUpdate(ref SystemState state)
     {
 #if UNITY_EDITOR
@@ -364,6 +374,11 @@ public struct GenerateTileMeshJob : IJobParallelFor
     [NativeDisableParallelForRestriction] public NativeArray<float2> allUVs;
     [NativeDisableParallelForRestriction] public NativeArray<int> allIndices;
     
+    /// <summary>
+    /// Generates vertices, normals, UVs, and triangle indices for one terrain tile at <paramref name="index"/>
+    /// using multi-octave Perlin noise, writing output into pre-allocated shared native arrays at the
+    /// tile's pre-computed vertex and index offsets.
+    /// </summary>
     public void Execute(int index)
     {
         var data = tileData[index];

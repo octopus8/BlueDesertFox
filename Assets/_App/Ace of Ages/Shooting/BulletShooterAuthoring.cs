@@ -14,8 +14,10 @@ public class BulletShooterAuthoring : MonoBehaviour
     [Tooltip("Speed of spawned bullets in units per second")]
     [SerializeField] private float bulletSpeed = 100f;
     
+    /// <summary>Bakes the inspector fire-rate and bullet-speed values into a <see cref="BulletShooter"/> component.</summary>
     public class Baker : Baker<BulletShooterAuthoring>
     {
+        /// <inheritdoc/>
         public override void Bake(BulletShooterAuthoring authoring)
         {
             Entity entity = GetEntity(TransformUsageFlags.Dynamic);

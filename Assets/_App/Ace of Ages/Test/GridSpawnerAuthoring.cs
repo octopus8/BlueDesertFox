@@ -22,8 +22,10 @@ public class GridSpawnerAuthoring : MonoBehaviour
     [Tooltip("Z-position for the entire grid")]
     [SerializeField] private float zPosition = 100f;
 
+    /// <summary>Bakes grid configuration (prefab entity, size, spacing, Z position) into a <see cref="GridSpawner"/> component.</summary>
     public class Baker : Baker<GridSpawnerAuthoring>
     {
+        /// <inheritdoc/>
         public override void Bake(GridSpawnerAuthoring authoring)
         {
             Entity entity = GetEntity(TransformUsageFlags.Dynamic);

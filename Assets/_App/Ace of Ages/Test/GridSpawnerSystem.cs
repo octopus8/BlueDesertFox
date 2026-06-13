@@ -12,6 +12,7 @@ using UnityEngine;
 [UpdateInGroup(typeof(SimulationSystemGroup))]
 partial struct GridSpawnerSystem : ISystem
 {
+    /// <summary>Registers the <see cref="BeginSimulationEntityCommandBufferSystem.Singleton"/> and <see cref="GridSpawner"/> requirements.</summary>
     [BurstCompile]
     public void OnCreate(ref SystemState state)
     {
@@ -20,6 +21,11 @@ partial struct GridSpawnerSystem : ISystem
         state.RequireForUpdate<GridSpawner>();
     }
     
+    /// <summary>
+    /// On the first frame, instantiates a centred <c>gridSize × gridSize</c> array of prefab entities
+    /// in the XY plane at the configured Z position using an ECB, then marks <c>hasSpawned</c> to prevent
+    /// re-spawning on subsequent frames.
+    /// </summary>
     [BurstCompile]
     public void OnUpdate(ref SystemState state)
     {

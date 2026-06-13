@@ -30,6 +30,10 @@ namespace _App.Ace_of_Ages.Terrain
         private NativeQueue<Entity> _pendingColliders;
         private NativeHashSet<Entity> _queuedEntities;
 
+        /// <summary>
+        /// Allocates the collider pending queue and deduplication set, and registers the
+        /// <see cref="TerrainTileConfig"/> requirement.
+        /// </summary>
         protected override void OnCreate()
         {
             RequireForUpdate<TerrainTileConfig>();
@@ -38,6 +42,7 @@ namespace _App.Ace_of_Ages.Terrain
             _queuedEntities = new NativeHashSet<Entity>(64, Allocator.Persistent);
         }
 
+        /// <summary>Disposes the native pending-collider queue and deduplication set.</summary>
         protected override void OnDestroy()
         {
             if (_pendingColliders.IsCreated)
@@ -51,6 +56,13 @@ namespace _App.Ace_of_Ages.Terrain
             }
         }
 
+        /// <summary>
+        /// Completes any outstanding collider preparation jobs, then processes up to
+        /// <c>maxCollidersCreatedPerFrame</c> prepared tiles per frame — sorted by camera-aware
+        /// priority — calling <c>MeshCollider.Create()</c> on the main thread for each and
+        /// registering the result via <see cref="EntityCommandBuffer"/>.
+        /// Skips processing if physics colliders are disabled in <see cref="TerrainTileConfig"/>.
+        /// </summary>
         protected override void OnUpdate()
         {
             var config = SystemAPI.GetSingleton<TerrainTileConfig>();
@@ -87,6 +99,11 @@ namespace _App.Ace_of_Ages.Terrain
             ecb.Dispose();
         }
 
+        /// <summary>
+        /// Queries tiles with prepared collider data (<see cref="PhysicsColliderPrepared"/>) that are
+        /// not yet registered, marks up to <paramref name="budget"/> of them as pending registration
+        /// via ECB, and returns the count actually enqueued.
+        /// </summary>
         private int RegisterPendingColliders(int budget, EntityCommandBuffer ecb)
         {
             if (budget <= 0)
@@ -130,6 +147,7 @@ namespace _App.Ace_of_Ages.Terrain
             return budget;
         }
 
+        /// <summary>Moves all entities with <see cref="PhysicsColliderRegistrationPending"/> into the <c>_pendingColliders</c> queue for processing this frame.</summary>
         private void EnqueuePreparedTiles()
         {
 #if UNITY_EDITOR
@@ -149,6 +167,12 @@ namespace _App.Ace_of_Ages.Terrain
             }
         }
 
+        /// <summary>
+        /// Sorts queued tiles by camera-aware priority, then creates up to <paramref name="budget"/>
+        /// <see cref="Unity.Physics.MeshCollider"/> instances from prepared vertex/triangle buffers,
+        /// attaches them to tile entities via ECB, and updates the LRU collider cache.
+        /// Returns the number of colliders created.
+        /// </summary>
         private int CreateCollidersFromQueue(int budget, CollisionFilter collisionFilter, EntityCommandBuffer ecb)
         {
             var pendingTiles = new NativeList<ColliderEntityWithPriority>(_pendingColliders.Count, Allocator.Temp);
@@ -261,6 +285,7 @@ namespace _App.Ace_of_Ages.Terrain
             return budget;
         }
 
+        /// <summary>Completes the current <see cref="TerrainColliderPreparationSystem"/> dependency to ensure prepared vertex/triangle data is ready before collider creation this frame.</summary>
         private void CompletePreparationJobs()
         {
             var prepSystem = World.Unmanaged.GetExistingUnmanagedSystem<TerrainColliderPreparationSystem>();
@@ -271,6 +296,7 @@ namespace _App.Ace_of_Ages.Terrain
             }
         }
 
+        /// <summary>Creates a <see cref="CollisionFilter"/> that belongs to all layers and collides with the terrain physics layer specified in <paramref name="config"/>.</summary>
         private static CollisionFilter CreateCollisionFilter(TerrainTileConfig config)
         {
             uint layerMask = 1u << config.terrainPhysicsLayer;
@@ -290,8 +316,10 @@ namespace _App.Ace_of_Ages.Terrain
         public int priority;
     }
 
+    /// <summary>Sorts <see cref="ColliderEntityWithPriority"/> values in ascending order so higher-priority (closer/in-view) tiles are processed first.</summary>
     struct ColliderPriorityComparer : IComparer<ColliderEntityWithPriority>
     {
+        /// <inheritdoc/>
         public int Compare(ColliderEntityWithPriority a, ColliderEntityWithPriority b)
         {
             return a.priority.CompareTo(b.priority);

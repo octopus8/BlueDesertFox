@@ -10,11 +10,16 @@ using Unity.Transforms;
 [UpdateBefore(typeof(TurretAimingSystem))]
 public partial struct PlayerTargetVelocityEstimateSystem : ISystem
 {
+    /// <summary>Registers the <see cref="PlayerTransformReference"/> requirement.</summary>
     public void OnCreate(ref SystemState state)
     {
         state.RequireForUpdate<PlayerTransformReference>();
     }
 
+    /// <summary>
+    /// Computes a finite-difference XZ velocity estimate from the player's current and previous world positions
+    /// and applies 0.45 lerp smoothing to reduce VR tracking noise. Writes the result to <see cref="PlayerTargetVelocity"/>.
+    /// </summary>
     public void OnUpdate(ref SystemState state)
     {
         var playerRef = SystemAPI.ManagedAPI.GetSingleton<PlayerTransformReference>();

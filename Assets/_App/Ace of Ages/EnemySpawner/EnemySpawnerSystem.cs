@@ -6,9 +6,21 @@ using Unity.Transforms;
 using UnityEngine;
 
 
+/// <summary>
+/// Spawns enemy entities in bowling-pin formations on a Unity Splines path when an
+/// <see cref="EnemySpawner.doSpawn"/> flag is raised. Each spawned entity receives
+/// <see cref="FormationPosition"/>, <see cref="SplineDataComponent"/>, <see cref="SplineFollower"/>,
+/// and <see cref="FormationMovementState"/> components so that the formation movement and
+/// spline-following systems can immediately take control.
+/// Runs before <see cref="ResetEventsSystem"/> so the spawn flag is read before it is cleared.
+/// </summary>
 [UpdateBefore(typeof(ResetEventsSystem))]
 partial struct EnemySpawnerSystem : ISystem
 {
+    /// <summary>
+    /// Registers required singletons (<see cref="BeginSimulationEntityCommandBufferSystem.Singleton"/>
+    /// and <see cref="PrefabEntitiesReferences"/>) so the system waits until they are available.
+    /// </summary>
     [BurstCompile]
     public void OnCreate(ref SystemState state)
     {
@@ -17,6 +29,11 @@ partial struct EnemySpawnerSystem : ISystem
         state.RequireForUpdate<PrefabEntitiesReferences>();
     }
     
+    /// <summary>
+    /// Iterates all <see cref="EnemySpawner"/> components, and for each with <c>doSpawn = true</c>,
+    /// instantiates a full bowling-pin formation of enemy entities via an
+    /// <see cref="EntityCommandBuffer"/>, assigning unique formation offsets and spawn positions.
+    /// </summary>
     [BurstCompile]
     public void OnUpdate(ref SystemState state)
     {

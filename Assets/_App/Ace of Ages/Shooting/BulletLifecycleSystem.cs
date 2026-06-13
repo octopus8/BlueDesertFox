@@ -18,6 +18,7 @@ public partial struct BulletLifecycleSystem : ISystem
     private ComponentLookup<LocalTransform> _localTransformLookup;
     private ComponentLookup<PhysicsVelocity> _physicsVelocityLookup;
 
+    /// <summary>Registers the <see cref="Bullet"/> requirement and caches component lookup handles.</summary>
     public void OnCreate(ref SystemState state)
     {
         state.RequireForUpdate<Bullet>();
@@ -27,6 +28,10 @@ public partial struct BulletLifecycleSystem : ISystem
         _physicsVelocityLookup = state.GetComponentLookup<PhysicsVelocity>(isReadOnly: false);
     }
 
+    /// <summary>
+    /// Iterates all active bullets and returns any whose elapsed lifetime exceeds <c>BULLET_MAX_LIFETIME</c>
+    /// (4 seconds) to the <see cref="BulletPoolSystem"/> via <see cref="BulletPoolUtilities.DeactivateAndReturn"/>.
+    /// </summary>
     public void OnUpdate(ref SystemState state)
     {
         var poolSystemHandle = state.World.GetExistingSystem<BulletPoolSystem>();

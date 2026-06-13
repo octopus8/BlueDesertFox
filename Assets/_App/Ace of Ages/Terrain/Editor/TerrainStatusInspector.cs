@@ -13,28 +13,36 @@ public class TerrainStatusInspector : EditorWindow
     private Vector2 _scrollPosition;
     private bool _isPlaying = false;
 
+    /// <summary>
+    /// Opens (or focuses) the Terrain Status Inspector editor window.
+    /// Accessible via the <c>Window → Terrain → Status Inspector</c> menu.
+    /// </summary>
     [MenuItem("Window/Terrain/Status Inspector")]
     public static void ShowWindow()
     {
         GetWindow<TerrainStatusInspector>("Terrain Status");
     }
 
+    /// <summary>Subscribes to the <see cref="EditorApplication.playModeStateChanged"/> event to repaint the window on play mode transitions.</summary>
     private void OnEnable()
     {
         EditorApplication.playModeStateChanged += OnPlayModeChanged;
     }
 
+    /// <summary>Unsubscribes from the play mode state changed event when the window is closed or disabled.</summary>
     private void OnDisable()
     {
         EditorApplication.playModeStateChanged -= OnPlayModeChanged;
     }
 
+    /// <summary>Updates <c>_isPlaying</c> and repaints the window when Unity enters or exits play mode.</summary>
     private void OnPlayModeChanged(PlayModeStateChange state)
     {
         _isPlaying = state == PlayModeStateChange.EnteredPlayMode;
         Repaint();
     }
 
+    /// <summary>Draws the entire status inspector UI including material, URP, package, and runtime checks plus action buttons.</summary>
     private void OnGUI()
     {
         _scrollPosition = EditorGUILayout.BeginScrollView(_scrollPosition);
@@ -83,6 +91,7 @@ public class TerrainStatusInspector : EditorWindow
         EditorGUILayout.EndScrollView();
     }
 
+    /// <summary>Draws the material check section, showing whether <c>TerrainMaterial</c> exists in the <c>Resources</c> folder.</summary>
     private void CheckMaterial()
     {
         GUILayout.Label("1. TerrainMaterial Check", EditorStyles.boldLabel);
@@ -105,6 +114,7 @@ public class TerrainStatusInspector : EditorWindow
         }
     }
 
+    /// <summary>Draws the URP check section, verifying that a scriptable render pipeline is configured and the URP Lit shader is available.</summary>
     private void CheckURP()
     {
         GUILayout.Label("2. URP Configuration Check", EditorStyles.boldLabel);
@@ -133,6 +143,7 @@ public class TerrainStatusInspector : EditorWindow
         }
     }
 
+    /// <summary>Draws the packages check section, detecting the presence of <c>Unity.Entities</c> and <c>Unity.Rendering.Hybrid</c> assemblies by reflection.</summary>
     private void CheckPackages()
     {
         GUILayout.Label("3. Required Packages Check", EditorStyles.boldLabel);
@@ -160,6 +171,7 @@ public class TerrainStatusInspector : EditorWindow
         }
     }
 
+    /// <summary>Draws the runtime status section during play mode, showing tile counts and rendering state from the live ECS world.</summary>
     private void CheckPlayModeStatus()
     {
         GUILayout.Label("4. Runtime Status", EditorStyles.boldLabel);
@@ -239,6 +251,7 @@ public class TerrainStatusInspector : EditorWindow
         }
     }
 
+    /// <summary>Triggers a repaint every frame during play mode so the status counters stay live.</summary>
     private void Update()
     {
         if (Application.isPlaying)

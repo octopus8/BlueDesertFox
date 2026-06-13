@@ -33,6 +33,7 @@ public class TerrainTileGizmoVisualizer : MonoBehaviour
     
     private EntityManager _entityManager;
     
+    /// <summary>Caches the <see cref="EntityManager"/> reference and refreshes Inspector tile counters each frame.</summary>
     void Update()
     {
         if (World.DefaultGameObjectInjectionWorld == null)
@@ -44,6 +45,7 @@ public class TerrainTileGizmoVisualizer : MonoBehaviour
         UpdateCounts();
     }
     
+    /// <summary>Counts total tiles, tiles with mesh vertex data, and tiles with rendering components and stores the results in the Inspector-visible fields.</summary>
     void UpdateCounts()
     {
         var query = _entityManager.CreateEntityQuery(typeof(TerrainTile));
@@ -56,6 +58,7 @@ public class TerrainTileGizmoVisualizer : MonoBehaviour
         _tilesWithRendering = renderQuery.CalculateEntityCount();
     }
     
+    /// <summary>Draws color-coded wireframe tile bounds and grid coordinate labels in the Scene view for all terrain tile entities.</summary>
     void OnDrawGizmos()
     {
         if (!Application.isPlaying)

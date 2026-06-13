@@ -18,6 +18,10 @@ public partial struct TileSpawningSystem : ISystem
 {
     private NativeParallelHashMap<int2, Entity> _activeTiles;
 
+    /// <summary>
+    /// Allocates the active-tile map and registers required singletons
+    /// (<see cref="PlayerTransformReference"/>, <see cref="TerrainTileConfig"/>, <see cref="ScrollOffset"/>).
+    /// </summary>
     public void OnCreate(ref SystemState state)
     {
         state.RequireForUpdate<PlayerTransformReference>();
@@ -27,6 +31,7 @@ public partial struct TileSpawningSystem : ISystem
         _activeTiles = new NativeParallelHashMap<int2, Entity>(256, Allocator.Persistent);
     }
 
+    /// <summary>Disposes the active-tile hash map and frees all native memory.</summary>
     [BurstCompile]
     public void OnDestroy(ref SystemState state)
     {
@@ -34,6 +39,12 @@ public partial struct TileSpawningSystem : ISystem
             _activeTiles.Dispose();
     }
 
+    /// <summary>
+    /// Computes the set of grid tiles required around the player's current position (offset by
+    /// <see cref="ScrollOffset"/>), spawns any missing tiles as new ECS entities with empty mesh
+    /// buffers, and destroys tiles that have moved outside the view distance ring.
+    /// Also explicitly destroys spawned trees on despawned tiles.
+    /// </summary>
     public void OnUpdate(ref SystemState state)
     {
         var config = SystemAPI.GetSingleton<TerrainTileConfig>();

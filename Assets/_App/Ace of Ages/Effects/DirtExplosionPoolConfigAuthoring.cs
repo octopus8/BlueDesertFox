@@ -19,8 +19,10 @@ public class DirtExplosionPoolConfigAuthoring : MonoBehaviour
     [Tooltip("How long explosions stay active before returning to pool (in seconds)")]
     [SerializeField] private float lifetime = 2.5f;
     
+    /// <summary>Bakes pool size and lifetime values into a <see cref="DirtExplosionConfig"/> singleton component.</summary>
     public class Baker : Baker<DirtExplosionPoolConfigAuthoring>
     {
+        /// <inheritdoc/>
         public override void Bake(DirtExplosionPoolConfigAuthoring authoring)
         {
             Entity entity = GetEntity(TransformUsageFlags.Dynamic);

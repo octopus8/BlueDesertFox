@@ -15,8 +15,10 @@ public class TerrainAnchorTagAuthoring : MonoBehaviour
     [Tooltip("Custom base position in world space (only used if useCustomBasePosition is true)")]
     public Vector3 customBasePosition = Vector3.zero;
 
+    /// <summary>Bakes the anchor's base position (custom or from GameObject's world transform) into a <see cref="TerrainAnchorTag"/> component.</summary>
     private class Baker : Baker<TerrainAnchorTagAuthoring>
     {
+        /// <inheritdoc/>
         public override void Bake(TerrainAnchorTagAuthoring authoring)
         {
             var entity = GetEntity(TransformUsageFlags.Dynamic);
@@ -33,7 +35,7 @@ public class TerrainAnchorTagAuthoring : MonoBehaviour
         }
     }
     
-    // Draw gizmo to visualize base position in Scene view
+    /// <summary>Draws a cyan wire sphere and world-axis lines at the anchor's base position in the Scene view when this component is selected.</summary>
     private void OnDrawGizmosSelected()
     {
         Gizmos.color = Color.cyan;

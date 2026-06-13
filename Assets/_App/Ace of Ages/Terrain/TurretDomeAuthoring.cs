@@ -10,14 +10,18 @@ using UnityEngine;
 /// </summary>
 public class TurretDomeAuthoring : MonoBehaviour
 {
+    /// <summary>Speed of bullets fired from this turret in units per second, used to compute the ballistic intercept lead angle.</summary>
     [Tooltip("Speed of bullets fired from this turret (units/second). Used to compute the predictive lead angle.")]
     public float bulletSpeed = 30f;
 
+    /// <summary>Maximum rotation speed of the dome in degrees per second. Set to 0 for instant snap-to-aim.</summary>
     [Tooltip("Maximum rotation speed of the dome (degrees/second). Set to 0 for instant snap.")]
     public float rotationSpeed = 90f;
 
+    /// <summary>Bakes bullet speed and rotation speed into a <see cref="TurretDome"/> component on the dome entity.</summary>
     private class Baker : Baker<TurretDomeAuthoring>
     {
+        /// <inheritdoc/>
         public override void Bake(TurretDomeAuthoring authoring)
         {
             var entity = GetEntity(TransformUsageFlags.Dynamic);

@@ -91,6 +91,11 @@ public static class StaticObjectHierarchyFlattenUtility
         linkedEntities.Dispose();
     }
 
+    /// <summary>
+    /// Recursively walks the child graph rooted at <paramref name="parentEntity"/>, composing each
+    /// child's local TRS matrix with <paramref name="parentWorldMatrix"/> to produce a world-space
+    /// matrix, and stores the result in <paramref name="worldMatrices"/> for each child entity.
+    /// </summary>
     private static void AccumulateWorldTransforms(
         EntityManager entityManager,
         NativeParallelMultiHashMap<Entity, Entity> childrenByParent,
@@ -114,6 +119,11 @@ public static class StaticObjectHierarchyFlattenUtility
         } while (childrenByParent.TryGetNextValue(out child, ref it));
     }
 
+    /// <summary>
+    /// Decomposes a world-space TRS matrix <paramref name="m"/> into position, rotation, and the
+    /// maximum axis scale, returning a <see cref="LocalTransform"/> suitable for assigning directly
+    /// as a world-space transform to a hierarchy-free entity.
+    /// </summary>
     private static LocalTransform LocalTransformFromWorldMatrix(float4x4 m)
     {
         var c0 = m.c0.xyz;

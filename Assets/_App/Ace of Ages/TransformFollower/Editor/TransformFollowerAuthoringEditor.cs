@@ -2,6 +2,11 @@ using UnityEditor;
 using UnityEngine;
 
 #if UNITY_EDITOR
+/// <summary>
+/// Custom Inspector for <see cref="TransformFollowerAuthoring"/> that provides a context-sensitive UI
+/// showing only the fields relevant to the selected <see cref="TransformFollowerAuthoring.TargetMode"/>,
+/// inline validation hints, quick-find buttons, and Scene-view Gizmos for the follow offset.
+/// </summary>
 [CustomEditor(typeof(TransformFollowerAuthoring))]
 public class TransformFollowerAuthoringEditor : Editor
 {
@@ -15,6 +20,7 @@ public class TransformFollowerAuthoringEditor : Editor
     
     private bool showHelp = false;
     
+    /// <summary>Caches all <see cref="SerializedProperty"/> references needed to draw the custom inspector.</summary>
     void OnEnable()
     {
         targetModeProp = serializedObject.FindProperty("targetMode");
@@ -26,6 +32,11 @@ public class TransformFollowerAuthoringEditor : Editor
         smoothTimeProp = serializedObject.FindProperty("smoothTime");
     }
     
+    /// <summary>
+    /// Draws the custom inspector UI, showing the target mode selector and the matching input
+    /// field (name, tag, or direct reference), together with validation HelpBoxes, quick-find
+    /// buttons, offset preset shortcuts, smooth time presets, and a play-mode status indicator.
+    /// </summary>
     public override void OnInspectorGUI()
     {
         serializedObject.Update();
@@ -194,6 +205,7 @@ public class TransformFollowerAuthoringEditor : Editor
         }
     }
     
+    /// <summary>Checks whether the configured direct-reference target is inside a SubScene and warns if the authoring component itself is not in a SubScene, since cross-boundary references don't work at runtime.</summary>
     private void ValidateTarget()
     {
         var targetGO = targetGameObjectProp.objectReferenceValue as GameObject;
@@ -221,7 +233,7 @@ public class TransformFollowerAuthoringEditor : Editor
         }
     }
     
-    // Scene view visualization
+    /// <summary>Draws Scene-view gizmos showing the resolved target position, the follower's current position, and the offset when the component is selected or active.</summary>
     [DrawGizmo(GizmoType.Selected | GizmoType.Active)]
     static void DrawGizmos(TransformFollowerAuthoring follower, GizmoType gizmoType)
     {

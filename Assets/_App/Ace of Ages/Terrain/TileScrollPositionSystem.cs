@@ -17,6 +17,7 @@ using Unity.Transforms;
 [UpdateBefore(typeof(TransformSystemGroup))]
 public partial struct TileScrollPositionSystem : ISystem
 {
+    /// <summary>Registers required singletons: <see cref="ScrollOffset"/>, <see cref="TerrainTileConfig"/>, and <see cref="TerrainTile"/>.</summary>
     [BurstCompile]
     public void OnCreate(ref SystemState state)
     {
@@ -25,6 +26,11 @@ public partial struct TileScrollPositionSystem : ISystem
         state.RequireForUpdate<TerrainTile>(); // Only run if tile entities exist
     }
 
+    /// <summary>
+    /// Schedules <see cref="UpdateTilePositionsJob"/> in parallel to recompute every terrain tile's
+    /// world position as <c>gridCoordinate * tileSize − scrollOffset</c> so that tiles smoothly
+    /// scroll past the player each frame.
+    /// </summary>
     [BurstCompile]
     public void OnUpdate(ref SystemState state)
     {
@@ -48,12 +54,18 @@ public partial struct TileScrollPositionSystem : ISystem
     [BurstCompile]
     private partial struct UpdateTilePositionsJob : IJobEntity
     {
+        /// <summary>Current accumulated scroll offset; subtracted from the tile's base grid position.</summary>
         [ReadOnly]
         public float3 scrollOffset;
         
+        /// <summary>World-space size of each square terrain tile.</summary>
         [ReadOnly]
         public float tileSize;
         
+        /// <summary>
+        /// Computes the tile's base world position from its grid coordinate (centred) and subtracts
+        /// the scroll offset so the tile scrolls opposite to the player's direction of travel.
+        /// </summary>
         private void Execute(
             in TerrainTile tile,
             ref LocalTransform transform)

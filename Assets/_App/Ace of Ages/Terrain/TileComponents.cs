@@ -16,17 +16,27 @@ public struct TerrainTileConfig : IComponentData
     /// <summary>Number of vertices per side of each tile (e.g., 32 = 32x32 grid).</summary>
     public int verticesPerSide;
     
-    // Noise parameters for procedural generation
+    /// <summary>Base frequency of the Perlin noise used for height generation (e.g. 0.01). Higher values = smaller terrain features.</summary>
     public float noiseFrequency;
+    /// <summary>Maximum height amplitude in world units (e.g. 20). Scales the full noise range to this height.</summary>
     public float noiseAmplitude;
+    /// <summary>Number of fractal octaves summed for the noise (e.g. 4). More octaves add fine detail but cost CPU.</summary>
     public int noiseOctaves;
+    /// <summary>Frequency multiplier between successive noise octaves (e.g. 2.0). Controls how quickly higher octaves add finer detail.</summary>
     public float noiseLacunarity;
+    /// <summary>Amplitude reduction factor between successive noise octaves (e.g. 0.5). Values &lt; 1 make higher octaves progressively quieter.</summary>
     public float noisePersistence;
 
-    // Continental mask: second low-frequency noise that biases amplitude
-    // so some regions stay flat (plains) and others rise to full amplitude (mountains)
-    public float continentalFrequency;  // e.g. 0.0008 — scale of plains vs mountain regions
-    public float continentalExponent;   // e.g. 2.5 — values >1 push more area toward flat
+    /// <summary>
+    /// Frequency of the low-frequency continental mask noise (e.g. 0.0008). Controls the scale
+    /// of flat-plains versus mountain regions. Lower values produce larger continental features.
+    /// </summary>
+    public float continentalFrequency;
+    /// <summary>
+    /// Power exponent applied to the continental mask (e.g. 2.5). Values greater than 1 push
+    /// more of the map toward flat plains, while values near 1 produce uniform highlands.
+    /// </summary>
+    public float continentalExponent;
     
     // Physics optimization parameters
     /// <summary>Maximum number of terrain meshes generated per frame (prevents stalls).</summary>
@@ -80,6 +90,7 @@ public struct TerrainTile : IComponentData
 /// </summary>
 public struct VertexElement : IBufferElementData
 {
+    /// <summary>World-space (or tile-local) position of this vertex.</summary>
     public float3 value;
 }
 
@@ -88,6 +99,7 @@ public struct VertexElement : IBufferElementData
 /// </summary>
 public struct NormalElement : IBufferElementData
 {
+    /// <summary>Normalized surface normal for this vertex, used for lighting calculations.</summary>
     public float3 value;
 }
 
@@ -96,6 +108,7 @@ public struct NormalElement : IBufferElementData
 /// </summary>
 public struct UVElement : IBufferElementData
 {
+    /// <summary>Texture UV coordinate (0–1 range) for this vertex.</summary>
     public float2 value;
 }
 
@@ -104,6 +117,7 @@ public struct UVElement : IBufferElementData
 /// </summary>
 public struct IndexElement : IBufferElementData
 {
+    /// <summary>Index into the vertex buffer identifying one corner of a triangle.</summary>
     public int value;
 }
 
@@ -137,7 +151,9 @@ public struct PlayerTargetVelocity : IComponentData
 {
     /// <summary>Smoothed velocity on XZ (world units/sec); Y kept at 0.</summary>
     public float3 horizontal;
+    /// <summary>Player world position sampled on the previous frame, used to compute finite-difference velocity.</summary>
     public float3 lastWorldPosition;
+    /// <summary>Whether <see cref="lastWorldPosition"/> has been populated from at least one prior frame.</summary>
     public bool hasPrevious;
 }
 

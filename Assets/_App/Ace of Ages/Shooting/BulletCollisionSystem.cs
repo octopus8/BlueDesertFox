@@ -19,6 +19,10 @@ public partial struct BulletCollisionSystem : ISystem
     private ComponentLookup<LocalTransform> _localTransformLookup;
     private ComponentLookup<PhysicsVelocity> _physicsVelocityLookup;
 
+    /// <summary>
+    /// Registers required singletons and pre-fetches all <see cref="ComponentLookup{T}"/> handles
+    /// used during collision processing to avoid per-frame allocation.
+    /// </summary>
     public void OnCreate(ref SystemState state)
     {
         state.RequireForUpdate<Bullet>();
@@ -33,6 +37,11 @@ public partial struct BulletCollisionSystem : ISystem
         _physicsVelocityLookup = state.GetComponentLookup<PhysicsVelocity>(isReadOnly: false);
     }
 
+    /// <summary>
+    /// Updates component lookups, iterates all physics collision events for the current fixed step,
+    /// returns colliding active bullets to the pool via <see cref="BulletPoolUtilities.DeactivateAndReturn"/>,
+    /// and triggers dirt explosion VFX at terrain impact positions.
+    /// </summary>
     public void OnUpdate(ref SystemState state)
     {
         var poolSystemHandle = state.World.GetExistingSystem<BulletPoolSystem>();
@@ -134,6 +143,11 @@ public partial struct BulletCollisionSystem : ISystem
         terrainCollisionPositions.Dispose();
     }
 
+    /// <summary>
+    /// Checks whether <paramref name="bullet"/> is an active bullet not already queued for return,
+    /// then adds it to <paramref name="bulletsToReturn"/> and, when the collision was with terrain,
+    /// records the impact position in <paramref name="terrainCollisionPositions"/> for VFX spawning.
+    /// </summary>
     private void TryCollectBullet(
         Entity bullet,
         bool hitTerrain,

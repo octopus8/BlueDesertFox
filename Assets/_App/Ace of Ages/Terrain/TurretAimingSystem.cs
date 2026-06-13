@@ -25,6 +25,7 @@ using Unity.Transforms;
 [UpdateBefore(typeof(LocalToWorldSystem))]
 public partial struct TurretAimingSystem : ISystem
 {
+    /// <summary>Registers <see cref="TurretDome"/>, <see cref="TerrainScrollVelocity"/>, and <see cref="PlayerTransformReference"/> requirements.</summary>
     public void OnCreate(ref SystemState state)
     {
         state.RequireForUpdate<TurretDome>();
@@ -34,6 +35,10 @@ public partial struct TurretAimingSystem : ISystem
 
     // OnUpdate is intentionally NOT [BurstCompile] — it must read the managed
     // PlayerTransformReference singleton on the main thread before scheduling the job.
+    /// <summary>
+    /// Reads the player world position (main thread), builds the muzzle-offset lookup map, then
+    /// schedules <c>TurretAimJob</c> in parallel to solve intercept points and rotate all dome entities.
+    /// </summary>
     public void OnUpdate(ref SystemState state)
     {
         var playerRef = SystemAPI.ManagedAPI.GetSingleton<PlayerTransformReference>();
@@ -85,6 +90,10 @@ public partial struct TurretAimingSystem : ISystem
 
         [ReadOnly] public NativeHashMap<Entity, float3>.ReadOnly domeLaunchOffsets;
 
+        /// <summary>
+        /// Solves the ballistic intercept quadratic, computes the Y-axis quaternion for the dome,
+        /// smooth-lerps to the target angle, and stores the 3D intercept point for barrel pitch use.
+        /// </summary>
         private void Execute(Entity entity, ref TurretDome dome, ref LocalTransform transform)
         {
             float3 domePos = transform.Position;

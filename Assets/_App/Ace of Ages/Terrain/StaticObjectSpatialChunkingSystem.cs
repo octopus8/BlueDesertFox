@@ -16,6 +16,7 @@ public partial struct TreeSpatialChunkingSystem : ISystem
 {
     private const float ChunkSize = 100f; // Must match TreeLODUpdateSystem.ChunkSize
 
+    /// <summary>Registers <see cref="StaticObjectLODConfig"/> and <see cref="EndSimulationEntityCommandBufferSystem.Singleton"/> requirements.</summary>
     [BurstCompile]
     public void OnCreate(ref SystemState state)
     {
@@ -23,6 +24,11 @@ public partial struct TreeSpatialChunkingSystem : ISystem
         state.RequireForUpdate<EndSimulationEntityCommandBufferSystem.Singleton>();
     }
 
+    /// <summary>
+    /// Schedules two parallel jobs: one to assign <see cref="StaticObjectChunkMembership"/> to newly
+    /// spawned trees, and one to recompute chunk coordinates for already-assigned trees whose positions
+    /// may have changed due to terrain scrolling.
+    /// </summary>
     public void OnUpdate(ref SystemState state)
     {
         // Use EndSimulationECB to ensure playback happens in same frame as job execution
@@ -53,6 +59,7 @@ public partial struct TreeSpatialChunkingSystem : ISystem
     {
         public EntityCommandBuffer.ParallelWriter ecb;
         
+        /// <summary>Computes the chunk coordinate for a new tree and adds a <see cref="StaticObjectChunkMembership"/> component via ECB.</summary>
         private void Execute(Entity entity, [ChunkIndexInQuery] int chunkIndex,
                             in LocalTransform transform,
                             in GlobalStaticObjectInstance _)
@@ -71,6 +78,7 @@ public partial struct TreeSpatialChunkingSystem : ISystem
     [BurstCompile]
     private partial struct UpdateChunkJob : IJobEntity
     {
+        /// <summary>Recomputes the chunk coordinate for a tree that already has <see cref="StaticObjectChunkMembership"/> and updates it in-place.</summary>
         private void Execute(in LocalTransform transform,
                             ref StaticObjectChunkMembership chunkMembership,
                             in GlobalStaticObjectInstance _)

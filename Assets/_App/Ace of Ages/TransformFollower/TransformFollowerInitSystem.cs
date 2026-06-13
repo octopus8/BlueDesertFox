@@ -20,6 +20,7 @@ public partial class TransformFollowerInitSystem : SystemBase
 {
     private EntityQuery _uninitializedQuery;
     
+    /// <summary>Builds the entity query for uninitialized transform-follower entities.</summary>
     protected override void OnCreate()
     {
         _uninitializedQuery = GetEntityQuery(
@@ -27,6 +28,12 @@ public partial class TransformFollowerInitSystem : SystemBase
             ComponentType.ReadOnly<TransformFollowerSettings>());
     }
     
+    /// <summary>
+    /// Finds all entities with a <see cref="TransformFollowerTargetSearch"/> component that have not
+    /// yet been initialized, locates the target <see cref="Transform"/> via <see cref="FindTarget"/>,
+    /// and adds or updates a <see cref="TransformReference"/> component with the resolved target.
+    /// Marks each search component as <c>initialized</c> on success.
+    /// </summary>
     protected override void OnUpdate()
     {
         // Get all entities that need initialization
@@ -93,6 +100,12 @@ public partial class TransformFollowerInitSystem : SystemBase
         }
     }
     
+    /// <summary>
+    /// Resolves a target <see cref="Transform"/> using the given <paramref name="searchParams"/> mode.
+    /// Supports <c>FindByName</c> (uses <c>GameObject.Find</c>) and <c>FindByTag</c>
+    /// (uses <c>GameObject.FindGameObjectWithTag</c>). <c>DirectReference</c> is not supported across
+    /// SubScene boundaries and always returns <c>null</c>.
+    /// </summary>
     private Transform FindTarget(TransformFollowerTargetSearch searchParams)
     {
         string searchString = searchParams.searchString.ToString();

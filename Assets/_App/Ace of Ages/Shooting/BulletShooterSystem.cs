@@ -13,6 +13,7 @@ using UnityEngine;
 [UpdateBefore(typeof(ResetEventsSystem))]
 public partial struct BulletShooterSystem : ISystem
 {
+    /// <summary>Registers required singletons: <see cref="BulletShooter"/>, <see cref="PrefabEntitiesReferences"/>, <see cref="BulletPoolConfig"/>, and <see cref="BulletSpawnPointReference"/>.</summary>
     public void OnCreate(ref SystemState state)
     {
         state.RequireForUpdate<BulletShooter>();
@@ -21,6 +22,11 @@ public partial struct BulletShooterSystem : ISystem
         state.RequireForUpdate<BulletSpawnPointReference>();
     }
     
+    /// <summary>
+    /// For every <see cref="BulletShooter"/> with <c>doShoot = true</c>, retrieves a bullet from
+    /// the <see cref="BulletPoolSystem"/>, positions it at the world-space spawn point (entity
+    /// transform plus local offset), and sets its velocity — including terrain scroll compensation.
+    /// </summary>
     public void OnUpdate(ref SystemState state)
     {
         // Get reference to pool system (non-Burst due to managed component access)

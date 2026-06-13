@@ -45,6 +45,10 @@ public partial struct TreeLODUpdateSystem : ISystem
     private struct ChunkFilterMarkerKey { }
 #endif
 
+    /// <summary>
+    /// Registers required singletons, allocates persistent native lists for active chunk tracking,
+    /// resets the frame counter and velocity state, and initialises Profiler markers in Editor builds.
+    /// </summary>
     [BurstCompile]
     public void OnCreate(ref SystemState state)
     {
@@ -66,6 +70,7 @@ public partial struct TreeLODUpdateSystem : ISystem
 #endif
     }
 
+    /// <summary>Disposes persistent native lists used for chunk tracking.</summary>
     [BurstCompile]
     public void OnDestroy(ref SystemState state)
     {
@@ -76,6 +81,12 @@ public partial struct TreeLODUpdateSystem : ISystem
     }
 
     // NOTE: Cannot use [BurstCompile] here because we access managed PlayerTransformReference component
+    /// <summary>
+    /// Reads the player world position (main thread), determines which spatial chunks are within
+    /// view distance, then schedules <c>TreeLODUpdateJob</c> in parallel to apply the correct
+    /// <see cref="MaterialMeshInfo"/> LOD slot to each tree based on its distance to the player.
+    /// Distance-tiered frame-budget skipping is applied for trees far from the camera.
+    /// </summary>
     public void OnUpdate(ref SystemState state)
     {
         _frameCounter++;
@@ -243,6 +254,11 @@ public partial struct TreeLODUpdateSystem : ISystem
         [ReadOnly] public int frameCounter; // For distance-tiered updates
         [ReadOnly] public NativeArray<MaterialMeshInfo> lodMeshInfos;
         
+        /// <summary>
+        /// Skips trees outside the active chunk set, applies distance-tiered frame-budget skipping,
+        /// calculates XZ distance to the player, selects the appropriate LOD slot with hysteresis,
+        /// and writes the correct <see cref="MaterialMeshInfo"/> BRG ID for the chosen LOD.
+        /// </summary>
         private void Execute(
             in LocalTransform transform,
             ref GlobalStaticObjectInstanceData instanceData,

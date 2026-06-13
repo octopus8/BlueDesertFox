@@ -40,8 +40,10 @@ public class PlayerScrollVelocityAuthoring : MonoBehaviour
     [Tooltip("GameObject tag to search for (only used if mode is FindByTag)")]
     public string worldOriginTag = "MainCamera";
 
+    /// <summary>Bakes player scroll velocity config (speed, rotation speed, world-origin search params) into <see cref="PlayerTerrainScrollVelocityConfig"/> and supporting search components.</summary>
     public class Baker : Baker<PlayerScrollVelocityAuthoring>
     {
+        /// <inheritdoc/>
         public override void Bake(PlayerScrollVelocityAuthoring authoring)
         {
             Entity entity = GetEntity(TransformUsageFlags.None);

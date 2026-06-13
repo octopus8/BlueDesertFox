@@ -43,6 +43,7 @@ public partial struct TurretShooterSystem : ISystem
         public float3     bulletVelocity;
     }
 
+    /// <summary>Registers required singletons and caches the <see cref="TurretDome"/> component lookup.</summary>
     public void OnCreate(ref SystemState state)
     {
         state.RequireForUpdate<TurretShooterState>();
@@ -51,6 +52,11 @@ public partial struct TurretShooterSystem : ISystem
         _domeLookup = state.GetComponentLookup<TurretDome>(isReadOnly: true);
     }
 
+    /// <summary>
+    /// Processes each turret's burst-fire cooldown, performs a line-of-sight raycast against
+    /// terrain physics colliders (when available), and fires bullets from the turret launch offset
+    /// toward the pre-computed ballistic intercept point. Spawns bullets from the pool.
+    /// </summary>
     public void OnUpdate(ref SystemState state)
     {
         _domeLookup.Update(ref state);
@@ -238,6 +244,11 @@ public partial struct TurretShooterSystem : ISystem
         pendingShots.Dispose();
     }
 
+    /// <summary>
+    /// Lazily initialises the <see cref="CollisionWorld"/> reference and terrain-layer
+    /// <see cref="CollisionFilter"/> on first use within a frame by completing the dependency
+    /// and reading from <see cref="PhysicsWorldSingleton"/>. Does nothing if already ready.
+    /// </summary>
     private void EnsurePhysicsWorldReady(
         ref SystemState state,
         in TerrainTileConfig terrainConfig,

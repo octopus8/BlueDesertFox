@@ -116,8 +116,10 @@ public class StaticObjectSpawnerConfigAuthoring : MonoBehaviour
     [Range(0.1f, 10f)]
     public float playerVelocityThreshold = 0.5f;
 
+    /// <summary>Bakes spawner settings and LOD prefab references into <see cref="StaticObjectSpawnerConfig"/> and <see cref="StaticObjectPrefabElement"/> buffer components.</summary>
     public class Baker : Baker<StaticObjectSpawnerConfigAuthoring>
     {
+        /// <inheritdoc/>
         public override void Bake(StaticObjectSpawnerConfigAuthoring authoring)
         {
             // Validate that we have object LOD sets
@@ -310,6 +312,7 @@ public class StaticObjectSpawnerConfigAuthoring : MonoBehaviour
         }
     }
 
+    /// <summary>Clamps all inspector values (densities, distances, spawn counts) to valid ranges when values change.</summary>
     private void OnValidate()
     {
         // Ensure valid values

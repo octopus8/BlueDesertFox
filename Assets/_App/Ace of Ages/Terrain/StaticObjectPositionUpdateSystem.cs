@@ -16,6 +16,7 @@ public partial struct objectPositionUpdateSystem : ISystem
 {
     private ComponentLookup<LocalTransform> _tileTransformLookup;
 
+    /// <summary>Registers the <see cref="StaticObjectTileOwnership"/> requirement and caches the tile transform lookup.</summary>
     [BurstCompile]
     public void OnCreate(ref SystemState state)
     {
@@ -23,6 +24,10 @@ public partial struct objectPositionUpdateSystem : ISystem
         _tileTransformLookup = state.GetComponentLookup<LocalTransform>(true);
     }
 
+    /// <summary>
+    /// Updates the tile transform lookup and schedules <c>objectPositionUpdateJob</c> in parallel to
+    /// recompute each static object's world position as <c>tilePosition + localOffset</c>.
+    /// </summary>
     [BurstCompile]
     public void OnUpdate(ref SystemState state)
     {
@@ -50,6 +55,10 @@ public partial struct objectPositionUpdateSystem : ISystem
         [NativeDisableContainerSafetyRestriction]
         public ComponentLookup<LocalTransform> tileTransformLookup;
         
+        /// <summary>
+        /// If the owning tile entity still exists, sets the static object's world position to
+        /// <c>tileTransform.Position + ownership.localOffset</c>.
+        /// </summary>
         private void Execute(
             in StaticObjectTileOwnership ownership,
             ref LocalTransform transform)

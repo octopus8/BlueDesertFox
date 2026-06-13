@@ -15,11 +15,16 @@ public partial class TerrainRenderingDebugSystem : SystemBase
 {
     private double _lastLogTime;
    
+    /// <summary>Registers the <see cref="TerrainTileConfig"/> requirement.</summary>
     protected override void OnCreate()
     {
         RequireForUpdate<TerrainTileConfig>();
     }
     
+    /// <summary>
+    /// Every ten seconds (when <see cref="TerrainTileConfig.enableRenderingDebug"/> is true),
+    /// logs detailed diagnostics about terrain tile entities and their rendering components to the Console.
+    /// </summary>
     protected override void OnUpdate()
     {
         // Early exit if debug logging is disabled

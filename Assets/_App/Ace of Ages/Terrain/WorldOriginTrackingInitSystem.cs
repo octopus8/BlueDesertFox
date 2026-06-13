@@ -15,6 +15,7 @@ public partial class WorldOriginTrackingInitSystem : SystemBase
 {
     private bool _hasLoggedAttempt = false;
     
+    /// <summary>Registers <see cref="WorldOriginTrackingSearch"/> and <see cref="WorldOriginTransformReference"/> requirements.</summary>
     protected override void OnCreate()
     {
         // Require both components to exist
@@ -22,6 +23,11 @@ public partial class WorldOriginTrackingInitSystem : SystemBase
         RequireForUpdate<WorldOriginTransformReference>();
     }
     
+    /// <summary>
+    /// Checks all <see cref="WorldOriginTrackingSearch"/> components for uninitialized entries, calls
+    /// <see cref="FindWorldOrigin"/> for each, and stores the result in <see cref="WorldOriginTransformReference"/>.
+    /// Marks each search as initialized on success.
+    /// </summary>
     protected override void OnUpdate()
     {
         // Check if any entities need initialization
@@ -89,6 +95,11 @@ public partial class WorldOriginTrackingInitSystem : SystemBase
         }
     }
     
+    /// <summary>
+    /// Searches for the world-origin <see cref="Transform"/> using the search mode and string in
+    /// <paramref name="searchParams"/>. Supports FindByName and FindByTag modes.
+    /// Returns <c>null</c> and logs a warning if the target is not found.
+    /// </summary>
     private Transform FindWorldOrigin(WorldOriginTrackingSearch searchParams)
     {
         switch (searchParams.mode)

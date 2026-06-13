@@ -22,6 +22,12 @@ public partial class TransformFollowerSystem : SystemBase
 {
     private double _lastDebugTime;
     
+    /// <summary>
+    /// On the main thread, iterates all entities with a <see cref="TransformReference"/> and updates
+    /// their <see cref="LocalTransform"/> to match the referenced target <see cref="Transform"/>, applying
+    /// the configured position offset and optional rotation following with smooth interpolation.
+    /// Cannot use Burst or jobs due to managed <see cref="Transform"/> access.
+    /// </summary>
     protected override void OnUpdate()
     {
         float deltaTime = SystemAPI.Time.DeltaTime;

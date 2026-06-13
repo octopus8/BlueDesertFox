@@ -8,6 +8,17 @@ using Unity.Transforms;
 /// </summary>
 public static class BulletPoolUtilities
 {
+    /// <summary>
+    /// Deactivates a bullet and returns it to the pool in a single zero-allocation call.
+    /// Resets <see cref="BulletData"/> to inactive, zeros <see cref="PhysicsVelocity"/>,
+    /// moves the bullet's <see cref="LocalTransform"/> below the map, and enqueues it back into
+    /// <paramref name="pool"/> via <see cref="BulletPoolSystem.ReturnToPool"/>.
+    /// </summary>
+    /// <param name="bullet">The bullet entity to deactivate.</param>
+    /// <param name="pool">Reference to the <see cref="BulletPoolSystem"/> that owns the pool queue.</param>
+    /// <param name="bulletDataLookup">Write-access lookup for <see cref="BulletData"/> components.</param>
+    /// <param name="localTransformLookup">Write-access lookup for <see cref="LocalTransform"/> components.</param>
+    /// <param name="physicsVelocityLookup">Write-access lookup for <see cref="PhysicsVelocity"/> components.</param>
     public static void DeactivateAndReturn(
         Entity bullet,
         ref BulletPoolSystem pool,

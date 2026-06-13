@@ -111,8 +111,10 @@ public class TerrainConfigAuthoring : MonoBehaviour
     [Tooltip("Physics layer index for all terrain colliders")]
     public int terrainPhysicsLayer = 0;
 
+    /// <summary>Bakes all terrain configuration fields into the <see cref="TerrainTileConfig"/> singleton ECS component.</summary>
     public class Baker : Baker<TerrainConfigAuthoring>
     {
+        /// <inheritdoc/>
         public override void Bake(TerrainConfigAuthoring authoring)
         {
             Entity entity = GetEntity(TransformUsageFlags.None);
@@ -208,6 +210,7 @@ public class TerrainConfigAuthoring : MonoBehaviour
         }
     }
 
+    /// <summary>Draws terrain tile-grid and view-distance radius gizmos around the player position in the Scene view when this component is selected.</summary>
     private void OnDrawGizmosSelected()
     {
         // Try to find player at edit time for visualization
@@ -259,6 +262,7 @@ public class TerrainConfigAuthoring : MonoBehaviour
         Gizmos.DrawWireCube(tileCorner + size * 0.5f, size);
     }
     
+    /// <summary>Attempts to locate the player <see cref="Transform"/> at edit time for gizmo visualization using the configured <see cref="playerSearchMode"/>.</summary>
     private Transform FindPlayerForVisualization()
     {
         switch (playerSearchMode)
@@ -292,6 +296,7 @@ public class TerrainConfigAuthoring : MonoBehaviour
         return null;
     }
 
+    /// <summary>Clamps all inspector-configured values to valid ranges (e.g. minimum tile size, positive octave count) when values change in the Inspector.</summary>
     private void OnValidate()
     {
         // Ensure valid values

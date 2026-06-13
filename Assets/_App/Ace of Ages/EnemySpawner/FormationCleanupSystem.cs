@@ -8,12 +8,20 @@ using Unity.Entities;
 [UpdateInGroup(typeof(LateSimulationSystemGroup))]
 partial struct FormationCleanupSystem : ISystem
 {
+    /// <summary>
+    /// Registers the <see cref="EndSimulationEntityCommandBufferSystem.Singleton"/> requirement
+    /// so the system waits until the ECB system is available before running.
+    /// </summary>
     [BurstCompile]
     public void OnCreate(ref SystemState state)
     {
         state.RequireForUpdate<EndSimulationEntityCommandBufferSystem.Singleton>();
     }
     
+    /// <summary>
+    /// Iterates all entities with <see cref="FormationMovementState"/> and destroys those whose
+    /// phase is <see cref="MovementPhase.OutOfBounds"/> using the end-of-simulation ECB.
+    /// </summary>
     [BurstCompile]
     public void OnUpdate(ref SystemState state)
     {

@@ -49,6 +49,7 @@ public class TerrainColliderVisualizer : MonoBehaviour
         public Mesh mesh;
     }
 
+    /// <summary>Creates the world-origin mesh container and the visualization material.</summary>
     private void Awake()
     {
         _meshContainer = new GameObject("ColliderVisualizationMeshes");
@@ -62,6 +63,7 @@ public class TerrainColliderVisualizer : MonoBehaviour
         CreateMeshMaterial();
     }
 
+    /// <summary>Destroys the pooled visualization material and the mesh container to prevent memory leaks.</summary>
     private void OnDestroy()
     {
         if (_meshMaterial != null)
@@ -81,6 +83,7 @@ public class TerrainColliderVisualizer : MonoBehaviour
         }
     }
 
+    /// <summary>Caches the <see cref="EntityManager"/> reference and refreshes Inspector tile counters each frame.</summary>
     void Update()
     {
         if (!Application.isPlaying)
@@ -93,6 +96,7 @@ public class TerrainColliderVisualizer : MonoBehaviour
         UpdateCounts();
     }
 
+    /// <summary>Each frame, applies the current collider color to the material and calls <see cref="RenderColliderMeshes"/> to update pooled mesh renderers.</summary>
     void LateUpdate()
     {
         if (!enableVisualization || !Application.isPlaying)
@@ -111,6 +115,7 @@ public class TerrainColliderVisualizer : MonoBehaviour
         RenderColliderMeshes();
     }
 
+    /// <summary>Queries the ECS world for tiles with physics collider data and updates the Inspector-visible <c>_tilesWithColliders</c> count.</summary>
     void UpdateCounts()
     {
         var query = _entityManager.CreateEntityQuery(
@@ -123,6 +128,7 @@ public class TerrainColliderVisualizer : MonoBehaviour
         query.Dispose();
     }
 
+    /// <summary>Creates a new URP Unlit (or fallback Unlit/Color) material for the collider mesh overlay.</summary>
     private void CreateMeshMaterial()
     {
         Shader shader = Shader.Find("Universal Render Pipeline/Unlit");
@@ -143,6 +149,7 @@ public class TerrainColliderVisualizer : MonoBehaviour
         _meshMaterial.SetFloat("_Cull", (float)CullMode.Off);
     }
 
+    /// <summary>Sets the material's <c>_BaseColor</c> (URP) or <c>_Color</c> (legacy) property to <paramref name="color"/>.</summary>
     private void ApplyMaterialColor(Color color)
     {
         if (_meshMaterial.HasProperty("_BaseColor"))
@@ -151,6 +158,7 @@ public class TerrainColliderVisualizer : MonoBehaviour
             _meshMaterial.SetColor("_Color", color);
     }
 
+    /// <summary>Returns the next available <see cref="TileMeshEntry"/> from the pool, activating it, or creates and adds a new one if the pool is exhausted.</summary>
     private TileMeshEntry GetOrCreateMeshEntry()
     {
         if (_activeMeshes < _meshPool.Count)
@@ -189,6 +197,7 @@ public class TerrainColliderVisualizer : MonoBehaviour
         return newEntry;
     }
 
+    /// <summary>Deactivates all pooled tile mesh GameObjects and resets the active-mesh counter to zero.</summary>
     private void HideAllMeshes()
     {
         for (int i = 0; i < _meshPool.Count; i++)
@@ -197,6 +206,11 @@ public class TerrainColliderVisualizer : MonoBehaviour
         _activeMeshes = 0;
     }
 
+    /// <summary>
+    /// Queries all terrain tiles with prepared collider vertex/triangle data, filters by distance
+    /// (up to <see cref="maxVisualizationDistance"/>), and uploads the geometry to pooled
+    /// <see cref="MeshRenderer"/> GameObjects via <see cref="GetOrCreateMeshEntry"/>.
+    /// </summary>
     private void RenderColliderMeshes()
     {
         _activeMeshes = 0;
@@ -260,6 +274,7 @@ public class TerrainColliderVisualizer : MonoBehaviour
             _meshPool[i].gameObject.SetActive(false);
     }
 
+    /// <summary>Uploads the collider vertex and triangle buffers from the ECS entity to the given Unity <see cref="Mesh"/>, applying the tile's world-space position offset.</summary>
     private void UpdateTileMesh(
         Mesh mesh,
         DynamicBuffer<ColliderPreparedVertexElement> vertices,

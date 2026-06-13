@@ -35,8 +35,10 @@ public class TurretShooterAuthoring : MonoBehaviour
     [Tooltip("Maximum distance between muzzle and the target before firing is allowed.")]
     public float maxFireDistance = 100;
 
+    /// <summary>Bakes burst-fire settings and the muzzle spawn-point offset/rotation into a <see cref="TurretShooterState"/> component.</summary>
     private class Baker : Baker<TurretShooterAuthoring>
     {
+        /// <inheritdoc/>
         public override void Bake(TurretShooterAuthoring authoring)
         {
             var entity = GetEntity(TransformUsageFlags.Dynamic);

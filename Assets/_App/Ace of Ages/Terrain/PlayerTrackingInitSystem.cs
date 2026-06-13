@@ -21,6 +21,7 @@ public partial class PlayerTrackingInitSystem : SystemBase
 {
     private bool _hasLoggedAttempt = false;
     
+    /// <summary>Registers <see cref="PlayerTrackingSearch"/> and <see cref="PlayerTransformReference"/> requirements.</summary>
     protected override void OnCreate()
     {
         // Require both components to exist
@@ -28,6 +29,11 @@ public partial class PlayerTrackingInitSystem : SystemBase
         RequireForUpdate<PlayerTransformReference>();
     }
     
+    /// <summary>
+    /// Checks all <see cref="PlayerTrackingSearch"/> components for uninitialized entries and, for each,
+    /// calls <see cref="FindPlayer"/> to locate the player <see cref="Transform"/> and stores it in the
+    /// <see cref="PlayerTransformReference"/> singleton. Marks each search as initialized on success.
+    /// </summary>
     protected override void OnUpdate()
     {
         // Check if any entities need initialization
@@ -113,6 +119,11 @@ public partial class PlayerTrackingInitSystem : SystemBase
         }
     }
     
+    /// <summary>
+    /// Searches for the player <see cref="Transform"/> using the mode and search string stored in
+    /// <paramref name="searchParams"/>. Supports FindByName, FindByTag, FindAutoHandPlayer, and
+    /// FindMainCamera modes. Returns <c>null</c> and logs a warning when the target is not found.
+    /// </summary>
     private Transform FindPlayer(PlayerTrackingSearch searchParams)
     {
         switch (searchParams.mode)

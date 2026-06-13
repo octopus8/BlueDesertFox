@@ -12,6 +12,7 @@ public partial struct TreeCleanupDebugSystem : ISystem
 {
     private double _lastLogTime;
     
+    /// <summary>Registers <see cref="StaticObjectTileOwnership"/> and <see cref="StaticObjectLODConfig"/> requirements and resets the log timer.</summary>
     public void OnCreate(ref SystemState state)
     {
         state.RequireForUpdate<StaticObjectTileOwnership>();
@@ -19,6 +20,11 @@ public partial struct TreeCleanupDebugSystem : ISystem
         _lastLogTime = 0;
     }
     
+    /// <summary>
+    /// Every two seconds (when <see cref="StaticObjectLODConfig.enableObjectLODDebug"/> is true),
+    /// logs a count of all static-object entities with <see cref="StaticObjectTileOwnership"/> to
+    /// the Console to help diagnose tile-cleanup leaks.
+    /// </summary>
     public void OnUpdate(ref SystemState state)
     {
         // Early exit if debug logging is disabled

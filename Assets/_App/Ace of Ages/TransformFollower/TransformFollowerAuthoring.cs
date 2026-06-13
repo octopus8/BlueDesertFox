@@ -43,6 +43,11 @@ public class TransformFollowerAuthoring : MonoBehaviour
 
     private Entity _entity;
 
+    /// <summary>
+    /// Starts the <see cref="InitializeAfterBaking"/> coroutine for non-SubScene usage.
+    /// Note: this method does NOT run for GameObjects baked into SubScenes —
+    /// <see cref="TransformFollowerInitSystem"/> handles runtime initialization in that case.
+    /// </summary>
     void Start()
     {
         Debug.Log($"[TransformFollower] Start() called on {gameObject.name}", this);
@@ -55,6 +60,11 @@ public class TransformFollowerAuthoring : MonoBehaviour
         StartCoroutine(InitializeAfterBaking());
     }
     
+    /// <summary>
+    /// Waits one frame for baking to complete, then locates the baked entity and adds or updates a
+    /// <see cref="TransformReference"/> component with the target <see cref="Transform"/> resolved via
+    /// <see cref="FindTarget"/>. Used as a fallback for non-SubScene authoring instances.
+    /// </summary>
     private System.Collections.IEnumerator InitializeAfterBaking()
     {
         // Wait a frame to ensure baking is complete
@@ -130,6 +140,11 @@ public class TransformFollowerAuthoring : MonoBehaviour
         }
     }
     
+    /// <summary>
+    /// Resolves a target <see cref="Transform"/> using the configured <see cref="targetMode"/>.
+    /// Supports FindByName (<c>GameObject.Find</c>), FindByTag (<c>FindGameObjectWithTag</c>),
+    /// and DirectReference (returns <see cref="targetGameObject"/>).
+    /// </summary>
     private Transform FindTarget()
     {
         Debug.Log($"[TransformFollower] FindTarget called. Mode: {targetMode}, Name: '{targetName}', Tag: '{targetTag}'", this);
@@ -182,6 +197,10 @@ public class TransformFollowerAuthoring : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Removes the managed <see cref="TransformReference"/> component from the baked entity when
+    /// this authoring MonoBehaviour is destroyed, preventing dangling references in the ECS world.
+    /// </summary>
     void OnDestroy()
     {
         // Clean up when destroyed
@@ -195,8 +214,10 @@ public class TransformFollowerAuthoring : MonoBehaviour
         }
     }
 
+    /// <summary>Bakes follower settings and a runtime-search configuration component onto the entity.</summary>
     public class Baker : Baker<TransformFollowerAuthoring>
     {
+        /// <inheritdoc/>
         public override void Bake(TransformFollowerAuthoring authoring)
         {
             Entity entity = GetEntity(TransformUsageFlags.Dynamic);

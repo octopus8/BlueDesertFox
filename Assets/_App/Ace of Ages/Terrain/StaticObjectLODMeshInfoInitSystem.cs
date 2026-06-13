@@ -19,12 +19,18 @@ using UnityEngine;
 [UpdateAfter(typeof(BeginInitializationEntityCommandBufferSystem))]
 public partial class StaticObjectLODMeshInfoInitSystem : SystemBase
 {
+    /// <summary>Registers <see cref="StaticObjectSpawnerConfig"/> and <see cref="StaticObjectPrefabElement"/> requirements.</summary>
     protected override void OnCreate()
     {
         RequireForUpdate<StaticObjectSpawnerConfig>();
         RequireForUpdate<StaticObjectPrefabElement>();
     }
 
+    /// <summary>
+    /// On the first frame, reads the baked <see cref="MaterialMeshInfo"/> from each LOD prefab entity,
+    /// populates the <see cref="StaticObjectLODMaterialMeshInfoElement"/> buffer on the config entity,
+    /// adds the <see cref="StaticObjectLODMeshInfoReady"/> tag, and disables this system.
+    /// </summary>
     protected override void OnUpdate()
     {
         var configEntity = SystemAPI.GetSingletonEntity<StaticObjectSpawnerConfig>();

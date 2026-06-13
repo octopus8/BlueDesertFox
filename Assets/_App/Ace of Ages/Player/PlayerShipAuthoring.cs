@@ -2,12 +2,23 @@ using Unity.Entities;
 using Unity.Mathematics;
 using UnityEngine;
 
+/// <summary>
+/// Authoring component for the player ship entity. Adds the <see cref="PlayerShip"/> tag and bakes the
+/// bullet spawn point's local transform offset into a <see cref="BulletSpawnPointReference"/> component
+/// so that runtime systems can position bullets without accessing the GameObject hierarchy.
+/// </summary>
 public class PlayerShipAuthoring : MonoBehaviour
 {
     [SerializeField] private GameObject bulletSpawnPoint;
     
+    /// <summary>
+    /// Bakes the player ship's bullet spawn point into a <see cref="BulletSpawnPointReference"/> component.
+    /// The spawn point's local position and rotation are captured at bake time so no GameObject
+    /// hierarchy traversal is needed at runtime.
+    /// </summary>
     public class Baker : Baker<PlayerShipAuthoring>
     {
+        /// <inheritdoc/>
         public override void Bake(PlayerShipAuthoring authoring)
         {
             Entity entity = GetEntity(TransformUsageFlags.Dynamic);
@@ -39,6 +50,10 @@ public class PlayerShipAuthoring : MonoBehaviour
 }
 
 
+/// <summary>
+/// Tag component that identifies the player ship entity in the ECS world.
+/// Systems use this tag to locate the player entity for targeting and input processing.
+/// </summary>
 public struct PlayerShip : IComponentData
 {
 }
