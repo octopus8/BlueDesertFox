@@ -13,33 +13,20 @@ This system implements a multi-phase movement lifecycle for enemy formations:
 
 ### Movement State Machine
 
-```
-┌─────────────────────┐
-│ ApproachingSpline   │  Spawn → Entry Point
-│ - Physics velocity  │
-│ - Face direction    │
-└──────────┬──────────┘
-           │ Distance < approachThreshold
-           ▼
-┌─────────────────────┐
-│ FollowingSpline     │  Entry → Spline End
-│ - Spline following  │
-│ - Formation offsets │
-└──────────┬──────────┘
-           │ distanceRatio >= 0.99
-           ▼
-┌─────────────────────┐
-│ LeavingSpline       │  Spline End → Beyond View
-│ - Constant velocity │
-│ - Exit direction    │
-└──────────┬──────────┘
-           │ distance > viewDistance * 1.2
-           ▼
-┌─────────────────────┐
-│ OutOfBounds         │  Marked for Cleanup
-│ - Zero velocity     │
-│ - Destroyed         │
-└─────────────────────┘
+```mermaid
+stateDiagram-v2
+    direction TB
+    [*] --> ApproachingSpline : Spawn
+
+    ApproachingSpline : ApproachingSpline\nSpawn → Entry Point\n─────────────────\n• Physics velocity\n• Face direction
+    FollowingSpline : FollowingSpline\nEntry → Spline End\n─────────────────\n• Spline following\n• Formation offsets
+    LeavingSpline : LeavingSpline\nSpline End → Beyond View\n─────────────────\n• Constant velocity\n• Exit direction
+    OutOfBounds : OutOfBounds\nMarked for Cleanup\n─────────────────\n• Zero velocity\n• Destroyed
+
+    ApproachingSpline --> FollowingSpline : distance < approachThreshold
+    FollowingSpline --> LeavingSpline : distanceRatio >= 0.99
+    LeavingSpline --> OutOfBounds : distance > viewDistance × 1.2
+    OutOfBounds --> [*]
 ```
 
 ## Components
@@ -179,62 +166,22 @@ Spawn Behavior:
 
 ## Data Flow
 
-```
-┌────────────────────────────────────────────────────────────┐
-│ SPAWN PHASE (EnemySpawnerSystem)                          │
-└────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    SPAWN["SPAWN PHASE — EnemySpawnerSystem\n① doSpawn = true triggered\n② Calculate spline entry point for each formation member\n③ Calculate spawn position (entry + perpendicular offset)\n④ Instantiate entities with:\n   LocalTransform at spawn position\n   FormationMovementState (ApproachingSpline)\n   FormationPosition (bowling pin offsets)\n   SplineFollower (entry distanceRatio)\n   SplineDataComponent (reference)"]
 
-1. doSpawn = true triggered
-2. Calculate spline entry point for each formation member
-3. Calculate spawn position (entry + perpendicular offset)
-4. Instantiate entities with:
-   - LocalTransform at spawn position
-   - FormationMovementState (ApproachingSpline)
-   - FormationPosition (bowling pin offsets)
-   - SplineFollower (entry distanceRatio)
-   - SplineDataComponent (reference)
+    APPROACH["APPROACH PHASE — FormationMovementSystem\nEvery frame:\n① Calculate direction to entry point\n② Apply physics velocity toward target\n③ Rotate to face movement direction\n④ Check distance < approachThreshold\n⑤ If close enough → phase = FollowingSpline"]
 
-┌────────────────────────────────────────────────────────────┐
-│ APPROACH PHASE (FormationMovementSystem)                   │
-└────────────────────────────────────────────────────────────┘
+    FOLLOW["FOLLOWING PHASE — SplineFollowerSystem\nEvery frame:\n① Increment distanceRatio based on speed\n② Apply formation offsets (lateral + forward)\n③ Evaluate spline position and rotation\n④ Lerp to target position\n\nFormationMovementSystem monitors:\n• distanceRatio >= 0.99 → capture exit tangent\n• Transition to LeavingSpline phase"]
 
-Every frame:
-1. Calculate direction to entry point
-2. Apply physics velocity toward target
-3. Rotate to face movement direction
-4. Check distance < approachThreshold
-5. If close enough → phase = FollowingSpline
+    EXIT["EXIT PHASE — FormationMovementSystem\nEvery frame:\n① Apply constant velocity in exit direction\n② Calculate distance from player\n③ If distance > viewDistance × 1.2 → phase = OutOfBounds"]
 
-┌────────────────────────────────────────────────────────────┐
-│ FOLLOWING PHASE (SplineFollowerSystem)                     │
-└────────────────────────────────────────────────────────────┘
+    CLEANUP["CLEANUP PHASE — FormationCleanupSystem\nEvery frame:\n① Query entities with OutOfBounds phase\n② Destroy via EntityCommandBuffer"]
 
-Every frame (existing system):
-1. Increment distanceRatio based on speed
-2. Apply formation offsets (lateral + forward)
-3. Evaluate spline position and rotation
-4. Lerp to target position
-
-FormationMovementSystem monitors:
-- If distanceRatio >= 0.99 → capture exit tangent
-- Transition to LeavingSpline phase
-
-┌────────────────────────────────────────────────────────────┐
-│ EXIT PHASE (FormationMovementSystem)                       │
-└────────────────────────────────────────────────────────────┘
-
-Every frame:
-1. Apply constant velocity in exit direction
-2. Calculate distance from player
-3. If distance > viewDistance * 1.2 → phase = OutOfBounds
-
-┌────────────────────────────────────────────────────────────┐
-│ CLEANUP PHASE (FormationCleanupSystem)                     │
-└────────────────────────────────────────────────────────────┘
-
-Every frame:
-1. Query entities with OutOfBounds phase
-2. Destroy via EntityCommandBuffer
+    SPAWN -->|"spawn"| APPROACH
+    APPROACH -->|"distance < approachThreshold"| FOLLOW
+    FOLLOW -->|"distanceRatio >= 0.99"| EXIT
+    EXIT -->|"distance > viewDistance × 1.2"| CLEANUP
 ```
 
 ## Usage Example

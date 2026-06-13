@@ -4,11 +4,14 @@
 
 Creates a complete enemy formation lifecycle with **4 movement phases**:
 
-```
-1. SPAWN     → Formations appear outside player view (perpendicular to spline)
-2. APPROACH  → Enemies move toward spline entry point using physics
-3. FOLLOW    → Enemies follow spline in bowling pin formation
-4. EXIT      → Enemies continue straight, then despawn when far away
+```mermaid
+flowchart LR
+    SP["① SPAWN\nFormations appear outside\nplayer view\n(perpendicular to spline)"]
+    AP["② APPROACH\nEnemies move toward\nspline entry point\nusing physics"]
+    FL["③ FOLLOW\nEnemies follow spline\nin bowling pin formation"]
+    EX["④ EXIT\nEnemies continue straight,\nthen despawn when far away"]
+
+    SP --> AP --> FL --> EX
 ```
 
 ---
@@ -130,15 +133,21 @@ Wait 3 seconds for automatic spawn trigger.
 
 ## System Update Order
 
-```
-SimulationSystemGroup
-  ├─ EnemySpawnerSystem         (spawns with movement state)
-  ├─ FormationMovementSystem    (state machine updates)
-  ├─ SplineFollowerSystem       (filtered by phase)
-  └─ ResetEventsSystem          (resets spawn flags)
+```mermaid
+flowchart TD
+    subgraph SIM["SimulationSystemGroup"]
+        ESS["EnemySpawnerSystem\n(spawns with movement state)"]
+        FMS["FormationMovementSystem\n(state machine updates)"]
+        SFS["SplineFollowerSystem\n(filtered by phase)"]
+        RES["ResetEventsSystem\n(resets spawn flags)"]
+        ESS --> FMS --> SFS --> RES
+    end
 
-LateSimulationSystemGroup
-  └─ FormationCleanupSystem     (destroys OutOfBounds entities)
+    subgraph LATE["LateSimulationSystemGroup"]
+        FCS["FormationCleanupSystem\n(destroys OutOfBounds entities)"]
+    end
+
+    SIM --> LATE
 ```
 
 ---

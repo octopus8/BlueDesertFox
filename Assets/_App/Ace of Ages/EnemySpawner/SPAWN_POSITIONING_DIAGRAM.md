@@ -139,34 +139,24 @@ Player ──(500)── View Distance Edge ──(100 buffer)── Cleanup Poi
 
 ## Phase Transitions - Distance Based
 
-```
-Distance from Entry Point:
+```mermaid
+flowchart TD
+    SP["Spawn\n75 units from entry point (perpendicular)"]
+    AP["ApproachingSpline\nMoving toward entry point\nPhysics velocity applied"]
+    TH["Approach Threshold Reached\ndistance < 5 units from entry"]
+    FS["FollowingSpline\nOn spline — distanceRatio increments each frame"]
+    NSE["Near Spline End\ndistanceRatio = 0.99"]
+    LS["LeavingSpline\nConstant velocity in captured exit direction\nSpline completed"]
+    OOB["OutOfBounds\ndistance from player > 600 units\n(viewDistance × 1.2)"]
+    D(["Destroyed"])
 
-75  ●───────────────────────────────────● Spawn
-    │                                   │
-70  │  ApproachingSpline               │
-    │  (moving toward entry)            │
-    │                                   │
-10  │                                   │
-    │                                   │
- 5  ●───────────────────────────────────● Threshold
-    │                                   │
- 0  ●  FollowingSpline                  │ Entry Point Reached
-    │  (on spline, distance ratio      │
-    │   increments each frame)          │
-    │                                   │
-    ●  distanceRatio = 0.99             │ Near Spline End
-    │                                   │
-    ●  LeavingSpline                    │ Spline Completed
-    │  (constant velocity in exit dir)  │
-    │                                   │
-    │                                   │
-    │  Distance from Player:            │
-500 │  (viewDistance)                   │
-    │                                   │
-600 ●  OutOfBounds                      │ Despawn Distance
-    │                                   │
-    X  Destroyed                        X
+    SP -->|"moving toward entry"| AP
+    AP -->|"distance < approachThreshold (5 units)"| TH
+    TH --> FS
+    FS -->|"distanceRatio >= 0.99"| NSE
+    NSE --> LS
+    LS -->|"distance > viewDistance × 1.2"| OOB
+    OOB --> D
 ```
 
 ## Formation Member Positions

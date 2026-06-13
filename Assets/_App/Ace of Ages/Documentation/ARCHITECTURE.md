@@ -7,263 +7,155 @@
 
 ## System Overview
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                        UNITY SCENE                              │
-│                                                                 │
-│  ┌──────────────────┐              ┌────────────────────────┐  │
-│  │  GameObject      │              │   DOTS SubScene        │  │
-│  │  (Outside)       │              │                        │  │
-│  │                  │              │  ┌──────────────────┐  │  │
-│  │  ┌────────────┐  │              │  │  Entity          │  │  │
-│  │  │ Transform  │◄─┼──────────────┼──┤  Components:     │  │  │
-│  │  │ (Target)   │  │   Follows    │  │                  │  │  │
-│  │  └────────────┘  │              │  │  • LocalTransform│  │  │
-│  │                  │              │  │  • TransformRef  │  │  │
-│  │  - Player        │              │  │  • Settings      │  │  │
-│  │  - Camera        │              │  └──────────────────┘  │  │
-│  │  - UI Element    │              │                        │  │
-│  └──────────────────┘              └────────────────────────┘  │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-                            ▲
-                            │ Updates every frame
-                            │
-                ┌───────────┴───────────┐
-                │ TransformFollower     │
-                │ System                │
-                │                       │
-                │ 1. Read Transform     │
-                │ 2. Update Entity      │
-                └───────────────────────┘
+```mermaid
+flowchart LR
+    subgraph GOW["GameObject World (Outside SubScene)"]
+        T["Transform (Target)\n- Player\n- Camera\n- UI Element"]
+    end
+    subgraph SS["DOTS SubScene"]
+        E["Entity Components:\n• LocalTransform\n• TransformReference\n• Settings"]
+    end
+    TFS["TransformFollowerSystem\n① Read Transform\n② Update Entity"]
+
+    T -->|"reads position/rotation"| TFS
+    TFS -->|"updates LocalTransform"| E
+    E -.->|"follows"| T
 ```
 
 ## Component Relationships
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                       AUTHORING                             │
-│  (Edit Mode - GameObject in SubScene)                       │
-│                                                             │
-│  TransformFollowerAuthoring (MonoBehaviour)                 │
-│  ┌─────────────────────────────────────────────────────┐   │
-│  │  • targetTransform : Transform                      │   │
-│  │  • offset : Vector3                                 │   │
-│  │  • followRotation : bool                            │   │
-│  │  • smoothTime : float                               │   │
-│  └─────────────────────────────────────────────────────┘   │
-│                          │                                  │
-│                          │ Baker converts ▼                 │
-└─────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    subgraph AUTH["AUTHORING (Edit Mode — GameObject in SubScene)"]
+        MA["TransformFollowerAuthoring\n• targetTransform : Transform\n• offset : Vector3\n• followRotation : bool\n• smoothTime : float"]
+    end
 
-┌─────────────────────────────────────────────────────────────┐
-│                      RUNTIME ECS                            │
-│  (Play Mode - Entity)                                       │
-│                                                             │
-│  Entity with Components:                                    │
-│  ┌────────────────────────────────────────┐                │
-│  │ TransformReference (Managed)           │                │
-│  │  • target : Transform                  │ ◄─── LIMITATION│
-│  └────────────────────────────────────────┘      (Managed) │
-│                                                             │
-│  ┌────────────────────────────────────────┐                │
-│  │ TransformFollowerSettings (Unmanaged)  │                │
-│  │  • offset : float3                     │                │
-│  │  • followRotation : bool               │                │
-│  │  • smoothTime : float                  │                │
-│  └────────────────────────────────────────┘                │
-│                                                             │
-│  ┌────────────────────────────────────────┐                │
-│  │ LocalTransform (Unmanaged)             │                │
-│  │  • Position : float3    ◄──── Updated  │                │
-│  │  • Rotation : quaternion◄──── by System│                │
-│  │  • Scale : float                       │                │
-│  └────────────────────────────────────────┘                │
-└─────────────────────────────────────────────────────────────┘
+    subgraph RUNTIME["RUNTIME ECS (Play Mode — Entity)"]
+        TR["TransformReference (Managed)\n• target : Transform\n⚠️ LIMITATION (Managed)"]
+        TFS["TransformFollowerSettings (Unmanaged)\n• offset : float3\n• followRotation : bool\n• smoothTime : float"]
+        LT["LocalTransform (Unmanaged)\n• Position : float3  ← Updated by System\n• Rotation : quaternion ← Updated by System\n• Scale : float"]
+    end
+
+    MA -->|"Baker converts"| TR
+    MA -->|"Baker converts"| TFS
+    MA -->|"Baker converts"| LT
 ```
 
 ## Update Flow (Simple System)
 
-```
-FRAME START
-    ├── TransformFollowerSystem.OnUpdate()
-    │   │
-    │   ├── For each entity with:
-    │   │   • LocalTransform (ref)
-    │   │   • TransformFollowerSettings (in)
-    │   │   • TransformReference (in)
-    │   │
-    │   ├── Read Transform.position ◄── MAIN THREAD ONLY
-    │   │                                (Managed reference)
-    │   ├── Read Transform.rotation ◄── MAIN THREAD ONLY
-    │   │
-    │   ├── Calculate target position
-    │   │   targetPos = Transform.position + offset
-    │   │
-    │   ├── Apply smoothing
-    │   │   position = lerp(current, target, smoothFactor)
-    │   │
-    │   ├── Update LocalTransform.Position
-    │   └── Update LocalTransform.Rotation (if enabled)
-    │
-    └── Continue to other systems...
-FRAME END
+```mermaid
+flowchart TD
+    FS["Frame Start"]
+    Q["TransformFollowerSystem.OnUpdate()\nFor each entity with:\n• LocalTransform (ref)\n• TransformFollowerSettings (in)\n• TransformReference (in)"]
+    RT["Read Transform.position\n⚠️ MAIN THREAD ONLY (Managed reference)"]
+    RR["Read Transform.rotation\n⚠️ MAIN THREAD ONLY"]
+    CP["Calculate target position\ntargetPos = Transform.position + offset"]
+    AS["Apply smoothing\nposition = lerp(current, target, smoothFactor)"]
+    ULT["Update LocalTransform.Position"]
+    ULR["Update LocalTransform.Rotation (if enabled)"]
+    FE["Continue to other systems"]
+
+    FS --> Q --> RT --> RR --> CP --> AS --> ULT --> ULR --> FE
 ```
 
 ## Update Flow (Optimized System)
 
-```
-FRAME START
-    ├── TransformFollowerSystemOptimized.OnUpdate()
-    │   │
-    │   ├── [Phase 1: Main Thread] ◄────────┐
-    │   │   For each TransformReference:    │ Cannot parallelize
-    │   │   • Read Transform.position       │ (Managed access)
-    │   │   • Read Transform.rotation       │
-    │   │   • Store in NativeArray          │
-    │   │                                    │
-    │   ├── [Phase 2: Parallel Jobs] ◄──────┐
-    │   │   [BurstCompile]                  │ CAN parallelize
-    │   │   For each entity:                │ (Only unmanaged)
-    │   │   • Read cached Transform data    │
-    │   │   • Calculate target position     │
-    │   │   • Apply smoothing               │
-    │   │   • Update LocalTransform         │
-    │   │                                    │
-    │   └── Complete jobs
-    │
-    └── Continue to other systems...
-FRAME END
+```mermaid
+flowchart TD
+    FS["Frame Start"]
+    P1["Phase 1: Main Thread\nFor each TransformReference:\n• Read Transform.position\n• Read Transform.rotation\n• Store in NativeArray\n⚠️ Cannot parallelize — Managed access"]
+    P2["Phase 2: Parallel Jobs — BurstCompile\nFor each entity:\n• Read cached Transform data\n• Calculate target position\n• Apply smoothing\n• Update LocalTransform\n✅ CAN parallelize — Only unmanaged"]
+    CJ["Complete jobs"]
+    FE["Continue to other systems"]
+
+    FS --> P1 --> P2 --> CJ --> FE
 ```
 
 ## Data Flow
 
-```
-     GAMEOBJECT WORLD          BRIDGE           ECS WORLD
-    ┌──────────────┐                         ┌──────────┐
-    │              │                         │          │
-    │  Transform   │                         │  Entity  │
-    │  .position ──┼──┐                      │          │
-    │  .rotation   │  │                      │          │
-    └──────────────┘  │                      └──────────┘
-                      │                           ▲
-                      │  [Managed Component]      │
-                      │  TransformReference       │
-                      ├───────────────────────────┤
-                      │  .target : Transform      │
-                      └───────────────────────────┘
-                                  │
-                                  │ System reads
-                                  │ every frame
-                                  ▼
-                            ┌───────────┐
-                            │ Settings  │
-                            │ + offset  │
-                            │ + smooth  │
-                            └───────────┘
-                                  │
-                                  ▼
-                         Update LocalTransform
+```mermaid
+flowchart LR
+    subgraph GOW["GameObject World"]
+        T["Transform\n.position\n.rotation"]
+    end
+    subgraph BRIDGE["Bridge (Managed Component)"]
+        TR["TransformReference\n.target : Transform"]
+    end
+    subgraph ECS["ECS World"]
+        S["Settings\n+ offset\n+ smooth"]
+        LT["Update LocalTransform"]
+    end
+
+    T -->|"System reads every frame"| TR
+    TR --> S --> LT
 ```
 
 ## The Fundamental Limitation
 
-```
-┌────────────────────────────────────────────────────────────┐
-│  WHY WE NEED MANAGED COMPONENTS                            │
-├────────────────────────────────────────────────────────────┤
-│                                                            │
-│  CANNOT DO (Burst/Jobs):                                   │
-│  ┌──────────────────────────────────────────────────┐     │
-│  │ [BurstCompile]                                   │     │
-│  │ void Update(Transform target)  ◄── ERROR!       │     │
-│  │ {                                                │     │
-│  │     float3 pos = target.position;  // ✗ Managed │     │
-│  │ }                                                │     │
-│  └──────────────────────────────────────────────────┘     │
-│                                                            │
-│  CAN DO (Main Thread):                                     │
-│  ┌──────────────────────────────────────────────────┐     │
-│  │ void Update(TransformReference transformRef)     │     │
-│  │ {                                                │     │
-│  │     if (transformRef.target != null)  // ✓      │     │
-│  │     {                                            │     │
-│  │         float3 pos = transformRef.target.position;│     │
-│  │     }                                            │     │
-│  │ }                                                │     │
-│  └──────────────────────────────────────────────────┘     │
-│                                                            │
-│  WORKAROUND (Optimized):                                   │
-│  ┌──────────────────────────────────────────────────┐     │
-│  │ // Step 1: Main thread                           │     │
-│  │ NativeArray<float3> positions;                   │     │
-│  │ foreach (var t in transforms)                    │     │
-│  │     positions.Add(t.position);  // ✓            │     │
-│  │                                                  │     │
-│  │ // Step 2: Burst job                            │     │
-│  │ [BurstCompile]                                   │     │
-│  │ void UpdateJob(NativeArray<float3> positions)    │     │
-│  │ {                                                │     │
-│  │     // Process cached data  ✓                   │     │
-│  │ }                                                │     │
-│  └──────────────────────────────────────────────────┘     │
-└────────────────────────────────────────────────────────────┘
+The `TransformReference` managed component is required because Burst/Jobs **cannot** access GameObjects:
+
+```csharp
+// ❌ CANNOT DO (Burst/Jobs):
+[BurstCompile]
+void Update(Transform target)
+{
+    float3 pos = target.position; // ERROR — Managed reference
+}
+
+// ✅ CAN DO (Main Thread):
+void Update(TransformReference transformRef)
+{
+    if (transformRef.target != null)
+        float3 pos = transformRef.target.position; // OK
+}
+
+// ✅ WORKAROUND (Optimized):
+// Step 1: Main thread — cache managed reads
+NativeArray<float3> positions;
+foreach (var t in transforms)
+    positions.Add(t.position);
+
+// Step 2: Burst job — process unmanaged data only
+[BurstCompile]
+void UpdateJob(NativeArray<float3> positions) { /* ... */ }
 ```
 
 ## Performance Comparison
 
-```
-Simple System:
-    ┌────────────────┐
-    │ Main Thread    │ ◄── All work here
-    ├────────────────┤
-    │ Read Transforms│
-    │ Update Entities│
-    └────────────────┘
-    Time: O(n)
-
-Optimized System:
-    ┌────────────────┐
-    │ Main Thread    │ ◄── Only Transform reads
-    ├────────────────┤
-    │ Read Transforms│
-    └────────────────┘
-           │
-           ▼
-    ┌────────────────┐
-    │ Worker Threads │ ◄── Parallel processing
-    ├────────────────┤
-    │ Update Entities│ [Burst]
-    └────────────────┘
-    Time: O(n) + O(n/cores)
+```mermaid
+flowchart TD
+    subgraph SIMPLE["Simple System — O(n)"]
+        MT1["Main Thread\n① Read Transforms\n② Update Entities"]
+    end
+    subgraph OPT["Optimized System — O(n) + O(n÷cores)"]
+        MT2["Main Thread\n① Read Transforms only"]
+        WT["Worker Threads (Burst)\n② Update Entities — Parallel"]
+        MT2 --> WT
+    end
 ```
 
 ## Use Case Decision Tree
 
-```
-                    Start
-                      │
-                      ▼
-        Need to follow GameObject?
-                ┌─────┴─────┐
-               Yes          No
-                │            │
-                ▼            ▼
-    Can convert to Entity?  Use regular
-        ┌───────┴────┐      ECS systems
-       Yes           No
-        │             │
-        ▼             ▼
-   Use full ECS   How many followers?
-   (Best perf)      ┌──┴──┐
-                 <100    >100
-                   │       │
-                   ▼       ▼
-             Simple Sys  Optimized Sys
-             (Default)    (Enable it)
+```mermaid
+flowchart TD
+    Start(["Start"])
+    Q1{"Need to follow\na GameObject?"}
+    Q2{"Can the target\nbe converted\nto an Entity?"}
+    Q3{"How many\nfollowers?"}
+    R1["Use regular\nECS systems"]
+    R2["Use full ECS\n(Best performance)"]
+    R3["Simple System\n(Default — good for < 100)"]
+    R4["Optimized System\n(Enable it — 100+)"]
+
+    Start --> Q1
+    Q1 -->|Yes| Q2
+    Q1 -->|No| R1
+    Q2 -->|Yes| R2
+    Q2 -->|No| Q3
+    Q3 -->|"< 100"| R3
+    Q3 -->|"> 100"| R4
 ```
 
 ---
 
 This visual guide complements the documentation files.
-

@@ -88,50 +88,18 @@ float3 spawnPosition = splineEntryPoint + spawnOffset;
 
 ## System Architecture
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                         LIFECYCLE PHASES                            │
-└─────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    P0["Phase 0: SPAWN\nSystem: EnemySpawnerSystem\nPosition: splineEntry + perpendicular(spawnDistance)\nState: ApproachingSpline\nComponents: FormationMovementState, FormationPosition, SplineFollower"]
+    P1["Phase 1: APPROACH\n~7.5 sec at default settings\nSystem: FormationMovementSystem\nMovement: PhysicsVelocity toward splineEntryPoint\nRotation: Face movement direction"]
+    P2["Phase 2: FOLLOW\nDuration: spline length / speed\nSystem: SplineFollowerSystem (filtered by phase)\nMovement: distanceRatio increments along spline\nFormation: Bowling pin offsets applied"]
+    P3["Phase 3: EXIT\nDuration: until beyond view distance\nSystem: FormationMovementSystem\nMovement: Constant velocity in exitDirection\nTracking: Distance from player"]
+    P4["Phase 4: CLEANUP\nSystem: FormationCleanupSystem\nAction: DestroyEntity via ECB"]
 
-Phase 0: SPAWN
-├─ System: EnemySpawnerSystem
-├─ Position: splineEntry + perpendicular(spawnDistance)
-├─ State: ApproachingSpline
-└─ Components: FormationMovementState, FormationPosition, SplineFollower
-
-         │
-         ▼
-
-Phase 1: APPROACH (duration ~7.5 sec at default settings)
-├─ System: FormationMovementSystem
-├─ Movement: PhysicsVelocity toward splineEntryPoint
-├─ Rotation: Face movement direction
-└─ Transition: distance < approachThreshold → FollowingSpline
-
-         │
-         ▼
-
-Phase 2: FOLLOW (duration = spline length / speed)
-├─ System: SplineFollowerSystem (existing, now filtered by phase)
-├─ Movement: distanceRatio increments along spline
-├─ Formation: Bowling pin offsets applied
-└─ Transition: distanceRatio >= 0.99 → LeavingSpline (capture tangent)
-
-         │
-         ▼
-
-Phase 3: EXIT (duration until beyond view distance)
-├─ System: FormationMovementSystem
-├─ Movement: Constant velocity in exitDirection
-├─ Tracking: Distance from player
-└─ Transition: distance > viewDistance * 1.2 → OutOfBounds
-
-         │
-         ▼
-
-Phase 4: CLEANUP
-├─ System: FormationCleanupSystem
-└─ Action: DestroyEntity via ECB
+    P0 -->|"spawn"| P1
+    P1 -->|"distance < approachThreshold → FollowingSpline"| P2
+    P2 -->|"distanceRatio >= 0.99 → LeavingSpline (capture tangent)"| P3
+    P3 -->|"distance > viewDistance × 1.2 → OutOfBounds"| P4
 ```
 
 ---
