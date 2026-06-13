@@ -15,7 +15,6 @@ using UnityEngine;
 /// world-relative speeds. Supports bowling-pin formation offsets via <see cref="FormationPosition"/>.
 /// <para>Disabled by default (<c>[DisableAutoCreation]</c>); enable for spline-following gameplay.</para>
 /// </summary>
-[DisableAutoCreation]
 partial struct SplineFollowerSystem : ISystem
 {
     private const bool useJobs = true;

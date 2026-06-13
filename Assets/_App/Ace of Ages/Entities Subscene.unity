@@ -135,7 +135,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!4 &25680480
 Transform:
   m_ObjectHideFlags: 0
@@ -144,8 +144,8 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 25680479}
   serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 21, z: 0}
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: 0, y: 11, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -167,7 +167,7 @@ MonoBehaviour:
   loopSpline: {fileID: 1730959682}
   formationCount: 10
   formationSpacing: 1
-  formationSpeed: 40
+  formationSpeed: 30
   spawnDistance: 100
 --- !u!1 &181105510
 GameObject:
@@ -5646,14 +5646,14 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1335590584}
   serializedVersion: 2
-  m_LocalRotation: {x: 0, y: -0.38268343, z: 0, w: 0.92387956}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 1730959685}
   m_Father: {fileID: 25680480}
-  m_LocalEulerAnglesHint: {x: 0, y: -45, z: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1371828253
 GameObject:
   m_ObjectHideFlags: 0
@@ -6002,7 +6002,7 @@ MonoBehaviour:
     lod0SpawnWeight: 0.7
     lod1SpawnWeight: 0.4
     lod2SpawnWeight: 0.2
-    objectTypeSpawnWeight: 120
+    objectTypeSpawnWeight: 100
   - objectTypeName: Turret
     lod0: {fileID: 1790061847135392082, guid: 8b37e4c2e6d60d143bb98776db4935d6, type: 3}
     lod1: {fileID: 1790061847135392082, guid: 950686e73ad800141937263f45a9e2fe, type: 3}
