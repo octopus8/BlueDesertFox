@@ -9,7 +9,7 @@ Production-ready Unity DOTS infinite terrain system with tree rendering, auto-sc
 📚 **[Complete Documentation](Documentation/README.md)** - Full documentation hub  
 📖 **[Table of Contents](Documentation/TABLE_OF_CONTENTS.md)** - Organized document index  
 🚀 **[Quick Start Guide](Documentation/QUICK_START.md)** - Get started in 10 minutes  
-🌳 **[Tree Spawning System](TREE_SPAWNING_SYSTEM.md)** - Tree placement guide
+🌿 **[Static Object Spawning System](STATIC_OBJECT_SPAWNING_SYSTEM.md)** - Procedural object placement guide (trees, turrets, decorations)
 
 ---
 
@@ -32,9 +32,9 @@ Production-ready Unity DOTS infinite terrain system with tree rendering, auto-sc
 ### Core Terrain (9 systems)
 Tile lifecycle, mesh generation, physics, rendering
 
-### Tree Management (5 systems)
+### Static Object Management (5 systems)
 - Procedural spawning with bilinear interpolation
-- Instanced rendering with spatial culling
+- BRG-instanced rendering with spatial culling
 - Dynamic LOD with hysteresis
 - 30-40% culling improvement (v3.0)
 
@@ -110,12 +110,12 @@ Documentation/
 
 ## What's New in v3.0 (May 2026)
 
-🔄 **Global Tree Instanced Rendering**
+🔄 **Global Static Object Instanced Rendering**
 - Spatial grid culling for 30-40% performance improvement
-- Distance culling, frustum culling pipeline
-- Burst-compiled parallel matrix collection
+- Distance culling, frustum culling pipeline via BRG (Entities Graphics)
+- Dynamic LOD with hysteresis
 
-🔄 **Tree LOD System**
+🔄 **Static Object LOD System**
 - Dynamic mesh LOD with hysteresis (prevents flickering)
 - Velocity-aware frame skipping for VR
 - Spatial chunking for efficient batching
@@ -179,7 +179,7 @@ Documentation/
 → See [Performance Guide](Documentation/PERFORMANCE.md) for optimization checklist
 
 **Trees not rendering?**
-→ Check tree prefabs assigned in `TreeSpawnerConfigAuthoring`
+→ Check static object prefabs assigned in `StaticObjectSpawnerConfigAuthoring`
 
 **Complete Guide:** [Troubleshooting](Documentation/TROUBLESHOOTING.md)
 

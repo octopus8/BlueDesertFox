@@ -62,11 +62,11 @@ Tracks which terrain tile a tree belongs to and its local offset, without using 
 
 ## Systems
 
-### TerrainStaticObjectSpawningSystem
+### TerrainStaticObjectSpawningSystemOptimized
 
 **Update Group**: `SimulationSystemGroup`  
 **Update After**: `TerrainRenderingSystem`  
-**Type**: `SystemBase` (main thread - uses EntityManager directly)
+**Type**: `ISystem` (Burst-compiled where possible; EntityManager on main thread for instantiation)
 
 **Purpose**: Spawns trees on terrain tiles after mesh is rendered.
 
@@ -82,33 +82,33 @@ Tracks which terrain tile a tree belongs to and its local offset, without using 
    - Store tree in tile's `SpawnedStaticObjectReference` buffer for cleanup
    - Add `StaticObjectsSpawned` tag
 
-### TreePositionUpdateSystem
+### StaticObjectPositionUpdateSystem
 
 **Update Group**: `TransformSystemGroup`  
 **Update After**: `TileScrollPositionSystem`  
 **Type**: `ISystem` (Burst-compiled)
 
-**Purpose**: Updates tree positions when their owning tiles move (e.g., during auto-scrolling).
+**Purpose**: Updates static object positions when their owning tiles move (e.g., during auto-scrolling).
 
 **Algorithm**:
 1. Get `ComponentLookup<LocalTransform>` for tile positions
-2. Query all trees with `StaticObjectTileOwnership` + `LocalTransform`
-3. For each tree:
+2. Query all static objects with `StaticObjectTileOwnership` + `LocalTransform`
+3. For each object:
    - Check if owning tile still exists
    - Calculate new position: `tilePosition + localOffset`
-   - Update tree's `LocalTransform.Position`
+   - Update object's `LocalTransform.Position`
 
 **Performance**:
-- **Frame Budget**: Configurable via `maxStaticObjectsSpawnedPerFrame`
-- **Typical**: 10-20 trees spawned per frame = <1ms
-- **Profiler Markers**: `TerrainTrees.Spawning`, `TerrainTrees.Enqueue`, `TerrainTrees.Spawn`
+- **Frame Budget**: Configurable via `maxObjectsSpawnedPerFrame` (`StaticObjectSpawnerConfig`)
+- **Typical**: 10-20 objects spawned per frame = <1ms
+- **Profiler Markers**: `StaticObjects.Spawning`, `StaticObjects.Enqueue`, `StaticObjects.Spawn`
 
 ### TileSpawningSystem (Modified)
 
-**Tree Cleanup**:
-- Trees are parented to tile entities using ECS `Parent` component
-- Unity ECS automatically destroys child entities when parent is destroyed
-- No manual cleanup code required - simplified implementation
+**Static Object Cleanup**:
+- Static objects are tracked via the tile's `SpawnedStaticObjectReference` buffer (non-hierarchical — no `Parent` component)
+- When a tile despawns, `TileSpawningSystem` iterates the buffer and explicitly destroys each tracked object entity
+- `StaticObjectTileOwnership` tracks which tile owns each object for position updates without parent-child hierarchy overhead
 
 ## Authoring
 
@@ -320,7 +320,9 @@ float scale = random.NextFloat(config.minTreeScale, config.maxTreeScale);
 ## See Also
 
 - `TerrainMeshGenerationSystem.cs` - Mesh generation that precedes static object spawning
-- `TileSpawningSystem.cs` - Tile lifecycle management
+- `TerrainStaticObjectSpawningSystemOptimized.cs` - Active spawning system
+- `StaticObjectPositionUpdateSystem.cs` - Position update when tiles scroll
+- `TileSpawningSystem.cs` - Tile lifecycle management and static object cleanup
 - `TerrainRenderingSystem.cs` - Mesh rendering that enables static object spawning
-- `EXTENSIONS.md` - Other terrain customization ideas
+- `Documentation/EXTENSIONS.md` - Other terrain customization ideas
 

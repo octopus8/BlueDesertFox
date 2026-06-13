@@ -12,7 +12,7 @@ Choose the document that best fits your needs:
   - Perfect for: First-time users
 
 ### 🏗️ Understanding the System
-- **[ARCHITECTURE.md](ARCHITECTURE.md)**
+- **[ARCHITECTURE.md](../Documentation/ARCHITECTURE.md)** *(in top-level Documentation folder)*
   - Visual diagrams
   - Component relationships
   - Data flow illustrations
@@ -61,7 +61,6 @@ Assets/_App/Ace of Ages/
 │   │
 │   └── Documentation/
 │       ├── QUICKSTART.md .......................... Quick setup
-│       ├── ARCHITECTURE.md ........................ Visual diagrams
 │       ├── TransformFollowerREADME.md ............. Full docs
 │       ├── IMPLEMENTATION_SUMMARY.md .............. Implementation
 │       └── INDEX.md ............................... This file
@@ -79,7 +78,7 @@ Assets/_App/Ace of Ages/
 3. Test it!
 
 ### Understanding the System
-1. Read **ARCHITECTURE.md** for visual overview
+1. Read **../Documentation/ARCHITECTURE.md** for visual overview
 2. Check **TransformFollowerREADME.md** for details
 3. Look at **TransformFollowerExample.cs** for code examples
 
@@ -104,7 +103,7 @@ Assets/_App/Ace of Ages/
 Our solution: Use managed components as a bridge
 - Simple but necessary trade-off
 - Read **TransformFollowerREADME.md** → "The Fundamental Limitation"
-- See **ARCHITECTURE.md** → Visual diagrams
+   - See **../Documentation/ARCHITECTURE.md** → Visual diagrams
 
 ### Two System Variants
 
@@ -171,7 +170,7 @@ foreach (var (transform, follower) in
 
 ### Beginner
 1. ✅ **QUICKSTART.md** - Get it working
-2. ✅ **ARCHITECTURE.md** - Understand visually
+2. ✅ **../Documentation/ARCHITECTURE.md** - Understand visually
 3. ⏭️ **TransformFollowerExample.cs** - See code examples
 
 ### Intermediate  
@@ -240,12 +239,12 @@ var entities = query.ToEntityArray(Allocator.Temp);
 - ✅ Parallel job support (optimized version)
 
 ### Documentation
-- ✅ Quick start guide
-- ✅ Architecture diagrams
-- ✅ Complete technical docs
-- ✅ Implementation summary
-- ✅ Code examples
-- ✅ This index
+- ✅ Quick start guide (QUICKSTART.md)
+- ✅ Architecture diagrams (../Documentation/ARCHITECTURE.md)
+- ✅ Complete technical docs (TransformFollowerREADME.md)
+- ✅ Implementation summary (IMPLEMENTATION_SUMMARY.md)
+- ✅ Code examples (TransformFollowerExample.cs)
+- ✅ This index (INDEX.md)
 
 ### Editor Tools
 - ✅ Custom inspector with presets
@@ -260,7 +259,7 @@ var entities = query.ToEntityArray(Allocator.Temp);
 If you have questions:
 1. Check the relevant documentation above
 2. Look at **TransformFollowerExample.cs** for code patterns
-3. Review **ARCHITECTURE.md** for visual understanding
+3. Review **../Documentation/ARCHITECTURE.md** for visual understanding
 4. Read **TransformFollowerREADME.md** for deep dive
 
 ---

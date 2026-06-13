@@ -12,7 +12,7 @@ Welcome to the comprehensive documentation for the DOTS-based infinite terrain s
 2. **[System Overview](SYSTEM_OVERVIEW.md)** - Understand how the system works
 3. **[Common Issues](TROUBLESHOOTING.md)** - Solve problems quickly
 
-**Complete Document Index:** [Table of Contents](TABLE_OF_CONTENTS.md)
+**Complete Document Index:** [Table of Contents](TABLE_OF_CONTENTS.md) *(see below)*
 
 ---
 
@@ -24,7 +24,7 @@ Welcome to the comprehensive documentation for the DOTS-based infinite terrain s
 - **[Player Tracking Setup](PLAYER_TRACKING.md)** - How to configure player tracking for terrain centering
 
 ### Understanding the System
-- **[Architecture](ARCHITECTURE.md)** - 🔄 **NEW v3.0** - Complete system architecture with Mermaid diagrams
+- **[Architecture](SYSTEM_OVERVIEW.md)** - High-level system architecture and component relationships
 - **[System Overview](SYSTEM_OVERVIEW.md)** - High-level architecture and component relationships
 - **[System Pipeline](SYSTEM_PIPELINE.md)** - Detailed execution order and data flow
 - **[Technical Details](TECHNICAL_DETAILS.md)** - Deep dive into algorithms and implementation
@@ -33,7 +33,7 @@ Welcome to the comprehensive documentation for the DOTS-based infinite terrain s
 - **[Auto-Scrolling Terrain](AUTO_SCROLLING.md)** - 🔄 **Updated v3.0** - Scroll velocity components and configuration
 - **[Physics System](PHYSICS_SYSTEM.md)** - LOD-based physics collider system
 - **[Rendering System](RENDERING_SYSTEM.md)** - How mesh rendering works with Entities Graphics
-- **[Tree Rendering System](TREE_RENDERING_SYSTEM.md)** - 🔄 **NEW v3.0** - Instanced rendering with spatial culling
+- **[Static Object Rendering System](STATIC_OBJECT_RENDERING.md)** - 🔄 **NEW v3.0** - Instanced rendering with spatial culling and LOD
 - **[Terrain Anchor System](TERRAIN_ANCHOR_SYSTEM.md)** - ✨ **NEW v3.0** - Spawn objects that move with scrolling terrain
 
 ### Reference
@@ -45,8 +45,7 @@ Welcome to the comprehensive documentation for the DOTS-based infinite terrain s
 - **[Troubleshooting Guide](TROUBLESHOOTING.md)** - Solutions to common problems
 - **[Debug Tools](DEBUG_TOOLS.md)** - Using TerrainTrackingDebugger and visualization tools
 - **[Performance Optimization](PERFORMANCE.md)** - Tuning for maximum performance
-- **[Optimization History](OPTIMIZATION_HISTORY.md)** - 🔄 **NEW v3.0** - v1.0 → v3.0 evolution
-- **[Code Review](CODE_REVIEW.md)** - 🔄 **NEW v3.0** - Code quality assessment
+- **[Performance Optimization](PERFORMANCE.md)** - Tuning for maximum performance
 
 ### Advanced Topics
 - **[Extension Guide](EXTENSIONS.md)** - How to add custom features (biomes, LOD, modifications)
@@ -112,13 +111,20 @@ Noise Persistence:   0.5f      // Amplitude multiplier per octave
 Scroll Enabled:      false     // Enable automatic terrain scrolling
 Scroll Speed:        5.0f      // Speed in m/s (positive = forward)
 ```
-### Physics LOD Settings
+### Physics Settings
 ```
-Max Colliders/Frame:       3      // Budget limit to prevent frame spikes
-Full Resolution Distance:  150m   // Use all vertices for collider
-Half Resolution Distance:  300m   // Use every 2nd vertex
-Quarter Resolution Distance: 450m // Use every 4th vertex
-Max Collider Cache:        50MB   // Memory limit for cached colliders
+// Mesh-prep jobs per frame (Burst)
+maxCollidersCreatedPerFrame:          6
+// Main-thread MeshCollider.Create calls per frame (keep 3–4 for VR)
+maxPhysicsCollidersCreatedPerFrame:   4
+// Full-resolution zone radius (beyond this, vertex stride is applied)
+physicsColliderFullResolutionDistance: 128m
+// Vertex stride beyond full-res zone (2 = every 2nd vertex, ~4x fewer triangles)
+physicsColliderVertexStride:          2
+// Tiles beyond this distance have no collider at all
+maxColliderDistance:                  450m
+// Memory cap for collider cache (LRU eviction when exceeded)
+maxColliderCacheMemoryMB:             50MB
 ```
 
 ### Tree Rendering Settings (v3.0)
@@ -160,7 +166,7 @@ Spatial Grid Cell Size:    100m   // Chunk size for culling
 3. **Player tracking fails?** → [Player Tracking Setup](PLAYER_TRACKING.md)
 4. **Performance issues?** → [Performance Optimization](PERFORMANCE.md)
 5. **Physics problems?** → [Physics System](PHYSICS_SYSTEM.md)
-6. **Trees not rendering?** → [Tree Rendering System](TREE_RENDERING_SYSTEM.md)
+6. **Static objects not rendering?** → [Static Object Rendering System](STATIC_OBJECT_RENDERING.md)
 
 **Debug Tools Available**:
 - `TerrainTrackingDebugger` - Player tracking and tile status
@@ -183,11 +189,12 @@ Spatial Grid Cell Size:    100m   // Chunk size for culling
 - Forward-facing tiles prioritized over backward tiles
 - Distance-based sorting for generation order
 
-### Physics LOD System
-- Three LOD levels based on distance (full, half, quarter resolution)
-- Cached collider data with LRU eviction
-- Frame budget system prevents spikes
-- Optional physics layer separation for distant tiles
+### Physics System
+- Full resolution within configurable distance (128m default), reduced resolution beyond
+- Configurable vertex stride (default 2 = every 2nd vertex) for distant tiles
+- Cached collider data (BlobAsset) with LRU eviction
+- Split two-stage budget: Burst prep jobs + main-thread MeshCollider.Create caps
+- Optional physics layer separation for terrain tiles
 
 ### Hybrid MonoBehaviour/ECS Design
 - Player tracking via managed `PlayerTransformReference` component
@@ -195,11 +202,11 @@ Spatial Grid Cell Size:    100m   // Chunk size for culling
 - Runtime initialization system for cross-scene references
 - Material management via MonoBehaviour systems
 
-### Tree Rendering Architecture (v3.0)
-- Graphics.DrawMeshInstanced for maximum batching
+### Static Object Rendering Architecture (v3.0)
+- Entities Graphics (BatchRendererGroup) for maximum batching
 - Three-stage culling (spatial → distance → frustum)
-- Burst-compiled parallel matrix collection
 - Dynamic LOD with hysteresis to prevent flickering
+- Hierarchy flattening post-instantiate for optimal ECS layout
 
 ---
 
@@ -207,16 +214,16 @@ Spatial Grid Cell Size:    100m   // Chunk size for culling
 ```
 Terrain/
 ├─ Documentation/           ← You are here!
-│  ├─ README.md             (This file)
-│  ├─ TABLE_OF_CONTENTS.md  (Complete document index)
-│  ├─ ARCHITECTURE.md       (NEW v3.0 - System architecture)
+│  ├─ README.md                     (This file - documentation hub)
+│  ├─ TABLE_OF_CONTENTS.md          (Complete document index)
 │  ├─ QUICK_START.md
 │  ├─ SYSTEM_OVERVIEW.md
-│  ├─ TREE_RENDERING_SYSTEM.md (NEW v3.0)
+│  ├─ STATIC_OBJECT_RENDERING.md    (v3.0 - instanced rendering + LOD)
+│  ├─ TERRAIN_ANCHOR_SYSTEM.md      (v3.0 - scroll-anchored entities)
 │  └─ ... (all documentation)
 │
 ├─ README.md                (Quick reference)
-├─ TREE_SPAWNING_SYSTEM.md  (Tree spawning guide)
+├─ STATIC_OBJECT_SPAWNING_SYSTEM.md  (Static object spawning guide)
 │
 ├─ Systems (C# files):
 │  ├─ TerrainConfigAuthoring.cs       (Main authoring component)
@@ -234,12 +241,12 @@ Terrain/
 │  │  ├─ TerrainPhysicsSystem.cs
 │  │  └─ TerrainRenderingSystem.cs
 │  │
-│  ├─ Tree Systems:
-│  │  ├─ TerrainTreeSpawningSystem.cs
-│  │  ├─ TreeSpatialChunkingSystem.cs
-│  │  ├─ TreePositionUpdateSystem.cs
-│  │  ├─ TreeLODUpdateSystem.cs
-│  │  └─ GlobalTreeInstanceSystem.cs
+│  ├─ Static Object Systems:
+│  │  ├─ TerrainStaticObjectSpawningSystemOptimized.cs
+│  │  ├─ StaticObjectSpatialChunkingSystem.cs
+│  │  ├─ StaticObjectPositionUpdateSystem.cs
+│  │  ├─ StaticObjectLODUpdateSystem.cs
+│  │  └─ StaticObjectLODMeshInfoInitSystem.cs
 │  │
 │  ├─ Scroll Velocity:
 │  │  ├─ PlayerScrollVelocitySystem.cs
@@ -279,7 +286,7 @@ Terrain/
 - [Table of Contents](TABLE_OF_CONTENTS.md) - All documents
 
 **Understanding:**
-- [Architecture](ARCHITECTURE.md) - Complete system design
+- [System Overview](SYSTEM_OVERVIEW.md) - High-level architecture
 - [System Pipeline](SYSTEM_PIPELINE.md) - Execution flow
 
 **Reference:**
@@ -288,11 +295,10 @@ Terrain/
 
 **Features:**
 - [Auto-Scrolling](AUTO_SCROLLING.md) - Endless runner mode
-- [Tree Rendering](TREE_RENDERING_SYSTEM.md) - Instanced rendering
+- [Static Object Rendering](STATIC_OBJECT_RENDERING.md) - Instanced rendering and LOD
 
 **Optimization:**
 - [Performance Guide](PERFORMANCE.md) - Tuning tips
-- [Optimization History](OPTIMIZATION_HISTORY.md) - Evolution timeline
 
 ---
 

@@ -1,3 +1,5 @@
+> **Archive Notice:** This is a development diary / implementation session summary. For current reference documentation see [FORMATION_APPROACH_SYSTEM.md](FORMATION_APPROACH_SYSTEM.md). See also [Archive/README.md](Archive/README.md).
+
 # Enemy Formation Approach System - Implementation Complete
 
 ## Summary

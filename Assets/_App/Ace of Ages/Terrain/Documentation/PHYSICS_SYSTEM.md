@@ -1,115 +1,191 @@
-# Physics System - Full-Resolution Collider Generation
+# Physics System — Distance-Based Collider Generation
 
-Complete guide to the terrain physics collider system with caching and frame budgeting.
+Complete guide to the terrain physics collider system with adaptive resolution, LRU caching, and frame budgeting.
 
 ## Overview
 
 The physics system automatically generates Unity Physics mesh colliders for terrain tiles with:
-- **Full-resolution geometry** matching rendered mesh exactly
+- **Distance-based resolution** — full resolution close to the player, reduced resolution farther away
 - **LRU caching** for collider reuse across tiles with identical parameters
-- **Frame budgeting** to prevent creation spikes
-- **Camera-aware prioritization** for visible tiles first
-- **Distance culling** to remove colliders beyond visibility distance
+- **Frame budgeting** split across two independent sliders to prevent creation spikes
+- **Camera-aware prioritization** for in-view tiles first
+- **Distance culling** to remove colliders beyond a configurable maximum distance
 
 ## Collider Resolution
 
-### Single Resolution Level
+### Two Resolution Levels
 
-All terrain colliders use **full-resolution geometry** - the exact same vertex data used for rendering. This ensures perfect consistency between visual and physical terrain.
+Collider geometry adapts based on the tile's distance from the player:
 
-**Benefits**:
-- Perfect physics accuracy (no mismatch with visuals)
-- Simplified caching (all tiles with same noise params share one cached collider)
-- Reduced code complexity
+| Zone | Distance | Vertex Stride | Triangles (32×32 tile) |
+|------|----------|---------------|------------------------|
+| Full resolution | ≤ `physicsColliderFullResolutionDistance` (128m) | 1 (every vertex) | ~2000 |
+| Reduced resolution | > 128m and ≤ `maxColliderDistance` (450m) | `physicsColliderVertexStride` (default 2) | ~500 |
+| No collider | > `maxColliderDistance` | — | none |
 
-**Trade-off**: Higher memory usage for distant tiles compared to LOD decimation
+**Full resolution** matches the rendered mesh exactly — perfect physics accuracy for nearby tiles.
 
-### Distance Culling
+**Reduced resolution** samples every Nth vertex (stride 2 = every other vertex, ~4× fewer triangles). Distant colliders rarely need per-vertex accuracy and this significantly reduces `MeshCollider.Create` cost.
 
-**Max Collider Distance**: 450m (default)
+### Configurable Parameters
 
-Tiles beyond this distance have no physics collider at all. Prevents unnecessary collision checks for terrain far from the player.
+Both thresholds are set in `TerrainConfigAuthoring`:
 
-Set in TerrainConfigAuthoring:
 ```
-Max Collider Distance: 450m
+physicsColliderFullResolutionDistance:  128m   (full-res zone radius)
+physicsColliderVertexStride:            2      (stride beyond full-res; 1=full, 2=half, 4=quarter)
+maxColliderDistance:                    450m   (remove colliders beyond this)
 ```
 
 ## Collider Caching
 
 ### Why Cache?
 
-All tiles with identical noise parameters generate identical collider shapes. Cache once, reuse everywhere.
+All tiles with identical noise parameters and vertex count generate the same collider shape at the same distance band. Caching allows tiles to share a single `BlobAssetReference<TerrainColliderBlob>`.
+
+### Cache Key
+
+```csharp
+struct ColliderCacheKey
+{
+    public int verticesPerSide;
+    public uint noiseParamsHash;  // Hash of frequency, amplitude, octaves, lacunarity, persistence
+}
+```
+
+Note: the cache key does not include the vertex stride. Each collider is stored at its actual decimated resolution. In practice the cache hit rate is very high because most terrain tiles share the same noise configuration.
 
 ### Cache Performance
 
-**Cache Hit**: ~0.1ms (instant reuse)  
-**Cache Miss**: 3-6ms (create full-resolution collider)  
-**Hit Rate**: >95% typical (improved from previous LOD system)
-
-### Cache Efficiency Improvement
-
-With single resolution, cache efficiency is dramatically improved:
-- Previously: Cache differentiated by (noise params + LOD level)
-- Now: Cache differentiated only by noise params
-- Result: All tiles with same noise config share single cache entry
+| Scenario | Cost |
+|----------|------|
+| Cache hit | ~0.1 ms (blob asset reuse) |
+| Cache miss, full resolution | 3–8 ms (MeshCollider.Create) |
+| Cache miss, stride=2 | 1–3 ms (fewer triangles) |
+| Typical hit rate | >90% after initial tile load |
 
 ### Memory Management
 
-**Default Limit**: 50MB  
-**Eviction**: LRU (Least Recently Used)  
-**Tracking**: Per-frame access timestamps
+**Default limit:** 50 MB (`maxColliderCacheMemoryMB`)  
+**Eviction policy:** LRU (Least Recently Used) — entries removed when total exceeds limit  
+**Tracking:** Per-frame access timestamps in `ColliderCacheEntry`
 
-## Frame Budgeting
+## Frame Budget
 
-**Max Colliders Per Frame**: 6 (default for VR, increased from 3)
+Collider creation is split across two independent budgets to avoid frame spikes:
 
-Prevents frame spikes by spreading collider creation across multiple frames.
+| Field | Controls | Default |
+|-------|----------|---------|
+| `maxCollidersCreatedPerFrame` | Burst mesh-prep jobs submitted per frame | 6 |
+| `maxPhysicsCollidersCreatedPerFrame` | Main-thread `MeshCollider.Create` calls per frame | 4 |
 
-**Priority Sorting**: Closer + forward-facing tiles processed first.
+The effective budget per frame is `min(maxCollidersCreatedPerFrame, maxPhysicsCollidersCreatedPerFrame)`, resolved by `TerrainPhysicsBudget.GetCreationBudget()`. With defaults this is **4** colliders per frame.
 
-**Budget Increase**: Higher budget compensates for full-resolution collider creation time.
+**Priority sorting:** Closer tiles and tiles in the camera's forward direction are processed first (combined distance + view-angle score).
+
+## Two-Stage Pipeline
+
+Collider creation is deliberately split across two frames to avoid main-thread stalls:
+
+### Stage 1 — `TerrainColliderPreparationSystem` (Burst, parallel)
+1. Queries tiles with `PhysicsColliderNeedsPreparation` enabled
+2. Applies vertex stride decimation based on tile distance
+3. Writes prepared vertex/triangle data into `ColliderPreparedVertexElement` / `ColliderPreparedTriangleElement` buffers via ECB
+4. Calculates camera-aware priority and writes `PhysicsColliderPrepared`
+
+### Stage 2 — `TerrainPhysicsSystem` (main thread)
+1. Reads tiles with `PhysicsColliderPrepared`, sorted by priority
+2. Checks LRU cache — returns existing `BlobAssetReference<Collider>` on hit
+3. On miss: calls `MeshCollider.Create()` with prepared buffer data, stores result in cache
+4. Writes `PhysicsColliderRegistrationPending` — actual `PhysicsCollider` component added next frame to avoid same-frame physics rebuild
 
 ## Systems
 
-### TerrainDistanceTrackingSystem
-- Calculates distance to player
-- Determines if tile needs collider (within max distance)
-- Marks tiles for collider preparation or removal
+### `TerrainDistanceTrackingSystem`
+- Runs before `TerrainPhysicsSystem`
+- Updates `TerrainTileDistanceToPlayer.distance` for every tile
+- Marks tiles within `maxColliderDistance` as needing preparation if not already valid
+- Removes collider state from tiles beyond the distance threshold
+- Budget-limits how many tiles are marked for preparation per frame
 
-### TerrainColliderPreparationSystem
-- Burst-compiled parallel jobs  
-- Copies full vertex/triangle data without decimation
-- Calculates camera-aware priority
+### `CameraDataUpdateSystem`
+- Runs before `TerrainColliderPreparationSystem`
+- Reads player Transform → writes `CameraDataSingleton` (position, forward)
+- Used by the preparation job for camera-aware priority scoring
 
-### TerrainPhysicsSystem
-- Creates MeshColliders (main thread)
-- Manages cache with LRU eviction
-- Frame budgeting
+### `TerrainColliderPreparationSystem`
+- Burst-compiled parallel `IJobEntity`
+- Reads vertex stride from tile distance and config
+- Produces decimated mesh data for `TerrainPhysicsSystem`
 
-## Configuration
+### `TerrainPhysicsSystem`
+- Namespace: `_App.Ace_of_Ages.Terrain`
+- Main-thread `SystemBase` (required for `MeshCollider.Create`)
+- Manages `NativeHashMap<ColliderCacheKey, ColliderCacheEntry>` LRU cache
+- Evicts cache entries when `maxColliderCacheMemoryMB` is exceeded
 
-**Performance** (VR):
+## Configuration Reference
+
+### VR (Quest 3 / PC VR, recommended)
 ```
-Max Colliders Per Frame: 4-6
-Max Collider Distance: 400m
-Cache Memory: 50MB
+physicsColliderFullResolutionDistance: 128m
+physicsColliderVertexStride:           2
+maxColliderDistance:                   450m
+maxCollidersCreatedPerFrame:           6
+maxPhysicsCollidersCreatedPerFrame:    4
+maxColliderCacheMemoryMB:              50
 ```
 
-**Quality** (Desktop):
+### Desktop (high-end, RTX 4080+)
 ```
-Max Colliders Per Frame: 12-15
-Max Collider Distance: 600m
-Cache Memory: 100MB
+physicsColliderFullResolutionDistance: 200m
+physicsColliderVertexStride:           2
+maxColliderDistance:                   600m
+maxCollidersCreatedPerFrame:           12
+maxPhysicsCollidersCreatedPerFrame:    8
+maxColliderCacheMemoryMB:              100
 ```
+
+### Mobile / Quest 2
+```
+physicsColliderFullResolutionDistance: 80m
+physicsColliderVertexStride:           4
+maxColliderDistance:                   300m
+maxCollidersCreatedPerFrame:           4
+maxPhysicsCollidersCreatedPerFrame:    2
+maxColliderCacheMemoryMB:              25
+```
+
+## Profiler Markers
+
+| Marker | System | What it covers |
+|--------|--------|----------------|
+| `TerrainPhysics.DistanceTracking` | TerrainDistanceTrackingSystem | Distance calc + prep marking |
+| `TerrainPhysics.PrepareJob` | TerrainColliderPreparationSystem | Burst decimation job |
+| `TerrainPhysics.ColliderCreation` | TerrainPhysicsSystem | MeshCollider.Create + cache |
+
+## Common Issues
+
+**Colliders not generating:**
+- Check `enablePhysicsColliders = true` in TerrainConfigAuthoring
+- Verify player tracking is working (`[PlayerTrackingInitSystem] ✅ Found player` in console)
+- Confirm tiles have finished mesh generation (`meshGenerated = true`)
+
+**Physics spikes:**
+- Lower `maxPhysicsCollidersCreatedPerFrame` (try 2–3 for Quest 2/Pro)
+- Reduce `physicsColliderFullResolutionDistance` to shrink the full-res zone
+- Increase `physicsColliderVertexStride` to 4 for distant tiles
+
+**Distant terrain has no collider:**
+- Expected — tiles beyond `maxColliderDistance` have no physics
+- Increase `maxColliderDistance` if gameplay requires it (costs more memory and creation time)
 
 ## Related Documentation
 
-- **[Configuration Reference](CONFIGURATION.md)** - Physics parameters
-- **[Technical Details](TECHNICAL_DETAILS.md)** - LOD algorithms
-- **[Performance Optimization](PERFORMANCE.md)** - Optimization strategies
+- **[Configuration Reference](CONFIGURATION.md)** — All `TerrainConfigAuthoring` parameters
+- **[Technical Details](TECHNICAL_DETAILS.md)** — Noise algorithms, mesh generation details
+- **[Performance Optimization](PERFORMANCE.md)** — Tuning strategies
 
 ---
 
-**Back to**: [Documentation Hub](README.md)
-
+**Back to:** [Documentation Hub](README.md)

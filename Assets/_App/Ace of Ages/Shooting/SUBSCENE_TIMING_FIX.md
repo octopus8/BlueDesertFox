@@ -1,3 +1,5 @@
+> **Archive Notice:** This is a historical patch note. The fix described here is already integrated into the codebase. See [Archive/README.md](Archive/README.md).
+
 # PlayerShootingInput - SubScene Timing Fix
 
 ## Problem

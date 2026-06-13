@@ -1,4 +1,17 @@
-# 🎯 Transform Follower System - START HERE
+# Transform Follower System — Documentation Guide
+
+> **Navigation:** Multiple docs exist in this folder. Use this guide to find the right one.
+>
+> | Goal | Document |
+> |------|---------|
+> | 5-minute setup | [QUICKSTART.md](QUICKSTART.md) |
+> | Navigation index | [INDEX.md](INDEX.md) |
+> | Full technical reference | [TransformFollowerREADME.md](TransformFollowerREADME.md) |
+> | Visual architecture diagrams | [../Documentation/ARCHITECTURE.md](../Documentation/ARCHITECTURE.md) |
+> | Performance and implementation | [IMPLEMENTATION_SUMMARY.md](IMPLEMENTATION_SUMMARY.md) |
+> | Testing checklist | [TESTING_GUIDE.md](TESTING_GUIDE.md) |
+
+---
 
 ## ✅ Implementation Complete!
 

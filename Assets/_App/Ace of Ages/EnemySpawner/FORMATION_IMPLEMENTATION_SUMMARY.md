@@ -1,3 +1,5 @@
+> **Archive Notice:** This is a development diary / session summary. For current reference documentation see [BOWLING_PIN_FORMATION.md](BOWLING_PIN_FORMATION.md). See also [Archive/README.md](Archive/README.md).
+
 # Formation System Implementation Summary
 
 ## What Was Built

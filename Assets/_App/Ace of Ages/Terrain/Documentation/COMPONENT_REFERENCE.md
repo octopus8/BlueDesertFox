@@ -749,7 +749,7 @@ TerrainAnchorTagAuthoring
 - Entity must be in a SubScene to be baked
 - Base position is set at bake time from GameObject position (unless custom)
 - System updates `LocalTransform.Position` every frame: `basePosition - scrollOffset`
-- **Do NOT use for trees** - Use `TreeTileOwnership` instead
+- **Do NOT use for static objects** - Use `StaticObjectTileOwnership` instead
 - **Do NOT use for tiles** - Handled by `TileScrollPositionSystem` automatically
 
 **Performance**: 

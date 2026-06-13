@@ -75,12 +75,19 @@ Located in `Assets/_App/Ace of Ages/`:
   - `TileScrollPositionSystem`: **OPTIMIZED (May 2026)** - Parallel Burst-compiled system using `IJobEntity` to update all existing tile positions each frame based on `ScrollOffset` (ensures smooth scrolling), optimized for Quest 3 performance with 3-5x speedup via multi-core execution (see `TILE_SCROLL_POSITION_OPTIMIZATION.md`)
   - `TerrainDistanceTrackingSystem`: Calculates distance to player and LOD level for each tile, runs before physics system
   - `TerrainMeshGenerationSystem`: Parallel Burst jobs with `IJobParallelFor` for vertex/normal generation, camera-aware priority sorting, frame budgeting via `NativeQueue<Entity>` (processes up to `maxCollidersCreatedPerFrame` tiles/frame)
-  - `TerrainColliderPreparationSystem`: Burst-compiled job for LOD decimation (1x/2x/4x vertex stride), calculates camera-aware priority, schedules parallel jobs
+  - `TerrainColliderPreparationSystem`: Burst-compiled parallel `IJobEntity`; applies configurable vertex stride decimation (stride=1 for full-res zone, stride=N beyond), calculates camera-aware priority score, writes prepared vertex/triangle buffers via ECB
   - `TerrainPhysicsSystem`: Main-thread `MeshCollider.Create()` with LRU cache (`NativeHashMap<ColliderCacheKey, ColliderCacheEntry>`), frame budgeting, cache eviction when memory threshold exceeded
   - `TerrainRenderingSystem`: Converts DynamicBuffers to Unity Mesh instances, sets up `RenderMesh` component, runs in `PresentationSystemGroup`, uses material from `TerrainMaterialReference` component (assigned via `TerrainConfigAuthoring.terrainMaterial`), falls back to Resources ("TerrainMaterial") if not assigned
-  - `TerrainTreeSpawningSystem`: Spawns tree entities on tiles after mesh rendering, uses deterministic random placement (seeded by grid coordinate) with bilinear interpolation to sample height/normals at truly random XZ positions (eliminates grid pattern), frame budgeting, height/slope filtering, random rotation/scale variation, tracks tile ownership via `TreeTileOwnership` without parent-child hierarchy for better performance
-  - `TreePositionUpdateSystem`: Burst-compiled system that updates tree positions when tiles move, uses `TreeTileOwnership` component to track which tile each tree belongs to without parent-child hierarchy overhead, runs in `TransformSystemGroup` after `TileScrollPositionSystem`
+  - `TerrainStaticObjectSpawningSystemOptimized`: Spawns static object entities (trees, turrets, decorations) on tiles after mesh rendering, uses deterministic random placement (seeded by grid coordinate) with bilinear interpolation to sample height/normals at truly random XZ positions (eliminates grid pattern), frame budgeting, height/slope filtering, random rotation/scale variation, tracks tile ownership via `StaticObjectTileOwnership` without parent-child hierarchy for better performance
+  - `StaticObjectPositionUpdateSystem`: Burst-compiled system that updates static object positions when tiles move, uses `StaticObjectTileOwnership` component to track which tile each object belongs to without parent-child hierarchy overhead, runs in `TransformSystemGroup` after `TileScrollPositionSystem`
   - `TerrainAnchorSystem`: **OPTIMIZED (May 2026)** - Parallel Burst-compiled system using `IJobEntity` to update positions of entities with `TerrainAnchorTag` based on scroll offset, allows non-tile entities (obstacles, decorations) to move with scrolling terrain, optimized for Quest 3 performance with 3-5x speedup via multi-core execution (see `TERRAIN_ANCHOR_OPTIMIZATION.md`)
+  - `PlayerScrollVelocitySystem` / `PlayerScrollVelocityAuthoring`: Player pitch/bank drives terrain scroll direction and speed; bank angle optionally yaws a world-origin Transform via `WorldOriginTrackingInitSystem`; configurable `speed` and `rotationSpeed` in `PlayerTerrainScrollVelocityConfig`
+  - `ConstantScrollVelocitySystem` / `ConstantScrollVelocityAuthoring`: Fixed-direction scroll provider for testing/racing; writes `TerrainScrollVelocity` each frame; use instead of `PlayerScrollVelocitySystem` when player input should not drive terrain
+  - `TurretAimingSystem`: Solves ballistic intercept for turret dome; reads `PlayerTargetVelocity` (smoothed via `PlayerTargetVelocityEstimateSystem`) to predict player position; rotates dome Y-axis toward intercept point
+  - `TurretBarrelSystem`: Pitches turret barrel toward intercept point in dome-local YZ plane; configured via `TurretBarrelTag` (pitch limits, speed)
+  - `TurretShooterSystem`: Burst-fire with LOS raycast against physics world; `TurretShooterState` tracks cooldown, intra-burst delay, remaining rounds; fires from `TurretLaunchOffset` baked world position
+  - `PlayerTargetVelocityEstimateSystem`: Finite-difference velocity estimate from player position with 0.45 lerp smoothing; feeds `PlayerTargetVelocity` singleton used by `TurretAimingSystem`
+  - `CameraDataUpdateSystem`: Reads player Transform → writes `CameraDataSingleton` (position + forward) used by `TerrainColliderPreparationSystem` for camera-aware priority
 - **DOTS Systems**: ECS performance-critical systems including:
   - `TransformFollowerSystem` (`TransformFollower/`): Makes DOTS entities follow GameObject Transforms outside subscenes using managed `TransformReference` component, runs on main thread via `.Run()` (cannot use Burst/Jobs due to managed references). **OPTIMIZED VERSION AVAILABLE**: `TransformFollowerSystemOptimized` (ISystem) batches Transform reads and uses parallel Burst jobs with proper dependency chaining for 5-10x speedup - see `TRANSFORM_FOLLOWER_OPTIMIZATION_FIX.md`
   - `SplineFollowerSystem` (`Splines/`): Moves entities along Unity.Splines with formation support via Burst-compiled job, uses `SplineDataComponent` (with pre-sampled `BlobAssetReference<SplineDataBlob>`) and `FormationPosition`
@@ -91,19 +98,19 @@ Located in `Assets/_App/Ace of Ages/`:
   - `TerrainTileConfig`: Singleton with tile size, view distance, vertices per side, noise parameters (frequency/amplitude/octaves/lacunarity/persistence), physics LOD thresholds, cache memory limit
   - `TerrainTile`: Grid coordinate, mesh generation flags (`meshGenerated`, `needsRegeneration`)
   - `ScrollOffset`: Singleton with `accumulatedOffset` (float3) for directional auto-scrolling (locked to XZ plane)
-  - `ScrollConfig`: Singleton with `enabled` flag and `scrollSpeed` for terrain auto-scrolling
+  - `TerrainScrollVelocity`: Singleton with `direction` (float3) and `speed` (float), written by scroll velocity providers (`PlayerScrollVelocitySystem` or `ConstantScrollVelocitySystem`), read by `ScrollTerrainSystem`
   - `PlayerTransformReference`: Managed singleton holding player Transform reference for terrain tracking
   - `PlayerTrackingSearch`: Runtime search configuration (FindByName/FindByTag/FindAutoHandPlayer/FindMainCamera modes)
-  - `TerrainTileDistanceToPlayer`: Distance to player and current `TerrainPhysicsLODLevel` (FullResolution/HalfResolution/QuarterResolution/NoCollider)
+  - `TerrainTileDistanceToPlayer`: Per-tile distance to player (float), used by collider preparation to determine vertex stride
   - `PhysicsColliderValid`: Tag indicating collider is up-to-date and cached
-  - `TreeSpawnerConfig`: Singleton with tree density (min/max per tile), scale variation, height/slope filters, frame budget
-  - `TreePrefabElement`: Buffer element storing tree prefab entities for random selection
-  - `TreesSpawned`: Tag component indicating trees spawned on tile
-  - `SpawnedTreeReference`: Buffer element tracking spawned tree entities for cleanup
-  - `TreeTileOwnership`: Component tracking which tile owns each tree and the tree's local offset, used to update positions without parent-child hierarchy overhead
+  - `StaticObjectSpawnerConfig`: Singleton with static object density (min/max per tile), scale variation, height/slope filters, frame budget
+  - `StaticObjectPrefabElement`: Buffer element storing static object prefab entities for random selection
+  - `StaticObjectsSpawned`: Tag component indicating static objects spawned on tile
+  - `SpawnedStaticObjectReference`: Buffer element on tile entities tracking spawned static object entities for explicit cleanup when tile despawns
+  - `StaticObjectTileOwnership`: Component tracking which tile owns each static object and the object's local offset, used to update positions without parent-child hierarchy overhead
   - `TerrainAnchorTag`: Component marking entities that should move with terrain scroll offset, stores `basePosition` (float3) for calculating scrolled position (basePosition - scrollOffset), intended for spawned obstacles/decorations (NOT for trees or tiles)
   - DynamicBuffers: `VertexElement`, `NormalElement`, `UVElement`, `IndexElement` for mesh data; `ColliderPreparedVertexElement`, `ColliderPreparedTriangleElement` for physics data
-- **Authoring Components**: Co-located with systems in subdirectories - `TransformFollowerAuthoring`, `SplineFollowerAuthoring`, `EnemySpawnerAuthoring`, `PlayerTagAuthoring` (in `Player/`), `FormationPositionAuthoring`, `PrefabEntitiesReferencesAuthoring`, `TreeSpawnerConfigAuthoring`, `TerrainAnchorTagAuthoring` (Terrain/)
+- **Authoring Components**: Co-located with systems in subdirectories - `TransformFollowerAuthoring`, `SplineFollowerAuthoring`, `EnemySpawnerAuthoring`, `PlayerTagAuthoring` (in `Player/`), `FormationPositionAuthoring`, `PrefabEntitiesReferencesAuthoring`, `StaticObjectSpawnerConfigAuthoring`, `TerrainAnchorTagAuthoring` (Terrain/)
 - **Cross-Subscene References**: `TransformFollowerAuthoring` uses `TransformFollowerTargetSearch` component with `FindByName`, `FindByTag`, or `DirectReference` modes to locate targets at runtime, initialized by `TransformFollowerInitSystem` since `MonoBehaviour.Start()` doesn't run in baked SubScenes
 - **Managed Components**: `TransformReference` is a managed `IComponentData` class (not struct) bridging GameObject/Transform references to ECS
 - Entry point: `AceOfAges.cs` test component triggers enemy spawns after 3-second delay using EntityQuery
@@ -250,7 +257,7 @@ Located in `Assets/_App/Ace of Ages/Terrain/`:
 - `ObjectFollower.UpdateImmediate()` forces instant snap without smoothing - call after Show()/position changes to prevent UI from being visible during transition
 - DOTS `TransformFollowerAuthoring` must be on entities inside SubScenes - runtime init won't work for non-baked entities
 - `TransformFollowerSystem` uses `.Run()` instead of `.Schedule()` because it accesses managed Transform references (Burst incompatible). For better performance, use `TransformFollowerSystemOptimized` (ISystem) which batches Transform reads and uses `.ScheduleParallel(state.Dependency)` for parallel execution with proper dependency chaining - critical for Quest 3 VR
-- **TransformFollowerSystemOptimized**: MUST use `state.Dependency = job.ScheduleParallel(state.Dependency)` to chain dependencies, otherwise rendering systems (like `GlobalTreeInstanceSystem`) will read stale positions causing frustum culling failures. See `TRANSFORM_FOLLOWER_OPTIMIZATION_FIX.md` for details
+- **TransformFollowerSystemOptimized**: MUST use `state.Dependency = job.ScheduleParallel(state.Dependency)` to chain dependencies, otherwise rendering systems (like `StaticObjectLODUpdateSystem`) will read stale positions causing frustum culling failures. See `TRANSFORM_FOLLOWER_OPTIMIZATION_FIX.md` for details
 - `SplineDataComponent` stores pre-sampled spline data as BlobAsset - configure `sampleCount` in `SplineComponentAuthoring` for accuracy vs memory tradeoff
 - **Terrain System**: Floating origin system removed - player should stay within ~1000-2000m of world origin for best float precision
 - **Zero-GC Pattern**: Never use `query.ToEntityArray()` - use direct iteration with `SystemAPI.Query<>().WithEntityAccess()` or collect in `NativeList<Entity>` to avoid managed allocations
