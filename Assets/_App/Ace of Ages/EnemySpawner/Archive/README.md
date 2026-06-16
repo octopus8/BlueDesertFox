@@ -4,9 +4,8 @@ This folder catalogs development-diary documents from the Enemy Spawner implemen
 
 | File | Description |
 |------|-------------|
-| `../IMPLEMENTATION_SUMMARY.md` | Formation approach implementation diary (session notes) |
-| `../FORMATION_APPROACH_IMPLEMENTATION.md` | Formation approach implementation complete — session summary |
-| `../FORMATION_IMPLEMENTATION_SUMMARY.md` | Bowling pin formation implementation — session summary |
+| `../FORMATION_APPROACH_IMPLEMENTATION.md` | Formation approach — complete implementation diary (components, systems, config, rollback) |
+| `../FORMATION_IMPLEMENTATION_SUMMARY.md` | Bowling pin formation — initial implementation diary |
 
 **For current architecture**, see:
 - `README.md` — Formation movement lifecycle overview

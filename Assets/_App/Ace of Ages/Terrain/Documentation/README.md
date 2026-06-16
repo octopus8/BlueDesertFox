@@ -24,27 +24,25 @@ Welcome to the comprehensive documentation for the DOTS-based infinite terrain s
 - **[Player Tracking Setup](PLAYER_TRACKING.md)** - How to configure player tracking for terrain centering
 
 ### Understanding the System
-- **[Architecture](SYSTEM_OVERVIEW.md)** - High-level system architecture and component relationships
 - **[System Overview](SYSTEM_OVERVIEW.md)** - High-level architecture and component relationships
 - **[System Pipeline](SYSTEM_PIPELINE.md)** - Detailed execution order and data flow
 - **[Technical Details](TECHNICAL_DETAILS.md)** - Deep dive into algorithms and implementation
 
 ### Feature Documentation
-- **[Auto-Scrolling Terrain](AUTO_SCROLLING.md)** - 🔄 **Updated v3.0** - Scroll velocity components and configuration
+- **[Auto-Scrolling Terrain](AUTO_SCROLLING.md)** - Scroll velocity components and configuration
 - **[Physics System](PHYSICS_SYSTEM.md)** - LOD-based physics collider system
 - **[Rendering System](RENDERING_SYSTEM.md)** - How mesh rendering works with Entities Graphics
-- **[Static Object Rendering System](STATIC_OBJECT_RENDERING.md)** - 🔄 **NEW v3.0** - Instanced rendering with spatial culling and LOD
-- **[Terrain Anchor System](TERRAIN_ANCHOR_SYSTEM.md)** - ✨ **NEW v3.0** - Spawn objects that move with scrolling terrain
+- **[Static Object Rendering System](STATIC_OBJECT_RENDERING.md)** - Instanced rendering with spatial culling and LOD
+- **[Terrain Anchor System](TERRAIN_ANCHOR_SYSTEM.md)** - Spawn objects that move with scrolling terrain
 
 ### Reference
-- **[System Reference](SYSTEM_REFERENCE.md)** - 🔄 **Updated v3.0** - All 20+ systems with APIs
+- **[System Reference](SYSTEM_REFERENCE.md)** - All 20+ systems with APIs
 - **[Component Reference](COMPONENT_REFERENCE.md)** - All components with detailed explanations
 - **[API Reference](API_REFERENCE.md)** - Complete component and system API documentation
 
 ### Troubleshooting & Debugging
 - **[Troubleshooting Guide](TROUBLESHOOTING.md)** - Solutions to common problems
 - **[Debug Tools](DEBUG_TOOLS.md)** - Using TerrainTrackingDebugger and visualization tools
-- **[Performance Optimization](PERFORMANCE.md)** - Tuning for maximum performance
 - **[Performance Optimization](PERFORMANCE.md)** - Tuning for maximum performance
 
 ### Advanced Topics
@@ -135,28 +133,6 @@ LOD 1 Distance:            100m   // Medium detail
 LOD 2 Distance:            200m   // Low detail/billboard
 Spatial Grid Cell Size:    100m   // Chunk size for culling
 ```
-
----
-
-## 🆕 What's New in v3.0 (May 2026)
-
-**Major Features:**
-- ✅ **Global Tree Instanced Rendering** - Spatial grid culling, 30-40% performance improvement
-- ✅ **Tree LOD System** - Dynamic mesh LOD with hysteresis and velocity-aware throttling
-- ✅ **Scroll Velocity Components** - Flexible scroll sources (player rotation or constant)
-- ✅ **Complete Documentation** - Architecture diagrams, optimization history, code review
-
-**Performance Improvements:**
-- Spatial chunking for efficient tree culling
-- Burst-compiled parallel matrix collection
-- Distance culling before frustum tests
-- VR frame skipping for LOD updates
-
-**Documentation Updates:**
-- Mermaid diagrams throughout
-- Consolidated optimization notes
-- Complete system reference (20+ systems)
-- Code quality assessment
 
 ---
 
@@ -259,46 +235,6 @@ Terrain/
 ```
 
 ---
-
-## 📊 Version Information
-**Current Version**: 3.0  
-**Unity Version**: Unity 6 (6000.3.10f1)  
-**Dependencies**:
-- Unity.Entities (1.3.0+)
-- Unity.Physics
-- Unity.Rendering.Hybrid (Entities Graphics)
-- Unity.Burst
-- Unity.Mathematics
-
-**Last Updated**: May 4, 2026
-
-**Version History:**
-- **v3.0 (May 2026)** - Tree instanced rendering, LOD system, scroll velocity components
-- **v2.0 (March 2026)** - Camera-aware prioritization, tree spawning system
-- **v1.0 (December 2025)** - Core infinite terrain with auto-scrolling
-
----
-
-## 🔗 Key Documentation Links
-
-**Start Here:**
-- [Quick Start Guide](QUICK_START.md) - 10 minute setup
-- [Table of Contents](TABLE_OF_CONTENTS.md) - All documents
-
-**Understanding:**
-- [System Overview](SYSTEM_OVERVIEW.md) - High-level architecture
-- [System Pipeline](SYSTEM_PIPELINE.md) - Execution flow
-
-**Reference:**
-- [System Reference](SYSTEM_REFERENCE.md) - All 20+ systems
-- [Component Reference](COMPONENT_REFERENCE.md) - All components
-
-**Features:**
-- [Auto-Scrolling](AUTO_SCROLLING.md) - Endless runner mode
-- [Static Object Rendering](STATIC_OBJECT_RENDERING.md) - Instanced rendering and LOD
-
-**Optimization:**
-- [Performance Guide](PERFORMANCE.md) - Tuning tips
 
 ---
 

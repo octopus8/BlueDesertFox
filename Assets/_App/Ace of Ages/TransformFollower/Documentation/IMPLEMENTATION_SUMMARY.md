@@ -8,23 +8,22 @@ A complete system for making DOTS entities follow GameObjects/Transforms outside
 
 #### Core Components
 1. **TransformFollowerAuthoring.cs** - Authoring component with baker
-   - Location: `Assets/_App/Ace of Ages/DOTSAuthoring/`
+   - Location: `Assets/_App/Ace of Ages/TransformFollower/`
    - Purpose: Converts GameObject setup to ECS components
 
-2. **TransformFollowerSystem.cs** - Main system (ENABLED by default)
-   - Location: `Assets/_App/Ace of Ages/DOTSSystems/`
-   - Purpose: Updates entity positions/rotations based on Transform data
-   - Performance: Good for <100 followers
+2. **TransformFollowerSystemOptimized.cs** - Active system
+   - Location: `Assets/_App/Ace of Ages/TransformFollower/`
+   - Purpose: Batches Transform reads, updates entity positions via parallel Burst jobs
+   - Performance: Used for all follower counts
 
-3. **TransformFollowerSystemOptimized.cs** - Optimized system (DISABLED by default)
-   - Location: `Assets/_App/Ace of Ages/DOTSSystems/`
-   - Purpose: Batches Transform reads for better performance
-   - Performance: Recommended for 100+ followers
-   - Note: Remove `[DisableAutoCreation]` to enable
+3. **TransformFollowerSystem.cs** - Simple system (`[DisableAutoCreation]`)
+   - Location: `Assets/_App/Ace of Ages/TransformFollower/`
+   - Purpose: Simpler single-threaded implementation (disabled by default)
+   - Note: Add `[DisableAutoCreation]` to Optimized and remove from this file to swap
 
 #### Editor Tools
 4. **TransformFollowerAuthoringEditor.cs** - Custom inspector
-   - Location: `Assets/_App/Ace of Ages/DOTSAuthoring/Editor/`
+   - Location: `Assets/_App/Ace of Ages/TransformFollower/Editor/`
    - Purpose: Improved editor experience with presets and validation
    - Features:
      - Visual gizmos in scene view
@@ -34,15 +33,15 @@ A complete system for making DOTS entities follow GameObjects/Transforms outside
 
 #### Examples & Documentation
 5. **TransformFollowerExample.cs** - Runtime usage examples
-   - Location: `Assets/_App/Ace of Ages/`
+   - Location: `Assets/_App/Ace of Ages/TransformFollower/`
    - Purpose: Shows how to use the system from code
    
 6. **TransformFollowerREADME.md** - Full documentation
-   - Location: `Assets/_App/Ace of Ages/DOTSSystems/`
+   - Location: `Assets/_App/Ace of Ages/TransformFollower/Documentation/`
    - Purpose: In-depth technical documentation
    
 7. **QUICKSTART.md** - Quick setup guide
-   - Location: `Assets/_App/Ace of Ages/DOTSSystems/`
+   - Location: `Assets/_App/Ace of Ages/TransformFollower/Documentation/`
    - Purpose: Fast setup instructions and common use cases
 
 ## The Fundamental Limitation
@@ -119,17 +118,17 @@ entityManager.AddComponentData(entity, new TransformReference
 
 ## Performance Characteristics
 
-### Simple System (Default)
-- **Best for:** < 100 entities
-- **Update cost:** O(n) where n = number of followers
-- **Thread:** Main thread only
-- **Burst:** No (accessing managed references)
-
-### Optimized System (Optional)
-- **Best for:** 100+ entities
+### Optimized System (Active — default)
+- **Best for:** All use cases
 - **Update cost:** O(n) main thread read + O(n) parallel job
 - **Thread:** Main thread for Transform reads, parallel for entity updates
 - **Burst:** Yes (for entity updates only)
+
+### Simple System (Disabled — `[DisableAutoCreation]`)
+- **Best for:** N/A — disabled by default; useful for debugging or when Optimized causes issues
+- **Update cost:** O(n) where n = number of followers
+- **Thread:** Main thread only
+- **Burst:** No (accessing managed references)
 
 ### Comparison
 - 10 followers: ~0.01ms per frame (either system)

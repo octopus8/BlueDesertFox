@@ -9,7 +9,7 @@ Complete index of all documentation across the Ace of Ages project.
 
 | Document | Description |
 |----------|-------------|
-| [Scene Overview](SCENE_OVERVIEW.md) | High-level scene architecture, all systems, and file map |
+| [Scene Overview](SCENE_OVERVIEW.md) | Scene architecture, execution order, singletons, and entry point |
 
 ---
 
@@ -59,7 +59,7 @@ Complete index of all documentation across the Ace of Ages project.
 
 ## TransformFollower System
 
-**Hub:** [README / Start Here](../TransformFollower/Documentation/README_START_HERE.md) · [Index](../TransformFollower/Documentation/INDEX.md)
+**Hub:** [README / Start Here](../TransformFollower/Documentation/README_START_HERE.md)
 
 | Document | Description |
 |----------|-------------|
@@ -67,7 +67,7 @@ Complete index of all documentation across the Ace of Ages project.
 | [Testing Guide](../TransformFollower/Documentation/TESTING_GUIDE.md) | Test scenarios and debugging checklist |
 | [Architecture Diagrams](../TransformFollower/Documentation/ARCHITECTURE.md) | Visual component relationships and data flow |
 | [Full Technical Reference](../TransformFollower/Documentation/TransformFollowerREADME.md) | Fundamental limitation, approaches, alternatives |
-| [Implementation Summary](../TransformFollower/Documentation/IMPLEMENTATION_SUMMARY.md) | What was built, performance characteristics |
+| [Implementation Summary](../TransformFollower/Documentation/IMPLEMENTATION_SUMMARY.md) | Performance characteristics and alternative approaches |
 
 ---
 
@@ -78,7 +78,7 @@ Complete index of all documentation across the Ace of Ages project.
 | Document | Description |
 |----------|-------------|
 | [Quick Setup Guide](../EnemySpawner/QUICK_SETUP_GUIDE.md) | Step-by-step setup instructions |
-| [Formation Approach System](../EnemySpawner/FORMATION_APPROACH_SYSTEM.md) | Formation movement and spline follow system |
+| [Formation Approach System](../EnemySpawner/FORMATION_APPROACH_SYSTEM.md) | Full state machine reference — components, config, debugging |
 | [Bowling Pin Formation](../EnemySpawner/BOWLING_PIN_FORMATION.md) | 10-pin hexagonal spawn layout |
 | [Spawn Positioning Diagram](../EnemySpawner/SPAWN_POSITIONING_DIAGRAM.md) | Visual reference for spawn positions |
 | [Formation Visual Diagram](../EnemySpawner/FORMATION_VISUAL_DIAGRAM.md) | Bowling pin formation diagrams |
@@ -87,9 +87,8 @@ Complete index of all documentation across the Ace of Ages project.
 | Document | Description |
 |----------|-------------|
 | [Archive Index](../EnemySpawner/Archive/README.md) | Overview of archived development documents |
-| [Implementation Summary](../EnemySpawner/IMPLEMENTATION_SUMMARY.md) | *(archived)* Formation approach — complete implementation |
-| [Formation Approach Implementation](../EnemySpawner/FORMATION_APPROACH_IMPLEMENTATION.md) | *(archived)* Implementation session diary |
-| [Formation Implementation Summary](../EnemySpawner/FORMATION_IMPLEMENTATION_SUMMARY.md) | *(archived)* Formation system session summary |
+| [Formation Approach Implementation](../EnemySpawner/FORMATION_APPROACH_IMPLEMENTATION.md) | *(archived)* Full implementation diary — components, systems, config, rollback |
+| [Formation Implementation Summary](../EnemySpawner/FORMATION_IMPLEMENTATION_SUMMARY.md) | *(archived)* Bowling pin formation session summary |
 
 ---
 
@@ -100,7 +99,6 @@ Complete index of all documentation across the Ace of Ages project.
 | Document | Description |
 |----------|-------------|
 | [Quick Setup Guide](../Shooting/QUICK_SETUP_GUIDE.md) | Step-by-step shooting system setup |
-| [Implementation Summary](../Shooting/IMPLEMENTATION_SUMMARY.md) | Architecture, components, and systems overview |
 | [Entity Transform Offset — Quick Reference](../Shooting/ENTITY_OFFSET_QUICK_REF.md) | Bullet spawn point offset cheat sheet |
 | [Entity Transform Offset — Implementation](../Shooting/ENTITY_TRANSFORM_OFFSET_IMPLEMENTATION.md) | Bullet spawn point offset full implementation |
 
@@ -108,6 +106,7 @@ Complete index of all documentation across the Ace of Ages project.
 | Document | Description |
 |----------|-------------|
 | [Archive Index](../Shooting/Archive/README.md) | Overview of archived patch notes |
+| [Implementation Summary](../Shooting/IMPLEMENTATION_SUMMARY.md) | *(archived)* Initial implementation diary |
 | [SubScene Timing Fix](../Shooting/SUBSCENE_TIMING_FIX.md) | *(archived)* PlayerShootingInput subscene timing fix |
 | [Collision System Fix](../Shooting/COLLISION_SYSTEM_FIX.md) | *(archived)* Bullet collision physics dependency fix |
 | [Bullet Scale Fix](../Shooting/BULLET_SCALE_FIX.md) | *(archived)* Bullet scale — preserve prefab scale fix |
@@ -138,10 +137,10 @@ Complete index of all documentation across the Ace of Ages project.
 | System | Documents |
 |--------|-----------|
 | Terrain | 23 |
-| TransformFollower | 7 |
-| Enemy Spawner | 9 |
+| TransformFollower | 6 |
+| Enemy Spawner | 8 |
 | Shooting | 8 |
 | Effects | 3 |
 | Splines | 1 |
 | Project Overview | 2 |
-| **Total** | **53** |
+| **Total** | **51** |

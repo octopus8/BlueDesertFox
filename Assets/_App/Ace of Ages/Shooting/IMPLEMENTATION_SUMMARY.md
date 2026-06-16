@@ -1,9 +1,8 @@
+> **Archive Notice:** This is a development diary from the initial implementation session. For current reference documentation see [SHOOTING_SYSTEM_README.md](SHOOTING_SYSTEM_README.md) and [QUICK_SETUP_GUIDE.md](QUICK_SETUP_GUIDE.md). See also [Archive/README.md](Archive/README.md).
+
 # Player Ship Shooting System - Implementation Summary
 
-## ✅ Implementation Complete
-
-**Date**: May 7, 2026  
-**Status**: All systems implemented and compiling successfully
+**Date**: May 7, 2026
 
 ## What Was Built
 
