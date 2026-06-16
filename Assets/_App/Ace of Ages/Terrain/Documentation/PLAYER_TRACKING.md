@@ -45,11 +45,9 @@ The terrain system needs to know where the player is to:
 
 ### Option 1: AutoDetect (Recommended)
 
-**When to use**: Most cases, especially VR projects
+**When to use**: Most cases — uses `Camera.main` with zero configuration
 
-**How it works**:
-1. Tries to find `AutoHandPlayer` component first
-2. If not found, falls back to `Camera.main`
+**How it works**: Uses `Camera.main` to get the main camera's Transform
 
 **Configuration**:
 ```
@@ -61,37 +59,14 @@ Player Tag: (not used)
 **Pros**:
 - Zero configuration
 - Works for VR and desktop
-- Automatic fallback
+- Reliable
 
 **Cons**:
-- Less explicit, harder to debug if multiple candidates exist
+- Less explicit; use FindByName or FindByTag if you need a specific GameObject
 
 ---
 
-### Option 2: Find AutoHand Player
-
-**When to use**: VR project using Autohand package
-
-**How it works**: Searches for `Autohand.AutoHandPlayer` component using `FindFirstObjectByType<>()`
-
-**Configuration**:
-```
-Player Search Mode: FindAutoHandPlayer
-Player Name: (not used)
-Player Tag: (not used)
-```
-
-**Pros**:
-- Explicit VR player tracking
-- Fast search (component-based)
-
-**Cons**:
-- Requires Autohand package
-- Fails if AutoHandPlayer doesn't exist
-
----
-
-### Option 3: Find Main Camera
+### Option 2: Find Main Camera
 
 **When to use**: Simple projects where camera represents player, or non-VR
 
@@ -117,7 +92,7 @@ Player Tag: (not used)
 
 ---
 
-### Option 4: Find by Name
+### Option 3: Find by Name
 
 **When to use**: When you know the exact GameObject name
 
@@ -146,7 +121,7 @@ Player Tag: (not used)
 
 ---
 
-### Option 5: Find by Tag
+### Option 4: Find by Tag
 
 **When to use**: When multiple scenes share same player tag
 
@@ -187,11 +162,11 @@ The easiest way to diagnose tracking issues:
 **Example Output (Success)**:
 ```
 === Terrain Tracking Status ===
-🔍 Search Mode: FindAutoHandPlayer
+🔍 Search Mode: FindMainCamera
 🔍 Search String: ''
 🔍 Initialized: True
-✅ Tracking: XR Origin Hands (XR Rig)
-   GameObject: XR Origin Hands (XR Rig)
+✅ Tracking: Main Camera
+   GameObject: Main Camera
    Position: (0.0, 1.5, 0.0)
    Active: True
 📦 Active Terrain Tiles: 25
@@ -228,7 +203,6 @@ The easiest way to diagnose tracking issues:
 **Solutions**:
 - **FindByName**: Check GameObject name spelling (case-sensitive)
 - **FindByTag**: Verify GameObject has the tag
-- **FindAutoHandPlayer**: Ensure Autohand package installed and AutoHandPlayer exists
 - **FindMainCamera**: Ensure camera tagged as "MainCamera"
 
 **Debug Steps**:
@@ -276,7 +250,7 @@ Player Name: "XR Origin/Camera Offset/Main Camera"
 
 ### Tracking Custom Player Controller
 
-For custom controllers without AutoHandPlayer:
+For custom player controllers:
 
 **Option A**: Add "Player" tag to your controller
 ```
@@ -330,8 +304,7 @@ public struct PlayerTrackingSearch : IComponentData
     {
         FindByName = 0,
         FindByTag = 1,
-        FindAutoHandPlayer = 2,
-        FindMainCamera = 3
+        FindMainCamera = 2
     }
     
     public Mode mode;

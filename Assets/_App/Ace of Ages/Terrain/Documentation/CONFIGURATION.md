@@ -18,18 +18,16 @@ Controls how the terrain system finds and tracks the player GameObject.
 **Type**: Enum  
 **Default**: `AutoDetect`  
 **Options**:
-- `AutoDetect` - Try AutoHandPlayer, fallback to Main Camera
+- `AutoDetect` - Use Camera.main (zero configuration)
 - `FindByName` - Search by GameObject name
 - `FindByTag` - Search by GameObject tag
-- `FindAutoHandPlayer` - Find AutoHandPlayer component
-- `FindMainCamera` - Use Camera.main
+- `FindMainCamera` - Use Camera.main explicitly
 
 **When to use each:**
-- **AutoDetect**: Best for most cases, tries VR player then camera
-- **FindByName**: Use when player has specific name (e.g., "XR Origin Hands (XR Rig)")
-- **FindByTag**: Use when player tagged (e.g., "Player" tag)
-- **FindAutoHandPlayer**: VR projects using Autohand package
-- **FindMainCamera**: Simple projects where camera represents player position
+- **AutoDetect**: Best for most cases, uses main camera
+- **FindByName**: Use when player has a specific name (e.g., "XR Origin Hands (XR Rig)")
+- **FindByTag**: Use when player is tagged (e.g., "Player" tag)
+- **FindMainCamera**: Equivalent to AutoDetect but explicit
 
 #### Player Name
 **Type**: String  

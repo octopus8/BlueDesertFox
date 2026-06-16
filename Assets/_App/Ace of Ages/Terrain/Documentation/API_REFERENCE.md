@@ -103,8 +103,7 @@ public enum Mode : byte
 {
     FindByName = 0,
     FindByTag = 1,
-    FindAutoHandPlayer = 2,
-    FindMainCamera = 3
+    FindMainCamera = 2
 }
 ```
 
@@ -625,8 +624,7 @@ public enum Mode : byte
 {
     FindByName = 0,           // Search by GameObject.Find(name)
     FindByTag = 1,            // Search by FindGameObjectWithTag(tag)
-    FindAutoHandPlayer = 2,   // Search for AutoHandPlayer component
-    FindMainCamera = 3        // Use Camera.main
+    FindMainCamera = 2        // Use Camera.main
 }
 ```
 

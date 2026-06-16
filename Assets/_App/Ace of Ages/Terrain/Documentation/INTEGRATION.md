@@ -15,16 +15,18 @@ Guide for integrating the terrain system with other game systems, AI, gameplay m
 
 ## Player/Character Integration
 
-### VR Player Integration (AutoHand)
+### XR Player Integration
 
-The system is designed to work seamlessly with AutoHand VR:
+The terrain system tracks whichever GameObject you configure via `TerrainConfigAuthoring`. For XR rigs, use `FindByName` or `FindByTag`:
 
 ```csharp
-// TerrainConfigAuthoring setup:
-Player Search Mode: FindAutoHandPlayer
+// TerrainConfigAuthoring setup — example for an XR Origin rig:
+Player Search Mode: FindByName
+Player Name: "XR Origin Hands (XR Rig)"
 
-// System automatically finds:
-Autohand.AutoHandPlayer component → tracks that GameObject
+// Or tag-based:
+Player Search Mode: FindByTag
+Player Tag: "Player"
 ```
 
 **No additional code needed** - works out of the box!

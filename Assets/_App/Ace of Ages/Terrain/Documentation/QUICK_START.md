@@ -53,7 +53,6 @@ In the Inspector:
 ## Step 3: Verify Player GameObject (1 minute)
 
 Ensure you have one of:
-- ✅ AutoHandPlayer component (VR)
 - ✅ Camera tagged as "MainCamera"
 - ✅ GameObject named correctly
 - ✅ GameObject with "Player" tag

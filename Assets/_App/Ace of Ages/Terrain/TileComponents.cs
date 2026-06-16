@@ -167,8 +167,7 @@ public struct PlayerTrackingSearch : IComponentData
     {
         FindByName = 0,
         FindByTag = 1,
-        FindAutoHandPlayer = 2,
-        FindMainCamera = 3
+        FindMainCamera = 2
     }
     
     /// <summary>

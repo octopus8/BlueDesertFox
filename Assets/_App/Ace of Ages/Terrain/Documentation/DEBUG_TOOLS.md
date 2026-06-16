@@ -39,7 +39,7 @@ Right-click the component in Inspector:
 **Output Example (Success)**:
 ```
 === Terrain Tracking Status ===
-🔍 Search Mode: FindAutoHandPlayer
+🔍 Search Mode: FindMainCamera
 🔍 Search String: ''
 🔍 Initialized: True
 ✅ Tracking: XR Origin Hands (XR Rig)

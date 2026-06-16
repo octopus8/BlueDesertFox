@@ -9,14 +9,13 @@ Top-level index for all subsystem documentation in the Ace of Ages scene.
 Ace of Ages is a Unity 6 VR application using a hybrid ECS + MonoBehaviour architecture:
 
 - **ECS (DOTS):** All performance-critical runtime systems live in `Entities Subscene.unity` and run via Unity.Entities
-- **MonoBehaviour:** VR input (`PlayerShootingInput`, `PlayerMover`), scene entry point (`AceOfAges.cs`)
+- **MonoBehaviour:** VR input (`PlayerShootingInput`), scene entry point (`AceOfAges.cs`)
 - **Bridge:** `TransformFollowerSystem` and `PlayerTrackingInitSystem` connect the MonoBehaviour player rig to ECS entities
 
 ```mermaid
 flowchart TD
     subgraph MAIN["Main Scene — MonoBehaviour Layer"]
         AOA["AceOfAges.cs\nEntry point — triggers enemy spawns"]
-        PM["PlayerMover.cs\nVR locomotion MonoBehaviour"]
         PSI["PlayerShootingInput.cs\nInput System → ECS doShoot flag"]
     end
 

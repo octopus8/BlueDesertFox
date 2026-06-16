@@ -71,7 +71,6 @@ RequireForUpdate<PlayerTransformReference>()
    b. Execute search based on mode:
       - FindByName: GameObject.Find(name)
       - FindByTag: GameObject.FindGameObjectWithTag(tag)
-      - FindAutoHandPlayer: FindFirstObjectByType<AutoHandPlayer>()
       - FindMainCamera: Camera.main
    c. If found:
       - Get PlayerTransformReference component

@@ -76,28 +76,10 @@ public partial class PlayerTrackingInitSystem : SystemBase
             
             if (playerTransform == null)
             {
-                // If AutoDetect mode failed with AutoHandPlayer, try Main Camera as fallback
-                if (search.ValueRO.mode == PlayerTrackingSearch.Mode.FindAutoHandPlayer)
-                {
-                    Debug.LogWarning("[PlayerTrackingInitSystem] AutoHandPlayer not found, trying Main Camera...");
-                    var modifiedSearch = search.ValueRO;
-                    modifiedSearch.mode = PlayerTrackingSearch.Mode.FindMainCamera;
-                    playerTransform = FindPlayer(modifiedSearch);
-                    
-                    if (playerTransform != null)
-                    {
-                        // Update the mode to reflect what actually worked
-                        search.ValueRW.mode = PlayerTrackingSearch.Mode.FindMainCamera;
-                    }
-                }
-                
-                if (playerTransform == null)
-                {
-                    Debug.LogWarning($"[PlayerTrackingInitSystem] Could not find player GameObject! " +
-                        $"Mode: {search.ValueRO.mode}, Search: '{search.ValueRO.searchString}'\n" +
-                        $"The terrain system will not work until a player is found.");
-                    continue;
-                }
+                Debug.LogWarning($"[PlayerTrackingInitSystem] Could not find player GameObject! " +
+                    $"Mode: {search.ValueRO.mode}, Search: '{search.ValueRO.searchString}'\n" +
+                    $"The terrain system will not work until a player is found.");
+                continue;
             }
             
             Debug.Log($"[PlayerTrackingInitSystem] ✅ Found player: {playerTransform.name} at position {playerTransform.position}");
@@ -121,8 +103,8 @@ public partial class PlayerTrackingInitSystem : SystemBase
     
     /// <summary>
     /// Searches for the player <see cref="Transform"/> using the mode and search string stored in
-    /// <paramref name="searchParams"/>. Supports FindByName, FindByTag, FindAutoHandPlayer, and
-    /// FindMainCamera modes. Returns <c>null</c> and logs a warning when the target is not found.
+    /// <paramref name="searchParams"/>. Supports FindByName, FindByTag, and FindMainCamera modes.
+    /// Returns <c>null</c> and logs a warning when the target is not found.
     /// </summary>
     private Transform FindPlayer(PlayerTrackingSearch searchParams)
     {
@@ -184,19 +166,6 @@ public partial class PlayerTrackingInitSystem : SystemBase
                 catch (UnityException e)
                 {
                     Debug.LogError($"[PlayerTrackingInitSystem] Tag '{tag}' does not exist! {e.Message}");
-                }
-                break;
-                
-            case PlayerTrackingSearch.Mode.FindAutoHandPlayer:
-                var autoHandPlayer = Object.FindFirstObjectByType<Autohand.AutoHandPlayer>();
-                if (autoHandPlayer != null)
-                {
-                    Debug.Log($"[PlayerTrackingInitSystem] Found AutoHandPlayer: '{autoHandPlayer.name}'");
-                    return autoHandPlayer.transform;
-                }
-                else
-                {
-                    Debug.LogWarning("[PlayerTrackingInitSystem] AutoHandPlayer component not found in scene");
                 }
                 break;
                 

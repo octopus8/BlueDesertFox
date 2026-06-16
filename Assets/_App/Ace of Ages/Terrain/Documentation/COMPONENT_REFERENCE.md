@@ -117,8 +117,7 @@ public struct PlayerTrackingSearch : IComponentData
     {
         FindByName = 0,
         FindByTag = 1,
-        FindAutoHandPlayer = 2,
-        FindMainCamera = 3
+        FindMainCamera = 2
     }
     
     public Mode mode;                           // Search method
@@ -129,7 +128,7 @@ public struct PlayerTrackingSearch : IComponentData
 
 **Typical Values**:
 ```csharp
-mode: Mode.FindAutoHandPlayer
+mode: Mode.FindMainCamera
 searchString: "" (not used for this mode)
 initialized: false (becomes true after player found)
 ```

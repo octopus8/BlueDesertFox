@@ -13,7 +13,6 @@ public class TerrainConfigAuthoring : MonoBehaviour
         AutoDetect,
         FindByName,
         FindByTag,
-        FindAutoHandPlayer,
         FindMainCamera
     }
     
@@ -173,16 +172,12 @@ public class TerrainConfigAuthoring : MonoBehaviour
                     searchMode = PlayerTrackingSearch.Mode.FindByTag;
                     searchString = authoring.playerTag;
                     break;
-                case PlayerSearchMode.FindAutoHandPlayer:
-                    searchMode = PlayerTrackingSearch.Mode.FindAutoHandPlayer;
-                    break;
                 case PlayerSearchMode.FindMainCamera:
                     searchMode = PlayerTrackingSearch.Mode.FindMainCamera;
                     break;
                 case PlayerSearchMode.AutoDetect:
                 default:
-                    // Auto-detect: try AutoHandPlayer first, then Main Camera
-                    searchMode = PlayerTrackingSearch.Mode.FindAutoHandPlayer;
+                    searchMode = PlayerTrackingSearch.Mode.FindMainCamera;
                     break;
             }
             
@@ -281,16 +276,9 @@ public class TerrainConfigAuthoring : MonoBehaviour
                     return go?.transform;
                 }
                 break;
-            case PlayerSearchMode.FindAutoHandPlayer:
-                var autoHandPlayer = FindFirstObjectByType<Autohand.AutoHandPlayer>();
-                return autoHandPlayer?.transform;
             case PlayerSearchMode.FindMainCamera:
                 return Camera.main?.transform;
             case PlayerSearchMode.AutoDetect:
-                // Try AutoHandPlayer first
-                var player = FindFirstObjectByType<Autohand.AutoHandPlayer>();
-                if (player != null) return player.transform;
-                // Fall back to main camera
                 return Camera.main?.transform;
         }
         return null;
