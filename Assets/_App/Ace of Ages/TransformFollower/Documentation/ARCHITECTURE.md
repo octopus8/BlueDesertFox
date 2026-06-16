@@ -1,7 +1,7 @@
 # TransformFollower — Architecture Diagrams
 
 > **Scope:** This document covers the TransformFollower subsystem only.  
-> For the Ace of Ages scene-wide architecture, see **[SCENE_OVERVIEW.md](SCENE_OVERVIEW.md)**.
+> For the Ace of Ages scene-wide architecture, see **[SCENE_OVERVIEW.md](../../Documentation/SCENE_OVERVIEW.md)**.
 
 
 

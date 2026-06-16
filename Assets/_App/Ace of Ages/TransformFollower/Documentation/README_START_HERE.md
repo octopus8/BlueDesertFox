@@ -7,7 +7,7 @@
 > | 5-minute setup | [QUICKSTART.md](QUICKSTART.md) |
 > | Navigation index | [INDEX.md](INDEX.md) |
 > | Full technical reference | [TransformFollowerREADME.md](TransformFollowerREADME.md) |
-> | Visual architecture diagrams | [../Documentation/ARCHITECTURE.md](../Documentation/ARCHITECTURE.md) |
+> | Visual architecture diagrams | [../../Documentation/ARCHITECTURE.md](../../Documentation/ARCHITECTURE.md) |
 > | Performance and implementation | [IMPLEMENTATION_SUMMARY.md](IMPLEMENTATION_SUMMARY.md) |
 > | Testing checklist | [TESTING_GUIDE.md](TESTING_GUIDE.md) |
 
@@ -77,7 +77,7 @@ Press Play - the entity should follow the target! ✅
 |---------------|-----------|
 | Quick setup | [QUICKSTART.md](QUICKSTART.md) |
 | Test it works | [TESTING_GUIDE.md](TESTING_GUIDE.md) |
-| Understand how it works | [ARCHITECTURE.md](ARCHITECTURE.md) |
+| Understand how it works | [../../Documentation/ARCHITECTURE.md](../../Documentation/ARCHITECTURE.md) |
 | Complete details | [TransformFollowerREADME.md](TransformFollowerREADME.md) |
 | Code examples | [TransformFollowerExample.cs](../TransformFollowerExample.cs) |
 | Find everything | [INDEX.md](INDEX.md) |
@@ -226,7 +226,7 @@ entityManager.SetComponentData(myEntity, new TransformFollowerSettings
 4. ✅ Test and iterate
 
 ### Advanced Path
-1. ✅ Read [ARCHITECTURE.md](ARCHITECTURE.md) for deep understanding
+1. ✅ Read [../../Documentation/ARCHITECTURE.md](../../Documentation/ARCHITECTURE.md) for deep understanding
 2. ✅ Review [TransformFollowerREADME.md](TransformFollowerREADME.md)
 3. ✅ Enable optimized system if needed
 4. ✅ Integrate with your existing systems
@@ -297,7 +297,7 @@ The system is installed and ready to use. Start with:
 
 1. Check [QUICKSTART.md](QUICKSTART.md) for setup issues
 2. See [TESTING_GUIDE.md](TESTING_GUIDE.md) for debugging
-3. Review [ARCHITECTURE.md](ARCHITECTURE.md) for understanding
+3. Review [../../Documentation/ARCHITECTURE.md](../../Documentation/ARCHITECTURE.md) for understanding
 4. Read [TransformFollowerREADME.md](TransformFollowerREADME.md) for details
 
 ---

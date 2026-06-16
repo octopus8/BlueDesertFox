@@ -162,7 +162,7 @@ Bridge between ECS entities in the subscene and GameObject Transforms in the mai
 | Technical README      | `TransformFollower/TransformFollowerREADME.md` | Full technical docs           |
 | Implementation        | `TransformFollower/IMPLEMENTATION_SUMMARY.md`  | Performance details           |
 | Testing Guide         | `TransformFollower/TESTING_GUIDE.md`           | Test scenarios                |
-| Architecture Diagrams | `Documentation/ARCHITECTURE.md`                | Visual diagrams (this folder) |
+| Architecture Diagrams | `TransformFollower/Documentation/ARCHITECTURE.md` | Visual diagrams               |
 
 
 **Key systems:** `TransformFollowerSystemOptimized` (active), `TransformFollowerSystem` (`[DisableAutoCreation]`), `TransformFollowerInitSystem`
