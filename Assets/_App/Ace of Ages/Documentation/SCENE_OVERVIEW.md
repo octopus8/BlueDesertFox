@@ -100,21 +100,21 @@ flowchart TD
 
 ## Key Singletons (ECS)
 
-| Singleton | Description |
-| ----------------------------------- | ----------------------------------------------- |
-| `TerrainTileConfig` | All terrain config parameters |
-| `ScrollOffset` | Accumulated terrain scroll offset |
-| `TerrainScrollVelocity` | Current scroll direction + speed |
-| `PlayerTransformReference` | Managed: player GO Transform |
-| `PlayerTargetVelocity` | Smoothed player horizontal velocity |
-| `CameraDataSingleton` | Camera position + forward for collider priority |
-| `StaticObjectSpawnerConfig` | Static object spawn density/filters |
-| `StaticObjectLODConfig` | LOD distances and VR frame-skip config |
-| `PlayerTerrainScrollVelocityConfig` | Player scroll speed/rotation settings |
-| `WorldOriginTransformReference` | Managed: world origin GO Transform |
-| `PrefabEntitiesReferences` | Enemy, bullet, dirt explosion prefab entities |
-| `BulletPoolConfig` | Pool size config |
-| `DirtExplosionConfig` | Pool size + lifetime config |
+| Singleton | Description | Entity source |
+| ----------------------------------- | ----------------------------------------------- | ------------------------------------------ |
+| `TerrainTileConfig` | All terrain config parameters | `TerrainConfigAuthoring` |
+| `ScrollOffset` | Accumulated terrain scroll offset | `TerrainConfigAuthoring` |
+| `TerrainScrollVelocity` | Current scroll direction + speed | `TerrainConfigAuthoring` |
+| `PlayerTransformReference` | Managed: player GO Transform | `TerrainConfigAuthoring` |
+| `PlayerTargetVelocity` | Smoothed player horizontal velocity | `TerrainConfigAuthoring` |
+| `CameraDataSingleton` | Camera position + forward for collider priority | `CameraDataUpdateSystem` (runtime) |
+| `StaticObjectSpawnerConfig` | Static object spawn density/filters | `StaticObjectSpawnerConfigAuthoring` |
+| `StaticObjectLODConfig` | LOD distances and VR frame-skip config | `StaticObjectSpawnerConfigAuthoring` |
+| `PlayerTerrainScrollVelocityConfig` | Player scroll speed/rotation settings | `PlayerScrollVelocityAuthoring` |
+| `WorldOriginTransformReference` | Managed: world origin GO Transform | `PlayerScrollVelocityAuthoring` |
+| `PrefabEntitiesReferences` | Enemy, bullet, dirt explosion prefab entities | `PrefabEntitiesReferencesAuthoring` |
+| `BulletPoolConfig` | Pool size config | `BulletPoolConfigAuthoring` |
+| `DirtExplosionConfig` | Pool size + lifetime config | `DirtExplosionPoolConfigAuthoring` |
 
 ---
 

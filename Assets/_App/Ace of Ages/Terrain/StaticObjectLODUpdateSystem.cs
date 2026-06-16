@@ -11,7 +11,7 @@ using UnityEngine;
 #endif
 
 /// <summary>
-/// Burst-compiled system that updates tree mesh LOD levels based on distance to player.
+/// Burst-compiled system that updates static object mesh LOD levels based on distance to player.
 /// Uses spatial chunking, HashSet filtering, and parallel jobs for maximum performance.
 /// Applies hysteresis to prevent LOD flickering at transition boundaries.
 /// VR OPTIMIZED: Runs every N frames on mobile VR platforms to reduce CPU load.
@@ -20,10 +20,10 @@ using UnityEngine;
 [UpdateInGroup(typeof(SimulationSystemGroup))]
 [UpdateAfter(typeof(TerrainDistanceTrackingSystem))]
 [BurstCompile]
-public partial struct TreeLODUpdateSystem : ISystem
+public partial struct StaticObjectLODUpdateSystem : ISystem
 {
     private const float ChunkSize = 100f; // 100m x 100m chunks
-    private const int MaxTreesPerFrame = 500; // Frame budget to prevent spikes
+    private const int MaxStaticObjectsPerFrame = 500; // Frame budget to prevent spikes
     
     // VR optimization: Skip frames on mobile platforms
     private const int VRFrameSkip = 2; // Update every 2-3 frames on Quest 3
@@ -64,9 +64,9 @@ public partial struct TreeLODUpdateSystem : ISystem
         _lastDeltaTime = 0f;
         
 #if UNITY_EDITOR
-        s_ProfilerMarker.Data = new ProfilerMarker("TreeLOD.Update");
-        s_VelocityCalcMarker.Data = new ProfilerMarker("TreeLOD.VelocityCalc");
-        s_ChunkFilterMarker.Data = new ProfilerMarker("TreeLOD.ChunkFilter");
+        s_ProfilerMarker.Data = new ProfilerMarker("StaticObjectLOD.Update");
+        s_VelocityCalcMarker.Data = new ProfilerMarker("StaticObjectLOD.VelocityCalc");
+        s_ChunkFilterMarker.Data = new ProfilerMarker("StaticObjectLOD.ChunkFilter");
 #endif
     }
 
@@ -83,9 +83,9 @@ public partial struct TreeLODUpdateSystem : ISystem
     // NOTE: Cannot use [BurstCompile] here because we access managed PlayerTransformReference component
     /// <summary>
     /// Reads the player world position (main thread), determines which spatial chunks are within
-    /// view distance, then schedules <c>TreeLODUpdateJob</c> in parallel to apply the correct
-    /// <see cref="MaterialMeshInfo"/> LOD slot to each tree based on its distance to the player.
-    /// Distance-tiered frame-budget skipping is applied for trees far from the camera.
+    /// view distance, then schedules <c>StaticObjectLODUpdateJob</c> in parallel to apply the correct
+    /// <see cref="MaterialMeshInfo"/> LOD slot to each static object based on its distance to the player.
+    /// Distance-tiered frame-budget skipping is applied for static objects far from the camera.
     /// </summary>
     public void OnUpdate(ref SystemState state)
     {
@@ -198,7 +198,7 @@ public partial struct TreeLODUpdateSystem : ISystem
             lodMeshInfos[i] = lodInfoBuffer[i].materialMeshInfo;
         
         // Schedule Burst-compiled job for LOD updates with distance-tiered filtering
-        var updateJob = new TreeLODUpdateJob
+        var updateJob = new StaticObjectLODUpdateJob
         {
             playerPosition = playerPosition,
             lod0Distance = lodConfig.lod0Distance,
@@ -207,7 +207,7 @@ public partial struct TreeLODUpdateSystem : ISystem
             hysteresis = lodConfig.hysteresisDelta,
             lodsPerObjectType = lodConfig.lodsPerObjectType,
             activeChunksSet = _activeChunksSet,
-            maxTreesPerFrame = MaxTreesPerFrame,
+            maxStaticObjectsPerFrame = MaxStaticObjectsPerFrame,
             frameCounter = _frameCounter, // Pass frame counter for distance-tiered updates
             lodMeshInfos = lodMeshInfos
         };
@@ -227,21 +227,21 @@ public partial struct TreeLODUpdateSystem : ISystem
         if (lodConfig.enableObjectLODDebug && _frameCounter % 120 == 0)
         {
             state.Dependency.Complete();
-            // Get tree count for logging
+            // Get static object count for logging
             var query = SystemAPI.QueryBuilder().WithAll<GlobalStaticObjectInstance, StaticObjectChunkMembership>().Build();
-            int totalTrees = query.CalculateEntityCount();
-            UnityEngine.Debug.Log($"[TreeLOD] Velocity: {velocity:F2} m/s, FrameSkip: {effectiveFrameSkip}, Processing {_activeChunks.Length} chunks (total: {totalTrees} trees)");
+            int totalStaticObjects = query.CalculateEntityCount();
+            UnityEngine.Debug.Log($"[StaticObjectLOD] Velocity: {velocity:F2} m/s, FrameSkip: {effectiveFrameSkip}, Processing {_activeChunks.Length} chunks (total: {totalStaticObjects} static objects)");
         }
     }
     
     /// <summary>
-    /// Burst-compiled job that updates tree LOD levels in parallel.
+    /// Burst-compiled job that updates static object LOD levels in parallel.
     /// On a LOD change, writes the correct <see cref="MaterialMeshInfo"/> directly to the entity
     /// so Entities.Graphics (BRG) immediately switches the rendered mesh/material.
     /// OPTIMIZED v3.0: Added distance-tiered updates (4 tiers: 0-100m, 100-200m, 200-300m, 300m+).
     /// </summary>
     [BurstCompile]
-    private partial struct TreeLODUpdateJob : IJobEntity
+    private partial struct StaticObjectLODUpdateJob : IJobEntity
     {
         [ReadOnly] public float3 playerPosition;
         [ReadOnly] public float lod0Distance;
@@ -250,12 +250,12 @@ public partial struct TreeLODUpdateSystem : ISystem
         [ReadOnly] public float hysteresis;
         [ReadOnly] public int lodsPerObjectType;
         [ReadOnly] public NativeHashSet<int2> activeChunksSet;
-        [ReadOnly] public int maxTreesPerFrame;
+        [ReadOnly] public int maxStaticObjectsPerFrame;
         [ReadOnly] public int frameCounter; // For distance-tiered updates
         [ReadOnly] public NativeArray<MaterialMeshInfo> lodMeshInfos;
         
         /// <summary>
-        /// Skips trees outside the active chunk set, applies distance-tiered frame-budget skipping,
+        /// Skips static objects outside the active chunk set, applies distance-tiered frame-budget skipping,
         /// calculates XZ distance to the player, selects the appropriate LOD slot with hysteresis,
         /// and writes the correct <see cref="MaterialMeshInfo"/> BRG ID for the chosen LOD.
         /// </summary>
@@ -269,16 +269,16 @@ public partial struct TreeLODUpdateSystem : ISystem
             if (!activeChunksSet.Contains(chunkMembership.chunkCoord))
                 return;
             
-            // Calculate 2D distance (XZ plane) from player to tree
+            // Calculate 2D distance (XZ plane) from player to static object
             float2 objectPos2D = new float2(transform.Position.x, transform.Position.z);
             float2 playerPos2D = new float2(playerPosition.x, playerPosition.z);
             float distance = math.distance(objectPos2D, playerPos2D);
             
             // OPTIMIZED v3.0: Distance-tiered updates (4 tiers)
-            // Near trees (0-100m): Update every frame
-            // Mid trees (100-200m): Update every 2 frames
-            // Far trees (200-300m): Update every 4 frames
-            // Very far trees (300m+): Update every 8 frames
+            // Near static objects (0-100m): Update every frame
+            // Mid static objects (100-200m): Update every 2 frames
+            // Far static objects (200-300m): Update every 4 frames
+            // Very far static objects (300m+): Update every 8 frames
             if (distance > 300f && frameCounter % 8 != 0)
                 return;
             if (distance > 200f && frameCounter % 4 != 0)

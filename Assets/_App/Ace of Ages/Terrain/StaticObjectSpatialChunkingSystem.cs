@@ -5,16 +5,16 @@ using Unity.Transforms;
 
 /// <summary>
 /// Burst-compiled system that assigns spatial chunk membership to trees for efficient LOD update batching.
-/// Runs before TreeLODUpdateSystem to keep chunk data current.
+/// Runs before StaticObjectLODUpdateSystem to keep chunk data current.
 /// Uses parallel jobs for maximum performance with zero frame budgeting overhead.
 /// </summary>
 [RequireMatchingQueriesForUpdate]
 [UpdateInGroup(typeof(SimulationSystemGroup))]
-[UpdateBefore(typeof(TreeLODUpdateSystem))]
+[UpdateBefore(typeof(StaticObjectLODUpdateSystem))]
 [BurstCompile]
 public partial struct TreeSpatialChunkingSystem : ISystem
 {
-    private const float ChunkSize = 100f; // Must match TreeLODUpdateSystem.ChunkSize
+    private const float ChunkSize = 100f; // Must match StaticObjectLODUpdateSystem.ChunkSize
 
     /// <summary>Registers <see cref="StaticObjectLODConfig"/> and <see cref="EndSimulationEntityCommandBufferSystem.Singleton"/> requirements.</summary>
     [BurstCompile]
