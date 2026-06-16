@@ -2,6 +2,8 @@
 
 Top-level index for all subsystem documentation in the Ace of Ages scene.
 
+**Complete document listing:** [Table of Contents](TABLE_OF_CONTENTS.md)
+
 ---
 
 ## Architecture Summary
@@ -154,15 +156,15 @@ Dirt explosion pool triggered on bullet-terrain collisions.
 Bridge between ECS entities in the subscene and GameObject Transforms in the main scene.
 
 
-| Document              | Location                                       | Description                   |
-| --------------------- | ---------------------------------------------- | ----------------------------- |
-| Start Here            | `TransformFollower/README_START_HERE.md`       | Entry point, 3-step setup     |
-| Index                 | `TransformFollower/INDEX.md`                   | Navigation index              |
-| Quick Start           | `TransformFollower/QUICKSTART.md`              | 5-minute setup                |
-| Technical README      | `TransformFollower/TransformFollowerREADME.md` | Full technical docs           |
-| Implementation        | `TransformFollower/IMPLEMENTATION_SUMMARY.md`  | Performance details           |
-| Testing Guide         | `TransformFollower/TESTING_GUIDE.md`           | Test scenarios                |
-| Architecture Diagrams | `TransformFollower/Documentation/ARCHITECTURE.md` | Visual diagrams               |
+| Document              | Location                                                       | Description                   |
+| --------------------- | -------------------------------------------------------------- | ----------------------------- |
+| Start Here            | `TransformFollower/Documentation/README_START_HERE.md`        | Entry point, 3-step setup     |
+| Index                 | `TransformFollower/Documentation/INDEX.md`                    | Navigation index              |
+| Quick Start           | `TransformFollower/Documentation/QUICKSTART.md`               | 5-minute setup                |
+| Technical README      | `TransformFollower/Documentation/TransformFollowerREADME.md`  | Full technical docs           |
+| Implementation        | `TransformFollower/Documentation/IMPLEMENTATION_SUMMARY.md`   | Performance details           |
+| Testing Guide         | `TransformFollower/Documentation/TESTING_GUIDE.md`            | Test scenarios                |
+| Architecture Diagrams | `TransformFollower/Documentation/ARCHITECTURE.md`             | Visual diagrams               |
 
 
 **Key systems:** `TransformFollowerSystemOptimized` (active), `TransformFollowerSystem` (`[DisableAutoCreation]`), `TransformFollowerInitSystem`
