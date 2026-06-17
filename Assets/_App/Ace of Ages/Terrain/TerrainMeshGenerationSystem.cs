@@ -532,25 +532,43 @@ public struct GenerateTileMeshJob : IJobParallelFor
             float fX = (float)worldX;
             float fZ = (float)worldZ;
 
-            // Find the true minimum 2D distance from this vertex to the trail centerline.
-            // The previous single-Z tangent approach measured distance to the tangent LINE
-            // at the vertex's own Z, which is correct for a straight trail but leaves
-            // inside-of-bend gaps where the nearest trail point is at a different Z.
-            // Sweeping ±searchRange along Z and taking the minimum Euclidean distance
-            // to any sampled centre point closes all bend gaps regardless of curvature.
-            const int kSearchSamples = 9;
+            // Two-stage minimum-distance search for the nearest point on the trail centerline.
+            // With high amplitude/frequency settings the centerline can shift ~30 m between
+            // samples, so a single coarse pass of 9 points underestimates how close a vertex
+            // is to the centerline at sharp bends, causing the flat zone to appear narrower.
+            //
+            // Stage 1 – coarse pass: 32 uniform samples across ±searchRange in Z.
+            // Stage 2 – refine pass: 16 samples in a ±2-step window around the coarse best,
+            //           bringing worst-case distance error to well under 1 m.
             float searchRange = halfWidth + data.trailBlendWidth;
             float minDist2D = float.MaxValue;
-            for (int si = 0; si < kSearchSamples; si++)
+            float bestSz    = fZ;
+
+            const int kCoarseSamples = 32;
+            float coarseStep = (2f * searchRange) / (kCoarseSamples - 1);
+            for (int si = 0; si < kCoarseSamples; si++)
             {
-                float t = si / (float)(kSearchSamples - 1); // 0..1
-                float sz  = fZ + math.lerp(-searchRange, searchRange, t);
+                float sz  = fZ - searchRange + si * coarseStep;
+                float scx = data.trailAmplitude * noise.snoise(new float2(sz * data.trailFrequency + data.trailSeed, 0f));
+                float dx  = fX - scx;
+                float dz  = fZ - sz;
+                float d2  = dx * dx + dz * dz;
+                if (d2 < minDist2D) { minDist2D = d2; bestSz = sz; }
+            }
+
+            const int kRefineSamples = 16;
+            float refineRange = coarseStep * 2f;
+            float refineStep  = (2f * refineRange) / (kRefineSamples - 1);
+            for (int si = 0; si < kRefineSamples; si++)
+            {
+                float sz  = bestSz - refineRange + si * refineStep;
                 float scx = data.trailAmplitude * noise.snoise(new float2(sz * data.trailFrequency + data.trailSeed, 0f));
                 float dx  = fX - scx;
                 float dz  = fZ - sz;
                 float d2  = dx * dx + dz * dz;
                 if (d2 < minDist2D) minDist2D = d2;
             }
+
             float minDist = math.sqrt(minDist2D);
 
             if (minDist < halfWidth)
