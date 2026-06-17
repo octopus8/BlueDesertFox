@@ -1,3 +1,4 @@
+using Sirenix.OdinInspector;
 using Unity.Entities;
 using Unity.Mathematics;
 using UnityEngine;
@@ -20,9 +21,12 @@ public class TerrainConfigAuthoring : MonoBehaviour
     [Tooltip("How to find the player GameObject at runtime")]
     public PlayerSearchMode playerSearchMode = PlayerSearchMode.AutoDetect;
     
+    [ShowIf("playerSearchMode", PlayerSearchMode.FindByName)]
     [Tooltip("GameObject name to search for (only used if mode is FindByName)")]
     public string playerName = "XR Origin Hands (XR Rig)";
     
+    [ShowIf("playerSearchMode", PlayerSearchMode.FindByTag)]
+    [ValueDropdown("@UnityEditorInternal.InternalEditorUtility.tags")]
     [Tooltip("GameObject tag to search for (only used if mode is FindByTag)")]
     public string playerTag = "Player";
     
@@ -35,13 +39,6 @@ public class TerrainConfigAuthoring : MonoBehaviour
     
     [Tooltip("Number of vertices per side of each tile (higher = more detailed)")]
     public int verticesPerSide = 32;
-    
-    [Header("Auto-Scrolling")]
-    [Tooltip("Enable automatic terrain scrolling along Z axis (endless runner mode)")]
-    public bool scrollEnabled = false;
-    
-    [Tooltip("Speed of terrain scrolling in units per second (5.0 = 5 m/s forward)")]
-    public float scrollSpeed = 5.0f;
     
     [Header("Procedural Noise Settings")]
     [Tooltip("Base frequency of the noise (higher = more variation)")]
@@ -73,16 +70,6 @@ public class TerrainConfigAuthoring : MonoBehaviour
     [Tooltip("Material to use for terrain rendering (should use URP Lit shader)")]
     public Material terrainMaterial;
     
-    [Header("Debug/Testing")]
-    [Tooltip("Enable terrain tile rendering (disable to test tree rendering only)")]
-    public bool renderTerrain = true;
-    
-    [Tooltip("Enable physics collider generation (disable for debugging/performance testing)")]
-    public bool enablePhysicsColliders = true;
-    
-    [Tooltip("Enable TerrainRenderingDebugSystem logging (disable to reduce console spam)")]
-    public bool enableRenderingDebug;
-    
     [Header("Physics Optimization")]
     [Range(1, 20)]
     [Tooltip("Maximum number of terrain meshes generated per frame (Burst jobs)")]
@@ -110,6 +97,16 @@ public class TerrainConfigAuthoring : MonoBehaviour
     [Tooltip("Physics layer index for all terrain colliders")]
     public int terrainPhysicsLayer = 0;
 
+    [Header("Debug/Testing")]
+    [Tooltip("Enable terrain tile rendering (disable to test tree rendering only)")]
+    public bool renderTerrain = true;
+    
+    [Tooltip("Enable physics collider generation (disable for debugging/performance testing)")]
+    public bool enablePhysicsColliders = true;
+    
+    [Tooltip("Enable TerrainRenderingDebugSystem logging (disable to reduce console spam)")]
+    public bool enableRenderingDebug;
+    
     /// <summary>Bakes all terrain configuration fields into the <see cref="TerrainTileConfig"/> singleton ECS component.</summary>
     public class Baker : Baker<TerrainConfigAuthoring>
     {
