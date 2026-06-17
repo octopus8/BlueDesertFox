@@ -217,6 +217,12 @@ public partial struct TerrainTreeSpawningSystemOptimized : ISystem
         using (s_PositionCalcMarker.Auto())
 #endif
         {
+            // Read trail config for spawn exclusion
+            TrailConfig trailConfig = default;
+            bool hasTrailConfig = SystemAPI.HasSingleton<TrailConfig>();
+            if (hasTrailConfig)
+                trailConfig = SystemAPI.GetSingleton<TrailConfig>();
+
             // Schedule parallel job to calculate tree spawn positions
             var positionJob = new CalculateStaticObjectSpawnPositionsJob
             {
@@ -227,7 +233,9 @@ public partial struct TerrainTreeSpawningSystemOptimized : ISystem
                 cameraPosition = cameraData.position,
                 treeTypeCount = treeTypeCount,
                 objectPrefabRotations = objectPrefabRotations,
-                objectTypeSpawnWeights = objectTypeSpawnWeights
+                objectTypeSpawnWeights = objectTypeSpawnWeights,
+                trailConfig = trailConfig,
+                hasTrailConfig = hasTrailConfig
             };
             
             state.Dependency = positionJob.ScheduleParallel(state.Dependency);
@@ -314,6 +322,8 @@ partial struct CalculateStaticObjectSpawnPositionsJob : IJobEntity
     [ReadOnly] public int treeTypeCount;
     [ReadOnly] public NativeArray<quaternion> objectPrefabRotations;
     [ReadOnly] public NativeArray<float> objectTypeSpawnWeights;
+    [ReadOnly] public TrailConfig trailConfig;
+    [ReadOnly] public bool hasTrailConfig;
     
     /// <summary>
     /// For this tile, generates deterministic random XZ positions, samples the tile mesh for height
@@ -407,6 +417,19 @@ partial struct CalculateStaticObjectSpawnPositionsJob : IJobEntity
             // Slope filtering
             if (normal.y < config.slopeThreshold)
                 continue;
+
+            // Trail exclusion: reject candidates that fall inside the flat trail or its blend zone
+            if (hasTrailConfig && trailConfig.enabled)
+            {
+                float noiseX = tile.gridCoordinate.x * terrainConfig.tileSize + randomX;
+                float noiseZ = tile.gridCoordinate.y * terrainConfig.tileSize + randomZ;
+                float trailCenterX = trailConfig.amplitude * noise.snoise(
+                    new float2(noiseZ * trailConfig.frequency + trailConfig.seed, 0f));
+                float distFromTrail = math.abs(noiseX - trailCenterX);
+                float exclusionRadius = trailConfig.width * 0.5f + trailConfig.blendWidth;
+                if (distFromTrail < exclusionRadius)
+                    continue;
+            }
             
             // Select object type using normalized spawn weights
             float typeRoll = random.NextFloat(0f, 1f);

@@ -5912,7 +5912,7 @@ MonoBehaviour:
   playerTag: Player
   tileSize: 256
   viewDistance: 1100
-  verticesPerSide: 16
+  verticesPerSide: 32
   noiseFrequency: 0.005
   noiseAmplitude: 60
   noiseOctaves: 4
@@ -5929,12 +5929,12 @@ MonoBehaviour:
   physicsColliderVertexStride: 1
   terrainPhysicsLayer: 11
   trailEnabled: 1
-  trailWidth: 50
-  trailBlendWidth: 8
+  trailWidth: 200
+  trailBlendWidth: 0
   trailHeight: 0
   trailSeed: 0
-  trailFrequency: 0.003
-  trailAmplitude: 40
+  trailFrequency: 0.01
+  trailAmplitude: 50
   renderTerrain: 1
   enablePhysicsColliders: 1
   enableRenderingDebug: 0
