@@ -111,7 +111,7 @@ public partial struct TerrainTreeSpawningSystemOptimized : ISystem
             if (SystemAPI.HasSingleton<TrailConfig>())
             {
                 var trailCfg = SystemAPI.GetSingleton<TrailConfig>();
-                if (trailCfg.enabled)
+                if (trailCfg.trail1.enabled || trailCfg.trail2.enabled || trailCfg.trail3.enabled)
                 {
                     var clearEcb = SystemAPI.GetSingleton<BeginSimulationEntityCommandBufferSystem.Singleton>()
                         .CreateCommandBuffer(state.WorldUnmanaged);
@@ -449,32 +449,17 @@ partial struct CalculateStaticObjectSpawnPositionsJob : IJobEntity
             if (normal.y < config.slopeThreshold)
                 continue;
 
-            // Trail exclusion: reject candidates inside the flat trail or its blend zone.
+            // Trail exclusion: reject candidates inside any trail's flat zone or blend zone.
             // Uses the same multi-sample minimum-2D-distance approach as SampleNoise so
-            // the object-free zone exactly matches the rendered trail at every bend.
-            if (hasTrailConfig && trailConfig.enabled)
+            // the object-free corridors exactly match the rendered trails at every bend.
+            if (hasTrailConfig)
             {
                 float noiseX = tile.gridCoordinate.x * terrainConfig.tileSize + randomX;
                 float noiseZ = tile.gridCoordinate.y * terrainConfig.tileSize + randomZ;
 
-                float exclusionRadius = trailConfig.width * 0.5f + trailConfig.blendWidth;
-
-                const int kSearchSamples = 9;
-                float searchRange = exclusionRadius;
-                float minDist2D = float.MaxValue;
-                for (int si = 0; si < kSearchSamples; si++)
-                {
-                    float t   = si / (float)(kSearchSamples - 1);
-                    float sz  = noiseZ + math.lerp(-searchRange, searchRange, t);
-                    float scx = trailConfig.amplitude * noise.snoise(new float2(sz * trailConfig.frequency + trailConfig.seed, 0f));
-                    float dx  = noiseX - scx;
-                    float dz  = noiseZ - sz;
-                    float d2  = dx * dx + dz * dz;
-                    if (d2 < minDist2D) minDist2D = d2;
-                }
-                float minDist = math.sqrt(minDist2D);
-
-                if (minDist < exclusionRadius)
+                if (IsInsideTrailExclusionZone(noiseX, noiseZ, trailConfig.trail1) ||
+                    IsInsideTrailExclusionZone(noiseX, noiseZ, trailConfig.trail2) ||
+                    IsInsideTrailExclusionZone(noiseX, noiseZ, trailConfig.trail3))
                     continue;
             }
             
@@ -537,6 +522,35 @@ partial struct CalculateStaticObjectSpawnPositionsJob : IJobEntity
             
             actualStaticObjectsSpawned++;
         }
+    }
+
+    /// <summary>
+    /// Returns true when world position (noiseX, noiseZ) falls within the exclusion corridor of
+    /// the given trail (flat zone + blend zone). Returns false immediately if the trail is disabled.
+    /// Uses a 9-sample linear search — lighter than the mesh system's 48-sample two-stage pass,
+    /// sufficient for spawn-point rejection where sub-meter accuracy is not required.
+    /// </summary>
+    private static bool IsInsideTrailExclusionZone(float noiseX, float noiseZ, in TrailInstanceConfig trail)
+    {
+        if (!trail.enabled)
+            return false;
+
+        float exclusionRadius = trail.width * 0.5f + trail.blendWidth;
+        float minDist2D = float.MaxValue;
+
+        const int kSearchSamples = 9;
+        for (int si = 0; si < kSearchSamples; si++)
+        {
+            float t   = si / (float)(kSearchSamples - 1);
+            float sz  = noiseZ + math.lerp(-exclusionRadius, exclusionRadius, t);
+            float scx = trail.amplitude * noise.snoise(new float2(sz * trail.frequency + trail.seed, 0f));
+            float dx  = noiseX - scx;
+            float dz  = noiseZ - sz;
+            float d2  = dx * dx + dz * dz;
+            if (d2 < minDist2D) minDist2D = d2;
+        }
+
+        return math.sqrt(minDist2D) < exclusionRadius;
     }
 }
 

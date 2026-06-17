@@ -5928,13 +5928,25 @@ MonoBehaviour:
   physicsColliderFullResolutionDistance: 128
   physicsColliderVertexStride: 1
   terrainPhysicsLayer: 11
-  trailEnabled: 1
-  trailWidth: 100
-  trailBlendWidth: 25
   trailHeight: -5
-  trailSeed: 0
-  trailFrequency: 0.003
-  trailAmplitude: 350
+  trail1Enabled: 1
+  trail1Width: 50
+  trail1BlendWidth: 0
+  trail1Seed: 0
+  trail1Frequency: 0.003
+  trail1Amplitude: 300
+  trail2Enabled: 1
+  trail2Width: 50
+  trail2BlendWidth: 0
+  trail2Seed: 100
+  trail2Frequency: 0.003
+  trail2Amplitude: 200
+  trail3Enabled: 1
+  trail3Width: 50
+  trail3BlendWidth: 0
+  trail3Seed: 200
+  trail3Frequency: 0.003
+  trail3Amplitude: 200
   renderTerrain: 1
   enablePhysicsColliders: 1
   enableRenderingDebug: 0

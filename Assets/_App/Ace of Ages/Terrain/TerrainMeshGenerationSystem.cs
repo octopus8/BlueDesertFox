@@ -187,19 +187,17 @@ public partial struct TerrainMeshGenerationSystem : ISystem
                 var tileDataArray = new NativeArray<TileMeshJobData>(tilesToProcess.Length, Allocator.TempJob);
                 
                 // Read trail config once (same for all tiles this frame)
-                bool trailEnabled = false;
-                float trailWidth = 0f, trailBlendWidth = 0f, trailHeight = 0f;
-                float trailSeed = 0f, trailFrequency = 0f, trailAmplitude = 0f;
+                float trailHeight = 0f;
+                TrailInstanceConfig trailInst1 = default;
+                TrailInstanceConfig trailInst2 = default;
+                TrailInstanceConfig trailInst3 = default;
                 if (SystemAPI.HasSingleton<TrailConfig>())
                 {
                     var trail = SystemAPI.GetSingleton<TrailConfig>();
-                    trailEnabled = trail.enabled;
-                    trailWidth = trail.width;
-                    trailBlendWidth = trail.blendWidth;
                     trailHeight = trail.height;
-                    trailSeed = trail.seed;
-                    trailFrequency = trail.frequency;
-                    trailAmplitude = trail.amplitude;
+                    trailInst1  = trail.trail1;
+                    trailInst2  = trail.trail2;
+                    trailInst3  = trail.trail3;
                 }
 
                 // Prepare job data
@@ -229,13 +227,10 @@ public partial struct TerrainMeshGenerationSystem : ISystem
                         continentalExponent = config.continentalExponent,
                         vertexOffset = i * totalVertices,
                         indexOffset = i * totalIndices,
-                        trailEnabled = trailEnabled,
-                        trailWidth = trailWidth,
-                        trailBlendWidth = trailBlendWidth,
                         trailHeight = trailHeight,
-                        trailSeed = trailSeed,
-                        trailFrequency = trailFrequency,
-                        trailAmplitude = trailAmplitude
+                        trail1 = trailInst1,
+                        trail2 = trailInst2,
+                        trail3 = trailInst3
                     };
                 }
                 
@@ -383,14 +378,11 @@ public struct TileMeshJobData
     public int vertexOffset;  // Offset in flat vertex arrays
     public int indexOffset;   // Offset in flat index array
 
-    // Trail parameters
-    public bool trailEnabled;
-    public float trailWidth;
-    public float trailBlendWidth;
+    // Trail parameters (height shared; individual shapes via TrailInstanceConfig)
     public float trailHeight;
-    public float trailSeed;
-    public float trailFrequency;
-    public float trailAmplitude;
+    public TrailInstanceConfig trail1;
+    public TrailInstanceConfig trail2;
+    public TrailInstanceConfig trail3;
 }
 
 /// <summary>
@@ -526,60 +518,71 @@ public struct GenerateTileMeshJob : IJobParallelFor
         
         float terrainHeight = total / maxValue * data.noiseAmplitude * continentalMask;
 
-        if (data.trailEnabled)
-        {
-            float halfWidth = data.trailWidth * 0.5f;
-            float fX = (float)worldX;
-            float fZ = (float)worldZ;
+        // Evaluate influence [0=outside, 1=fully inside] for each enabled trail.
+        // Take the maximum so overlapping trails carve to the same shared height without
+        // stacking/darkening artefacts. Then blend once from terrainHeight → trailHeight.
+        float maxInfluence = 0f;
+        if (data.trail1.enabled) maxInfluence = math.max(maxInfluence, ComputeTrailInfluence((float)worldX, (float)worldZ, data.trail1));
+        if (data.trail2.enabled) maxInfluence = math.max(maxInfluence, ComputeTrailInfluence((float)worldX, (float)worldZ, data.trail2));
+        if (data.trail3.enabled) maxInfluence = math.max(maxInfluence, ComputeTrailInfluence((float)worldX, (float)worldZ, data.trail3));
 
-            // Two-stage minimum-distance search for the nearest point on the trail centerline.
-            // With high amplitude/frequency settings the centerline can shift ~30 m between
-            // samples, so a single coarse pass of 9 points underestimates how close a vertex
-            // is to the centerline at sharp bends, causing the flat zone to appear narrower.
-            //
-            // Stage 1 – coarse pass: 32 uniform samples across ±searchRange in Z.
-            // Stage 2 – refine pass: 16 samples in a ±2-step window around the coarse best,
-            //           bringing worst-case distance error to well under 1 m.
-            float searchRange = halfWidth + data.trailBlendWidth;
-            float minDist2D = float.MaxValue;
-            float bestSz    = fZ;
-
-            const int kCoarseSamples = 32;
-            float coarseStep = (2f * searchRange) / (kCoarseSamples - 1);
-            for (int si = 0; si < kCoarseSamples; si++)
-            {
-                float sz  = fZ - searchRange + si * coarseStep;
-                float scx = data.trailAmplitude * noise.snoise(new float2(sz * data.trailFrequency + data.trailSeed, 0f));
-                float dx  = fX - scx;
-                float dz  = fZ - sz;
-                float d2  = dx * dx + dz * dz;
-                if (d2 < minDist2D) { minDist2D = d2; bestSz = sz; }
-            }
-
-            const int kRefineSamples = 16;
-            float refineRange = coarseStep * 2f;
-            float refineStep  = (2f * refineRange) / (kRefineSamples - 1);
-            for (int si = 0; si < kRefineSamples; si++)
-            {
-                float sz  = bestSz - refineRange + si * refineStep;
-                float scx = data.trailAmplitude * noise.snoise(new float2(sz * data.trailFrequency + data.trailSeed, 0f));
-                float dx  = fX - scx;
-                float dz  = fZ - sz;
-                float d2  = dx * dx + dz * dz;
-                if (d2 < minDist2D) minDist2D = d2;
-            }
-
-            float minDist = math.sqrt(minDist2D);
-
-            if (minDist < halfWidth)
-                return data.trailHeight;
-
-            if (minDist < halfWidth + data.trailBlendWidth)
-                return math.lerp(data.trailHeight, terrainHeight,
-                    math.smoothstep(halfWidth, halfWidth + data.trailBlendWidth, minDist));
-        }
+        if (maxInfluence > 0f)
+            return math.lerp(terrainHeight, data.trailHeight, maxInfluence);
 
         return terrainHeight;
+    }
+
+    /// <summary>
+    /// Returns a 0–1 influence value for a single trail at world position (fX, fZ).
+    /// 1.0 = fully inside the flat zone; 0–1 = inside the blend zone; 0.0 = outside.
+    /// Uses a two-stage minimum-distance search along the trail centerline so that
+    /// high-amplitude/high-frequency trails remain accurate at sharp bends.
+    ///
+    /// Stage 1 – coarse pass: 32 uniform samples across ±searchRange in Z.
+    /// Stage 2 – refine pass: 16 samples in a ±2-step window around the coarse best,
+    ///           bringing worst-case distance error to well under 1 m.
+    /// </summary>
+    private static float ComputeTrailInfluence(float fX, float fZ, in TrailInstanceConfig trail)
+    {
+        float halfWidth   = trail.width * 0.5f;
+        float searchRange = halfWidth + trail.blendWidth;
+        float minDist2D   = float.MaxValue;
+        float bestSz      = fZ;
+
+        const int kCoarseSamples = 32;
+        float coarseStep = (2f * searchRange) / (kCoarseSamples - 1);
+        for (int si = 0; si < kCoarseSamples; si++)
+        {
+            float sz  = fZ - searchRange + si * coarseStep;
+            float scx = trail.amplitude * noise.snoise(new float2(sz * trail.frequency + trail.seed, 0f));
+            float dx  = fX - scx;
+            float dz  = fZ - sz;
+            float d2  = dx * dx + dz * dz;
+            if (d2 < minDist2D) { minDist2D = d2; bestSz = sz; }
+        }
+
+        const int kRefineSamples = 16;
+        float refineRange = coarseStep * 2f;
+        float refineStep  = (2f * refineRange) / (kRefineSamples - 1);
+        for (int si = 0; si < kRefineSamples; si++)
+        {
+            float sz  = bestSz - refineRange + si * refineStep;
+            float scx = trail.amplitude * noise.snoise(new float2(sz * trail.frequency + trail.seed, 0f));
+            float dx  = fX - scx;
+            float dz  = fZ - sz;
+            float d2  = dx * dx + dz * dz;
+            if (d2 < minDist2D) minDist2D = d2;
+        }
+
+        float minDist = math.sqrt(minDist2D);
+
+        if (minDist < halfWidth)
+            return 1f;
+
+        if (minDist < halfWidth + trail.blendWidth)
+            return 1f - math.smoothstep(halfWidth, halfWidth + trail.blendWidth, minDist);
+
+        return 0f;
     }
     
     /// <summary>

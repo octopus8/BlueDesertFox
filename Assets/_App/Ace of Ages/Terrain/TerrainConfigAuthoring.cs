@@ -97,33 +97,81 @@ public class TerrainConfigAuthoring : MonoBehaviour
     [Tooltip("Physics layer index for all terrain colliders")]
     public int terrainPhysicsLayer = 0;
 
-    [Header("Trail")]
-    [Tooltip("Enable a flat winding trail carved into the terrain")]
-    public bool trailEnabled = false;
-
-    [ShowIf("trailEnabled")]
-    [Tooltip("Width of the fully-flat portion of the trail in meters")]
-    public float trailWidth = 15f;
-
-    [ShowIf("trailEnabled")]
-    [Tooltip("Width of the smooth blend zone on each side of the flat trail in meters")]
-    public float trailBlendWidth = 8f;
-
-    [ShowIf("trailEnabled")]
-    [Tooltip("Y height of the flat trail surface in world units")]
+    [Header("Trail – Shared")]
+    [Tooltip("Y height of all flat trail surfaces in world units (shared by all three trails)")]
     public float trailHeight = 0f;
 
-    [ShowIf("trailEnabled")]
-    [Tooltip("Random seed — change this value to get a different weave pattern")]
-    public float trailSeed = 0f;
+    [Header("Trail 1")]
+    [Tooltip("Enable a flat winding trail carved into the terrain")]
+    public bool trail1Enabled = false;
 
-    [ShowIf("trailEnabled")]
-    [Tooltip("How rapidly the trail weaves along Z (higher = tighter turns)")]
-    public float trailFrequency = 0.003f;
+    [ShowIf("trail1Enabled")]
+    [Tooltip("Width of the fully-flat portion of Trail 1 in meters")]
+    public float trail1Width = 15f;
 
-    [ShowIf("trailEnabled")]
-    [Tooltip("Maximum left/right deviation of the trail centerline in meters")]
-    public float trailAmplitude = 40f;
+    [ShowIf("trail1Enabled")]
+    [Tooltip("Width of the smooth blend zone on each side of Trail 1 in meters")]
+    public float trail1BlendWidth = 8f;
+
+    [ShowIf("trail1Enabled")]
+    [Tooltip("Random seed — change to get a different weave pattern for Trail 1")]
+    public float trail1Seed = 0f;
+
+    [ShowIf("trail1Enabled")]
+    [Tooltip("How rapidly Trail 1 weaves along Z (higher = tighter turns)")]
+    public float trail1Frequency = 0.003f;
+
+    [ShowIf("trail1Enabled")]
+    [Tooltip("Maximum left/right deviation of Trail 1 centerline in meters")]
+    public float trail1Amplitude = 40f;
+
+    [Header("Trail 2")]
+    [Tooltip("Enable a second flat winding trail carved into the terrain")]
+    public bool trail2Enabled = false;
+
+    [ShowIf("trail2Enabled")]
+    [Tooltip("Width of the fully-flat portion of Trail 2 in meters")]
+    public float trail2Width = 15f;
+
+    [ShowIf("trail2Enabled")]
+    [Tooltip("Width of the smooth blend zone on each side of Trail 2 in meters")]
+    public float trail2BlendWidth = 8f;
+
+    [ShowIf("trail2Enabled")]
+    [Tooltip("Random seed — change to get a different weave pattern for Trail 2")]
+    public float trail2Seed = 100f;
+
+    [ShowIf("trail2Enabled")]
+    [Tooltip("How rapidly Trail 2 weaves along Z (higher = tighter turns)")]
+    public float trail2Frequency = 0.003f;
+
+    [ShowIf("trail2Enabled")]
+    [Tooltip("Maximum left/right deviation of Trail 2 centerline in meters")]
+    public float trail2Amplitude = 40f;
+
+    [Header("Trail 3")]
+    [Tooltip("Enable a third flat winding trail carved into the terrain")]
+    public bool trail3Enabled = false;
+
+    [ShowIf("trail3Enabled")]
+    [Tooltip("Width of the fully-flat portion of Trail 3 in meters")]
+    public float trail3Width = 15f;
+
+    [ShowIf("trail3Enabled")]
+    [Tooltip("Width of the smooth blend zone on each side of Trail 3 in meters")]
+    public float trail3BlendWidth = 8f;
+
+    [ShowIf("trail3Enabled")]
+    [Tooltip("Random seed — change to get a different weave pattern for Trail 3")]
+    public float trail3Seed = 200f;
+
+    [ShowIf("trail3Enabled")]
+    [Tooltip("How rapidly Trail 3 weaves along Z (higher = tighter turns)")]
+    public float trail3Frequency = 0.003f;
+
+    [ShowIf("trail3Enabled")]
+    [Tooltip("Maximum left/right deviation of Trail 3 centerline in meters")]
+    public float trail3Amplitude = 40f;
 
     [Header("Debug/Testing")]
     [Tooltip("Enable terrain tile rendering (disable to test tree rendering only)")]
@@ -231,13 +279,34 @@ public class TerrainConfigAuthoring : MonoBehaviour
             // Bake trail configuration singleton
             AddComponent(entity, new TrailConfig
             {
-                enabled = authoring.trailEnabled,
-                width = authoring.trailWidth,
-                blendWidth = authoring.trailBlendWidth,
                 height = authoring.trailHeight,
-                seed = authoring.trailSeed,
-                frequency = authoring.trailFrequency,
-                amplitude = authoring.trailAmplitude
+                trail1 = new TrailInstanceConfig
+                {
+                    enabled   = authoring.trail1Enabled,
+                    width     = authoring.trail1Width,
+                    blendWidth= authoring.trail1BlendWidth,
+                    seed      = authoring.trail1Seed,
+                    frequency = authoring.trail1Frequency,
+                    amplitude = authoring.trail1Amplitude
+                },
+                trail2 = new TrailInstanceConfig
+                {
+                    enabled   = authoring.trail2Enabled,
+                    width     = authoring.trail2Width,
+                    blendWidth= authoring.trail2BlendWidth,
+                    seed      = authoring.trail2Seed,
+                    frequency = authoring.trail2Frequency,
+                    amplitude = authoring.trail2Amplitude
+                },
+                trail3 = new TrailInstanceConfig
+                {
+                    enabled   = authoring.trail3Enabled,
+                    width     = authoring.trail3Width,
+                    blendWidth= authoring.trail3BlendWidth,
+                    seed      = authoring.trail3Seed,
+                    frequency = authoring.trail3Frequency,
+                    amplitude = authoring.trail3Amplitude
+                }
             });
         }
     }
@@ -333,10 +402,18 @@ public class TerrainConfigAuthoring : MonoBehaviour
         noiseLacunarity = Mathf.Max(1f, noiseLacunarity);
         continentalFrequency = Mathf.Max(0f, continentalFrequency);
         continentalExponent = Mathf.Max(0.1f, continentalExponent);
-        trailWidth = Mathf.Max(0f, trailWidth);
-        trailBlendWidth = Mathf.Max(0f, trailBlendWidth);
-        trailFrequency = Mathf.Max(0f, trailFrequency);
-        trailAmplitude = Mathf.Max(0f, trailAmplitude);
+        trail1Width     = Mathf.Max(0f, trail1Width);
+        trail1BlendWidth= Mathf.Max(0f, trail1BlendWidth);
+        trail1Frequency = Mathf.Max(0f, trail1Frequency);
+        trail1Amplitude = Mathf.Max(0f, trail1Amplitude);
+        trail2Width     = Mathf.Max(0f, trail2Width);
+        trail2BlendWidth= Mathf.Max(0f, trail2BlendWidth);
+        trail2Frequency = Mathf.Max(0f, trail2Frequency);
+        trail2Amplitude = Mathf.Max(0f, trail2Amplitude);
+        trail3Width     = Mathf.Max(0f, trail3Width);
+        trail3BlendWidth= Mathf.Max(0f, trail3BlendWidth);
+        trail3Frequency = Mathf.Max(0f, trail3Frequency);
+        trail3Amplitude = Mathf.Max(0f, trail3Amplitude);
         
         // Set default search string if empty
         if (playerSearchMode == PlayerSearchMode.FindByName && string.IsNullOrEmpty(playerName))

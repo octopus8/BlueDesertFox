@@ -71,13 +71,13 @@ public struct TerrainTileConfig : IComponentData
 }
 
 /// <summary>
-/// Singleton configuration for the procedural winding trail carved flat into the terrain.
-/// The trail centerline is defined by trailCenterX(Z) = amplitude * snoise(Z * frequency + seed),
-/// which guarantees it always moves in the +Z direction (can never turn past 90°).
+/// Per-trail settings. Height is shared across all trails and lives on <see cref="TrailConfig"/>.
+/// The centerline of each trail is defined by centerX(Z) = amplitude * snoise(Z * frequency + seed, 0),
+/// guaranteeing the path always advances in the +Z direction (cannot turn past 90°).
 /// </summary>
-public struct TrailConfig : IComponentData
+public struct TrailInstanceConfig
 {
-    /// <summary>Whether trail generation is active.</summary>
+    /// <summary>Whether this trail is active.</summary>
     public bool enabled;
 
     /// <summary>Width of the fully-flat portion of the trail in world units.</summary>
@@ -85,9 +85,6 @@ public struct TrailConfig : IComponentData
 
     /// <summary>Width of the smooth blend zone on each side of the flat portion, in world units.</summary>
     public float blendWidth;
-
-    /// <summary>Y height of the flat trail surface in world units.</summary>
-    public float height;
 
     /// <summary>Noise offset / random seed. Different values produce different weave patterns.</summary>
     public float seed;
@@ -97,6 +94,21 @@ public struct TrailConfig : IComponentData
 
     /// <summary>Maximum left/right deviation of the trail centerline in world units.</summary>
     public float amplitude;
+}
+
+/// <summary>
+/// Singleton configuration for up to three procedural winding trails carved flat into the terrain.
+/// All trails share a single Y height value; each trail has its own shape parameters via
+/// <see cref="TrailInstanceConfig"/>. Where trails overlap the maximum carve influence wins.
+/// </summary>
+public struct TrailConfig : IComponentData
+{
+    /// <summary>Y height of all flat trail surfaces in world units (shared by trail1/2/3).</summary>
+    public float height;
+
+    public TrailInstanceConfig trail1;
+    public TrailInstanceConfig trail2;
+    public TrailInstanceConfig trail3;
 }
 
 /// <summary>
