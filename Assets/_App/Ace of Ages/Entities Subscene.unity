@@ -5913,8 +5913,6 @@ MonoBehaviour:
   tileSize: 256
   viewDistance: 1100
   verticesPerSide: 16
-  scrollEnabled: 1
-  scrollSpeed: 0
   noiseFrequency: 0.005
   noiseAmplitude: 60
   noiseOctaves: 4
@@ -5923,9 +5921,6 @@ MonoBehaviour:
   continentalFrequency: 0.0008
   continentalExponent: 2.5
   terrainMaterial: {fileID: 2100000, guid: dc12ba763b59e3a4586cb235c2a074fc, type: 2}
-  renderTerrain: 1
-  enablePhysicsColliders: 1
-  enableRenderingDebug: 0
   maxCollidersCreatedPerFrame: 1
   maxPhysicsCollidersCreatedPerFrame: 1
   maxColliderDistance: 450
@@ -5933,6 +5928,16 @@ MonoBehaviour:
   physicsColliderFullResolutionDistance: 128
   physicsColliderVertexStride: 1
   terrainPhysicsLayer: 11
+  trailEnabled: 1
+  trailWidth: 50
+  trailBlendWidth: 8
+  trailHeight: 0
+  trailSeed: 0
+  trailFrequency: 0.003
+  trailAmplitude: 40
+  renderTerrain: 1
+  enablePhysicsColliders: 1
+  enableRenderingDebug: 0
 --- !u!4 &1528308291
 Transform:
   m_ObjectHideFlags: 0

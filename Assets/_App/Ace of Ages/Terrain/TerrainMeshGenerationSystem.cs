@@ -186,6 +186,22 @@ public partial struct TerrainMeshGenerationSystem : ISystem
                 var allIndices = new NativeArray<int>(totalTileIndices, Allocator.TempJob);
                 var tileDataArray = new NativeArray<TileMeshJobData>(tilesToProcess.Length, Allocator.TempJob);
                 
+                // Read trail config once (same for all tiles this frame)
+                bool trailEnabled = false;
+                float trailWidth = 0f, trailBlendWidth = 0f, trailHeight = 0f;
+                float trailSeed = 0f, trailFrequency = 0f, trailAmplitude = 0f;
+                if (SystemAPI.HasSingleton<TrailConfig>())
+                {
+                    var trail = SystemAPI.GetSingleton<TrailConfig>();
+                    trailEnabled = trail.enabled;
+                    trailWidth = trail.width;
+                    trailBlendWidth = trail.blendWidth;
+                    trailHeight = trail.height;
+                    trailSeed = trail.seed;
+                    trailFrequency = trail.frequency;
+                    trailAmplitude = trail.amplitude;
+                }
+
                 // Prepare job data
                 for (int i = 0; i < tilesToProcess.Length; i++)
                 {
@@ -212,7 +228,14 @@ public partial struct TerrainMeshGenerationSystem : ISystem
                         continentalFrequency = config.continentalFrequency,
                         continentalExponent = config.continentalExponent,
                         vertexOffset = i * totalVertices,
-                        indexOffset = i * totalIndices
+                        indexOffset = i * totalIndices,
+                        trailEnabled = trailEnabled,
+                        trailWidth = trailWidth,
+                        trailBlendWidth = trailBlendWidth,
+                        trailHeight = trailHeight,
+                        trailSeed = trailSeed,
+                        trailFrequency = trailFrequency,
+                        trailAmplitude = trailAmplitude
                     };
                 }
                 
@@ -359,6 +382,15 @@ public struct TileMeshJobData
     public float continentalExponent;
     public int vertexOffset;  // Offset in flat vertex arrays
     public int indexOffset;   // Offset in flat index array
+
+    // Trail parameters
+    public bool trailEnabled;
+    public float trailWidth;
+    public float trailBlendWidth;
+    public float trailHeight;
+    public float trailSeed;
+    public float trailFrequency;
+    public float trailAmplitude;
 }
 
 /// <summary>
@@ -493,7 +525,27 @@ public struct GenerateTileMeshJob : IJobParallelFor
             frequency *= data.noiseLacunarity;
         }
         
-        return total / maxValue * data.noiseAmplitude * continentalMask;
+        float terrainHeight = total / maxValue * data.noiseAmplitude * continentalMask;
+
+        if (data.trailEnabled)
+        {
+            // Evaluate trail centerline X at this world Z position.
+            // snoise input uses the Z axis plus a seed offset so different seeds give different weave shapes.
+            float trailCenterX = data.trailAmplitude * noise.snoise(
+                new float2((float)worldZ * data.trailFrequency + data.trailSeed, 0f));
+
+            float distFromTrail = math.abs((float)worldX - trailCenterX);
+            float halfWidth = data.trailWidth * 0.5f;
+
+            if (distFromTrail < halfWidth)
+                return data.trailHeight;
+
+            if (distFromTrail < halfWidth + data.trailBlendWidth)
+                return math.lerp(data.trailHeight, terrainHeight,
+                    math.smoothstep(halfWidth, halfWidth + data.trailBlendWidth, distFromTrail));
+        }
+
+        return terrainHeight;
     }
     
     /// <summary>

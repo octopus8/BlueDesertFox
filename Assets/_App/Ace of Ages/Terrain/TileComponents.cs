@@ -71,6 +71,35 @@ public struct TerrainTileConfig : IComponentData
 }
 
 /// <summary>
+/// Singleton configuration for the procedural winding trail carved flat into the terrain.
+/// The trail centerline is defined by trailCenterX(Z) = amplitude * snoise(Z * frequency + seed),
+/// which guarantees it always moves in the +Z direction (can never turn past 90°).
+/// </summary>
+public struct TrailConfig : IComponentData
+{
+    /// <summary>Whether trail generation is active.</summary>
+    public bool enabled;
+
+    /// <summary>Width of the fully-flat portion of the trail in world units.</summary>
+    public float width;
+
+    /// <summary>Width of the smooth blend zone on each side of the flat portion, in world units.</summary>
+    public float blendWidth;
+
+    /// <summary>Y height of the flat trail surface in world units.</summary>
+    public float height;
+
+    /// <summary>Noise offset / random seed. Different values produce different weave patterns.</summary>
+    public float seed;
+
+    /// <summary>How rapidly the trail weaves along the Z axis. Higher values = tighter turns.</summary>
+    public float frequency;
+
+    /// <summary>Maximum left/right deviation of the trail centerline in world units.</summary>
+    public float amplitude;
+}
+
+/// <summary>
 /// Component that identifies a terrain tile and its position in the grid.
 /// </summary>
 public struct TerrainTile : IComponentData

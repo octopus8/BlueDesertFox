@@ -97,6 +97,34 @@ public class TerrainConfigAuthoring : MonoBehaviour
     [Tooltip("Physics layer index for all terrain colliders")]
     public int terrainPhysicsLayer = 0;
 
+    [Header("Trail")]
+    [Tooltip("Enable a flat winding trail carved into the terrain")]
+    public bool trailEnabled = false;
+
+    [ShowIf("trailEnabled")]
+    [Tooltip("Width of the fully-flat portion of the trail in meters")]
+    public float trailWidth = 15f;
+
+    [ShowIf("trailEnabled")]
+    [Tooltip("Width of the smooth blend zone on each side of the flat trail in meters")]
+    public float trailBlendWidth = 8f;
+
+    [ShowIf("trailEnabled")]
+    [Tooltip("Y height of the flat trail surface in world units")]
+    public float trailHeight = 0f;
+
+    [ShowIf("trailEnabled")]
+    [Tooltip("Random seed — change this value to get a different weave pattern")]
+    public float trailSeed = 0f;
+
+    [ShowIf("trailEnabled")]
+    [Tooltip("How rapidly the trail weaves along Z (higher = tighter turns)")]
+    public float trailFrequency = 0.003f;
+
+    [ShowIf("trailEnabled")]
+    [Tooltip("Maximum left/right deviation of the trail centerline in meters")]
+    public float trailAmplitude = 40f;
+
     [Header("Debug/Testing")]
     [Tooltip("Enable terrain tile rendering (disable to test tree rendering only)")]
     public bool renderTerrain = true;
@@ -199,6 +227,18 @@ public class TerrainConfigAuthoring : MonoBehaviour
             {
                 material = authoring.terrainMaterial
             });
+
+            // Bake trail configuration singleton
+            AddComponent(entity, new TrailConfig
+            {
+                enabled = authoring.trailEnabled,
+                width = authoring.trailWidth,
+                blendWidth = authoring.trailBlendWidth,
+                height = authoring.trailHeight,
+                seed = authoring.trailSeed,
+                frequency = authoring.trailFrequency,
+                amplitude = authoring.trailAmplitude
+            });
         }
     }
 
@@ -293,6 +333,10 @@ public class TerrainConfigAuthoring : MonoBehaviour
         noiseLacunarity = Mathf.Max(1f, noiseLacunarity);
         continentalFrequency = Mathf.Max(0f, continentalFrequency);
         continentalExponent = Mathf.Max(0.1f, continentalExponent);
+        trailWidth = Mathf.Max(0f, trailWidth);
+        trailBlendWidth = Mathf.Max(0f, trailBlendWidth);
+        trailFrequency = Mathf.Max(0f, trailFrequency);
+        trailAmplitude = Mathf.Max(0f, trailAmplitude);
         
         // Set default search string if empty
         if (playerSearchMode == PlayerSearchMode.FindByName && string.IsNullOrEmpty(playerName))
