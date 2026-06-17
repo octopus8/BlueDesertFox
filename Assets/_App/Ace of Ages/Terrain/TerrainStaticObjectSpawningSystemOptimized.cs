@@ -34,6 +34,11 @@ public partial struct TerrainTreeSpawningSystemOptimized : ISystem
     // Pooled buffers to avoid per-tile allocations
     private NativeList<float3> _vertexBuffer;
     private NativeList<float3> _normalBuffer;
+
+    // True after the first OnUpdate has run; used to flush stale StaticObjectsSpawned
+    // tags on startup when the trail is enabled (handles fast-enter-play-mode sessions
+    // where the ECS world persists across editor play cycles and tiles keep old objects).
+    private bool _startupClearDone;
     
 #if UNITY_EDITOR
     private static readonly ProfilerMarker s_PositionCalcMarker = new ProfilerMarker("TreeSpawner.PositionCalc");
@@ -94,6 +99,32 @@ public partial struct TerrainTreeSpawningSystemOptimized : ISystem
 //            UnityEngine.Debug.LogWarning("[TreeSpawnerOptimized] maxObjectsPerTile <= 0, trees disabled");
 #endif
             return;
+        }
+
+        // On first update, if the trail is enabled, strip StaticObjectsSpawned from every tile
+        // so all objects respawn with the current trail-exclusion logic applied.
+        // This handles fast-enter-play-mode (skip domain reload) sessions where the ECS world
+        // persists and tiles carry objects that were spawned before the exclusion was active.
+        if (!_startupClearDone)
+        {
+            _startupClearDone = true;
+            if (SystemAPI.HasSingleton<TrailConfig>())
+            {
+                var trailCfg = SystemAPI.GetSingleton<TrailConfig>();
+                if (trailCfg.enabled)
+                {
+                    var clearEcb = SystemAPI.GetSingleton<BeginSimulationEntityCommandBufferSystem.Singleton>()
+                        .CreateCommandBuffer(state.WorldUnmanaged);
+                    foreach (var (_, entity) in SystemAPI.Query<RefRO<TerrainTile>>()
+                        .WithAll<StaticObjectsSpawned>()
+                        .WithEntityAccess())
+                    {
+                        clearEcb.RemoveComponent<StaticObjectsSpawned>(entity);
+                    }
+                    _pendingTiles.Clear();
+                    _queuedEntities.Clear();
+                }
+            }
         }
         
         var configEntity = SystemAPI.GetSingletonEntity<StaticObjectSpawnerConfig>();
@@ -418,16 +449,32 @@ partial struct CalculateStaticObjectSpawnPositionsJob : IJobEntity
             if (normal.y < config.slopeThreshold)
                 continue;
 
-            // Trail exclusion: reject candidates that fall inside the flat trail or its blend zone
+            // Trail exclusion: reject candidates inside the flat trail or its blend zone.
+            // Uses the same multi-sample minimum-2D-distance approach as SampleNoise so
+            // the object-free zone exactly matches the rendered trail at every bend.
             if (hasTrailConfig && trailConfig.enabled)
             {
                 float noiseX = tile.gridCoordinate.x * terrainConfig.tileSize + randomX;
                 float noiseZ = tile.gridCoordinate.y * terrainConfig.tileSize + randomZ;
-                float trailCenterX = trailConfig.amplitude * noise.snoise(
-                    new float2(noiseZ * trailConfig.frequency + trailConfig.seed, 0f));
-                float distFromTrail = math.abs(noiseX - trailCenterX);
+
                 float exclusionRadius = trailConfig.width * 0.5f + trailConfig.blendWidth;
-                if (distFromTrail < exclusionRadius)
+
+                const int kSearchSamples = 9;
+                float searchRange = exclusionRadius;
+                float minDist2D = float.MaxValue;
+                for (int si = 0; si < kSearchSamples; si++)
+                {
+                    float t   = si / (float)(kSearchSamples - 1);
+                    float sz  = noiseZ + math.lerp(-searchRange, searchRange, t);
+                    float scx = trailConfig.amplitude * noise.snoise(new float2(sz * trailConfig.frequency + trailConfig.seed, 0f));
+                    float dx  = noiseX - scx;
+                    float dz  = noiseZ - sz;
+                    float d2  = dx * dx + dz * dz;
+                    if (d2 < minDist2D) minDist2D = d2;
+                }
+                float minDist = math.sqrt(minDist2D);
+
+                if (minDist < exclusionRadius)
                     continue;
             }
             

@@ -465,8 +465,21 @@ public struct GenerateTileMeshJob : IJobParallelFor
                 double worldX = data.tileWorldPos.x + localX;
                 double worldZ = data.tileWorldPos.z + localZ;
                 
-                // Calculate normal by sampling neighboring heights directly from noise
-                allNormals[flatIndex] = CalculateNormalFromHeightfield(worldX, worldZ, stepSize, data);
+                // Vertices in the trail flat zone are geometrically horizontal, but the
+                // finite-difference normal would sample a neighbor that is already into the
+                // blend zone (higher terrain), producing a strong inward tilt that shadows
+                // the flat surface. Force the normal to straight-up for any vertex whose
+                // height equals trailHeight exactly (only flat-zone vertices land here;
+                // blend-zone and terrain vertices always have a different height).
+                if (data.trailEnabled &&
+                    math.abs(allVertices[flatIndex].y - data.trailHeight) < 0.001f)
+                {
+                    allNormals[flatIndex] = new float3(0f, 1f, 0f);
+                }
+                else
+                {
+                    allNormals[flatIndex] = CalculateNormalFromHeightfield(worldX, worldZ, stepSize, data);
+                }
             }
         }
         
@@ -529,20 +542,37 @@ public struct GenerateTileMeshJob : IJobParallelFor
 
         if (data.trailEnabled)
         {
-            // Evaluate trail centerline X at this world Z position.
-            // snoise input uses the Z axis plus a seed offset so different seeds give different weave shapes.
-            float trailCenterX = data.trailAmplitude * noise.snoise(
-                new float2((float)worldZ * data.trailFrequency + data.trailSeed, 0f));
-
-            float distFromTrail = math.abs((float)worldX - trailCenterX);
             float halfWidth = data.trailWidth * 0.5f;
+            float fX = (float)worldX;
+            float fZ = (float)worldZ;
 
-            if (distFromTrail < halfWidth)
+            // Find the true minimum 2D distance from this vertex to the trail centerline.
+            // The previous single-Z tangent approach measured distance to the tangent LINE
+            // at the vertex's own Z, which is correct for a straight trail but leaves
+            // inside-of-bend gaps where the nearest trail point is at a different Z.
+            // Sweeping ±searchRange along Z and taking the minimum Euclidean distance
+            // to any sampled centre point closes all bend gaps regardless of curvature.
+            const int kSearchSamples = 9;
+            float searchRange = halfWidth + data.trailBlendWidth;
+            float minDist2D = float.MaxValue;
+            for (int si = 0; si < kSearchSamples; si++)
+            {
+                float t = si / (float)(kSearchSamples - 1); // 0..1
+                float sz  = fZ + math.lerp(-searchRange, searchRange, t);
+                float scx = data.trailAmplitude * noise.snoise(new float2(sz * data.trailFrequency + data.trailSeed, 0f));
+                float dx  = fX - scx;
+                float dz  = fZ - sz;
+                float d2  = dx * dx + dz * dz;
+                if (d2 < minDist2D) minDist2D = d2;
+            }
+            float minDist = math.sqrt(minDist2D);
+
+            if (minDist < halfWidth)
                 return data.trailHeight;
 
-            if (distFromTrail < halfWidth + data.trailBlendWidth)
+            if (minDist < halfWidth + data.trailBlendWidth)
                 return math.lerp(data.trailHeight, terrainHeight,
-                    math.smoothstep(halfWidth, halfWidth + data.trailBlendWidth, distFromTrail));
+                    math.smoothstep(halfWidth, halfWidth + data.trailBlendWidth, minDist));
         }
 
         return terrainHeight;
