@@ -465,22 +465,8 @@ public struct GenerateTileMeshJob : IJobParallelFor
                 double worldX = data.tileWorldPos.x + localX;
                 double worldZ = data.tileWorldPos.z + localZ;
                 
-                // Vertices in the trail flat zone are geometrically horizontal, but the
-                // finite-difference normal would sample a neighbor that is already into the
-                // blend zone (higher terrain), producing a strong inward tilt that shadows
-                // the flat surface. Force the normal to straight-up for any vertex whose
-                // height equals trailHeight exactly (only flat-zone vertices land here;
-                // blend-zone and terrain vertices always have a different height).
-                if (data.trailEnabled &&
-                    math.abs(allVertices[flatIndex].y - data.trailHeight) < 0.001f)
-                {
-                    allNormals[flatIndex] = new float3(0f, 1f, 0f);
-                }
-                else
-                {
-                    allNormals[flatIndex] = CalculateNormalFromHeightfield(worldX, worldZ, stepSize, data);
-                }
-            }
+                // Calculate normal by sampling neighboring heights directly from noise
+                allNormals[flatIndex] = CalculateNormalFromHeightfield(worldX, worldZ, stepSize, data);            }
         }
         
         // Generate indices (triangles)

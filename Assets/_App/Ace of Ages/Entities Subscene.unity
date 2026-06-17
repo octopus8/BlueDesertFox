@@ -5933,8 +5933,8 @@ MonoBehaviour:
   trailBlendWidth: 0
   trailHeight: 0
   trailSeed: 0
-  trailFrequency: 0.001
-  trailAmplitude: 200
+  trailFrequency: 0.003
+  trailAmplitude: 350
   renderTerrain: 1
   enablePhysicsColliders: 1
   enableRenderingDebug: 0
