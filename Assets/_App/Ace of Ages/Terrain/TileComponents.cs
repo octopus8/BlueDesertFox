@@ -546,26 +546,6 @@ public struct StaticObjectLODMeshInfoReady : IComponentData
 }
 
 /// <summary>
-/// Buffer element that stores LOD spawn weight configuration for each object type.
-/// Determines the probability distribution for spawning objects at different LOD levels.
-/// Weights should be normalized to sum to 1.0 during baking.
-/// </summary>
-public struct StaticObjectLODWeights : IBufferElementData
-{
-    /// <summary>Object type index (0 to N-1 where N is number of object types).</summary>
-    public int objectTypeIndex;
-    
-    /// <summary>Spawn probability weight for LOD0 (highest detail). Range [0.0, 1.0].</summary>
-    public float lod0Weight;
-    
-    /// <summary>Spawn probability weight for LOD1 (medium detail). Range [0.0, 1.0].</summary>
-    public float lod1Weight;
-    
-    /// <summary>Spawn probability weight for LOD2 (lowest detail). Range [0.0, 1.0].</summary>
-    public float lod2Weight;
-}
-
-/// <summary>
 /// Buffer element that stores normalized spawn weight for each object type.
 /// Determines the probability distribution for selecting which object type to spawn.
 /// Weights are normalized to sum to 1.0 during baking.

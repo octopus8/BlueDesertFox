@@ -26,20 +26,6 @@ public class StaticObjectSpawnerConfigAuthoring : MonoBehaviour
         [Tooltip("Lowest detail mesh (150m+ from player)")]
         public GameObject lod2;
         
-        [Header("LOD Spawn Distribution")]
-        [Tooltip("Spawn probability weight for LOD0 (highest detail). During spawning, this percentage of objects will use LOD0. Auto-normalized with other weights.")]
-        [Range(0f, 1f)]
-        public float lod0SpawnWeight = 0.6f;
-        
-        [Tooltip("Spawn probability weight for LOD1 (medium detail). During spawning, this percentage of objects will use LOD1. Auto-normalized with other weights.")]
-        [Range(0f, 1f)]
-        public float lod1SpawnWeight = 0.3f;
-        
-        [Tooltip("Spawn probability weight for LOD2 (lowest detail). During spawning, this percentage of objects will use LOD2. Auto-normalized with other weights.")]
-        [Range(0f, 1f)]
-        public float lod2SpawnWeight = 0.1f;
-        
-        [Header("Object Type Spawn Weight")]
         [Tooltip("Relative spawn probability for this object type vs other types. Auto-normalized at bake time.")]
         [Min(0f)]
         public float objectTypeSpawnWeight = 1f;
@@ -168,9 +154,6 @@ public class StaticObjectSpawnerConfigAuthoring : MonoBehaviour
             // Add buffer for object prefab entities
             var objectPrefabBuffer = AddBuffer<StaticObjectPrefabElement>(entity);
             
-            // Add buffer for LOD spawn weights
-            var lodWeightsBuffer = AddBuffer<StaticObjectLODWeights>(entity);
-            
             // Add buffer for object type spawn weights
             var typeSpawnWeightsBuffer = AddBuffer<StaticObjectTypeSpawnWeight>(entity);
             
@@ -217,34 +200,9 @@ public class StaticObjectSpawnerConfigAuthoring : MonoBehaviour
                     continue;
                 }
                 
-                // Normalize LOD spawn weights to sum to 1.0
-                float totalWeight = lodSet.lod0SpawnWeight + lodSet.lod1SpawnWeight + lodSet.lod2SpawnWeight;
-                float normalizedLOD0Weight = 0.6f;
-                float normalizedLOD1Weight = 0.3f;
-                float normalizedLOD2Weight = 0.1f;
-                
-                if (totalWeight > 0.001f)
-                {
-                    normalizedLOD0Weight = lodSet.lod0SpawnWeight / totalWeight;
-                    normalizedLOD1Weight = lodSet.lod1SpawnWeight / totalWeight;
-                    normalizedLOD2Weight = lodSet.lod2SpawnWeight / totalWeight;
-                }
-                else
-                {
-                    Debug.LogWarning($"[StaticObjectSpawner] Object type '{lodSet.objectTypeName}' has zero total LOD weight! Using default distribution (60/30/10).", authoring);
-                }
-                
                 float normalizedTypeSpawnWeight = totalTypeSpawnWeight > 0.001f
                     ? lodSet.objectTypeSpawnWeight / totalTypeSpawnWeight
                     : defaultEqualTypeWeight;
-                
-                lodWeightsBuffer.Add(new StaticObjectLODWeights
-                {
-                    objectTypeIndex = validObjectTypes,
-                    lod0Weight = normalizedLOD0Weight,
-                    lod1Weight = normalizedLOD1Weight,
-                    lod2Weight = normalizedLOD2Weight
-                });
                 
                 typeSpawnWeightsBuffer.Add(new StaticObjectTypeSpawnWeight
                 {
@@ -297,7 +255,7 @@ public class StaticObjectSpawnerConfigAuthoring : MonoBehaviour
                     }
                 }
                 
-                Debug.Log($"[StaticObjectSpawner] Baked object type '{lodSet.objectTypeName}' with {(lodPrefabs[1] != null ? "3" : lodPrefabs[2] != null ? "2" : "1")} LOD levels (LOD weights: {normalizedLOD0Weight:F2}/{normalizedLOD1Weight:F2}/{normalizedLOD2Weight:F2}, type spawn weight: {normalizedTypeSpawnWeight:F2})");
+                Debug.Log($"[StaticObjectSpawner] Baked object type '{lodSet.objectTypeName}' with {(lodPrefabs[1] != null ? "3" : lodPrefabs[2] != null ? "2" : "1")} LOD levels (type spawn weight: {normalizedTypeSpawnWeight:F2})");
                 validObjectTypes++;
             }
             
@@ -330,25 +288,13 @@ public class StaticObjectSpawnerConfigAuthoring : MonoBehaviour
         // Validate distance culling settings
         maxObjectRenderDistance = Mathf.Clamp(maxObjectRenderDistance, 100f, 1000f);
         
-        // Normalize LOD spawn weights for each object type
         if (objectLODSets != null)
         {
             float totalTypeSpawnWeight = 0f;
             foreach (var lodSet in objectLODSets)
             {
                 if (lodSet != null)
-                {
-                    float totalWeight = lodSet.lod0SpawnWeight + lodSet.lod1SpawnWeight + lodSet.lod2SpawnWeight;
-                    if (totalWeight < 0.001f)
-                    {
-                        // Reset to defaults if all weights are zero
-                        lodSet.lod0SpawnWeight = 0.6f;
-                        lodSet.lod1SpawnWeight = 0.3f;
-                        lodSet.lod2SpawnWeight = 0.1f;
-                    }
-                    
                     totalTypeSpawnWeight += lodSet.objectTypeSpawnWeight;
-                }
             }
             
             if (totalTypeSpawnWeight < 0.001f)
