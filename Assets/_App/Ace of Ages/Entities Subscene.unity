@@ -398,11 +398,11 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: -8679921383154817045, guid: 87f4999611a81074d84b81fdce75df7b, type: 3}
       propertyPath: m_LocalScale.x
-      value: 90000
+      value: 70000
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 87f4999611a81074d84b81fdce75df7b, type: 3}
       propertyPath: m_LocalScale.y
-      value: 90000
+      value: 70000
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 87f4999611a81074d84b81fdce75df7b, type: 3}
       propertyPath: m_LocalScale.z
@@ -5911,7 +5911,7 @@ MonoBehaviour:
   playerName: Right Controller Stabilized Attach
   playerTag: Player
   tileSize: 256
-  viewDistance: 1100
+  viewDistance: 850
   verticesPerSide: 16
   noiseFrequency: 0.005
   noiseAmplitude: 60
@@ -5929,12 +5929,12 @@ MonoBehaviour:
   physicsColliderVertexStride: 1
   terrainPhysicsLayer: 11
   trailHeight: -5
-  trail1Enabled: 0
-  trail1Width: 50
+  trail1Enabled: 1
+  trail1Width: 100
   trail1BlendWidth: 0
   trail1Seed: 0
-  trail1Frequency: 0.003
-  trail1Amplitude: 300
+  trail1Frequency: 0.001
+  trail1Amplitude: 500
   trail2Enabled: 0
   trail2Width: 50
   trail2BlendWidth: 0
@@ -6032,8 +6032,8 @@ MonoBehaviour:
   lod1Distance: 150
   lod2Distance: 307.06
   lodHysteresis: 5
-  minObjectsPerTile: 300
-  maxObjectsPerTile: 300
+  minObjectsPerTile: 150
+  maxObjectsPerTile: 150
   minSpawnHeight: -100
   maxSpawnHeight: 100
   maxSlopeDegrees: 45
