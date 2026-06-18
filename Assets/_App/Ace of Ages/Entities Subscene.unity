@@ -398,11 +398,11 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: -8679921383154817045, guid: 87f4999611a81074d84b81fdce75df7b, type: 3}
       propertyPath: m_LocalScale.x
-      value: 49000
+      value: 90000
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 87f4999611a81074d84b81fdce75df7b, type: 3}
       propertyPath: m_LocalScale.y
-      value: 49000
+      value: 90000
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 87f4999611a81074d84b81fdce75df7b, type: 3}
       propertyPath: m_LocalScale.z
@@ -5911,8 +5911,8 @@ MonoBehaviour:
   playerName: Right Controller Stabilized Attach
   playerTag: Player
   tileSize: 256
-  viewDistance: 750
-  verticesPerSide: 32
+  viewDistance: 1100
+  verticesPerSide: 16
   noiseFrequency: 0.005
   noiseAmplitude: 60
   noiseOctaves: 4
@@ -5929,19 +5929,19 @@ MonoBehaviour:
   physicsColliderVertexStride: 1
   terrainPhysicsLayer: 11
   trailHeight: -5
-  trail1Enabled: 1
+  trail1Enabled: 0
   trail1Width: 50
   trail1BlendWidth: 0
   trail1Seed: 0
   trail1Frequency: 0.003
   trail1Amplitude: 300
-  trail2Enabled: 1
+  trail2Enabled: 0
   trail2Width: 50
   trail2BlendWidth: 0
   trail2Seed: 100
   trail2Frequency: 0.003
   trail2Amplitude: 200
-  trail3Enabled: 1
+  trail3Enabled: 0
   trail3Width: 50
   trail3BlendWidth: 0
   trail3Seed: 200
