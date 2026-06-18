@@ -135,7 +135,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!4 &25680480
 Transform:
   m_ObjectHideFlags: 0
@@ -398,11 +398,11 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: -8679921383154817045, guid: 87f4999611a81074d84b81fdce75df7b, type: 3}
       propertyPath: m_LocalScale.x
-      value: 94967
+      value: 49000
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 87f4999611a81074d84b81fdce75df7b, type: 3}
       propertyPath: m_LocalScale.y
-      value: 94967
+      value: 49000
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 87f4999611a81074d84b81fdce75df7b, type: 3}
       propertyPath: m_LocalScale.z
@@ -5911,7 +5911,7 @@ MonoBehaviour:
   playerName: Right Controller Stabilized Attach
   playerTag: Player
   tileSize: 256
-  viewDistance: 1100
+  viewDistance: 750
   verticesPerSide: 32
   noiseFrequency: 0.005
   noiseAmplitude: 60
