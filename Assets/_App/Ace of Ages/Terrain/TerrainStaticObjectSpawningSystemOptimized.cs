@@ -244,6 +244,14 @@ public partial struct TerrainTreeSpawningSystemOptimized : ISystem
                 : equalTypeWeight;
         }
         
+        // Copy per-object-type billboard flags for camera-facing LOD2 billboards
+        var billboardTypeBuffer = state.EntityManager.GetBuffer<StaticObjectBillboardTypeElement>(configEntity, true);
+        var billboardTypes = new NativeArray<bool>(treeTypeCount, Allocator.TempJob);
+        for (int i = 0; i < treeTypeCount; i++)
+        {
+            billboardTypes[i] = i < billboardTypeBuffer.Length && billboardTypeBuffer[i].isBillboard;
+        }
+        
 #if UNITY_EDITOR
         using (s_PositionCalcMarker.Auto())
 #endif
@@ -320,7 +328,8 @@ public partial struct TerrainTreeSpawningSystemOptimized : ISystem
                 objectPrefabs = objectPrefabs,
                 treeTypeCount = treeTypeCount,
                 tilesToProcess = tilesToProcess.AsArray(),
-                lodMeshInfos = lodMeshInfos
+                lodMeshInfos = lodMeshInfos,
+                billboardTypes = billboardTypes
             };
             
             state.Dependency = instantiateJob.ScheduleParallel(state.Dependency);
@@ -330,6 +339,7 @@ public partial struct TerrainTreeSpawningSystemOptimized : ISystem
         objectPrefabs.Dispose(state.Dependency);
         objectPrefabRotations.Dispose(state.Dependency);
         objectTypeSpawnWeights.Dispose(state.Dependency);
+        billboardTypes.Dispose(state.Dependency);
         tilesToProcess.Dispose(state.Dependency);
         lodMeshInfos.Dispose(state.Dependency);
     }
@@ -568,6 +578,7 @@ partial struct InstantiateTreesJob : IJobEntity
     [ReadOnly] public int treeTypeCount;
     [ReadOnly] public NativeArray<Entity> tilesToProcess;
     [ReadOnly] public NativeArray<MaterialMeshInfo> lodMeshInfos;
+    [ReadOnly] public NativeArray<bool> billboardTypes;
     
     /// <summary>
     /// Reads the <see cref="StaticObjectSpawnPosition"/> buffer, instantiates prefab entities via ECB
@@ -633,12 +644,16 @@ partial struct InstantiateTreesJob : IJobEntity
             ecb.AddComponent<GlobalStaticObjectInstance>(chunkIndex, objectEntity);
             ecb.AddComponent<PendingStaticObjectRendererStrip>(chunkIndex, objectEntity);
 
+            bool isBillboard = spawnData.objectTypeIndex < billboardTypes.Length
+                && billboardTypes[spawnData.objectTypeIndex];
+            
             ecb.AddComponent(chunkIndex, objectEntity, new GlobalStaticObjectInstanceData
             {
                 prefabIndex = prefabIndexLOD0,
                 objectTypeIndex = spawnData.objectTypeIndex,
                 currentLODLevel = spawnData.initialLODLevel,
-                lastDistanceToPlayer = spawnData.initialDistance
+                lastDistanceToPlayer = spawnData.initialDistance,
+                isBillboardType = isBillboard
             });
             
             // Add to tile's spawned tree tracking

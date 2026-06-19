@@ -468,6 +468,9 @@ public struct GlobalStaticObjectInstanceData : IComponentData
     
     /// <summary>Last calculated distance to player (used for LOD hysteresis).</summary>
     public float lastDistanceToPlayer;
+    
+    /// <summary>When true, LOD2 is a camera-facing billboard that should rotate to face the camera each frame.</summary>
+    public bool isBillboardType;
 }
 
 /// <summary>
@@ -557,6 +560,17 @@ public struct StaticObjectTypeSpawnWeight : IBufferElementData
     
     /// <summary>Normalized spawn probability for this object type. Range [0.0, 1.0].</summary>
     public float weight;
+}
+
+/// <summary>
+/// Buffer element storing per-object-type billboard flag, indexed by objectTypeIndex.
+/// Populated at bake time by <see cref="StaticObjectSpawnerConfigAuthoring.Baker"/>.
+/// When true, LOD2 for that object type is a camera-facing billboard.
+/// </summary>
+public struct StaticObjectBillboardTypeElement : IBufferElementData
+{
+    /// <summary>When true, LOD2 for this object type rotates to face the camera each frame.</summary>
+    public bool isBillboard;
 }
 
 

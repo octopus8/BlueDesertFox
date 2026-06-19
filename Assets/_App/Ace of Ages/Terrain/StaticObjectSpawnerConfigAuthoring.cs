@@ -29,6 +29,9 @@ public class StaticObjectSpawnerConfigAuthoring : MonoBehaviour
         [Tooltip("Relative spawn probability for this object type vs other types. Auto-normalized at bake time.")]
         [Min(0f)]
         public float objectTypeSpawnWeight = 1f;
+        
+        [Tooltip("When true, LOD2 is a camera-facing billboard that rotates to face the camera each frame.")]
+        public bool lod2IsBillboard = false;
     }
     
     [Header("Static Object LOD Sets")]
@@ -157,6 +160,9 @@ public class StaticObjectSpawnerConfigAuthoring : MonoBehaviour
             // Add buffer for object type spawn weights
             var typeSpawnWeightsBuffer = AddBuffer<StaticObjectTypeSpawnWeight>(entity);
             
+            // Add buffer for per-object-type billboard flags
+            var billboardBuffer = AddBuffer<StaticObjectBillboardTypeElement>(entity);
+            
             int objectTypeCount = authoring.objectLODSets.Length;
             int validObjectTypes = 0;
             
@@ -208,6 +214,11 @@ public class StaticObjectSpawnerConfigAuthoring : MonoBehaviour
                 {
                     objectTypeIndex = validObjectTypes,
                     weight = normalizedTypeSpawnWeight
+                });
+                
+                billboardBuffer.Add(new StaticObjectBillboardTypeElement
+                {
+                    isBillboard = lodSet.lod2IsBillboard
                 });
                 
                 for (int lodLevel = 0; lodLevel < 3; lodLevel++)
