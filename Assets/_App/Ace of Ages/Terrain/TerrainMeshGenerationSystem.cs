@@ -20,6 +20,7 @@ using Unity.Profiling;
 public partial struct TerrainMeshGenerationSystem : ISystem
 {
     private NativeQueue<Entity> _pendingTiles;
+    private NativeHashSet<Entity> _queuedTiles;
     
 #if UNITY_EDITOR
     private static readonly ProfilerMarker s_ProfilerMarker = new ProfilerMarker("TerrainMesh.Generation");
@@ -37,14 +38,16 @@ public partial struct TerrainMeshGenerationSystem : ISystem
         state.RequireForUpdate<TerrainTileConfig>();
         
         _pendingTiles = new NativeQueue<Entity>(Allocator.Persistent);
+        _queuedTiles = new NativeHashSet<Entity>(256, Allocator.Persistent);
     }
     
     /// <summary>Disposes the pending-tile native queue and frees all associated memory.</summary>
-    [BurstCompile]
     public void OnDestroy(ref SystemState state)
     {
         if (_pendingTiles.IsCreated)
             _pendingTiles.Dispose();
+        if (_queuedTiles.IsCreated)
+            _queuedTiles.Dispose();
     }
 
     /// <summary>
@@ -81,7 +84,7 @@ public partial struct TerrainMeshGenerationSystem : ISystem
                     playerRef.playerTransform.forward.z));
             }
             
-            // Add new tiles that need generation to the queue (ZERO GC ALLOCATIONS)
+            // Enqueue tiles not yet pending (avoids duplicate queue entries each frame)
             foreach (var (tile, entity) in SystemAPI.Query<RefRO<TerrainTile>>()
                 .WithAll<VertexElement>()
                 .WithAll<NormalElement>()
@@ -89,7 +92,7 @@ public partial struct TerrainMeshGenerationSystem : ISystem
                 .WithAll<IndexElement>()
                 .WithEntityAccess())
             {
-                if (!tile.ValueRO.meshGenerated || tile.ValueRO.needsRegeneration)
+                if ((!tile.ValueRO.meshGenerated || tile.ValueRO.needsRegeneration) && _queuedTiles.Add(entity))
                 {
                     _pendingTiles.Enqueue(entity);
                 }
@@ -106,26 +109,31 @@ public partial struct TerrainMeshGenerationSystem : ISystem
             {
                 var entity = _pendingTiles.Dequeue();
                 
-                // Skip duplicates
+                // Skip duplicates left over from prior frames
                 if (processedEntities.Contains(entity))
                     continue;
                 
-                // Verify entity still exists and needs processing
-                if (state.EntityManager.Exists(entity))
+                if (!state.EntityManager.Exists(entity))
                 {
-                    var tile = SystemAPI.GetComponent<TerrainTile>(entity);
-                    if (!tile.meshGenerated || tile.needsRegeneration)
+                    _queuedTiles.Remove(entity);
+                    continue;
+                }
+
+                var tile = SystemAPI.GetComponent<TerrainTile>(entity);
+                if (!tile.meshGenerated || tile.needsRegeneration)
+                {
+                    float priority = CalculateTilePriority(tile, config, cameraPosition, cameraForward);
+                    
+                    tilesWithPriority.Add(new MeshTileWithPriority
                     {
-                        // Calculate camera-aware priority for this tile
-                        float priority = CalculateTilePriority(tile, config, cameraPosition, cameraForward);
-                        
-                        tilesWithPriority.Add(new MeshTileWithPriority
-                        {
-                            entity = entity,
-                            priority = priority
-                        });
-                        processedEntities.Add(entity);
-                    }
+                        entity = entity,
+                        priority = priority
+                    });
+                    processedEntities.Add(entity);
+                }
+                else
+                {
+                    _queuedTiles.Remove(entity);
                 }
             }
             
@@ -262,37 +270,22 @@ public partial struct TerrainMeshGenerationSystem : ISystem
                         var uvBuffer = SystemAPI.GetBuffer<UVElement>(entity);
                         var indexBuffer = SystemAPI.GetBuffer<IndexElement>(entity);
                         
-                        // Clear existing data
-                        vertexBuffer.Clear();
-                        normalBuffer.Clear();
-                        uvBuffer.Clear();
-                        indexBuffer.Clear();
-                        
-                        // Reserve capacity for better performance
-                        vertexBuffer.EnsureCapacity(totalVertices);
-                        normalBuffer.EnsureCapacity(totalVertices);
-                        uvBuffer.EnsureCapacity(totalVertices);
-                        indexBuffer.EnsureCapacity(totalIndices);
-                        
-                        // Calculate offset for this tile's data
                         int vertexOffset = i * totalVertices;
                         int indexOffset = i * totalIndices;
                         
-                        // Copy from flat NativeArrays to DynamicBuffers
-                        for (int v = 0; v < totalVertices; v++)
-                        {
-                            vertexBuffer.Add(new VertexElement { value = allVertices[vertexOffset + v] });
-                            normalBuffer.Add(new NormalElement { value = allNormals[vertexOffset + v] });
-                            uvBuffer.Add(new UVElement { value = allUVs[vertexOffset + v] });
-                        }
+                        vertexBuffer.ResizeUninitialized(totalVertices);
+                        normalBuffer.ResizeUninitialized(totalVertices);
+                        uvBuffer.ResizeUninitialized(totalVertices);
+                        indexBuffer.ResizeUninitialized(totalIndices);
                         
-                        for (int idx = 0; idx < totalIndices; idx++)
-                        {
-                            indexBuffer.Add(new IndexElement { value = allIndices[indexOffset + idx] });
-                        }
+                        NativeArray<float3>.Copy(allVertices, vertexOffset, vertexBuffer.Reinterpret<float3>().AsNativeArray(), 0, totalVertices);
+                        NativeArray<float3>.Copy(allNormals, vertexOffset, normalBuffer.Reinterpret<float3>().AsNativeArray(), 0, totalVertices);
+                        NativeArray<float2>.Copy(allUVs, vertexOffset, uvBuffer.Reinterpret<float2>().AsNativeArray(), 0, totalVertices);
+                        NativeArray<int>.Copy(allIndices, indexOffset, indexBuffer.Reinterpret<int>().AsNativeArray(), 0, totalIndices);
                         
                         tile.meshGenerated = true;
                         tile.needsRegeneration = false;
+                        _queuedTiles.Remove(entity);
                         
                         // CRITICAL: Remove StaticObjectsSpawned tag so objects can respawn on regenerated mesh
                         // This also cleans up old object references
@@ -443,22 +436,22 @@ public struct GenerateTileMeshJob : IJobParallelFor
             }
         }
         
-        // Calculate normals
+        // Normals from cached heights (one noise sample per vertex; no trail re-evaluation)
         for (int z = 0; z < data.verticesPerSide; z++)
         {
             for (int x = 0; x < data.verticesPerSide; x++)
             {
-                int vertexIndex = z * data.verticesPerSide + x;
-                int flatIndex = vertexOffset + vertexIndex;
+                int flatIndex = vertexOffset + z * data.verticesPerSide + x;
                 
-                // Calculate world position for this vertex
-                float localX = x * stepSize;
-                float localZ = z * stepSize;
-                double worldX = data.tileWorldPos.x + localX;
-                double worldZ = data.tileWorldPos.z + localZ;
+                float heightLeft = GetCachedHeight(x - 1, z, data.verticesPerSide, vertexOffset, allVertices);
+                float heightRight = GetCachedHeight(x + 1, z, data.verticesPerSide, vertexOffset, allVertices);
+                float heightDown = GetCachedHeight(x, z - 1, data.verticesPerSide, vertexOffset, allVertices);
+                float heightUp = GetCachedHeight(x, z + 1, data.verticesPerSide, vertexOffset, allVertices);
                 
-                // Calculate normal by sampling neighboring heights directly from noise
-                allNormals[flatIndex] = CalculateNormalFromHeightfield(worldX, worldZ, stepSize, data);            }
+                float3 tangentX = new float3(2.0f * stepSize, heightRight - heightLeft, 0);
+                float3 tangentZ = new float3(0, heightUp - heightDown, 2.0f * stepSize);
+                allNormals[flatIndex] = math.normalize(math.cross(tangentZ, tangentX));
+            }
         }
         
         // Generate indices (triangles)
@@ -586,24 +579,13 @@ public struct GenerateTileMeshJob : IJobParallelFor
     }
     
     /// <summary>
-    /// Calculates the normal vector by sampling heights from the noise function at neighboring positions.
+    /// Reads a cached height from the vertex buffer, clamping at tile edges.
     /// </summary>
-    private static float3 CalculateNormalFromHeightfield(double worldX, double worldZ, float stepSize, in TileMeshJobData data)
+    private static float GetCachedHeight(int x, int z, int verticesPerSide, int vertexOffset, NativeArray<float3> vertices)
     {
-        // Sample heights at 4 neighboring positions (cross pattern)
-        float heightLeft = SampleNoise(worldX - stepSize, worldZ, data);
-        float heightRight = SampleNoise(worldX + stepSize, worldZ, data);
-        float heightDown = SampleNoise(worldX, worldZ - stepSize, data);
-        float heightUp = SampleNoise(worldX, worldZ + stepSize, data);
-        
-        // Calculate tangent vectors
-        float3 tangentX = new float3(2.0f * stepSize, heightRight - heightLeft, 0);
-        float3 tangentZ = new float3(0, heightUp - heightDown, 2.0f * stepSize);
-        
-        // Normal is cross product of tangents
-        float3 normal = math.normalize(math.cross(tangentZ, tangentX));
-        
-        return normal;
+        x = math.clamp(x, 0, verticesPerSide - 1);
+        z = math.clamp(z, 0, verticesPerSide - 1);
+        return vertices[vertexOffset + z * verticesPerSide + x].y;
     }
 }
 
