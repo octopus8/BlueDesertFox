@@ -5923,9 +5923,9 @@ MonoBehaviour:
   terrainMaterial: {fileID: 2100000, guid: dc12ba763b59e3a4586cb235c2a074fc, type: 2}
   maxCollidersCreatedPerFrame: 1
   maxPhysicsCollidersCreatedPerFrame: 1
-  maxColliderDistance: 450
+  maxColliderDistance: 220
   maxColliderCacheMemoryMB: 50
-  physicsColliderFullResolutionDistance: 128
+  physicsColliderFullResolutionDistance: 220
   physicsColliderVertexStride: 1
   terrainPhysicsLayer: 11
   trailHeight: -5
