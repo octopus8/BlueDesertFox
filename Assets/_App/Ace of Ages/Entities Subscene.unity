@@ -5929,7 +5929,7 @@ MonoBehaviour:
   physicsColliderVertexStride: 1
   terrainPhysicsLayer: 11
   trailHeight: -5
-  trail1Enabled: 1
+  trail1Enabled: 0
   trail1Width: 100
   trail1BlendWidth: 0
   trail1Seed: 0
@@ -5948,7 +5948,7 @@ MonoBehaviour:
   trail3Frequency: 0.003
   trail3Amplitude: 200
   renderTerrain: 1
-  enablePhysicsColliders: 0
+  enablePhysicsColliders: 1
   enableRenderingDebug: 0
 --- !u!4 &1528308291
 Transform:
