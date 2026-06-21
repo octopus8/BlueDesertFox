@@ -10,8 +10,10 @@ using Unity.Profiling;
 /// <summary>
 /// System that prepares collider data asynchronously using Burst-compiled jobs.
 /// Applies distance-based vertex decimation to reduce MeshCollider.Create cost on distant tiles.
+/// Runs in InitializationSystemGroup so Burst jobs have the entire SimulationSystemGroup to finish
+/// on worker threads before TerrainPhysicsSystem needs the results.
 /// </summary>
-[UpdateInGroup(typeof(SimulationSystemGroup))]
+[UpdateInGroup(typeof(InitializationSystemGroup))]
 public partial struct TerrainColliderPreparationSystem : ISystem
 {
 #if UNITY_EDITOR
@@ -23,12 +25,12 @@ public partial struct TerrainColliderPreparationSystem : ISystem
     /// <summary>
     /// Builds the tile query for entities with <c>PhysicsColliderNeedsPreparation</c> enabled,
     /// and registers required singletons (<see cref="TerrainTileConfig"/>,
-    /// <see cref="EndSimulationEntityCommandBufferSystem.Singleton"/>, and <see cref="CameraDataSingleton"/>).
+    /// <see cref="EndInitializationEntityCommandBufferSystem.Singleton"/>, and <see cref="CameraDataSingleton"/>).
     /// </summary>
     public void OnCreate(ref SystemState state)
     {
         state.RequireForUpdate<TerrainTileConfig>();
-        state.RequireForUpdate<EndSimulationEntityCommandBufferSystem.Singleton>();
+        state.RequireForUpdate<EndInitializationEntityCommandBufferSystem.Singleton>();
         state.RequireForUpdate<CameraDataSingleton>();
         _query = state.GetEntityQuery(
             ComponentType.ReadOnly<PhysicsColliderNeedsPreparation>(),
@@ -44,6 +46,8 @@ public partial struct TerrainColliderPreparationSystem : ISystem
     /// need collider preparation, applying distance-based vertex decimation based on camera proximity
     /// and writing the prepared buffers via <see cref="EntityCommandBuffer"/>.
     /// Skips processing if physics colliders are disabled in <see cref="TerrainTileConfig"/>.
+    /// Uses <see cref="CameraDataSingleton"/> from the previous frame — one frame of latency is
+    /// acceptable for priority scoring and avoids a managed-code dependency on XR tracking.
     /// </summary>
     public void OnUpdate(ref SystemState state)
     {
@@ -59,7 +63,7 @@ public partial struct TerrainColliderPreparationSystem : ISystem
             }
 
             var cameraData = SystemAPI.GetSingleton<CameraDataSingleton>();
-            var ecbSingleton = SystemAPI.GetSingleton<EndSimulationEntityCommandBufferSystem.Singleton>();
+            var ecbSingleton = SystemAPI.GetSingleton<EndInitializationEntityCommandBufferSystem.Singleton>();
             var ecb = ecbSingleton.CreateCommandBuffer(state.WorldUnmanaged);
 
             var job = new PrepareColliderDataJob
@@ -95,9 +99,10 @@ public struct CameraDataSingleton : IComponentData
 /// <summary>
 /// Reads the player's <see cref="Transform"/> position and forward vector from <see cref="PlayerTransformReference"/>
 /// each frame and writes them to the <see cref="CameraDataSingleton"/> so that Burst-compiled jobs can access
-/// camera data without managed object references. Runs before <see cref="TerrainColliderPreparationSystem"/>.
+/// camera data without managed object references. Runs before <see cref="TerrainColliderPreparationSystem"/>
+/// in <see cref="InitializationSystemGroup"/> so the singleton is populated before prep jobs are scheduled.
 /// </summary>
-[UpdateInGroup(typeof(SimulationSystemGroup))]
+[UpdateInGroup(typeof(InitializationSystemGroup))]
 [UpdateBefore(typeof(TerrainColliderPreparationSystem))]
 public partial class CameraDataUpdateSystem : SystemBase
 {

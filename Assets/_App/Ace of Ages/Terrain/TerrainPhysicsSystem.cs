@@ -1,7 +1,8 @@
-using System;
 using System.Collections.Generic;
+using Unity.Burst;
 using Unity.Collections;
 using Unity.Entities;
+using Unity.Jobs;
 using Unity.Mathematics;
 using Unity.Physics;
 using UnityEngine;
@@ -30,9 +31,12 @@ namespace _App.Ace_of_Ages.Terrain
         private NativeQueue<Entity> _pendingColliders;
         private NativeHashSet<Entity> _queuedEntities;
 
+        private BufferLookup<ColliderPreparedVertexElement> _vertexLookup;
+        private BufferLookup<ColliderPreparedTriangleElement> _triangleLookup;
+
         /// <summary>
-        /// Allocates the collider pending queue and deduplication set, and registers the
-        /// <see cref="TerrainTileConfig"/> requirement.
+        /// Allocates the collider pending queue and deduplication set, caches buffer lookups for
+        /// the parallel collider-creation job, and registers the <see cref="TerrainTileConfig"/> requirement.
         /// </summary>
         protected override void OnCreate()
         {
@@ -40,6 +44,9 @@ namespace _App.Ace_of_Ages.Terrain
 
             _pendingColliders = new NativeQueue<Entity>(Allocator.Persistent);
             _queuedEntities = new NativeHashSet<Entity>(64, Allocator.Persistent);
+
+            _vertexLookup = GetBufferLookup<ColliderPreparedVertexElement>(isReadOnly: true);
+            _triangleLookup = GetBufferLookup<ColliderPreparedTriangleElement>(isReadOnly: true);
         }
 
         /// <summary>Disposes the native pending-collider queue and deduplication set.</summary>
@@ -59,8 +66,8 @@ namespace _App.Ace_of_Ages.Terrain
         /// <summary>
         /// Completes any outstanding collider preparation jobs, then processes up to
         /// <c>maxCollidersCreatedPerFrame</c> prepared tiles per frame — sorted by camera-aware
-        /// priority — calling <c>MeshCollider.Create()</c> on the main thread for each and
-        /// registering the result via <see cref="EntityCommandBuffer"/>.
+        /// priority — scheduling <c>MeshCollider.Create()</c> as a parallel Burst job and
+        /// registering the results via <see cref="EntityCommandBuffer"/>.
         /// Skips processing if physics colliders are disabled in <see cref="TerrainTileConfig"/>.
         /// </summary>
         protected override void OnUpdate()
@@ -73,6 +80,9 @@ namespace _App.Ace_of_Ages.Terrain
             }
 
             CompletePreparationJobs();
+
+            _vertexLookup.Update(this);
+            _triangleLookup.Update(this);
 
             int remainingBudget = TerrainPhysicsBudget.GetCreationBudget(config);
             var ecb = new EntityCommandBuffer(Allocator.Temp);
@@ -169,9 +179,9 @@ namespace _App.Ace_of_Ages.Terrain
 
         /// <summary>
         /// Sorts queued tiles by camera-aware priority, then creates up to <paramref name="budget"/>
-        /// <see cref="Unity.Physics.MeshCollider"/> instances from prepared vertex/triangle buffers,
-        /// attaches them to tile entities via ECB, and updates the LRU collider cache.
-        /// Returns the number of colliders created.
+        /// <see cref="Unity.Physics.MeshCollider"/> instances from prepared vertex/triangle buffers
+        /// using a parallel Burst job, attaches blobs to tile entities via ECB, and returns
+        /// the remaining budget.
         /// </summary>
         private int CreateCollidersFromQueue(int budget, CollisionFilter collisionFilter, EntityCommandBuffer ecb)
         {
@@ -213,61 +223,57 @@ namespace _App.Ace_of_Ages.Terrain
 
             int tilesToProcess = math.min(pendingTiles.Length, budget);
 
+            var entityArr = new NativeArray<Entity>(tilesToProcess, Allocator.TempJob);
+            var resultArr = new NativeArray<BlobAssetReference<Unity.Physics.Collider>>(tilesToProcess, Allocator.TempJob);
+
+            for (int i = 0; i < tilesToProcess; i++)
+            {
+                entityArr[i] = pendingTiles[i].entity;
+            }
+
 #if UNITY_EDITOR
             using (s_ColliderCreationMarker.Auto())
 #endif
             {
-                for (int i = 0; i < tilesToProcess; i++)
+                var job = new CreateMeshCollidersJob
                 {
-                    var entity = pendingTiles[i].entity;
-
-                    if (!EntityManager.Exists(entity))
-                    {
-                        continue;
-                    }
-
-                    var vertexBuffer = EntityManager.GetBuffer<ColliderPreparedVertexElement>(entity);
-                    var triangleBuffer = EntityManager.GetBuffer<ColliderPreparedTriangleElement>(entity);
-
-                    if (vertexBuffer.Length == 0 || triangleBuffer.Length == 0)
-                    {
-                        Debug.LogWarning($"[TerrainPhysics] Entity {entity.Index} has empty prepared buffers, skipping");
-                        ecb.RemoveComponent<PhysicsColliderPrepared>(entity);
-                        continue;
-                    }
-
-                    var verticesNative = vertexBuffer.Reinterpret<float3>().AsNativeArray();
-                    var trianglesNative = triangleBuffer.Reinterpret<int3>().AsNativeArray();
-
-                    try
-                    {
-#if UNITY_EDITOR
-                        UnityEngine.Profiling.Profiler.BeginSample("TerrainPhysics.MeshColliderCreate");
-#endif
-                        var collider = Unity.Physics.MeshCollider.Create(
-                            verticesNative,
-                            trianglesNative,
-                            collisionFilter,
-                            Unity.Physics.Material.Default
-                        );
-#if UNITY_EDITOR
-                        UnityEngine.Profiling.Profiler.EndSample();
-#endif
-
-                        ecb.AddComponent(entity, new PhysicsColliderRegistrationPending { collider = collider });
-                        ecb.RemoveComponent<PhysicsColliderPrepared>(entity);
-                        // Keep ColliderPreparedVertexElement/ColliderPreparedTriangleElement so the
-                        // TerrainColliderVisualizer can draw the actual baked collider geometry.
-                        // These are removed by TerrainDistanceTrackingSystem.RemoveColliderState when
-                        // the collider itself is removed, keeping the overlay in lockstep with physics.
-                        budget--;
-                    }
-                    catch (Exception e)
-                    {
-                        Debug.LogError($"[TerrainPhysics] Failed to create collider for entity {entity.Index}: {e.Message}");
-                    }
-                }
+                    entities = entityArr,
+                    vertexBuffers = _vertexLookup,
+                    triangleBuffers = _triangleLookup,
+                    results = resultArr,
+                    filter = collisionFilter
+                };
+                job.Schedule(tilesToProcess, 1).Complete();
             }
+
+            for (int i = 0; i < tilesToProcess; i++)
+            {
+                var entity = entityArr[i];
+
+                if (!EntityManager.Exists(entity))
+                {
+                    if (resultArr[i].IsCreated) resultArr[i].Dispose();
+                    continue;
+                }
+
+                if (!resultArr[i].IsCreated)
+                {
+                    Debug.LogWarning($"[TerrainPhysics] Entity {entity.Index} produced no collider (empty buffers?), skipping");
+                    ecb.RemoveComponent<PhysicsColliderPrepared>(entity);
+                    continue;
+                }
+
+                ecb.AddComponent(entity, new PhysicsColliderRegistrationPending { collider = resultArr[i] });
+                ecb.RemoveComponent<PhysicsColliderPrepared>(entity);
+                // Keep ColliderPreparedVertexElement/ColliderPreparedTriangleElement so the
+                // TerrainColliderVisualizer can draw the actual baked collider geometry.
+                // These are removed by TerrainDistanceTrackingSystem.RemoveColliderState when
+                // the collider itself is removed, keeping the overlay in lockstep with physics.
+                budget--;
+            }
+
+            entityArr.Dispose();
+            resultArr.Dispose();
 
             for (int i = tilesToProcess; i < pendingTiles.Length; i++)
             {
@@ -323,6 +329,49 @@ namespace _App.Ace_of_Ages.Terrain
         public int Compare(ColliderEntityWithPriority a, ColliderEntityWithPriority b)
         {
             return a.priority.CompareTo(b.priority);
+        }
+    }
+
+    /// <summary>
+    /// Burst-compiled parallel job that calls <see cref="MeshCollider.Create"/> for each terrain tile
+    /// in the budget. Runs BVH construction on worker threads instead of the main thread, eliminating
+    /// the per-tile 2–8 ms stall from sequential main-thread collider creation.
+    /// Results are written to <see cref="results"/>; a default (not-created) blob indicates an empty
+    /// or degenerate buffer that the caller should skip and clean up.
+    /// </summary>
+    [BurstCompile]
+    struct CreateMeshCollidersJob : IJobParallelFor
+    {
+        [ReadOnly] public NativeArray<Entity> entities;
+        [ReadOnly] public BufferLookup<ColliderPreparedVertexElement> vertexBuffers;
+        [ReadOnly] public BufferLookup<ColliderPreparedTriangleElement> triangleBuffers;
+        [WriteOnly] public NativeArray<BlobAssetReference<Unity.Physics.Collider>> results;
+        public CollisionFilter filter;
+
+        /// <summary>
+        /// Creates a <see cref="MeshCollider"/> blob for the entity at <paramref name="index"/>.
+        /// Writes a default blob when the entity has no prepared buffers (caller detects via <c>IsCreated</c>).
+        /// </summary>
+        public void Execute(int index)
+        {
+            Entity entity = entities[index];
+
+            if (!vertexBuffers.HasBuffer(entity) || !triangleBuffers.HasBuffer(entity))
+            {
+                results[index] = default;
+                return;
+            }
+
+            var verts = vertexBuffers[entity].Reinterpret<float3>().AsNativeArray();
+            var tris  = triangleBuffers[entity].Reinterpret<int3>().AsNativeArray();
+
+            if (verts.Length == 0 || tris.Length == 0)
+            {
+                results[index] = default;
+                return;
+            }
+
+            results[index] = Unity.Physics.MeshCollider.Create(verts, tris, filter, Unity.Physics.Material.Default);
         }
     }
 }
