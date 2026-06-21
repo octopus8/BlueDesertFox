@@ -12,7 +12,6 @@ using Unity.Profiling;
 /// Applies distance-based vertex decimation to reduce MeshCollider.Create cost on distant tiles.
 /// </summary>
 [UpdateInGroup(typeof(SimulationSystemGroup))]
-[UpdateAfter(typeof(TerrainMeshGenerationSystem))]
 public partial struct TerrainColliderPreparationSystem : ISystem
 {
 #if UNITY_EDITOR

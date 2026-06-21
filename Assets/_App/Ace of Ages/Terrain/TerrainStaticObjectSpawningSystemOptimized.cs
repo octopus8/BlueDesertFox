@@ -23,7 +23,6 @@ using Unity.Profiling;
 [RequireMatchingQueriesForUpdate]
 [UpdateInGroup(typeof(SimulationSystemGroup))]
 [UpdateAfter(typeof(CameraDataUpdateSystem))]
-[UpdateAfter(typeof(TerrainMeshGenerationSystem))]
 [UpdateBefore(typeof(EndSimulationEntityCommandBufferSystem))]
 [BurstCompile]
 public partial struct TerrainTreeSpawningSystemOptimized : ISystem
