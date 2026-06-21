@@ -14,30 +14,27 @@ using Unity.Transforms;
 partial struct FormationMovementSystem : ISystem
 {
     /// <summary>
-    /// Registers required singletons (<see cref="PlayerTransformReference"/> and
-    /// <see cref="TerrainTileConfig"/>) so the system waits until the player is tracked.
+    /// Registers required singletons (<see cref="PlayerTransformReference"/>,
+    /// <see cref="CameraDataSingleton"/>, and <see cref="TerrainTileConfig"/>) so the system
+    /// waits until the player is tracked.
     /// </summary>
     [BurstCompile]
     public void OnCreate(ref SystemState state)
     {
-        // Require player tracking for distance calculations
         state.RequireForUpdate<PlayerTransformReference>();
         state.RequireForUpdate<TerrainTileConfig>();
+        state.RequireForUpdate<CameraDataSingleton>();
     }
     
     /// <summary>
-    /// Reads the current player position, view distance, delta time, and terrain scroll velocity,
-    /// then schedules the Burst-compiled <see cref="FormationMovementJob"/> in parallel to update
-    /// all formation movement states for this frame.
+    /// Reads the cached player position from <see cref="CameraDataSingleton"/> (written end of
+    /// previous frame) and schedules the Burst-compiled <see cref="FormationMovementJob"/> in
+    /// parallel to update all formation movement states for this frame.
     /// </summary>
+    [BurstCompile]
     public void OnUpdate(ref SystemState state)
     {
-        // Get singletons (managed component requires main thread access)
-        var playerRef = SystemAPI.ManagedAPI.GetSingleton<PlayerTransformReference>();
-        if (playerRef == null || playerRef.playerTransform == null)
-            return;
-        
-        float3 playerPosition = playerRef.playerTransform.position;
+        float3 playerPosition = SystemAPI.GetSingleton<CameraDataSingleton>().position;
         var config = SystemAPI.GetSingleton<TerrainTileConfig>();
         float viewDistance = config.viewDistance;
         float deltaTime = SystemAPI.Time.DeltaTime;

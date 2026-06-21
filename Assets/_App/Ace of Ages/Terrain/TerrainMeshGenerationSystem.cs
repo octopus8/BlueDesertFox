@@ -16,8 +16,11 @@ using Unity.Profiling;
 /// EarlyUpdate.XRUpdate of the next frame while the main thread is blocked waiting for tracking data.
 /// Pairs with <see cref="TerrainMeshCompleteSystem"/> which completes the jobs in
 /// InitializationSystemGroup (immediately after XRUpdate finishes).
+/// Runs after <see cref="CameraDataUpdateSystem"/> so it reads the freshly-written
+/// <see cref="CameraDataSingleton"/> for camera-aware tile priority sorting.
 /// </summary>
 [UpdateInGroup(typeof(PresentationSystemGroup))]
+[UpdateAfter(typeof(CameraDataUpdateSystem))]
 public partial struct TerrainMeshScheduleSystem : ISystem
 {
     private NativeQueue<Entity> _pendingTiles;
@@ -44,6 +47,7 @@ public partial struct TerrainMeshScheduleSystem : ISystem
     public void OnCreate(ref SystemState state)
     {
         state.RequireForUpdate<TerrainTileConfig>();
+        state.RequireForUpdate<CameraDataSingleton>();
 
         _pendingTiles = new NativeQueue<Entity>(Allocator.Persistent);
         _queuedTiles = new NativeHashSet<Entity>(256, Allocator.Persistent);
@@ -91,16 +95,9 @@ public partial struct TerrainMeshScheduleSystem : ISystem
             float3 cameraPosition = float3.zero;
             float3 cameraForward = new float3(0, 0, 1);
 
-            if (SystemAPI.ManagedAPI.TryGetSingleton<PlayerTransformReference>(out var playerRef) &&
-                playerRef != null &&
-                playerRef.playerTransform != null)
-            {
-                cameraPosition = playerRef.playerTransform.position;
-                cameraForward = math.normalize(new float3(
-                    playerRef.playerTransform.forward.x,
-                    playerRef.playerTransform.forward.y,
-                    playerRef.playerTransform.forward.z));
-            }
+            var cameraData = SystemAPI.GetSingleton<CameraDataSingleton>();
+            cameraPosition = cameraData.position;
+            cameraForward = cameraData.fullForward;
 
             // Enqueue tiles that need mesh generation
             foreach (var (tile, entity) in SystemAPI.Query<RefRO<TerrainTile>>()
@@ -274,8 +271,9 @@ public partial struct TerrainMeshScheduleSystem : ISystem
 /// <summary>
 /// Completes the terrain mesh generation jobs scheduled by <see cref="TerrainMeshScheduleSystem"/>
 /// the previous frame, then copies results into ECS DynamicBuffers so that
-/// <see cref="TerrainColliderPreparationSystem"/> and <see cref="TerrainStaticObjectSpawningSystemOptimized"/>
-/// (both in SimulationSystemGroup) see fresh mesh data in the same frame.
+/// <see cref="_App.Ace_of_Ages.Terrain.TerrainPhysicsSystem"/> and
+/// <see cref="TerrainStaticObjectSpawningSystemOptimized"/> (both in SimulationSystemGroup)
+/// see fresh mesh data in the same frame.
 /// Runs in InitializationSystemGroup — immediately after EarlyUpdate.XRUpdate finishes —
 /// so worker threads overlap with the XR tracking wait at no extra wall-clock cost.
 /// </summary>

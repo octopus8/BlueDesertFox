@@ -1,3 +1,4 @@
+using Unity.Burst;
 using Unity.Entities;
 using Unity.Mathematics;
 using Unity.Transforms;
@@ -14,23 +15,24 @@ public partial struct PlayerTargetVelocityEstimateSystem : ISystem
     public void OnCreate(ref SystemState state)
     {
         state.RequireForUpdate<PlayerTransformReference>();
+        state.RequireForUpdate<CameraDataSingleton>();
     }
 
     /// <summary>
-    /// Computes a finite-difference XZ velocity estimate from the player's current and previous world positions
-    /// and applies 0.45 lerp smoothing to reduce VR tracking noise. Writes the result to <see cref="PlayerTargetVelocity"/>.
+    /// Computes a finite-difference XZ velocity estimate from the cached player position and applies
+    /// 0.45 lerp smoothing to reduce VR tracking noise. Writes the result to <see cref="PlayerTargetVelocity"/>.
+    /// Reads <see cref="CameraDataSingleton"/> written at end of the previous frame.
     /// </summary>
+    [BurstCompile]
     public void OnUpdate(ref SystemState state)
     {
-        var playerRef = SystemAPI.ManagedAPI.GetSingleton<PlayerTransformReference>();
-        if (playerRef?.playerTransform == null)
-            return;
+        var cameraData = SystemAPI.GetSingleton<CameraDataSingleton>();
+        float3 pos = cameraData.position;
 
         float dt = SystemAPI.Time.DeltaTime;
         if (dt < 1e-8f)
             return;
 
-        float3 pos = playerRef.playerTransform.position;
         if (!SystemAPI.HasSingleton<PlayerTargetVelocity>())
             return;
 
@@ -49,7 +51,6 @@ public partial struct PlayerTargetVelocityEstimateSystem : ISystem
         raw = new float3(raw.x, 0f, raw.z);
 
         k.lastWorldPosition = pos;
-        // Light smoothing to reduce VR tracking noise without lagging too badly.
         k.horizontal = math.lerp(k.horizontal, raw, 0.45f);
     }
 }

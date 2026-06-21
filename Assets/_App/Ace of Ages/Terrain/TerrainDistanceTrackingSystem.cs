@@ -26,6 +26,7 @@ public partial class TerrainDistanceTrackingSystem : SystemBase
     protected override void OnCreate()
     {
         RequireForUpdate<TerrainTileConfig>();
+        RequireForUpdate<CameraDataSingleton>();
     }
 
     /// <summary>
@@ -47,14 +48,8 @@ public partial class TerrainDistanceTrackingSystem : SystemBase
                 return;
             }
 
-            if (!SystemAPI.ManagedAPI.TryGetSingleton<PlayerTransformReference>(out var playerRef) ||
-                playerRef == null ||
-                playerRef.playerTransform == null)
-            {
-                return;
-            }
-
-            float3 playerPosition = playerRef.playerTransform.position;
+            // Read cached player position from the blittable singleton (written end of previous frame).
+            float3 playerPosition = SystemAPI.GetSingleton<CameraDataSingleton>().position;
             int prepBudget = TerrainPhysicsBudget.GetCreationBudget(config);
 
             var ecb = new EntityCommandBuffer(Allocator.Temp);

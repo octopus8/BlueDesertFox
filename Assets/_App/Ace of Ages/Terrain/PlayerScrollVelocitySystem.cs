@@ -13,90 +13,73 @@ using Unity.Mathematics;
 [UpdateBefore(typeof(TransformFollowerSystem))]
 public partial class PlayerScrollVelocitySystem : SystemBase
 {
-    /// <summary>Registers required singletons: scroll velocity, player config, player transform reference, and world origin.</summary>
+    /// <summary>Registers required singletons: scroll velocity, player config, player transform reference, world origin, and pose cache.</summary>
     protected override void OnCreate()
     {
         RequireForUpdate<TerrainScrollVelocity>();
         RequireForUpdate<PlayerTerrainScrollVelocityConfig>();
         RequireForUpdate<PlayerTransformReference>();
         RequireForUpdate<WorldOriginTransformReference>();
+        RequireForUpdate<CameraDataSingleton>();
     }
 
     /// <summary>
-    /// Reads the player ship's pitch and bank angles, distributes the configured <c>speed</c> between
-    /// horizontal scroll and vertical movement, writes the resulting <see cref="TerrainScrollVelocity"/>,
-    /// and optionally rotates the world-origin Transform based on bank angle.
+    /// Reads the player ship's pitch and bank angles from <see cref="CameraDataSingleton"/> (written at
+    /// end of previous frame), distributes the configured <c>speed</c> between horizontal scroll and
+    /// vertical movement, writes the resulting <see cref="TerrainScrollVelocity"/>, and optionally
+    /// rotates the world-origin Transform based on bank angle.
+    /// Writing to the world-origin managed Transform must remain on the main thread.
     /// </summary>
     protected override void OnUpdate()
     {
         var config = SystemAPI.GetSingleton<PlayerTerrainScrollVelocityConfig>();
-        var playerRef = SystemAPI.ManagedAPI.GetSingleton<PlayerTransformReference>();
         var worldOriginRef = SystemAPI.ManagedAPI.GetSingleton<WorldOriginTransformReference>();
-        
-        // Early return if player transform is null or not yet initialized
-        if (playerRef?.playerTransform == null)
-            return;
-        
-        // Get player's forward direction and project onto XZ plane (remove Y component)
-        UnityEngine.Vector3 playerForward = playerRef.playerTransform.forward;
-        float3 baseScrollDirection = new float3(playerForward.x, 0, playerForward.z);
-        
-        // Normalize base direction
+        var cameraData = SystemAPI.GetSingleton<CameraDataSingleton>();
+
+        // Use cached full 3D forward from singleton — no managed Transform access needed.
+        float3 fullFwd = cameraData.fullForward;
+        float3 baseScrollDirection = new float3(fullFwd.x, 0, fullFwd.z);
+
         if (math.lengthsq(baseScrollDirection) > 0.0001f)
             baseScrollDirection = math.normalize(baseScrollDirection);
         else
-            baseScrollDirection = new float3(0, 0, 1); // Default forward if no valid direction
-        
+            baseScrollDirection = new float3(0, 0, 1);
+
         // Decompose speed into horizontal scroll and vertical components using pitch angle.
-        // playerForward.y == sin(pitch), so cos(pitch) gives the horizontal factor.
+        // fullFwd.y == sin(pitch), so cos(pitch) gives the horizontal factor.
         // At pitch = 0 (level):    scroll = speed, vertical = 0
         // At pitch = 90 (nose-up): scroll = 0,     vertical = speed
-        float sinPitch = playerForward.y;
+        float sinPitch = fullFwd.y;
         float cosPitch = math.sqrt(1f - sinPitch * sinPitch);
 
         RefRW<TerrainScrollVelocity> scrollVelocity = SystemAPI.GetSingletonRW<TerrainScrollVelocity>();
         scrollVelocity.ValueRW.direction = baseScrollDirection;
         scrollVelocity.ValueRW.speed = config.speed * cosPitch;
 
-        // Rotate world origin based on player's bank angle (local Z-axis rotation)
+        // Rotate world origin based on cached bank angle (already normalised to –180..180 by CameraDataUpdateSystem).
         if (worldOriginRef?.worldOriginTransform != null)
         {
-            // Get player's world rotation euler angles (not local)
-            UnityEngine.Vector3 playerEuler = playerRef.playerTransform.eulerAngles;
-            float bankAngle = playerEuler.z;
-            
-            // Convert from 0-360 to -180 to 180 for proper direction
-            if (bankAngle > 180f)
-                bankAngle -= 360f;
-            
-            // Use sine function to map bank angle to rotation speed
-            // At ±90°: sin = ±1.0 (full speed rotation)
-            // At 0°/180°: sin = 0 (no rotation)
-            // This creates a natural steering curve
-            float bankRadians = math.radians(bankAngle);
+            float bankRadians = math.radians(cameraData.bankAngle);
             float rotationSpeed = -math.sin(bankRadians);
-            
+
             float rotationAmount = rotationSpeed * config.rotationSpeed * SystemAPI.Time.DeltaTime;
             worldOriginRef.worldOriginTransform.rotation *= UnityEngine.Quaternion.Euler(0, rotationAmount, 0);
         }
-        
+
         // Vertical velocity is the sin(pitch) portion of the total speed.
         // Nose-up (positive pitch) raises the world origin; nose-down lowers it.
         float verticalVelocity = config.speed * sinPitch;
-        
-        // Apply vertical movement with clamping
-        UnityEngine.Vector3 currentPosition = worldOriginRef.worldOriginTransform.position;
-        float newYPosition = currentPosition.y + (verticalVelocity * SystemAPI.Time.DeltaTime);
-        
-        // Clamp Y position to prevent extreme offsets
-        newYPosition = math.clamp(newYPosition, config.minVerticalPosition, config.maxVerticalPosition);
-        
-        worldOriginRef.worldOriginTransform.position = new UnityEngine.Vector3(
-            currentPosition.x,
-            newYPosition,
-            currentPosition.z
-        );
-        
-        
+
+        if (worldOriginRef?.worldOriginTransform != null)
+        {
+            UnityEngine.Vector3 currentPosition = worldOriginRef.worldOriginTransform.position;
+            float newYPosition = currentPosition.y + (verticalVelocity * SystemAPI.Time.DeltaTime);
+            newYPosition = math.clamp(newYPosition, config.minVerticalPosition, config.maxVerticalPosition);
+            worldOriginRef.worldOriginTransform.position = new UnityEngine.Vector3(
+                currentPosition.x,
+                newYPosition,
+                currentPosition.z
+            );
+        }
     }
 }

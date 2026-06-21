@@ -585,8 +585,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: cc0ffc3622fa4f8db0bc563e3e37d477, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::BulletPoolConfigAuthoring
-  initialPoolSize: 3000
-  maxPoolSize: 5000
+  initialPoolSize: 0
+  maxPoolSize: 0
 --- !u!4 &582652031
 Transform:
   m_ObjectHideFlags: 0
@@ -614,8 +614,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2428c6a881424ca79566dedf5c8f5796, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::DirtExplosionPoolConfigAuthoring
-  initialPoolSize: 200
-  maxPoolSize: 200
+  initialPoolSize: 0
+  maxPoolSize: 0
   lifetime: 2.5
 --- !u!1001 &582819465
 PrefabInstance:

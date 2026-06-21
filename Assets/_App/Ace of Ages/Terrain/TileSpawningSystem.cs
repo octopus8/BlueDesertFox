@@ -27,6 +27,7 @@ public partial struct TileSpawningSystem : ISystem
         state.RequireForUpdate<PlayerTransformReference>();
         state.RequireForUpdate<TerrainTileConfig>();
         state.RequireForUpdate<ScrollOffset>();
+        state.RequireForUpdate<CameraDataSingleton>();
         
         _activeTiles = new NativeParallelHashMap<int2, Entity>(256, Allocator.Persistent);
     }
@@ -55,17 +56,10 @@ public partial struct TileSpawningSystem : ISystem
             return;
         }
         
-        // Get the player transform reference (managed component, cannot use Burst)
-        var playerRef = SystemAPI.ManagedAPI.GetSingleton<PlayerTransformReference>();
-        
-        // Check if player transform is valid
-        if (playerRef == null || playerRef.playerTransform == null)
-        {
-            return;
-        }
-
-        // Get player position from GameObject Transform (keep at actual position)
-        float3 playerPosition = playerRef.playerTransform.position;
+        // Read cached player position from the blittable singleton (written end of previous frame).
+        // One frame of latency is imperceptible at the 500m spawn ring scale.
+        var cameraData = SystemAPI.GetSingleton<CameraDataSingleton>();
+        float3 playerPosition = cameraData.position;
         
         // Get scroll offset (used for tile position offsetting, not player position)
         var scrollOffset = SystemAPI.GetSingleton<ScrollOffset>();

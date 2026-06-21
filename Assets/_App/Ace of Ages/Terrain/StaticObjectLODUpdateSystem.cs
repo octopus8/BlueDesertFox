@@ -55,6 +55,7 @@ public partial struct StaticObjectLODUpdateSystem : ISystem
         state.RequireForUpdate<StaticObjectLODConfig>();
         state.RequireForUpdate<StaticObjectLODMeshInfoReady>();
         state.RequireForUpdate<PlayerTransformReference>();
+        state.RequireForUpdate<CameraDataSingleton>();
         _activeChunks = new NativeList<int2>(20, Allocator.Persistent);
         _activeChunksSet = new NativeHashSet<int2>(20, Allocator.Persistent);
         _frameCounter = 0;
@@ -94,25 +95,8 @@ public partial struct StaticObjectLODUpdateSystem : ISystem
         // Get configuration
         var lodConfig = SystemAPI.GetSingleton<StaticObjectLODConfig>();
         
-        // Get player position (must access managed component on main thread before Burst job)
-        float3 playerPosition = float3.zero;
-        bool hasPlayerPosition = false;
-        
-        // Access managed component on main thread
-        foreach (var playerRef in SystemAPI.Query<PlayerTransformReference>())
-        {
-            if (playerRef != null && playerRef.playerTransform != null)
-            {
-                playerPosition = playerRef.playerTransform.position;
-                hasPlayerPosition = true;
-                break;
-            }
-        }
-        
-        if (!hasPlayerPosition)
-        {
-            return;
-        }
+        // Read cached player position from the blittable singleton (written end of previous frame).
+        float3 playerPosition = SystemAPI.GetSingleton<CameraDataSingleton>().position;
         
 #if UNITY_EDITOR
         s_VelocityCalcMarker.Data.Begin();

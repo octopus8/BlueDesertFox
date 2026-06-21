@@ -8,7 +8,7 @@ using Unity.Transforms;
 /// Rotates turret dome entities to predictively aim at the player using a ballistic intercept calculation.
 ///
 /// Each frame the system:
-///   1. Reads the player's world position from PlayerTransformReference (managed, main thread).
+///   1. Reads the player's world position from <see cref="CameraDataSingleton"/> (cached end of previous frame).
 ///   2. Uses terrain scroll direction and speed only for predictive lead on the XZ plane (player
 ///      locomotion is ignored).
 ///   3. Schedules a Burst parallel job that solves the quadratic intercept equation from the
@@ -25,27 +25,24 @@ using Unity.Transforms;
 [UpdateBefore(typeof(LocalToWorldSystem))]
 public partial struct TurretAimingSystem : ISystem
 {
-    /// <summary>Registers <see cref="TurretDome"/>, <see cref="TerrainScrollVelocity"/>, and <see cref="PlayerTransformReference"/> requirements.</summary>
+    /// <summary>Registers <see cref="TurretDome"/>, <see cref="TerrainScrollVelocity"/>, and <see cref="CameraDataSingleton"/> requirements.</summary>
     public void OnCreate(ref SystemState state)
     {
         state.RequireForUpdate<TurretDome>();
         state.RequireForUpdate<TerrainScrollVelocity>();
         state.RequireForUpdate<PlayerTransformReference>();
+        state.RequireForUpdate<CameraDataSingleton>();
     }
 
-    // OnUpdate is intentionally NOT [BurstCompile] — it must read the managed
-    // PlayerTransformReference singleton on the main thread before scheduling the job.
     /// <summary>
-    /// Reads the player world position (main thread), builds the muzzle-offset lookup map, then
-    /// schedules <c>TurretAimJob</c> in parallel to solve intercept points and rotate all dome entities.
+    /// Reads the cached player position from <see cref="CameraDataSingleton"/>, builds the
+    /// muzzle-offset lookup map, then schedules <c>TurretAimJob</c> in parallel to solve
+    /// intercept points and rotate all dome entities.
     /// </summary>
+    [BurstCompile]
     public void OnUpdate(ref SystemState state)
     {
-        var playerRef = SystemAPI.ManagedAPI.GetSingleton<PlayerTransformReference>();
-        if (playerRef?.playerTransform == null)
-            return;
-
-        float3 playerPos = playerRef.playerTransform.position;
+        float3 playerPos = SystemAPI.GetSingleton<CameraDataSingleton>().position;
 
         var scrollVel = SystemAPI.GetSingleton<TerrainScrollVelocity>();
         float3 scrollVelocity = scrollVel.direction * scrollVel.speed;
