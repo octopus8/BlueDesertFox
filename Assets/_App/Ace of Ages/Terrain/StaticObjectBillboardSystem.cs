@@ -40,9 +40,12 @@ public partial struct StaticObjectBillboardSystem : ISystem
 /// Burst-compiled parallel job that rotates each LOD2 billboard static object to face the camera
 /// around the Y axis (cylindrical billboard — stays upright, only yaws toward the camera XZ position).
 /// Skips entities that are not billboard types or are not currently at LOD2.
+/// Skips entities with <see cref="Unity.Rendering.DisableRendering"/> — culled objects are not
+/// rendered and do not need their rotation updated.
 /// </summary>
 [BurstCompile]
 [WithAll(typeof(GlobalStaticObjectInstance))]
+[WithNone(typeof(Unity.Rendering.DisableRendering))]
 partial struct BillboardRotationJob : IJobEntity
 {
     /// <summary>World-space camera position this frame, read from <see cref="CameraDataSingleton"/>.</summary>
