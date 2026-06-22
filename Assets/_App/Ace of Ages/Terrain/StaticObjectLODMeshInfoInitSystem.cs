@@ -19,6 +19,9 @@ using UnityEngine;
 [UpdateAfter(typeof(BeginInitializationEntityCommandBufferSystem))]
 public partial class StaticObjectLODMeshInfoInitSystem : SystemBase
 {
+    private const int MaxEmptyBufferRetries = 120;
+    private int _emptyBufferRetryCount;
+
     /// <summary>Registers <see cref="StaticObjectSpawnerConfig"/> and <see cref="StaticObjectPrefabElement"/> requirements.</summary>
     protected override void OnCreate()
     {
@@ -35,28 +38,45 @@ public partial class StaticObjectLODMeshInfoInitSystem : SystemBase
     {
         var configEntity = SystemAPI.GetSingletonEntity<StaticObjectSpawnerConfig>();
 
-        // Already initialised — disable and exit.
         if (EntityManager.HasComponent<StaticObjectLODMeshInfoReady>(configEntity))
         {
             Enabled = false;
             return;
         }
 
-        // Perform any structural changes BEFORE obtaining buffer references —
-        // AddBuffer is a structural change that would invalidate any previously held buffer handle.
-        if (!EntityManager.HasBuffer<StaticObjectLODMaterialMeshInfoElement>(configEntity))
-            EntityManager.AddBuffer<StaticObjectLODMaterialMeshInfoElement>(configEntity);
-
-        // Fetch both buffers after all structural changes are complete.
-        var prefabBuffer = EntityManager.GetBuffer<StaticObjectPrefabElement>(configEntity, isReadOnly: true);
-        var infoBuffer   = EntityManager.GetBuffer<StaticObjectLODMaterialMeshInfoElement>(configEntity);
-
-        if (prefabBuffer.Length == 0)
+        if (!EntityManager.HasBuffer<StaticObjectPrefabElement>(configEntity))
         {
-            Debug.LogWarning("[StaticObjectLODMeshInfoInit] StaticObjectPrefabElement buffer is empty — retrying next frame.");
+            LogEmptyPrefabBufferFatal(configEntity, "StaticObjectPrefabElement buffer is missing on the config entity.");
             return;
         }
 
+        if (!EntityManager.HasBuffer<StaticObjectLODMaterialMeshInfoElement>(configEntity))
+            EntityManager.AddBuffer<StaticObjectLODMaterialMeshInfoElement>(configEntity);
+
+        var prefabBuffer = EntityManager.GetBuffer<StaticObjectPrefabElement>(configEntity, isReadOnly: true);
+        var infoBuffer = EntityManager.GetBuffer<StaticObjectLODMaterialMeshInfoElement>(configEntity);
+
+        if (prefabBuffer.Length == 0)
+        {
+            _emptyBufferRetryCount++;
+            if (_emptyBufferRetryCount == 1 || _emptyBufferRetryCount == MaxEmptyBufferRetries)
+            {
+                Debug.LogWarning(
+                    "[StaticObjectLODMeshInfoInit] StaticObjectPrefabElement buffer is empty on the config entity. " +
+                    "Re-bake the Entities SubScene (StaticObjectSpawnerConfigAuthoring → object LOD sets). " +
+                    $"Retry {_emptyBufferRetryCount}/{MaxEmptyBufferRetries}.");
+            }
+
+            if (_emptyBufferRetryCount >= MaxEmptyBufferRetries)
+            {
+                LogEmptyPrefabBufferFatal(configEntity,
+                    "StaticObjectPrefabElement buffer is still empty after maximum retries.");
+            }
+
+            return;
+        }
+
+        _emptyBufferRetryCount = 0;
         infoBuffer.Clear();
 
         int missing = 0;
@@ -66,7 +86,6 @@ public partial class StaticObjectLODMeshInfoInitSystem : SystemBase
 
             if (!EntityManager.Exists(prefabEntity) || !EntityManager.HasComponent<MaterialMeshInfo>(prefabEntity))
             {
-                // Prefab entity not yet available — abort and retry next frame.
                 infoBuffer.Clear();
                 missing++;
                 break;
@@ -82,13 +101,20 @@ public partial class StaticObjectLODMeshInfoInitSystem : SystemBase
             return;
         }
 
-        // Capture length before the structural change below invalidates the buffer handle.
         int populatedCount = infoBuffer.Length;
 
-        // All slots populated — mark ready and self-disable.
         EntityManager.AddComponent<StaticObjectLODMeshInfoReady>(configEntity);
         Enabled = false;
 
         Debug.Log($"[StaticObjectLODMeshInfoInit] Populated {populatedCount} LOD MaterialMeshInfo slots.");
+    }
+
+    private void LogEmptyPrefabBufferFatal(Entity configEntity, string detail)
+    {
+        Debug.LogError(
+            $"[StaticObjectLODMeshInfoInit] {detail} " +
+            "Open the Entities SubScene, verify StaticObjectSpawnerConfigAuthoring has valid object LOD sets, " +
+            "then re-bake the SubScene. Static object spawning and LOD will not run until this is fixed.");
+        Enabled = false;
     }
 }

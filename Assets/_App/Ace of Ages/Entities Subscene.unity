@@ -5914,7 +5914,7 @@ MonoBehaviour:
   viewDistance: 850
   verticesPerSide: 32
   noiseFrequency: 0.005
-  noiseAmplitude: 60
+  noiseAmplitude: 0.0001
   noiseOctaves: 4
   noiseLacunarity: 2
   noisePersistence: 0.5

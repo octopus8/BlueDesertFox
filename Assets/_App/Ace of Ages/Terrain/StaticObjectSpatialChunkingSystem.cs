@@ -99,10 +99,7 @@ public partial struct TreeSpatialChunkingSystem : ISystem
     [BurstCompile]
     private static void GetChunkCoord(in float3 worldPos, out int2 result)
     {
-        result = new int2(
-            (int)math.floor(worldPos.x / ChunkSize),
-            (int)math.floor(worldPos.z / ChunkSize)
-        );
+        result = StaticObjectSpatialChunkUtility.GetChunkCoord(worldPos);
     }
 }
 

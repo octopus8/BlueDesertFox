@@ -73,7 +73,7 @@ public class StaticObjectSpawnerConfigAuthoring : MonoBehaviour
     public float maxSlopeDegrees = 45f;
     
     [Header("Performance")]
-    [Tooltip("Maximum number of object entities to spawn per frame (prevents stuttering)")]
+    [Tooltip("Maximum number of object entities to spawn or destroy per frame (prevents ECB playback stuttering)")]
     [Range(1, 100)]
     public int maxObjectsSpawnedPerFrame = 20;
     

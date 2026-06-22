@@ -20,7 +20,7 @@ The Static Object Spawning System procedurally places static object entities on 
 - **Rotation Variation**: Random Y-axis rotation for each tree
 - **Height Filtering**: Only spawn trees within specified height range
 - **Slope Filtering**: Avoid spawning on steep terrain
-- **Frame Budgeting**: Limits trees spawned per frame to prevent stuttering
+- **Frame Budgeting**: Limits object entities spawned **and destroyed** per frame to prevent ECB playback stuttering
 - **Non-Hierarchical**: Uses `StaticObjectTileOwnership` component instead of parent-child hierarchy for better performance
 
 ## Components
@@ -36,7 +36,19 @@ Configuration for static object spawning behavior.
 - `minSpawnHeight` - Minimum Y coordinate for spawning
 - `maxSpawnHeight` - Maximum Y coordinate for spawning
 - `slopeThreshold` - Pre-calculated cosine of max slope angle
-- `maxStaticObjectsSpawnedPerFrame` - Performance budget
+- `maxObjectsSpawnedPerFrame` - Shared spawn/destroy budget (max object entities created or destroyed per frame)
+
+### StaticObjectSpawnProgress (Component)
+Tracks partial instantiation on a tile while spawn positions are consumed incrementally.
+
+**Fields:**
+- `nextSpawnIndex` - Next index in `StaticObjectSpawnPosition` buffer to instantiate
+
+### PendingTileDespawn (Tag)
+Marks a tile leaving the view ring whose static objects are being destroyed over multiple frames before the tile entity is removed.
+
+### StaticObjectsSpawned (Tag)
+Marks tiles that have had trees spawned.
 
 ### StaticObjectPrefabElement (Buffer)
 Stores references to object prefab entities.
@@ -44,14 +56,14 @@ Stores references to object prefab entities.
 **Fields:**
 - `prefabEntity` - Entity prefab to instantiate
 
-### StaticObjectsSpawned (Tag)
-Marks tiles that have had trees spawned.
+### StaticObjectSpawnPosition (Buffer)
+Temporary spawn data computed once per tile, consumed incrementally across frames until `StaticObjectsSpawned` is added.
 
 ### SpawnedStaticObjectReference (Buffer)
 Tracks static object entities spawned on a tile for cleanup.
 
 **Fields:**
-- `treeEntity` - Entity reference to spawned tree
+- `objectEntity` - Entity reference to spawned static object
 
 ### StaticObjectTileOwnership (Component)
 Tracks which terrain tile a tree belongs to and its local offset, without using parent-child hierarchy.
@@ -72,15 +84,15 @@ Tracks which terrain tile a tree belongs to and its local offset, without using 
 
 **Algorithm**:
 1. Query tiles with `MeshReference` + `meshGenerated=true` + no `StaticObjectsSpawned` tag
-2. Enqueue tiles to pending queue
-3. Process tiles up to frame budget (`maxStaticObjectsSpawnedPerFrame`)
-4. For each tile:
-   - Seed RNG with `gridCoordinate.GetHashCode()`
-   - Determine random tree count (min-max range)
-   - Loop: generate random XZ position, interpolate height/normal from mesh, check filters, spawn tree
-   - Add `StaticObjectTileOwnership` component to track tile without parent-child hierarchy
-   - Store tree in tile's `SpawnedStaticObjectReference` buffer for cleanup
-   - Add `StaticObjectsSpawned` tag
+2. Enqueue new tiles; resume tiles with `StaticObjectSpawnProgress`
+3. Calculate spawn positions once per tile into `StaticObjectSpawnPosition` buffer (Burst parallel job)
+4. Instantiate up to `maxObjectsSpawnedPerFrame` **object entities** per frame (not per tile):
+   - Resume in-progress tiles first, then newly ready tiles
+   - Instantiate the correct LOD prefab directly; set transform, ownership, chunk membership, and instance data
+   - Add `StaticObjectSpawnProgress` when a tile spans multiple frames; add `StaticObjectsSpawned` when complete
+5. LOD prefabs are baked with `GlobalStaticObjectInstance` and default `GlobalStaticObjectInstanceData` to reduce ECB command count
+
+**Prefab baking**: Add `StaticObjectPrefabAuthoring` to each static object LOD prefab root (bakes spawn components on the prefab entity). Re-bake the Entities SubScene after adding or changing prefabs.
 
 ### StaticObjectPositionUpdateSystem
 
@@ -99,15 +111,17 @@ Tracks which terrain tile a tree belongs to and its local offset, without using 
    - Update object's `LocalTransform.Position`
 
 **Performance**:
-- **Frame Budget**: Configurable via `maxObjectsSpawnedPerFrame` (`StaticObjectSpawnerConfig`)
-- **Typical**: 10-20 objects spawned per frame = <1ms
-- **Profiler Markers**: `StaticObjects.Spawning`, `StaticObjects.Enqueue`, `StaticObjects.Spawn`
+- **Frame Budget**: Configurable via `maxObjectsSpawnedPerFrame` (`StaticObjectSpawnerConfig`) — counts **instances**, not tiles
+- **Typical**: 20 objects spawned per frame keeps `EntityCommandBuffer.Playback` under ~1–2ms for static objects
+- **Profiler Markers**: `TreeSpawner.PositionCalc`, `TreeSpawner.Instantiation`, `EndSimulationEntityCommandBufferSystem`
 
 ### TileSpawningSystem (Modified)
 
 **Static Object Cleanup**:
 - Static objects are tracked via the tile's `SpawnedStaticObjectReference` buffer (non-hierarchical — no `Parent` component)
-- When a tile despawns, `TileSpawningSystem` iterates the buffer and explicitly destroys each tracked object entity
+- When a tile despawns, `TileSpawningSystem` adds `PendingTileDespawn` and destroys up to `maxObjectsSpawnedPerFrame` object entities per frame
+- The tile entity is destroyed only after its `SpawnedStaticObjectReference` buffer is empty
+- Grid coordinates with pending despawns are blocked from respawn until cleanup completes
 - `StaticObjectTileOwnership` tracks which tile owns each object for position updates without parent-child hierarchy overhead
 
 ## Authoring
@@ -200,9 +214,9 @@ maxObjectsPerTile: 8
 1. **Reduce Tree Count**: Lower `maxObjectsPerTile` for better performance
 2. **Simplify Prefabs**: Use low-poly tree models with LOD
 3. **Increase Slope Filter**: Higher `maxSlopeDegrees` = more spawn attempts = slower
-4. **Frame Budget**: Lower `maxStaticObjectsSpawnedPerFrame` if stuttering occurs
+4. **Frame Budget**: Lower `maxObjectsSpawnedPerFrame` if ECB playback stutters (applies to both spawn and despawn)
 5. **Height Filter**: Narrow height range = fewer valid spawn positions = faster
-6. **Culling Distance**: Consider adding distance-based static object spawning (future feature)
+6. **SubScene re-bake**: Required after prefab baking changes in `StaticObjectSpawnerConfigAuthoring`
 
 ## Implementation Details
 

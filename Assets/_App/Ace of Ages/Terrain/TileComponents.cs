@@ -386,8 +386,26 @@ public struct StaticObjectsSpawned : IComponentData
 }
 
 /// <summary>
+/// Tracks partial static object instantiation progress on a tile.
+/// Present while <see cref="StaticObjectSpawnPosition"/> entries remain to be instantiated.
+/// </summary>
+public struct StaticObjectSpawnProgress : IComponentData
+{
+    /// <summary>Next index in <see cref="StaticObjectSpawnPosition"/> buffer to instantiate.</summary>
+    public int nextSpawnIndex;
+}
+
+/// <summary>
+/// Marks a terrain tile scheduled for budgeted despawn. Static objects are destroyed over multiple
+/// frames before the tile entity itself is destroyed.
+/// </summary>
+public struct PendingTileDespawn : IComponentData
+{
+}
+
+/// <summary>
 /// Temporary buffer element storing calculated static object spawn data for deferred instantiation.
-/// Calculated by Burst job, consumed by ECB-based instantiation job, then cleared same frame.
+/// Calculated by Burst job, consumed incrementally by ECB-based instantiation, then cleared when complete.
 /// </summary>
 public struct StaticObjectSpawnPosition : IBufferElementData
 {

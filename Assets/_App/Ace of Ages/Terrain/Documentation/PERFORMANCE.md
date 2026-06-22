@@ -59,12 +59,15 @@ Move player to trigger tile spawning
 - `TerrainMesh.Generation` - Mesh generation time
 - `TerrainPhysics.ColliderCreation` - Collider creation time
 - `TerrainPhysics.LRUEviction` - Cache eviction time
+- `TreeSpawner.Instantiation` - Static object ECB instantiation batch
+- `EndSimulationEntityCommandBufferSystem` - Deferred structural changes playback (spawn + chunk assign)
 - CPU markers for overall frame time
 
 **Typical Bottlenecks**:
 1. **TerrainMesh.Generation > 10ms**: Too many vertices or octaves
 2. **TerrainPhysics.ColliderCreation > 10ms**: Frame budget too high
-3. **GPU time > CPU time**: Too many tiles or vertices rendering
+3. **EntityCommandBuffer.Playback > 2ms**: Static object spawn/despawn budget too high for density, or SubScene prefabs not re-baked after component baking changes
+4. **GPU time > CPU time**: Too many tiles or vertices rendering
 
 ---
 
