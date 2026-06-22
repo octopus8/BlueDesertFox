@@ -19,8 +19,6 @@ using UnityEngine;
 [RequireMatchingQueriesForUpdate]
 [UpdateInGroup(typeof(SimulationSystemGroup))]
 [UpdateAfter(typeof(TerrainDistanceTrackingSystem))]
-[UpdateAfter(typeof(EndSimulationEntityCommandBufferSystem))]
-[UpdateAfter(typeof(StaticObjectLinkedRendererStripSystem))]
 [BurstCompile]
 public partial struct StaticObjectLODUpdateSystem : ISystem
 {
@@ -225,12 +223,8 @@ public partial struct StaticObjectLODUpdateSystem : ISystem
     /// On a LOD change, writes the correct <see cref="MaterialMeshInfo"/> directly to the entity
     /// so Entities.Graphics (BRG) immediately switches the rendered mesh/material.
     /// OPTIMIZED v3.0: Added distance-tiered updates (4 tiers: 0-100m, 100-200m, 200-300m, 300m+).
-    /// Skips entities with <see cref="Unity.Rendering.DisableRendering"/> — LOD transitions are
-    /// irrelevant for invisible entities and skipping them reduces job work proportionally to the
-    /// culled fraction of the population.
     /// </summary>
     [BurstCompile]
-    [WithNone(typeof(Unity.Rendering.DisableRendering))]
     private partial struct StaticObjectLODUpdateJob : IJobEntity
     {
         [ReadOnly] public float3 playerPosition;
@@ -278,8 +272,7 @@ public partial struct StaticObjectLODUpdateSystem : ISystem
             
             // Determine new LOD level with hysteresis
             byte currentLOD = instanceData.currentLODLevel;
-            byte newLOD = StaticObjectLODUtility.DetermineLODLevel(
-                distance, currentLOD, lod0Distance, lod1Distance, lod2Distance, hysteresis);
+            byte newLOD = DetermineLODLevel(distance, currentLOD, lod0Distance, lod1Distance, lod2Distance, hysteresis);
             
             // Update if LOD changed — write MaterialMeshInfo so BRG switches mesh/material.
             if (newLOD != currentLOD)
@@ -294,6 +287,52 @@ public partial struct StaticObjectLODUpdateSystem : ISystem
             
             // Update distance for next frame's hysteresis calculation
             instanceData.lastDistanceToPlayer = distance;
+        }
+        
+        /// <summary>
+        /// Determine LOD level based on distance with hysteresis to prevent flickering.
+        /// </summary>
+        [BurstCompile]
+        private static byte DetermineLODLevel(float distance, byte currentLOD, float lod0Dist, float lod1Dist, float lod2Dist, float hysteresis)
+        {
+            // LOD0 (highest detail) -> LOD1 transition
+            if (distance < lod0Dist)
+            {
+                // Within LOD0 range, or transitioning down from LOD1
+                if (currentLOD == 0)
+                    return 0; // Stay in LOD0
+                else
+                    // Transitioning down: apply negative hysteresis (more strict to transition down)
+                    return distance < (lod0Dist - hysteresis) ? (byte)0 : currentLOD;
+            }
+            
+            // LOD1 (medium detail) range
+            if (distance < lod1Dist)
+            {
+                // Within LOD1 range
+                if (currentLOD == 1)
+                    return 1; // Stay in LOD1
+                else if (currentLOD == 0)
+                    // Transitioning up from LOD0: apply positive hysteresis (less strict to transition up)
+                    return distance > (lod0Dist + hysteresis) ? (byte)1 : (byte)0;
+                else // currentLOD == 2
+                    // Transitioning down from LOD2: apply negative hysteresis
+                    return distance < (lod1Dist - hysteresis) ? (byte)1 : (byte)2;
+            }
+            
+            // LOD2 (lowest detail) range
+            if (distance < lod2Dist)
+            {
+                // Within LOD2 range, or transitioning up from LOD1
+                if (currentLOD == 2)
+                    return 2; // Stay in LOD2
+                else
+                    // Transitioning up: apply positive hysteresis
+                    return distance > (lod1Dist + hysteresis) ? (byte)2 : currentLOD;
+            }
+            
+            // Beyond LOD2 range - could add culling here in future
+            return 2;
         }
     }
     

@@ -221,11 +221,6 @@ Set via `StaticObjectSpawnerConfigAuthoring`:
 - Increase `hysteresisDelta` (try 8–10m)
 - Reduce scroll speed to reduce velocity-driven frame skip mismatch
 
-**Trees flash in front of camera with distance culling enabled:**
-- Caused by stale LOD2 billboard mesh when `DisableRendering` is removed before LOD updates run
-- Fixed by running `StaticObjectLODUpdateSystem` after EndSimulation ECB and syncing pose/LOD in `UnCullNearObjectsJob`
-- If flashes persist, verify `enableDistanceCulling` is on and check Entity Debugger: un-culled trees should not show LOD2 when within `lod0Distance`
-
 **Objects disappear at distance:**
 - Check `lod2Distance` setting — beyond this objects stay at LOD2 (not culled)
 - If culling is desired, add distance culling using `StaticObjectLODConfig.maxObjectRenderDistance`
