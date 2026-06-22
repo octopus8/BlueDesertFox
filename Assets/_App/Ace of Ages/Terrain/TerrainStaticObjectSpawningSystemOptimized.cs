@@ -3,6 +3,7 @@ using Unity.Collections;
 using Unity.Entities;
 using Unity.Jobs;
 using Unity.Mathematics;
+using Unity.Rendering;
 using Unity.Transforms;
 
 #if UNITY_EDITOR
@@ -27,6 +28,7 @@ public struct StaticObjectSpawnWorkItem
 [RequireMatchingQueriesForUpdate]
 [UpdateInGroup(typeof(SimulationSystemGroup))]
 [UpdateAfter(typeof(CameraDataUpdateSystem))]
+[UpdateAfter(typeof(TileScrollPositionSystem))]
 [UpdateBefore(typeof(EndSimulationEntityCommandBufferSystem))]
 public partial struct TerrainTreeSpawningSystemOptimized : ISystem
 {
@@ -221,6 +223,8 @@ public partial struct TerrainTreeSpawningSystemOptimized : ISystem
         int budget = config.maxObjectsSpawnedPerFrame;
         var workItems = new NativeList<StaticObjectSpawnWorkItem>(16, Allocator.TempJob);
         var em = state.EntityManager;
+        float nearTileSpawnDistance = hasLODConfig ? lodConfig.lod2Distance : terrainConfig.viewDistance * 0.5f;
+        float2 cameraPos2D = new float2(cameraData.position.x, cameraData.position.z);
 
         foreach (var (progress, spawnPositions, entity) in SystemAPI.Query<RefRO<StaticObjectSpawnProgress>, DynamicBuffer<StaticObjectSpawnPosition>>()
             .WithNone<StaticObjectsSpawned>()
@@ -233,7 +237,10 @@ public partial struct TerrainTreeSpawningSystemOptimized : ISystem
             if (remaining <= 0)
                 continue;
 
-            int count = math.min(remaining, budget);
+            int count = GetSpawnCountForTile(em, entity, remaining, budget, nearTileSpawnDistance, cameraPos2D);
+            if (count <= 0)
+                continue;
+
             workItems.Add(new StaticObjectSpawnWorkItem
             {
                 tileEntity = entity,
@@ -267,7 +274,13 @@ public partial struct TerrainTreeSpawningSystemOptimized : ISystem
                 continue;
             }
 
-            int count = math.min(spawnPositions.Length, budget);
+            int count = GetSpawnCountForTile(em, tileEntity, spawnPositions.Length, budget, nearTileSpawnDistance, cameraPos2D);
+            if (count <= 0)
+            {
+                _pendingTiles.Enqueue(tileEntity);
+                continue;
+            }
+
             workItems.Add(new StaticObjectSpawnWorkItem
             {
                 tileEntity = tileEntity,
@@ -275,13 +288,7 @@ public partial struct TerrainTreeSpawningSystemOptimized : ISystem
                 count = count
             });
             budget -= count;
-
-            if (count < spawnPositions.Length)
-                _queuedEntities.Remove(tileEntity);
-            else
-            {
-                _queuedEntities.Remove(tileEntity);
-            }
+            _queuedEntities.Remove(tileEntity);
         }
 
         if (workItems.Length == 0)
@@ -308,6 +315,14 @@ public partial struct TerrainTreeSpawningSystemOptimized : ISystem
         var spawnPositionLookup = SystemAPI.GetBufferLookup<StaticObjectSpawnPosition>(true);
         spawnPositionLookup.Update(ref state);
 
+        var tileTransformLookup = SystemAPI.GetComponentLookup<LocalTransform>(true);
+        tileTransformLookup.Update(ref state);
+
+        var lodInfoBuffer = state.EntityManager.GetBuffer<StaticObjectLODMaterialMeshInfoElement>(configEntity, true);
+        var lodMeshInfos = new NativeArray<MaterialMeshInfo>(lodInfoBuffer.Length, Allocator.TempJob);
+        for (int i = 0; i < lodInfoBuffer.Length; i++)
+            lodMeshInfos[i] = lodInfoBuffer[i].materialMeshInfo;
+
 #if UNITY_EDITOR
         using (s_InstantiationMarker.Auto())
 #endif
@@ -318,7 +333,9 @@ public partial struct TerrainTreeSpawningSystemOptimized : ISystem
                 workItems = workItems.AsArray(),
                 objectPrefabs = objectPrefabs,
                 billboardTypes = billboardTypes,
-                spawnPositionLookup = spawnPositionLookup
+                lodMeshInfos = lodMeshInfos,
+                spawnPositionLookup = spawnPositionLookup,
+                tileTransformLookup = tileTransformLookup
             };
 
             state.Dependency = instantiateJob.Schedule(workItems.Length, 1, state.Dependency);
@@ -328,7 +345,30 @@ public partial struct TerrainTreeSpawningSystemOptimized : ISystem
         objectPrefabRotations.Dispose();
         objectTypeSpawnWeights.Dispose();
         billboardTypes.Dispose(state.Dependency);
+        lodMeshInfos.Dispose(state.Dependency);
         workItems.Dispose(state.Dependency);
+    }
+
+    private static int GetSpawnCountForTile(
+        EntityManager em,
+        Entity tileEntity,
+        int remaining,
+        int budget,
+        float nearTileSpawnDistance,
+        float2 cameraPos2D)
+    {
+        if (remaining <= 0 || budget <= 0)
+            return 0;
+
+        if (em.HasComponent<LocalTransform>(tileEntity))
+        {
+            var tilePos = em.GetComponentData<LocalTransform>(tileEntity).Position;
+            float tileDist = math.distance(cameraPos2D, new float2(tilePos.x, tilePos.z));
+            if (tileDist <= nearTileSpawnDistance)
+                return remaining;
+        }
+
+        return math.min(remaining, budget);
     }
 }
 
@@ -520,8 +560,10 @@ struct InstantiateStaticObjectsJob : IJobParallelFor
     [ReadOnly] public NativeArray<StaticObjectSpawnWorkItem> workItems;
     [ReadOnly] public NativeArray<Entity> objectPrefabs;
     [ReadOnly] public NativeArray<bool> billboardTypes;
+    [ReadOnly] public NativeArray<MaterialMeshInfo> lodMeshInfos;
 
     [ReadOnly] public BufferLookup<StaticObjectSpawnPosition> spawnPositionLookup;
+    [ReadOnly] public ComponentLookup<LocalTransform> tileTransformLookup;
 
     public void Execute(int index)
     {
@@ -529,32 +571,38 @@ struct InstantiateStaticObjectsJob : IJobParallelFor
         if (!spawnPositionLookup.HasBuffer(work.tileEntity))
             return;
 
+        if (!tileTransformLookup.HasComponent(work.tileEntity))
+            return;
+
+        float3 tilePosition = tileTransformLookup[work.tileEntity].Position;
+
         var spawnPositions = spawnPositionLookup[work.tileEntity];
         int endIndex = math.min(work.startIndex + work.count, spawnPositions.Length);
         if (endIndex <= work.startIndex)
             return;
-
-        DynamicBuffer<SpawnedStaticObjectReference> spawnedBuffer;
-        if (work.startIndex == 0)
-            spawnedBuffer = ecb.AddBuffer<SpawnedStaticObjectReference>(index, work.tileEntity);
-        else
-            spawnedBuffer = ecb.SetBuffer<SpawnedStaticObjectReference>(index, work.tileEntity);
 
         for (int i = work.startIndex; i < endIndex; i++)
         {
             var spawnData = spawnPositions[i];
 
             int prefabIndexLOD0 = spawnData.objectTypeIndex * 3 + 0;
-            Entity objectPrefab = objectPrefabs[spawnData.initialMeshIndex];
+            if (prefabIndexLOD0 >= objectPrefabs.Length)
+                continue;
 
+            Entity objectPrefab = objectPrefabs[prefabIndexLOD0];
             Entity objectEntity = ecb.Instantiate(index, objectPrefab);
+
+            float3 worldPosition = tilePosition + spawnData.localPosition;
 
             ecb.SetComponent(index, objectEntity, new LocalTransform
             {
-                Position = spawnData.worldPosition,
+                Position = worldPosition,
                 Rotation = spawnData.rotation,
                 Scale = 1f
             });
+
+            if (lodMeshInfos.Length > spawnData.initialMeshIndex)
+                ecb.SetComponent(index, objectEntity, lodMeshInfos[spawnData.initialMeshIndex]);
 
             bool isBillboard = spawnData.objectTypeIndex < billboardTypes.Length
                 && billboardTypes[spawnData.objectTypeIndex];
@@ -576,10 +624,10 @@ struct InstantiateStaticObjectsJob : IJobParallelFor
 
             ecb.AddComponent(index, objectEntity, new StaticObjectChunkMembership
             {
-                chunkCoord = StaticObjectSpatialChunkUtility.GetChunkCoord(spawnData.worldPosition)
+                chunkCoord = StaticObjectSpatialChunkUtility.GetChunkCoord(worldPosition)
             });
 
-            spawnedBuffer.Add(new SpawnedStaticObjectReference { objectEntity = objectEntity });
+            ecb.AppendToBuffer(index, work.tileEntity, new SpawnedStaticObjectReference { objectEntity = objectEntity });
         }
 
         int nextIndex = endIndex;

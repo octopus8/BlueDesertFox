@@ -6024,9 +6024,9 @@ MonoBehaviour:
     lod2: {fileID: 7576544295198489702, guid: 1ec78d46ddfa3964b94a0ef0aa5b9612, type: 3}
     objectTypeSpawnWeight: 0
     lod2IsBillboard: 0
-  lod0Distance: 1
-  lod1Distance: 2
-  lod2Distance: 3
+  lod0Distance: 50
+  lod1Distance: 51
+  lod2Distance: 52
   lodHysteresis: 5
   minObjectsPerTile: 300
   maxObjectsPerTile: 300
