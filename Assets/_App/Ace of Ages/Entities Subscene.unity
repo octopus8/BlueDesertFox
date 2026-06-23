@@ -6013,7 +6013,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::StaticObjectSpawnerConfigAuthoring
   objectLODSets:
   - objectTypeName: Test Tree
-    lod0: {fileID: 1790061847135392082, guid: 3f54f0a690281804a9fa0bb6a0b2c43f, type: 3}
+    lod0: {fileID: 268780033425554496, guid: 5cfabf8fb09c20f49b7721a267c890b8, type: 3}
     lod1: {fileID: 7576544295198489702, guid: 1ec78d46ddfa3964b94a0ef0aa5b9612, type: 3}
     lod2: {fileID: 7576544295198489702, guid: 1ec78d46ddfa3964b94a0ef0aa5b9612, type: 3}
     objectTypeSpawnWeight: 100
@@ -6024,9 +6024,9 @@ MonoBehaviour:
     lod2: {fileID: 7576544295198489702, guid: 1ec78d46ddfa3964b94a0ef0aa5b9612, type: 3}
     objectTypeSpawnWeight: 0
     lod2IsBillboard: 0
-  lod0Distance: 50
-  lod1Distance: 51
-  lod2Distance: 52
+  lod0Distance: 100
+  lod1Distance: 101
+  lod2Distance: 102
   lodHysteresis: 5
   minObjectsPerTile: 300
   maxObjectsPerTile: 300

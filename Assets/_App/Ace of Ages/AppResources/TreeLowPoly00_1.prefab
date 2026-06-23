@@ -11,6 +11,7 @@ GameObject:
   - component: {fileID: 7420480188621210061}
   - component: {fileID: 6721934969627334120}
   - component: {fileID: 2528772805956384255}
+  - component: {fileID: 2565008881480324252}
   m_Layer: 0
   m_Name: TreeLowPoly00_1
   m_TagString: Untagged
@@ -90,3 +91,15 @@ MeshRenderer:
   m_SortingOrder: 0
   m_MaskInteraction: 0
   m_AdditionalVertexStreams: {fileID: 0}
+--- !u!114 &2565008881480324252
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 268780033425554496}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8a4f2c1e9b7d6a3058471e2f0c9d8b7a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::StaticObjectPrefabAuthoring
