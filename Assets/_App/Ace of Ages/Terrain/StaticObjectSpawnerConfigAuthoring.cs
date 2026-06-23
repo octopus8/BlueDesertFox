@@ -144,7 +144,7 @@ public class StaticObjectSpawnerConfigAuthoring : MonoBehaviour
                 lod2Distance = authoring.lod2Distance,
                 hysteresisDelta = authoring.lodHysteresis,
                 lodsPerObjectType = 3, // Hardcoded to 3 LOD levels
-                maxChunksUpdatedPerFrame = 7,
+                maxChunksUpdatedPerFrame = 25,
                 enableObjectLODDebug = authoring.enableObjectLODDebug,
                 enableDistanceCulling = authoring.enableDistanceCulling,
                 maxObjectRenderDistance = authoring.maxObjectRenderDistance,

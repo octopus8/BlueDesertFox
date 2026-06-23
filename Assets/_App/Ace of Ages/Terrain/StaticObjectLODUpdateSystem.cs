@@ -17,12 +17,12 @@ using UnityEngine;
 /// VR OPTIMIZED: Runs every N frames on mobile VR platforms to reduce CPU load.
 /// </summary>
 [RequireMatchingQueriesForUpdate]
-[UpdateInGroup(typeof(SimulationSystemGroup))]
-[UpdateAfter(typeof(TerrainDistanceTrackingSystem))]
+[UpdateInGroup(typeof(TransformSystemGroup))]
+[UpdateAfter(typeof(objectPositionUpdateSystem))]
+[UpdateAfter(typeof(TreeSpatialChunkingSystem))]
 [BurstCompile]
 public partial struct StaticObjectLODUpdateSystem : ISystem
 {
-    private const float ChunkSize = 100f; // 100m x 100m chunks
     private const int MaxStaticObjectsPerFrame = 500; // Frame budget to prevent spikes
     
     // VR optimization: Skip frames on mobile platforms
@@ -56,8 +56,8 @@ public partial struct StaticObjectLODUpdateSystem : ISystem
         state.RequireForUpdate<StaticObjectLODMeshInfoReady>();
         state.RequireForUpdate<PlayerTransformReference>();
         state.RequireForUpdate<CameraDataSingleton>();
-        _activeChunks = new NativeList<int2>(20, Allocator.Persistent);
-        _activeChunksSet = new NativeHashSet<int2>(20, Allocator.Persistent);
+        _activeChunks = new NativeList<int2>(512, Allocator.Persistent);
+        _activeChunksSet = new NativeHashSet<int2>(512, Allocator.Persistent);
         _frameCounter = 0;
         
         // OPTIMIZED v3.0: Initialize velocity tracking
@@ -108,6 +108,12 @@ public partial struct StaticObjectLODUpdateSystem : ISystem
         {
             velocity = math.length(playerPosition - _lastPlayerPosition) / _lastDeltaTime;
         }
+
+        // Terrain scroll moves content past a stationary player — treat scroll speed as velocity
+        if (SystemAPI.TryGetSingleton<TerrainScrollVelocity>(out var scrollVelocity) && scrollVelocity.speed > 0f)
+        {
+            velocity = math.max(velocity, scrollVelocity.speed);
+        }
         
         // Determine frame skip based on velocity
         int effectiveFrameSkip = velocity > lodConfig.playerVelocityThreshold 
@@ -129,44 +135,42 @@ public partial struct StaticObjectLODUpdateSystem : ISystem
         s_ChunkFilterMarker.Data.Begin();
 #endif
 
-        int2 playerChunk;
-        GetChunkCoord(in playerPosition, out playerChunk);
+        int2 playerChunk = StaticObjectSpatialChunkUtility.GetChunkCoord(playerPosition);
         
         // Build list of chunks to update this frame
         _activeChunks.Clear();
         _activeChunksSet.Clear();
         
-        // Always include player's chunk and immediate neighbors (9 total)
-        for (int x = -1; x <= 1; x++)
+        // Cover all chunks that can contain objects needing LOD transitions (not just 3x3 neighbors)
+        float coverageDistance = lodConfig.lod2Distance + lodConfig.hysteresisDelta;
+        int chunkRadius = StaticObjectSpatialChunkUtility.GetChunkRadiusForDistance(coverageDistance);
+        for (int x = -chunkRadius; x <= chunkRadius; x++)
         {
-            for (int z = -1; z <= 1; z++)
+            for (int z = -chunkRadius; z <= chunkRadius; z++)
             {
                 int2 chunkCoord = playerChunk + new int2(x, z);
-                _activeChunks.Add(chunkCoord);
-                _activeChunksSet.Add(chunkCoord);
+                if (_activeChunksSet.Add(chunkCoord))
+                    _activeChunks.Add(chunkCoord);
             }
         }
         
-        // Add rotating chunks based on frame counter for full coverage
+        // Add rotating chunks beyond LOD coverage for stale LOD correction on distant visible objects
         int extraChunksNeeded = math.max(0, lodConfig.maxChunksUpdatedPerFrame - _activeChunks.Length);
         if (extraChunksNeeded > 0)
         {
-            // Use frame counter to rotate through distant chunks
-            int offset = _frameCounter % 100;
+            int outerRadius = chunkRadius + 1;
+            int offset = _frameCounter % (outerRadius * 8);
             for (int i = 0; i < extraChunksNeeded; i++)
             {
                 int angle = (offset + i * 8) % 360;
                 float rad = math.radians(angle);
                 int2 distantChunk = playerChunk + new int2(
-                    (int)(math.cos(rad) * 3),
-                    (int)(math.sin(rad) * 3)
+                    (int)math.round(math.cos(rad) * outerRadius),
+                    (int)math.round(math.sin(rad) * outerRadius)
                 );
                 
-                // Use HashSet to avoid duplicates (O(1) check)
                 if (_activeChunksSet.Add(distantChunk))
-                {
                     _activeChunks.Add(distantChunk);
-                }
             }
         }
         
@@ -334,17 +338,5 @@ public partial struct StaticObjectLODUpdateSystem : ISystem
             // Beyond LOD2 range - could add culling here in future
             return 2;
         }
-    }
-    
-    /// <summary>
-    /// Calculate chunk coordinate from world position.
-    /// </summary>
-    [BurstCompile]
-    private static void GetChunkCoord(in float3 worldPos, out int2 result)
-    {
-        result = new int2(
-            (int)math.floor(worldPos.x / ChunkSize),
-            (int)math.floor(worldPos.z / ChunkSize)
-        );
     }
 }

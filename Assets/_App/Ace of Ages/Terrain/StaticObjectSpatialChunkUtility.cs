@@ -18,4 +18,13 @@ public static class StaticObjectSpatialChunkUtility
             (int)math.floor(worldPos.z / ChunkSize)
         );
     }
+
+    /// <summary>
+    /// Chunk radius around the player required to cover all objects that may need LOD transitions.
+    /// </summary>
+    [BurstCompile]
+    public static int GetChunkRadiusForDistance(float distanceMeters)
+    {
+        return math.max(1, (int)math.ceil(distanceMeters / ChunkSize));
+    }
 }

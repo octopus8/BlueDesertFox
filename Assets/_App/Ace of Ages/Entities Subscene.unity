@@ -6013,9 +6013,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::StaticObjectSpawnerConfigAuthoring
   objectLODSets:
   - objectTypeName: Test Tree
-    lod0: {fileID: 268780033425554496, guid: 5cfabf8fb09c20f49b7721a267c890b8, type: 3}
-    lod1: {fileID: 7576544295198489702, guid: 1ec78d46ddfa3964b94a0ef0aa5b9612, type: 3}
-    lod2: {fileID: 7576544295198489702, guid: 1ec78d46ddfa3964b94a0ef0aa5b9612, type: 3}
+    lod0: {fileID: 1790061847135392082, guid: ce85d4a0361727a4a99d1802940fc339, type: 3}
+    lod1: {fileID: 1790061847135392082, guid: 10d8932589ac8224fbd17148364798b1, type: 3}
+    lod2: {fileID: 1790061847135392082, guid: ed83084c5d5c2f34aa2aeb13303853ee, type: 3}
     objectTypeSpawnWeight: 100
     lod2IsBillboard: 1
   - objectTypeName: Turret
@@ -6024,12 +6024,12 @@ MonoBehaviour:
     lod2: {fileID: 7576544295198489702, guid: 1ec78d46ddfa3964b94a0ef0aa5b9612, type: 3}
     objectTypeSpawnWeight: 0
     lod2IsBillboard: 0
-  lod0Distance: 100
-  lod1Distance: 101
-  lod2Distance: 102
+  lod0Distance: 800
+  lod1Distance: 801
+  lod2Distance: 802
   lodHysteresis: 5
-  minObjectsPerTile: 300
-  maxObjectsPerTile: 300
+  minObjectsPerTile: 50
+  maxObjectsPerTile: 50
   minSpawnHeight: -100
   maxSpawnHeight: 100
   maxSlopeDegrees: 45
