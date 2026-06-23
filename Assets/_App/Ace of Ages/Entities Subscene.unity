@@ -585,8 +585,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: cc0ffc3622fa4f8db0bc563e3e37d477, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::BulletPoolConfigAuthoring
-  initialPoolSize: 0
-  maxPoolSize: 0
+  initialPoolSize: 50
+  maxPoolSize: 50
 --- !u!4 &582652031
 Transform:
   m_ObjectHideFlags: 0
@@ -614,8 +614,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2428c6a881424ca79566dedf5c8f5796, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::DirtExplosionPoolConfigAuthoring
-  initialPoolSize: 0
-  maxPoolSize: 0
+  initialPoolSize: 50
+  maxPoolSize: 50
   lifetime: 2.5
 --- !u!1001 &582819465
 PrefabInstance:
@@ -5914,22 +5914,22 @@ MonoBehaviour:
   viewDistance: 850
   verticesPerSide: 32
   noiseFrequency: 0.005
-  noiseAmplitude: 0.0001
+  noiseAmplitude: 60
   noiseOctaves: 4
   noiseLacunarity: 2
   noisePersistence: 0.5
   continentalFrequency: 0.0008
   continentalExponent: 2.5
   terrainMaterial: {fileID: 2100000, guid: dc12ba763b59e3a4586cb235c2a074fc, type: 2}
-  maxCollidersCreatedPerFrame: 1
-  maxPhysicsCollidersCreatedPerFrame: 1
+  maxCollidersCreatedPerFrame: 5
+  maxPhysicsCollidersCreatedPerFrame: 5
   maxColliderDistance: 220
   maxColliderCacheMemoryMB: 50
   physicsColliderFullResolutionDistance: 220
   physicsColliderVertexStride: 1
   terrainPhysicsLayer: 11
   trailHeight: -5
-  trail1Enabled: 0
+  trail1Enabled: 1
   trail1Width: 100
   trail1BlendWidth: 0
   trail1Seed: 0
@@ -6013,9 +6013,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::StaticObjectSpawnerConfigAuthoring
   objectLODSets:
   - objectTypeName: Test Tree
-    lod0: {fileID: 1790061847135392082, guid: ce85d4a0361727a4a99d1802940fc339, type: 3}
-    lod1: {fileID: 1790061847135392082, guid: 10d8932589ac8224fbd17148364798b1, type: 3}
-    lod2: {fileID: 1790061847135392082, guid: ed83084c5d5c2f34aa2aeb13303853ee, type: 3}
+    lod0: {fileID: 1790061847135392082, guid: 3f54f0a690281804a9fa0bb6a0b2c43f, type: 3}
+    lod1: {fileID: 268780033425554496, guid: 5cfabf8fb09c20f49b7721a267c890b8, type: 3}
+    lod2: {fileID: 7576544295198489702, guid: 1ec78d46ddfa3964b94a0ef0aa5b9612, type: 3}
     objectTypeSpawnWeight: 100
     lod2IsBillboard: 1
   - objectTypeName: Turret
@@ -6024,12 +6024,12 @@ MonoBehaviour:
     lod2: {fileID: 7576544295198489702, guid: 1ec78d46ddfa3964b94a0ef0aa5b9612, type: 3}
     objectTypeSpawnWeight: 0
     lod2IsBillboard: 0
-  lod0Distance: 800
-  lod1Distance: 801
-  lod2Distance: 802
+  lod0Distance: 150
+  lod1Distance: 300
+  lod2Distance: 600
   lodHysteresis: 5
-  minObjectsPerTile: 50
-  maxObjectsPerTile: 50
+  minObjectsPerTile: 500
+  maxObjectsPerTile: 500
   minSpawnHeight: -100
   maxSpawnHeight: 100
   maxSlopeDegrees: 45
