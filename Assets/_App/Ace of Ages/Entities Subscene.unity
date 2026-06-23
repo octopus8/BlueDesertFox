@@ -5930,7 +5930,7 @@ MonoBehaviour:
   terrainPhysicsLayer: 11
   trailHeight: -5
   trail1Enabled: 1
-  trail1Width: 100
+  trail1Width: 50
   trail1BlendWidth: 0
   trail1Seed: 0
   trail1Frequency: 0.001
@@ -6024,12 +6024,12 @@ MonoBehaviour:
     lod2: {fileID: 7576544295198489702, guid: 1ec78d46ddfa3964b94a0ef0aa5b9612, type: 3}
     objectTypeSpawnWeight: 0
     lod2IsBillboard: 0
-  lod0Distance: 150
+  lod0Distance: 200
   lod1Distance: 300
   lod2Distance: 600
   lodHysteresis: 5
-  minObjectsPerTile: 500
-  maxObjectsPerTile: 500
+  minObjectsPerTile: 700
+  maxObjectsPerTile: 700
   minSpawnHeight: -100
   maxSpawnHeight: 100
   maxSlopeDegrees: 45
