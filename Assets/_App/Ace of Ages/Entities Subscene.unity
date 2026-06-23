@@ -5928,7 +5928,7 @@ MonoBehaviour:
   physicsColliderFullResolutionDistance: 220
   physicsColliderVertexStride: 1
   terrainPhysicsLayer: 11
-  trailHeight: -5
+  trailHeight: 0
   trail1Enabled: 1
   trail1Width: 50
   trail1BlendWidth: 0
@@ -6028,8 +6028,8 @@ MonoBehaviour:
   lod1Distance: 300
   lod2Distance: 600
   lodHysteresis: 5
-  minObjectsPerTile: 700
-  maxObjectsPerTile: 700
+  minObjectsPerTile: 200
+  maxObjectsPerTile: 800
   minSpawnHeight: -100
   maxSpawnHeight: 100
   maxSlopeDegrees: 45
