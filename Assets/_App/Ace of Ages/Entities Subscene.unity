@@ -5912,21 +5912,21 @@ MonoBehaviour:
   playerTag: Player
   tileSize: 256
   viewDistance: 850
-  verticesPerSide: 32
+  verticesPerSide: 48
   noiseFrequency: 0.005
   noiseAmplitude: 60
-  noiseOctaves: 4
+  noiseOctaves: 3
   noiseLacunarity: 2
   noisePersistence: 0.5
   continentalFrequency: 0.0008
   continentalExponent: 2.5
   terrainMaterial: {fileID: 2100000, guid: dc12ba763b59e3a4586cb235c2a074fc, type: 2}
-  maxCollidersCreatedPerFrame: 5
-  maxPhysicsCollidersCreatedPerFrame: 5
+  maxCollidersCreatedPerFrame: 3
+  maxPhysicsCollidersCreatedPerFrame: 3
   maxColliderDistance: 220
   maxColliderCacheMemoryMB: 50
   physicsColliderFullResolutionDistance: 220
-  physicsColliderVertexStride: 1
+  physicsColliderVertexStride: 2
   terrainPhysicsLayer: 11
   trailHeight: 0
   trail1Enabled: 0
