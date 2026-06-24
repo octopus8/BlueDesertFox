@@ -5925,7 +5925,7 @@ MonoBehaviour:
   maxPhysicsCollidersCreatedPerFrame: 3
   maxColliderDistance: 220
   maxColliderCacheMemoryMB: 50
-  physicsColliderFullResolutionDistance: 220
+  physicsColliderFullResolutionDistance: 128
   physicsColliderVertexStride: 2
   terrainPhysicsLayer: 11
   trailHeight: 0
