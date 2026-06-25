@@ -40,14 +40,10 @@ public struct TerrainTileConfig : IComponentData
 | `noiseOctaves` | int | Number of noise layers (e.g., 4) |
 | `noiseLacunarity` | float | Frequency multiplier per octave (e.g., 2.0) |
 | `noisePersistence` | float | Amplitude multiplier per octave (e.g., 0.5) |
-| `maxCollidersCreatedPerFrame` | int | Frame budget for collider creation (e.g., 3) |
-| `lodFullResolutionDistance` | float | Full-res collider threshold (e.g., 150) |
-| `lodHalfResolutionDistance` | float | Half-res collider threshold (e.g., 300) |
-| `lodQuarterResolutionDistance` | float | Quarter-res collider threshold (e.g., 450) |
-| `maxColliderCacheMemoryMB` | int | Cache memory limit in MB (e.g., 50) |
-| `usePhysicsLODLayers` | bool | Enable physics layer separation |
-| `closeTerrainPhysicsLayer` | int | Physics layer for close terrain (layer dropdown in Inspector) |
-| `lowDetailPhysicsLayer` | int | Physics layer for LOD tiles (layer dropdown in Inspector) |
+| `maxCollidersCreatedPerFrame` | int | Frame budget for mesh prep jobs (e.g., 6) |
+| `maxPhysicsCollidersCreatedPerFrame` | int | Frame budget for BVH creation (e.g., 4) |
+| `maxColliderDistance` | float | Distance beyond which colliders are removed (e.g., 450) |
+| `terrainPhysicsLayer` | int | Physics layer for all terrain colliders |
 
 **Usage**:
 ```csharp
@@ -216,13 +212,12 @@ foreach (var (tile, entity) in SystemAPI.Query<RefRO<TerrainTile>>().WithEntityA
 public struct TerrainTileDistanceToPlayer : IComponentData
 ```
 
-**Purpose**: Caches tile distance and LOD level.
+**Purpose**: Caches tile distance to player for collider culling and debug visualization.
 
 **Fields**:
 | Field | Type | Description |
 |-------|------|-------------|
 | `distance` | float | Distance to player in meters |
-| `lodLevel` | TerrainPhysicsLODLevel | Current physics LOD level |
 
 **Usage**:
 ```csharp
@@ -230,7 +225,6 @@ if (SystemAPI.HasComponent<TerrainTileDistanceToPlayer>(entity))
 {
     var distInfo = SystemAPI.GetComponent<TerrainTileDistanceToPlayer>(entity);
     float dist = distInfo.distance;
-    var lod = distInfo.lodLevel;
 }
 ```
 
@@ -595,28 +589,6 @@ private EntityQuery _newTilesQuery;
 
 ## Enums
 
-### TerrainPhysicsLODLevel
-
-```csharp
-public enum TerrainPhysicsLODLevel : byte
-{
-    FullResolution = 0,      // Use all vertices
-    HalfResolution = 1,      // Use every 2nd vertex (25%)
-    QuarterResolution = 2,   // Use every 4th vertex (6.25%)
-    NoCollider = 3           // No collider
-}
-```
-
-**Usage**:
-```csharp
-TerrainPhysicsLODLevel lod = TerrainPhysicsLODLevel.HalfResolution;
-
-if (distance < config.lodFullResolutionDistance)
-    lod = TerrainPhysicsLODLevel.FullResolution;
-```
-
----
-
 ### PlayerTrackingSearch.Mode
 
 ```csharp
@@ -634,64 +606,17 @@ public enum Mode : byte
 
 ## Utility Functions
 
-### ColliderCacheKey.FromConfig
+### TerrainPhysicsBudget.GetCreationBudget
 
 ```csharp
-public static ColliderCacheKey FromConfig(
-    TerrainTileConfig config, 
-    TerrainPhysicsLODLevel lodLevel)
+public static int GetCreationBudget(in TerrainTileConfig config)
 ```
 
-**Purpose**: Creates cache key from configuration parameters.
-
-**Parameters**:
-- `config` - Terrain configuration
-- `lodLevel` - LOD level for this collider
-
-**Returns**: Cache key for looking up cached colliders
+**Purpose**: Returns the effective per-frame collider creation budget (`min` of both budget fields, at least 1).
 
 **Usage**:
 ```csharp
-var key = ColliderCacheKey.FromConfig(config, TerrainPhysicsLODLevel.HalfResolution);
-```
-
----
-
-### TerrainColliderBlob.Create
-
-```csharp
-public static BlobAssetReference<TerrainColliderBlob> Create(
-    NativeArray<float3> sourceVertices,
-    NativeArray<int3> sourceTriangles,
-    TerrainPhysicsLODLevel lodLevel,
-    Allocator allocator)
-```
-
-**Purpose**: Creates BlobAsset containing collider mesh data.
-
-**Parameters**:
-- `sourceVertices` - Vertex positions
-- `sourceTriangles` - Triangle indices (int3 per triangle)
-- `lodLevel` - LOD level for metadata
-- `allocator` - Memory allocator (typically Persistent)
-
-**Returns**: BlobAssetReference to be stored in cache
-
-**Usage**:
-```csharp
-var vertices = new NativeArray<float3>(100, Allocator.Temp);
-var triangles = new NativeArray<int3>(200, Allocator.Temp);
-// ... fill arrays ...
-
-var blobRef = TerrainColliderBlob.Create(
-    vertices, 
-    triangles, 
-    TerrainPhysicsLODLevel.FullResolution, 
-    Allocator.Persistent
-);
-
-// Store in cache or use immediately
-// Remember to Dispose when done!
+int budget = TerrainPhysicsBudget.GetCreationBudget(config);
 ```
 
 ---

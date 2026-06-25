@@ -67,16 +67,16 @@ Located in `Assets/LiquidForce/TextureBlender/`:
 
 ### Ace of Ages Game Systems
 Located in `Assets/_App/Ace of Ages/`:
-- **Terrain System** (`Terrain/`): DOTS-based infinite terrain with procedural generation using multi-octave Perlin noise, parallel Burst-compiled mesh generation, LOD physics colliders with LRU caching, camera-aware prioritization, optional directional auto-scrolling, and procedural tree spawning (see `Terrain/ARCHITECTURE.md`, `Terrain/TREE_SPAWNING_SYSTEM.md`)
+- **Terrain System** (`Terrain/`): DOTS-based infinite terrain with procedural generation using multi-octave Perlin noise, parallel Burst-compiled mesh generation, full-resolution physics colliders with distance culling, camera-aware prioritization, optional directional auto-scrolling, and procedural tree spawning (see `Terrain/ARCHITECTURE.md`, `Terrain/TREE_SPAWNING_SYSTEM.md`)
 - **Terrain Core Systems**: 
   - `PlayerTrackingInitSystem`: Finds and assigns player Transform reference at runtime (runs in `InitializationSystemGroup`), searches via `PlayerTrackingSearch` component with modes: FindByName, FindByTag, FindAutoHandPlayer, FindMainCamera
   - `ScrollTerrainSystem`: Updates `ScrollOffset` each frame in player's forward direction (XZ plane projection) when auto-scroll enabled
   - `TileSpawningSystem`: Spawns/despawns tiles in ring around player using `NativeParallelHashMap<int2, Entity>` to track active tiles, applies scroll offset to tile positions, explicitly destroys trees when tiles despawn via `SpawnedTreeReference` buffer
   - `TileScrollPositionSystem`: **OPTIMIZED (May 2026)** - Parallel Burst-compiled system using `IJobEntity` to update all existing tile positions each frame based on `ScrollOffset` (ensures smooth scrolling), optimized for Quest 3 performance with 3-5x speedup via multi-core execution (see `TILE_SCROLL_POSITION_OPTIMIZATION.md`)
-  - `TerrainDistanceTrackingSystem`: Calculates distance to player and LOD level for each tile, runs before physics system
+  - `TerrainDistanceTrackingSystem`: Calculates distance to player for each tile and manages collider lifecycle (add/remove based on `maxColliderDistance`), runs before physics system
   - `TerrainMeshGenerationSystem`: Parallel Burst jobs with `IJobParallelFor` for vertex/normal generation, camera-aware priority sorting, frame budgeting via `NativeQueue<Entity>` (processes up to `maxCollidersCreatedPerFrame` tiles/frame)
-  - `TerrainColliderPreparationSystem`: Burst-compiled parallel `IJobEntity`; applies configurable vertex stride decimation (stride=1 for full-res zone, stride=N beyond), calculates camera-aware priority score, writes prepared vertex/triangle buffers via ECB
-  - `TerrainPhysicsSystem`: Main-thread `MeshCollider.Create()` with LRU cache (`NativeHashMap<ColliderCacheKey, ColliderCacheEntry>`), frame budgeting, cache eviction when memory threshold exceeded
+  - `TerrainColliderScheduleSystem` / `TerrainColliderCompleteSystem`: Burst-compiled cross-frame pipeline; copies full-resolution vertex/triangle data, calculates camera-aware priority score, writes prepared buffers
+  - `TerrainPhysicsScheduleSystem` / `TerrainPhysicsCompleteSystem` / `TerrainPhysicsSystem`: Cross-frame async BVH construction on worker threads, lightweight main-thread registration, frame budgeting
   - `TerrainRenderingSystem`: Converts DynamicBuffers to Unity Mesh instances, sets up `RenderMesh` component, runs in `PresentationSystemGroup`, uses material from `TerrainMaterialReference` component (assigned via `TerrainConfigAuthoring.terrainMaterial`), falls back to Resources ("TerrainMaterial") if not assigned
   - `TerrainStaticObjectSpawningSystemOptimized`: Spawns static object entities (trees, turrets, decorations) on tiles after mesh rendering, uses deterministic random placement (seeded by grid coordinate) with bilinear interpolation to sample height/normals at truly random XZ positions (eliminates grid pattern), frame budgeting, height/slope filtering, random rotation/scale variation, tracks tile ownership via `StaticObjectTileOwnership` without parent-child hierarchy for better performance
   - `StaticObjectPositionUpdateSystem`: Burst-compiled system that updates static object positions when tiles move, uses `StaticObjectTileOwnership` component to track which tile each object belongs to without parent-child hierarchy overhead, runs in `TransformSystemGroup` after `TileScrollPositionSystem`
@@ -95,13 +95,13 @@ Located in `Assets/_App/Ace of Ages/`:
   - `ResetEventsSystem`: Resets event flags (e.g., `doSpawn`) each frame, runs before `EnemySpawnerSystem` via `[UpdateBefore]` attribute
   - `TransformFollowerInitSystem` (`TransformFollower/`): Initializes Transform references at runtime (runs in `InitializationSystemGroup`), searches for targets via `TransformFollowerTargetSearch` component
 - **Terrain Components**:
-  - `TerrainTileConfig`: Singleton with tile size, view distance, vertices per side, noise parameters (frequency/amplitude/octaves/lacunarity/persistence), physics LOD thresholds, cache memory limit
+  - `TerrainTileConfig`: Singleton with tile size, view distance, vertices per side, noise parameters (frequency/amplitude/octaves/lacunarity/persistence), physics frame budgets and `maxColliderDistance`
   - `TerrainTile`: Grid coordinate, mesh generation flags (`meshGenerated`, `needsRegeneration`)
   - `ScrollOffset`: Singleton with `accumulatedOffset` (float3) for directional auto-scrolling (locked to XZ plane)
   - `TerrainScrollVelocity`: Singleton with `direction` (float3) and `speed` (float), written by scroll velocity providers (`PlayerScrollVelocitySystem` or `ConstantScrollVelocitySystem`), read by `ScrollTerrainSystem`
   - `PlayerTransformReference`: Managed singleton holding player Transform reference for terrain tracking
   - `PlayerTrackingSearch`: Runtime search configuration (FindByName/FindByTag/FindAutoHandPlayer/FindMainCamera modes)
-  - `TerrainTileDistanceToPlayer`: Per-tile distance to player (float), used by collider preparation to determine vertex stride
+  - `TerrainTileDistanceToPlayer`: Per-tile distance to player (float), used for collider culling and debug visualization
   - `PhysicsColliderValid`: Tag indicating collider is up-to-date and cached
   - `StaticObjectSpawnerConfig`: Singleton with static object density (min/max per tile), scale variation, height/slope filters, frame budget
   - `StaticObjectPrefabElement`: Buffer element storing static object prefab entities for random selection
@@ -181,7 +181,7 @@ Located in `Assets/_App/Ace of Ages/Terrain/`:
 - Tile settings: `tileSize` (100m), `viewDistance` (500m), `verticesPerSide` (32)
 - Auto-scroll: Enable via `scrollEnabled`, set `scrollSpeed` (5.0 m/s), scrolls in player's facing direction (XZ plane)
 - Noise params: `noiseFrequency` (0.01), `noiseAmplitude` (20), `noiseOctaves` (4), `noiseLacunarity` (2.0), `noisePersistence` (0.5)
-- Physics LOD: `maxCollidersCreatedPerFrame` (3), distance thresholds for LOD levels, `maxColliderCacheMemoryMB` (50)
+- Physics: `maxCollidersCreatedPerFrame` (6), `maxPhysicsCollidersCreatedPerFrame` (4), `maxColliderDistance` (450m)
 
 **Debugging Tools**:
 - `TerrainTrackingDebugger`: Attach to any GameObject, use context menu "Check Tracking Status" to verify player reference, shows GUI overlay in play mode
@@ -192,7 +192,7 @@ Located in `Assets/_App/Ace of Ages/Terrain/`:
 - High-end VR (RTX 4080+): Set `maxCollidersCreatedPerFrame` to 5-8
 - Mid-range VR (RTX 3070): Keep at 3-4
 - Low-end VR (Quest 2): Set to 1-2
-- Increase `verticesPerSide` for more detail (32→64), reduces physics LOD decimation effectiveness
+- Increase `verticesPerSide` for more detail (32→64), increases collider triangle count proportionally
 - Material can be assigned in `TerrainConfigAuthoring.terrainMaterial` (recommended) or loaded from Resources as "TerrainMaterial" (URP/Lit shader recommended)
 
 **Zero-GC Pattern for ECS**:

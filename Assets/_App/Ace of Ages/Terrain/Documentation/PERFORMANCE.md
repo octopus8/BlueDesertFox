@@ -27,9 +27,9 @@ For immediate performance improvements:
 ✅ Vertices Per Side: 16-24 (not 32+)
 ✅ View Distance: 300-400m (not 500m+)
 ✅ Noise Octaves: 3-4 (not 5+)
-✅ Max Colliders Per Frame: 2-3
-✅ LOD Full Res Distance: 100m
-✅ Use Physics LOD Layers: ✅
+✅ Max Colliders Created Per Frame: 4-6
+✅ Max Physics Colliders Per Frame: 3-4
+✅ Max Collider Distance: 300-400m
 ```
 
 ### Desktop Optimization (60fps)
@@ -37,8 +37,9 @@ For immediate performance improvements:
 ✅ Vertices Per Side: 32-48
 ✅ View Distance: 500-800m
 ✅ Noise Octaves: 4-5
-✅ Max Colliders Per Frame: 5-10
-✅ LOD Full Res Distance: 150m
+✅ Max Colliders Created Per Frame: 8-12
+✅ Max Physics Colliders Per Frame: 6-8
+✅ Max Collider Distance: 500-600m
 ```
 
 ---
@@ -57,15 +58,15 @@ Move player to trigger tile spawning
 
 **Check These Markers**:
 - `TerrainMesh.Generation` - Mesh generation time
-- `TerrainPhysics.ColliderCreation` - Collider creation time
-- `TerrainPhysics.LRUEviction` - Cache eviction time
+- `TerrainPhysics.BvhSchedule` / `TerrainPhysics.BvhComplete` - BVH construction time
+- `TerrainPhysics.ColliderSchedule` / `TerrainPhysics.ColliderComplete` - Mesh prep time
 - `TreeSpawner.Instantiation` - Static object ECB instantiation batch
 - `EndSimulationEntityCommandBufferSystem` - Deferred structural changes playback (spawn + chunk assign)
 - CPU markers for overall frame time
 
 **Typical Bottlenecks**:
 1. **TerrainMesh.Generation > 10ms**: Too many vertices or octaves
-2. **TerrainPhysics.ColliderCreation > 10ms**: Frame budget too high
+2. **TerrainPhysics.BvhSchedule > 10ms**: Frame budget too high or `verticesPerSide` too large
 3. **EntityCommandBuffer.Playback > 2ms**: Static object spawn/despawn budget too high for density, or SubScene prefabs not re-baked after component baking changes
 4. **GPU time > CPU time**: Too many tiles or vertices rendering
 
@@ -101,21 +102,15 @@ Impact: Faster completion, may cause brief spikes
 
 **Reduce Collider Budget** (trade speed for smoothness):
 ```
-Max Colliders Per Frame: 2 (was 3)
+Max Physics Colliders Per Frame: 2 (was 4)
 Impact: Slower completion, smoother frames
 ```
 
-**Optimize LOD Distances**:
+**Reduce collider coverage**:
 ```
-Full Res Distance: 100m (was 150m)
-Half Res Distance: 250m (was 300m)
-Impact: More tiles use cheaper LOD levels
-```
-
-**Increase Cache Memory**:
-```
-Max Collider Cache Memory: 100MB (was 50MB)
-Impact: Better cache hit rate, less creation
+Max Collider Distance: 200m (was 450m)
+Vertices Per Side: 24 (was 32)
+Impact: Fewer tiles with colliders, lower triangle count
 ```
 
 ---
@@ -238,33 +233,31 @@ int budget = (Application.targetFrameRate >= 90) ? 3 : 10;
 
 ---
 
-### Strategy 5: Physics LOD Aggressiveness
+### Strategy 5: Physics Distance Culling
 
-**Method**: Push LOD transitions closer to player
+**Method**: Reduce `maxColliderDistance` to limit how many tiles have colliders
 
-**Aggressive LOD** (maximum performance):
+**Aggressive culling** (maximum performance):
 ```
-Full Res Distance: 50m
-Half Res Distance: 150m
-Quarter Res Distance: 300m
+Max Collider Distance: 150m
+Vertices Per Side: 24
 
-Result: Most tiles use cheap quarter-res colliders
-```
-
-**Conservative LOD** (maximum quality):
-```
-Full Res Distance: 250m
-Half Res Distance: 400m
-Quarter Res Distance: 450m
-
-Result: Most tiles use expensive full-res colliders
+Result: Fewer tiles with colliders, lower triangle count
 ```
 
-**Balanced LOD** (recommended):
+**Conservative culling** (maximum coverage):
 ```
-Full Res Distance: 150m
-Half Res Distance: 300m
-Quarter Res Distance: 450m
+Max Collider Distance: 600m
+Vertices Per Side: 48
+
+Result: More tiles with full-resolution colliders
+```
+
+**Balanced** (recommended for VR):
+```
+Max Collider Distance: 300-450m
+Vertices Per Side: 32
+Max Physics Colliders Per Frame: 4
 ```
 
 ---
@@ -557,12 +550,9 @@ Noise Octaves: 3
 Noise Lacunarity: 2.0
 Noise Persistence: 0.4
 
-Max Colliders Per Frame: 2
-Full Res Distance: 75
-Half Res Distance: 150
-Quarter Res Distance: 250
-Max Collider Cache: 25MB
-Use Physics LOD Layers: ✅
+Max Colliders Created Per Frame: 4
+Max Physics Colliders Per Frame: 3
+Max Collider Distance: 250m
 
 Scroll Enabled: ✅ (if needed)
 Scroll Speed: 8.0
@@ -590,12 +580,9 @@ Noise Octaves: 4
 Noise Lacunarity: 2.0
 Noise Persistence: 0.5
 
-Max Colliders Per Frame: 3
-Full Res Distance: 125
-Half Res Distance: 275
-Quarter Res Distance: 375
-Max Collider Cache: 50MB
-Use Physics LOD Layers: ✅
+Max Colliders Created Per Frame: 3
+Max Physics Colliders Per Frame: 3
+Max Collider Distance: 250m
 
 Scroll Enabled: ✅
 Scroll Speed: 10.0
@@ -623,12 +610,9 @@ Noise Octaves: 5
 Noise Lacunarity: 2.0
 Noise Persistence: 0.6
 
-Max Colliders Per Frame: 8
-Full Res Distance: 200
-Half Res Distance: 400
-Quarter Res Distance: 550
-Max Collider Cache: 100MB
-Use Physics LOD Layers: ❌
+Max Colliders Created Per Frame: 8
+Max Physics Colliders Per Frame: 6
+Max Collider Distance: 550m
 
 Scroll Enabled: ✅
 Scroll Speed: 15.0
@@ -656,12 +640,9 @@ Noise Octaves: 7
 Noise Lacunarity: 2.2
 Noise Persistence: 0.65
 
-Max Colliders Per Frame: 15
-Full Res Distance: 300
-Half Res Distance: 600
-Quarter Res Distance: 900
-Max Collider Cache: 200MB
-Use Physics LOD Layers: ❌
+Max Colliders Created Per Frame: 12
+Max Physics Colliders Per Frame: 8
+Max Collider Distance: 900m
 ```
 
 **Expected Performance**:

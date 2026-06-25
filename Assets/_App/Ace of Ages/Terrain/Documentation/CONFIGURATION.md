@@ -252,110 +252,53 @@ Amplitude multiplier for each octave. Controls how much each detail layer contri
 
 ### Physics Optimization
 
-Controls physics collider creation and LOD behavior.
+Controls physics collider creation, distance culling, and frame budgeting. All in-range tiles use full-resolution collider geometry matching the rendered mesh.
 
-#### Max Colliders Per Frame
+#### Max Colliders Created Per Frame
 
 **Type**: Int  
-**Default**: `3`  
-**Range**: 1 - 10
+**Default**: `6`  
+**Range**: 1 - 20
 
-Maximum number of physics colliders created per frame. Higher = faster collider creation but potential frame spikes.
-
-**Performance Impact**: Each collider creation takes ~2-5ms on main thread.
+Maximum number of Burst mesh-prep jobs submitted per frame. Shared with mesh generation budgeting.
 
 **Recommended Values**:
 
-- VR: 3 (ensures <15ms budget)
-- Desktop: 5-10 (more headroom)
+- VR: 4–6
+- Desktop: 8–12
 
-#### LOD Full Resolution Distance
+#### Max Physics Colliders Created Per Frame
 
-**Type**: Float  
-**Default**: `150`  
-**Units**: Meters  
-**Range**: 0 - View Distance
+**Type**: Int  
+**Default**: `4`  
+**Range**: 1 - 8
 
-Distance threshold for full-resolution colliders. Tiles closer than this use all vertices for physics.
+Maximum number of BVH `MeshCollider.Create` calls per frame. The effective budget is `min(maxCollidersCreatedPerFrame, maxPhysicsCollidersCreatedPerFrame)`.
 
-**Example**: At 150m, a 32×32 tile uses all 1024 vertices for collider.
+**Recommended Values**:
 
-#### LOD Half Resolution Distance
+- VR: 3–4 (ensures stable frame times)
+- Desktop: 6–8
 
-**Type**: Float  
-**Default**: `300`  
-**Units**: Meters  
-**Range**: Full Resolution Distance - View Distance
-
-Distance threshold for half-resolution colliders. Tiles between this and full resolution distance use every 2nd vertex.
-
-**Example**: At 300m, a 32×32 tile uses only 16×16 = 256 vertices (75% reduction).
-
-#### LOD Quarter Resolution Distance
+#### Max Collider Distance
 
 **Type**: Float  
 **Default**: `450`  
-**Units**: Meters  
-**Range**: Half Resolution Distance - View Distance
+**Units**: Meters
 
-Distance threshold for quarter-resolution colliders. Tiles beyond this use every 4th vertex.
+Distance beyond which terrain colliders are removed completely. Tiles within this distance receive full-resolution colliders.
 
-**Example**: At 450m, a 32×32 tile uses only 8×8 = 64 vertices (93.75% reduction).
+**Example**: At 450m, tiles beyond this threshold have no physics collider.
 
-**Note**: Tiles beyond this distance have no collider at all.
-
-#### Max Collider Cache Memory (MB)
-
-**Type**: Int  
-**Default**: `50`  
-**Units**: Megabytes  
-**Range**: 10 - 200
-
-Maximum memory for cached collider BlobAssets. When exceeded, least recently used colliders are evicted.
-
-**Memory Estimation**:
-
-- Full resolution (32×32): ~50KB per collider
-- Half resolution (16×16): ~12KB per collider
-- Quarter resolution (8×8): ~3KB per collider
-
-**Recommended Values**:
-
-- VR: 50MB (1000 full-res or 4000 quarter-res colliders)
-- Desktop: 100MB (more caching capacity)
-
-#### Use Physics LOD Layers
-
-**Type**: Bool  
-**Default**: `true`
-
-Assign distant tiles (half/quarter resolution) to separate physics layer. Allows you to configure collision matrix to ignore low-detail terrain.
-
-**Use Case**: Player should only collide with high-detail nearby terrain, not distant low-res tiles.
-
-#### Close Terrain Physics Layer
+#### Terrain Physics Layer
 
 **Type**: Int (Layer Dropdown)  
 **Default**: `0`  
 **Range**: 0 - 31
 
-Physics layer index for close terrain tiles (full resolution).
+Physics layer index for all terrain colliders.
 
-**Inspector**: Displays as a dropdown menu showing all available Unity layers.
-
-**Recommended**: Select "Terrain" layer from the dropdown. Use the menu item `Tools/Terrain/Setup Physics Layers` to automatically create and configure both layers.
-
-#### Low Detail Physics Layer
-
-**Type**: Int (Layer Dropdown)  
-**Default**: `0`  
-**Range**: 0 - 31
-
-Physics layer index for low-detail terrain tiles (half/quarter resolution).
-
-**Inspector**: Displays as a dropdown menu showing all available Unity layers.
-
-**Recommended**: Select "TerrainLowDetail" layer from the dropdown. Use the menu item `Tools/Terrain/Setup Physics Layers` to automatically create and configure both layers.
+**Recommended**: Select "Terrain" layer from the dropdown. Use `Tools/Terrain/Setup Physics Layer` to configure the collision matrix.
 
 ---
 
@@ -372,10 +315,9 @@ Vertices Per Side: 16
 Noise Frequency: 0.01
 Noise Amplitude: 20
 Noise Octaves: 3
-Max Colliders Per Frame: 5
-Full Res Distance: 100
-Half Res Distance: 200
-Quarter Res Distance: 300
+Max Colliders Created Per Frame: 5
+Max Physics Colliders Per Frame: 3
+Max Collider Distance: 300m
 ```
 
 ### Preset 2: VR Balanced
@@ -389,10 +331,9 @@ Vertices Per Side: 32
 Noise Frequency: 0.01
 Noise Amplitude: 20
 Noise Octaves: 4
-Max Colliders Per Frame: 3
-Full Res Distance: 150
-Half Res Distance: 300
-Quarter Res Distance: 450
+Max Colliders Created Per Frame: 6
+Max Physics Colliders Per Frame: 4
+Max Collider Distance: 450m
 ```
 
 ### Preset 3: Desktop High Quality
@@ -406,10 +347,9 @@ Vertices Per Side: 64
 Noise Frequency: 0.01
 Noise Amplitude: 50
 Noise Octaves: 6
-Max Colliders Per Frame: 10
-Full Res Distance: 200
-Half Res Distance: 400
-Quarter Res Distance: 600
+Max Colliders Created Per Frame: 10
+Max Physics Colliders Per Frame: 8
+Max Collider Distance: 600m
 ```
 
 ### Preset 4: Endless Runner VR
@@ -425,7 +365,9 @@ Scroll Speed: 10.0
 Noise Frequency: 0.015
 Noise Amplitude: 15
 Noise Octaves: 4
-Max Colliders Per Frame: 5
+Max Colliders Created Per Frame: 5
+Max Physics Colliders Per Frame: 4
+Max Collider Distance: 450m
 ```
 
 ## Runtime Configuration

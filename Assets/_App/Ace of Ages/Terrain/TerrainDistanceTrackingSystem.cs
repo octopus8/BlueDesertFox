@@ -11,7 +11,7 @@ using Unity.Profiling;
 #endif
 
 /// <summary>
-/// System that calculates distance from each terrain tile to the player and determines appropriate LOD level.
+/// System that calculates distance from each terrain tile to the player and manages collider lifecycle.
 /// Runs before TerrainPhysicsSystem to ensure distance data is up-to-date.
 /// </summary>
 [UpdateInGroup(typeof(SimulationSystemGroup))]
@@ -30,10 +30,10 @@ public partial class TerrainDistanceTrackingSystem : SystemBase
     }
 
     /// <summary>
-    /// For each terrain tile, calculates its world-space distance to the player and assigns
-    /// the appropriate physics LOD level. Tiles needing a collider update receive a
-    /// <c>PhysicsColliderNeedsPreparation</c> component via an <see cref="EntityCommandBuffer"/>.
-    /// Skips processing if physics colliders are disabled or the player is not tracked.
+    /// For each terrain tile, calculates its world-space distance to the player and marks tiles
+    /// within <see cref="TerrainTileConfig.maxColliderDistance"/> for collider creation via
+    /// <see cref="PhysicsColliderNeedsPreparation"/>. Tiles beyond the distance threshold have
+    /// their collider state removed.
     /// </summary>
     protected override void OnUpdate()
     {
@@ -145,7 +145,7 @@ public partial class TerrainDistanceTrackingSystem : SystemBase
         }
     }
 
-    /// <summary>Removes stale physics collider and physics velocity components from <paramref name="entity"/> via ECB when they exist, used when a tile moves to a higher-LOD distance tier.</summary>
+    /// <summary>Removes physics collider and related components from <paramref name="entity"/> when the tile is beyond <see cref="TerrainTileConfig.maxColliderDistance"/>.</summary>
     private static void RemoveColliderState(Entity entity, EntityCommandBuffer ecb, EntityManager entityManager)
     {
         if (entityManager.HasComponent<Unity.Physics.PhysicsCollider>(entity))

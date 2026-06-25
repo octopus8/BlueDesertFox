@@ -1,5 +1,3 @@
-using System;
-using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
 using Unity.Physics;
@@ -20,66 +18,6 @@ public struct TerrainTileDistanceToPlayer : IComponentData
 /// </summary>
 public struct PhysicsColliderValid : IComponentData
 {
-}
-
-/// <summary>
-/// Blob asset containing pre-baked collider mesh data for a terrain tile.
-/// Similar to SplineDataBlob pattern - allows efficient reuse and survives origin shifts.
-/// </summary>
-public struct TerrainColliderBlob
-{
-    /// <summary>Vertex positions for the collider mesh, stored in tile-local or world space.</summary>
-    public BlobArray<float3> vertices;
-    /// <summary>Triangle index triples (CCW winding) referencing entries in <see cref="vertices"/>.</summary>
-    public BlobArray<int3> triangles;
-    /// <summary>Total number of vertices in the collider mesh.</summary>
-    public int vertexCount;
-    /// <summary>Total number of triangles in the collider mesh.</summary>
-    public int triangleCount;
-    
-    /// <summary>
-    /// Creates a BlobAssetReference containing collider mesh data.
-    /// Memory estimation: vertexCount * 12 bytes (float3) + triangleCount * 12 bytes (int3)
-    /// </summary>
-    public static BlobAssetReference<TerrainColliderBlob> Create(
-        NativeArray<float3> sourceVertices,
-        NativeArray<int3> sourceTriangles,
-        Allocator allocator)
-    {
-        var builder = new BlobBuilder(Allocator.Temp);
-        ref TerrainColliderBlob root = ref builder.ConstructRoot<TerrainColliderBlob>();
-        
-        // Build vertex array
-        var vertexArray = builder.Allocate(ref root.vertices, sourceVertices.Length);
-        for (int i = 0; i < sourceVertices.Length; i++)
-        {
-            vertexArray[i] = sourceVertices[i];
-        }
-        
-        // Build triangle array
-        var triangleArray = builder.Allocate(ref root.triangles, sourceTriangles.Length);
-        for (int i = 0; i < sourceTriangles.Length; i++)
-        {
-            triangleArray[i] = sourceTriangles[i];
-        }
-        
-        root.vertexCount = sourceVertices.Length;
-        root.triangleCount = sourceTriangles.Length;
-        
-        var result = builder.CreateBlobAssetReference<TerrainColliderBlob>(allocator);
-        builder.Dispose();
-        
-        return result;
-    }
-}
-
-/// <summary>
-/// Component holding a reference to pre-baked collider data as a BlobAsset.
-/// </summary>
-public struct TerrainPhysicsColliderComponent : IComponentData
-{
-    /// <summary>Reference to the cached blob asset holding the pre-baked collider mesh data.</summary>
-    public BlobAssetReference<TerrainColliderBlob> colliderData;
 }
 
 /// <summary>
@@ -134,66 +72,6 @@ public struct PhysicsColliderRegistrationPending : IComponentData
 }
 
 /// <summary>
-/// Key for caching collider BlobAssets based on generation parameters.
-/// Allows tiles with identical parameters to share the same cached collider.
-/// All tiles now use full-resolution geometry, so LOD is no longer part of the key.
-/// </summary>
-public struct ColliderCacheKey : IEquatable<ColliderCacheKey>
-{
-    /// <summary>Number of vertices per side of the tile grid, identifying the mesh resolution.</summary>
-    public int verticesPerSide;
-    /// <summary>Combined hash of all noise parameters (<c>frequency</c>, <c>amplitude</c>, <c>octaves</c>, etc.)
-    /// used to distinguish tiles generated with different terrain configurations.</summary>
-    public uint noiseParamsHash;
-    
-    /// <summary>Returns <c>true</c> if both keys have identical resolution and noise parameter hashes.</summary>
-    public bool Equals(ColliderCacheKey other)
-    {
-        return verticesPerSide == other.verticesPerSide &&
-               noiseParamsHash == other.noiseParamsHash;
-    }
-    
-    /// <inheritdoc/>
-    public override int GetHashCode()
-    {
-        return verticesPerSide.GetHashCode() ^
-               (int)noiseParamsHash;
-    }
-    
-    /// <summary>
-    /// Creates a cache key from terrain configuration.
-    /// </summary>
-    public static ColliderCacheKey FromConfig(TerrainTileConfig config)
-    {
-        // Combine all noise parameters into a single hash
-        uint hash = (uint)config.noiseFrequency.GetHashCode();
-        hash ^= (uint)config.noiseAmplitude.GetHashCode() << 8;
-        hash ^= (uint)config.noiseOctaves << 16;
-        hash ^= (uint)config.noiseLacunarity.GetHashCode() << 4;
-        hash ^= (uint)config.noisePersistence.GetHashCode() << 12;
-        
-        return new ColliderCacheKey
-        {
-            verticesPerSide = config.verticesPerSide,
-            noiseParamsHash = hash
-        };
-    }
-}
-
-/// <summary>
-/// Entry in the LRU cache for tracking BlobAsset usage and memory.
-/// </summary>
-public struct ColliderCacheEntry
-{
-    /// <summary>The cached blob asset containing pre-baked collider geometry for a specific key.</summary>
-    public BlobAssetReference<TerrainColliderBlob> blobAsset;
-    /// <summary>Frame number when this entry was last accessed, used by the LRU eviction policy.</summary>
-    public long lastAccessFrame;
-    /// <summary>Estimated memory footprint of <see cref="blobAsset"/> in bytes, used to enforce the memory budget.</summary>
-    public int estimatedMemoryBytes;
-}
-
-/// <summary>
 /// Resolves the effective per-frame physics collider creation budget from terrain config.
 /// Uses the minimum of both budget fields so either inspector slider caps physics work.
 /// </summary>
@@ -224,5 +102,4 @@ public static class TerrainPhysicsBudget
         return math.max(1, budget == int.MaxValue ? 4 : budget);
     }
 }
-
 

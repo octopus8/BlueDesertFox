@@ -30,7 +30,7 @@ Welcome to the comprehensive documentation for the DOTS-based infinite terrain s
 
 ### Feature Documentation
 - **[Auto-Scrolling Terrain](AUTO_SCROLLING.md)** - Scroll velocity components and configuration
-- **[Physics System](PHYSICS_SYSTEM.md)** - LOD-based physics collider system
+- **[Physics System](PHYSICS_SYSTEM.md)** - Full-resolution physics collider system with distance culling
 - **[Rendering System](RENDERING_SYSTEM.md)** - How mesh rendering works with Entities Graphics
 - **[Static Object Rendering System](STATIC_OBJECT_RENDERING.md)** - Instanced rendering with spatial culling and LOD
 - **[Terrain Anchor System](TERRAIN_ANCHOR_SYSTEM.md)** - Spawn objects that move with scrolling terrain
@@ -62,7 +62,7 @@ The Infinite Terrain System v3.0 is a production-ready Unity DOTS implementation
 ✅ **Dynamic Tree LOD** - Distance-based mesh switching with hysteresis (v3.0)  
 ✅ **VR Optimized** - Quest 3 performance targets (<11ms budget)  
 ✅ **High Performance** - Burst-compiled ECS systems, zero GC allocations  
-✅ **Physics Ready** - Automatic mesh collider generation with LOD support  
+✅ **Physics Ready** - Automatic full-resolution mesh collider generation with distance culling  
 ✅ **Flexible Player Tracking** - Works with any GameObject (VR rig, camera, etc.)
 
 ### Performance Characteristics (v3.0)
@@ -113,16 +113,10 @@ Scroll Speed:        5.0f      // Speed in m/s (positive = forward)
 ```
 // Mesh-prep jobs per frame (Burst)
 maxCollidersCreatedPerFrame:          6
-// Main-thread MeshCollider.Create calls per frame (keep 3–4 for VR)
+// BVH MeshCollider.Create calls per frame (keep 3–4 for VR)
 maxPhysicsCollidersCreatedPerFrame:   4
-// Full-resolution zone radius (beyond this, vertex stride is applied)
-physicsColliderFullResolutionDistance: 128m
-// Vertex stride beyond full-res zone (2 = every 2nd vertex, ~4x fewer triangles)
-physicsColliderVertexStride:          2
 // Tiles beyond this distance have no collider at all
 maxColliderDistance:                  450m
-// Memory cap for collider cache (LRU eviction when exceeded)
-maxColliderCacheMemoryMB:             50MB
 ```
 
 ### Tree Rendering Settings (v3.0)
@@ -166,11 +160,10 @@ Spatial Grid Cell Size:    100m   // Chunk size for culling
 - Distance-based sorting for generation order
 
 ### Physics System
-- Full resolution within configurable distance (128m default), reduced resolution beyond
-- Configurable vertex stride (default 2 = every 2nd vertex) for distant tiles
-- Cached collider data (BlobAsset) with LRU eviction
-- Split two-stage budget: Burst prep jobs + main-thread MeshCollider.Create caps
-- Optional physics layer separation for terrain tiles
+- Full-resolution colliders matching rendered mesh geometry for all tiles within `maxColliderDistance`
+- Cross-frame async BVH construction on worker threads (VR-safe)
+- Split two-stage budget: Burst prep jobs + BVH creation caps
+- Single physics layer for all terrain colliders
 
 ### Hybrid MonoBehaviour/ECS Design
 - Player tracking via managed `PlayerTransformReference` component

@@ -10,7 +10,7 @@ using Unity.Profiling;
 
 /// <summary>
 /// Schedules the Burst-compiled <see cref="PrepareColliderDataJob"/> at the end of the frame
-/// (PresentationSystemGroup) so that worker threads can execute the decimation work during
+/// (PresentationSystemGroup) so that worker threads can execute the mesh copy work during
 /// <c>EarlyUpdate.XRUpdate</c> of the next frame.
 ///
 /// Source vertex/index data is copied from ECS DynamicBuffers into Persistent NativeArrays at
@@ -38,14 +38,13 @@ public partial struct TerrainColliderScheduleSystem : ISystem
     // Copies of source ECS buffer data (safe for worker threads across frame boundary)
     public NativeArray<float3> _inFlightSourceVertices;   // [entityIdx * maxVertsPerTile + vertIdx]
     public NativeArray<int>    _inFlightSourceIndices;    // [entityIdx * maxIndicesPerTile + idxIdx]
-    public NativeArray<float>  _inFlightDistances;        // [entityIdx]
     public NativeArray<int2>   _inFlightGridCoords;       // [entityIdx]
 
     // Output arrays written by PrepareColliderDataJob
     public NativeArray<ColliderPreparedVertexElement>   _inFlightOutVertices;   // [entityIdx * maxVertsPerTile]
     public NativeArray<ColliderPreparedTriangleElement> _inFlightOutTriangles;  // [entityIdx * maxTrianglesPerTile]
-    public NativeArray<int>    _inFlightVertexCounts;     // [entityIdx] actual vertex count after decimation
-    public NativeArray<int>    _inFlightTriangleCounts;   // [entityIdx] actual triangle count after decimation
+    public NativeArray<int>    _inFlightVertexCounts;     // [entityIdx] actual vertex count
+    public NativeArray<int>    _inFlightTriangleCounts;   // [entityIdx] actual triangle count
     public NativeArray<int>    _inFlightPriorities;       // [entityIdx] camera-aware priority score
 
     public JobHandle _inFlightHandle;
@@ -66,8 +65,7 @@ public partial struct TerrainColliderScheduleSystem : ISystem
             ComponentType.ReadOnly<PhysicsColliderNeedsPreparation>(),
             ComponentType.ReadOnly<VertexElement>(),
             ComponentType.ReadOnly<IndexElement>(),
-            ComponentType.ReadOnly<TerrainTile>(),
-            ComponentType.ReadOnly<TerrainTileDistanceToPlayer>()
+            ComponentType.ReadOnly<TerrainTile>()
         );
     }
 
@@ -117,7 +115,6 @@ public partial struct TerrainColliderScheduleSystem : ISystem
 
             // ── Allocate persistent storage ───────────────────────────────────────────────────
             _inFlightEntities        = new NativeList<Entity>(entityCount, Allocator.Persistent);
-            _inFlightDistances       = new NativeArray<float>(entityCount, Allocator.Persistent);
             _inFlightGridCoords      = new NativeArray<int2>(entityCount, Allocator.Persistent);
             _inFlightSourceVertices  = new NativeArray<float3>(entityCount * maxVertsPerTile, Allocator.Persistent);
             _inFlightSourceIndices   = new NativeArray<int>(entityCount * maxIdxPerTile, Allocator.Persistent);
@@ -132,17 +129,15 @@ public partial struct TerrainColliderScheduleSystem : ISystem
             // copies, not from live ECS buffer pointers that could be invalidated by structural
             // changes in subsequent frames.
             int idx = 0;
-            foreach (var (vBuf, iBuf, tile, dist, entity) in
+            foreach (var (vBuf, iBuf, tile, entity) in
                 SystemAPI.Query<
                     DynamicBuffer<VertexElement>,
                     DynamicBuffer<IndexElement>,
-                    RefRO<TerrainTile>,
-                    RefRO<TerrainTileDistanceToPlayer>>()
+                    RefRO<TerrainTile>>()
                 .WithAll<PhysicsColliderNeedsPreparation>()
                 .WithEntityAccess())
             {
                 _inFlightEntities.Add(entity);
-                _inFlightDistances[idx] = dist.ValueRO.distance;
                 _inFlightGridCoords[idx] = tile.ValueRO.gridCoordinate;
 
                 int vOffset = idx * maxVertsPerTile;
@@ -169,25 +164,22 @@ public partial struct TerrainColliderScheduleSystem : ISystem
 
             var job = new PrepareColliderDataJob
             {
-                sourceVertices                       = _inFlightSourceVertices,
-                sourceIndices                        = _inFlightSourceIndices,
-                distances                            = _inFlightDistances,
-                gridCoords                           = _inFlightGridCoords,
-                verticesPerSide                      = verticesPerSide,
-                maxVerticesPerTile                   = maxVertsPerTile,
-                maxTrianglesPerTile                  = maxTrisPerTile,
-                maxIndicesPerTile                    = maxIdxPerTile,
-                tileSize                             = config.tileSize,
-                cameraPosition                       = cameraData.position,
-                cameraForward                        = cameraData.forward,
-                viewDistance                         = config.viewDistance,
-                physicsColliderFullResolutionDistance = config.physicsColliderFullResolutionDistance,
-                physicsColliderVertexStride          = math.max(1, config.physicsColliderVertexStride),
-                outVertices                          = _inFlightOutVertices,
-                outTriangles                         = _inFlightOutTriangles,
-                outVertexCounts                      = _inFlightVertexCounts,
-                outTriangleCounts                    = _inFlightTriangleCounts,
-                outPriorities                        = _inFlightPriorities
+                sourceVertices      = _inFlightSourceVertices,
+                sourceIndices       = _inFlightSourceIndices,
+                gridCoords          = _inFlightGridCoords,
+                verticesPerSide     = verticesPerSide,
+                maxVerticesPerTile  = maxVertsPerTile,
+                maxTrianglesPerTile = maxTrisPerTile,
+                maxIndicesPerTile   = maxIdxPerTile,
+                tileSize            = config.tileSize,
+                cameraPosition      = cameraData.position,
+                cameraForward       = cameraData.forward,
+                viewDistance        = config.viewDistance,
+                outVertices         = _inFlightOutVertices,
+                outTriangles        = _inFlightOutTriangles,
+                outVertexCounts     = _inFlightVertexCounts,
+                outTriangleCounts   = _inFlightTriangleCounts,
+                outPriorities       = _inFlightPriorities
             };
 
             // Intentionally NOT assigned to state.Dependency so the job runs freely on worker
@@ -202,7 +194,6 @@ public partial struct TerrainColliderScheduleSystem : ISystem
         if (s._inFlightEntities.IsCreated)       s._inFlightEntities.Dispose();
         if (s._inFlightSourceVertices.IsCreated)  s._inFlightSourceVertices.Dispose();
         if (s._inFlightSourceIndices.IsCreated)   s._inFlightSourceIndices.Dispose();
-        if (s._inFlightDistances.IsCreated)       s._inFlightDistances.Dispose();
         if (s._inFlightGridCoords.IsCreated)      s._inFlightGridCoords.Dispose();
         if (s._inFlightOutVertices.IsCreated)     s._inFlightOutVertices.Dispose();
         if (s._inFlightOutTriangles.IsCreated)    s._inFlightOutTriangles.Dispose();
@@ -214,11 +205,12 @@ public partial struct TerrainColliderScheduleSystem : ISystem
 }
 
 /// <summary>
-/// Burst-compiled parallel job that decimates terrain tile vertex buffers into physics-ready
-/// collider meshes. Runs on worker threads during <c>EarlyUpdate.XRUpdate</c> of the next frame.
+/// Burst-compiled parallel job that copies terrain tile vertex/index buffers into physics-ready
+/// collider meshes at full resolution. Runs on worker threads during <c>EarlyUpdate.XRUpdate</c>
+/// of the next frame.
 ///
 /// Reads source vertex/index data from pre-copied NativeArrays (not live ECS buffers) and writes
-/// decimated output to pre-allocated output arrays. All inputs and outputs use flat array indexing:
+/// output to pre-allocated arrays. All inputs and outputs use flat array indexing:
 /// tile <c>i</c>'s data lives at <c>i * maxSlots</c> in the respective array.
 /// </summary>
 [BurstCompile]
@@ -226,7 +218,6 @@ struct PrepareColliderDataJob : IJobParallelFor
 {
     [ReadOnly] public NativeArray<float3> sourceVertices;
     [ReadOnly] public NativeArray<int>    sourceIndices;
-    [ReadOnly] public NativeArray<float>  distances;
     [ReadOnly] public NativeArray<int2>   gridCoords;
 
     public int   verticesPerSide;
@@ -237,8 +228,6 @@ struct PrepareColliderDataJob : IJobParallelFor
     public float3 cameraPosition;
     public float3 cameraForward;
     public float viewDistance;
-    public float physicsColliderFullResolutionDistance;
-    public int   physicsColliderVertexStride;
 
     [NativeDisableParallelForRestriction]
     public NativeArray<ColliderPreparedVertexElement>   outVertices;
@@ -250,76 +239,34 @@ struct PrepareColliderDataJob : IJobParallelFor
 
     public void Execute(int index)
     {
-        float  distance  = distances[index];
-        int2   gridCoord = gridCoords[index];
+        int2 gridCoord = gridCoords[index];
 
-        int stride = distance <= physicsColliderFullResolutionDistance
-            ? 1
-            : physicsColliderVertexStride;
+        int srcVOffset = index * maxVerticesPerTile;
+        int srcIOffset = index * maxIndicesPerTile;
+        int outVOffset = index * maxVerticesPerTile;
+        int outTOffset = index * maxTrianglesPerTile;
 
-        int srcVOffset  = index * maxVerticesPerTile;
-        int srcIOffset  = index * maxIndicesPerTile;
-        int outVOffset  = index * maxVerticesPerTile;
-        int outTOffset  = index * maxTrianglesPerTile;
+        int totalVerts   = verticesPerSide * verticesPerSide;
+        int totalIndices = (verticesPerSide - 1) * (verticesPerSide - 1) * 6;
 
-        int vCount = 0;
+        for (int v = 0; v < totalVerts; v++)
+            outVertices[outVOffset + v] = new ColliderPreparedVertexElement
+                { value = sourceVertices[srcVOffset + v] };
+
         int tCount = 0;
-
-        if (stride == 1)
+        for (int i = 0; i + 2 < totalIndices; i += 3)
         {
-            // Full resolution: direct copy of all vertices and triangles from source indices.
-            int totalVerts   = verticesPerSide * verticesPerSide;
-            int totalIndices = (verticesPerSide - 1) * (verticesPerSide - 1) * 6;
-
-            for (int v = 0; v < totalVerts; v++)
-                outVertices[outVOffset + v] = new ColliderPreparedVertexElement
-                    { value = sourceVertices[srcVOffset + v] };
-            vCount = totalVerts;
-
-            for (int i = 0; i + 2 < totalIndices; i += 3)
+            outTriangles[outTOffset + tCount] = new ColliderPreparedTriangleElement
             {
-                outTriangles[outTOffset + tCount] = new ColliderPreparedTriangleElement
-                {
-                    value = new int3(
-                        sourceIndices[srcIOffset + i],
-                        sourceIndices[srcIOffset + i + 1],
-                        sourceIndices[srcIOffset + i + 2])
-                };
-                tCount++;
-            }
-        }
-        else
-        {
-            // Decimated: sample every stride-th vertex in the grid, rebuild triangles from scratch.
-            int decimatedPerSide = (verticesPerSide - 1) / stride + 1;
-
-            for (int z = 0; z < decimatedPerSide; z++)
-            {
-                int srcZ = math.min(z * stride, verticesPerSide - 1);
-                for (int x = 0; x < decimatedPerSide; x++)
-                {
-                    int srcX   = math.min(x * stride, verticesPerSide - 1);
-                    int srcIdx = srcZ * verticesPerSide + srcX;
-                    outVertices[outVOffset + vCount] = new ColliderPreparedVertexElement
-                        { value = sourceVertices[srcVOffset + srcIdx] };
-                    vCount++;
-                }
-            }
-
-            for (int z = 0; z < decimatedPerSide - 1; z++)
-            {
-                for (int x = 0; x < decimatedPerSide - 1; x++)
-                {
-                    int i = z * decimatedPerSide + x;
-                    outTriangles[outTOffset + tCount++] = new ColliderPreparedTriangleElement
-                        { value = new int3(i, i + decimatedPerSide, i + 1) };
-                    outTriangles[outTOffset + tCount++] = new ColliderPreparedTriangleElement
-                        { value = new int3(i + 1, i + decimatedPerSide, i + decimatedPerSide + 1) };
-                }
-            }
+                value = new int3(
+                    sourceIndices[srcIOffset + i],
+                    sourceIndices[srcIOffset + i + 1],
+                    sourceIndices[srcIOffset + i + 2])
+            };
+            tCount++;
         }
 
-        outVertexCounts[index]   = vCount;
+        outVertexCounts[index]   = totalVerts;
         outTriangleCounts[index] = tCount;
 
         // Camera-aware priority score (lower = higher priority for TerrainPhysicsSystem sorting).
@@ -340,7 +287,7 @@ struct PrepareColliderDataJob : IJobParallelFor
 
 /// <summary>
 /// Completes the collider preparation job scheduled by <see cref="TerrainColliderScheduleSystem"/>
-/// the previous frame, then writes the decimated vertex/triangle buffers and priority score into ECS
+/// the previous frame, then writes the vertex/triangle buffers and priority score into ECS
 /// components so <see cref="_App.Ace_of_Ages.Terrain.TerrainPhysicsSystem"/> can create
 /// <c>MeshCollider</c>s in the same frame.
 ///
@@ -510,83 +457,5 @@ public partial class CameraDataUpdateSystem : SystemBase
             fullForward = fullForward,
             bankAngle   = bankAngle
         });
-    }
-}
-
-/// <summary>
-/// Burst-compiled utility for building a decimated collider mesh from a terrain tile's vertex buffer.
-/// Produces a lower-resolution mesh by sampling every <c>stride</c>-th vertex in the grid,
-/// reducing the polygon count for distant tiles to lower <c>MeshCollider.Create</c> cost.
-/// Note: no longer used by <see cref="PrepareColliderDataJob"/> (which inlines the logic for
-/// NativeArray compatibility), but retained for potential external use.
-/// </summary>
-[BurstCompile]
-static class ColliderMeshDecimation
-{
-    /// <summary>
-    /// Decimates the source vertex and index buffers using the given vertex <paramref name="stride"/>,
-    /// writing the resulting vertices and triangles into newly allocated <see cref="NativeList{T}"/> outputs.
-    /// The caller is responsible for disposing both output lists.
-    /// </summary>
-    [BurstCompile]
-    public static void BuildDecimatedMesh(
-        in DynamicBuffer<VertexElement> sourceVertices,
-        in DynamicBuffer<IndexElement> sourceIndices,
-        int verticesPerSide,
-        int stride,
-        out NativeList<ColliderPreparedVertexElement> preparedVertices,
-        out NativeList<ColliderPreparedTriangleElement> preparedTriangles)
-    {
-        stride = math.max(1, stride);
-
-        if (stride == 1)
-        {
-            preparedVertices  = new NativeList<ColliderPreparedVertexElement>(sourceVertices.Length, Allocator.Temp);
-            preparedTriangles = new NativeList<ColliderPreparedTriangleElement>(sourceIndices.Length / 3, Allocator.Temp);
-
-            for (int i = 0; i < sourceVertices.Length; i++)
-                preparedVertices.Add(new ColliderPreparedVertexElement { value = sourceVertices[i].value });
-
-            for (int i = 0; i + 2 < sourceIndices.Length; i += 3)
-                preparedTriangles.Add(new ColliderPreparedTriangleElement
-                {
-                    value = new int3(
-                        sourceIndices[i].value,
-                        sourceIndices[i + 1].value,
-                        sourceIndices[i + 2].value)
-                });
-
-            return;
-        }
-
-        int decimatedPerSide   = (verticesPerSide - 1) / stride + 1;
-        int decimatedVCount    = decimatedPerSide * decimatedPerSide;
-        int decimatedTriCount  = (decimatedPerSide - 1) * (decimatedPerSide - 1) * 2;
-
-        preparedVertices  = new NativeList<ColliderPreparedVertexElement>(decimatedVCount, Allocator.Temp);
-        preparedTriangles = new NativeList<ColliderPreparedTriangleElement>(decimatedTriCount, Allocator.Temp);
-
-        for (int z = 0; z < decimatedPerSide; z++)
-        {
-            int srcZ = math.min(z * stride, verticesPerSide - 1);
-            for (int x = 0; x < decimatedPerSide; x++)
-            {
-                int srcX   = math.min(x * stride, verticesPerSide - 1);
-                int srcIdx = srcZ * verticesPerSide + srcX;
-                preparedVertices.Add(new ColliderPreparedVertexElement { value = sourceVertices[srcIdx].value });
-            }
-        }
-
-        for (int z = 0; z < decimatedPerSide - 1; z++)
-        {
-            for (int x = 0; x < decimatedPerSide - 1; x++)
-            {
-                int i = z * decimatedPerSide + x;
-                preparedTriangles.Add(new ColliderPreparedTriangleElement
-                    { value = new int3(i, i + decimatedPerSide, i + 1) });
-                preparedTriangles.Add(new ColliderPreparedTriangleElement
-                    { value = new int3(i + 1, i + decimatedPerSide, i + decimatedPerSide + 1) });
-            }
-        }
     }
 }

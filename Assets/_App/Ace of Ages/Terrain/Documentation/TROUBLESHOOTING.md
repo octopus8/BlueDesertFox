@@ -169,10 +169,11 @@ Max Colliders Per Frame: 5 (increase from 3)
 Trade-off: Faster but potential brief spikes
 ```
 
-**Solution 4**: Optimize Physics LOD
+**Solution 4**: Reduce collider cost
 ```
-Full Resolution Distance: 100m (reduce from 150m)
-More tiles use cheaper colliders
+Max Collider Distance: 200m (reduce from 450m)
+Vertices Per Side: 32 (reduce from 48)
+Fewer tiles with colliders and lower triangle count per collider
 ```
 
 **See**: [Performance Optimization](PERFORMANCE.md)
@@ -186,7 +187,7 @@ More tiles use cheaper colliders
 **Check**:
 ```
 Is Unity.Physics package installed?
-Are tiles within LOD Quarter Distance?
+Are tiles within maxColliderDistance?
 Check console for collider errors
 ```
 

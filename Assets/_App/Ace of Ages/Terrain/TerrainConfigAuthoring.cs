@@ -82,17 +82,6 @@ public class TerrainConfigAuthoring : MonoBehaviour
     [Tooltip("Distance beyond which colliders are removed completely (no physics beyond this distance)")]
     public float maxColliderDistance = 450f;
     
-    [Range(10, 200)]
-    [Tooltip("Maximum memory in megabytes for collider cache - oldest entries evicted when exceeded")]
-    public int maxColliderCacheMemoryMB = 50;
-
-    [Tooltip("Tiles closer than this distance use full-resolution physics meshes. Beyond this, vertex stride is applied.")]
-    public float physicsColliderFullResolutionDistance = 128f;
-
-    [Range(1, 4)]
-    [Tooltip("Sample every Nth vertex for physics beyond full-resolution distance. 2 = ~4x fewer triangles.")]
-    public int physicsColliderVertexStride = 2;
-    
     [NaughtyAttributes.Layer]
     [Tooltip("Physics layer index for all terrain colliders")]
     public int terrainPhysicsLayer = 0;
@@ -208,9 +197,6 @@ public class TerrainConfigAuthoring : MonoBehaviour
                 maxCollidersCreatedPerFrame = authoring.maxCollidersCreatedPerFrame,
                 maxPhysicsCollidersCreatedPerFrame = authoring.maxPhysicsCollidersCreatedPerFrame,
                 maxColliderDistance = authoring.maxColliderDistance,
-                maxColliderCacheMemoryMB = authoring.maxColliderCacheMemoryMB,
-                physicsColliderFullResolutionDistance = authoring.physicsColliderFullResolutionDistance,
-                physicsColliderVertexStride = math.max(1, authoring.physicsColliderVertexStride),
                 terrainPhysicsLayer = authoring.terrainPhysicsLayer,
                 // Debug/Testing
                 renderTerrain = authoring.renderTerrain,

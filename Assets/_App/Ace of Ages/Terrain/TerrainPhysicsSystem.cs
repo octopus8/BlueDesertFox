@@ -107,9 +107,9 @@ namespace _App.Ace_of_Ages.Terrain
     ///
     /// At schedule time, prepared vertex and triangle data is <b>copied</b> from live ECS
     /// <see cref="DynamicBuffer{T}"/> into Persistent <see cref="NativeArray{T}"/>s.  This
-    /// mirrors the pattern used by <see cref="TerrainColliderScheduleSystem"/> for the decimation
-    /// step and is necessary because structural changes that occur between the schedule and
-    /// completion frames would otherwise invalidate live ECS buffer pointers held by the job.
+    /// mirrors the pattern used by <see cref="TerrainColliderScheduleSystem"/> for the mesh
+    /// preparation step and is necessary because structural changes that occur between the
+    /// schedule and completion frames would otherwise invalidate live ECS buffer pointers held by the job.
     ///
     /// Pairs with <see cref="TerrainPhysicsCompleteSystem"/> which harvests the BVH results in
     /// <c>InitializationSystemGroup</c> of the following frame.

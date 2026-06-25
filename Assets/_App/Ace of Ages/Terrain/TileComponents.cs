@@ -48,15 +48,6 @@ public struct TerrainTileConfig : IComponentData
     /// <summary>Distance threshold beyond which colliders are removed completely.</summary>
     public float maxColliderDistance;
     
-    /// <summary>Maximum memory in megabytes for collider cache (LRU eviction when exceeded).</summary>
-    public int maxColliderCacheMemoryMB;
-
-    /// <summary>Distance within which physics colliders use full mesh resolution.</summary>
-    public float physicsColliderFullResolutionDistance;
-
-    /// <summary>Vertex stride for physics colliders beyond full-resolution distance (2 = half resolution).</summary>
-    public int physicsColliderVertexStride;
-    
     /// <summary>Physics layer index for terrain colliders.</summary>
     public int terrainPhysicsLayer;
     

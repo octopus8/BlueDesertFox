@@ -222,6 +222,9 @@ The following documentation files need updating to reflect single-resolution app
 - `maxColliderDistance` - Used in 4 locations ✅
 - `terrainPhysicsLayer` - Used in 4 locations ✅
 
-All core implementation is complete and verified!
+## Follow-Up (June 2026)
 
+The 2-tier stride LOD (`physicsColliderFullResolutionDistance`, `physicsColliderVertexStride`) that was reintroduced after the initial removal has now been fully removed. All in-range tiles use full-resolution colliders; only `maxColliderDistance` culling remains.
+
+---
 
