@@ -24,12 +24,13 @@ For immediate performance improvements:
 
 ### VR Optimization (90fps)
 ```
-✅ Vertices Per Side: 16-24 (not 32+)
+✅ Vertices Per Side: 48 OK with low BVH budget (Ace of Ages full-res)
 ✅ View Distance: 300-400m (not 500m+)
 ✅ Noise Octaves: 3-4 (not 5+)
-✅ Max Colliders Created Per Frame: 4-6
-✅ Max Physics Colliders Per Frame: 3-4
-✅ Max Collider Distance: 300-400m
+✅ Max Colliders Created Per Frame: 4-6 (mesh generation)
+✅ Max Physics Colliders Per Frame: 1-2 (BVH batch — critical on Quest)
+✅ Max Collider Distance: 220-400m
+✅ Max Collider Cache Memory: 32-53 MB
 ```
 
 ### Desktop Optimization (60fps)
@@ -59,16 +60,17 @@ Move player to trigger tile spawning
 **Check These Markers**:
 - `TerrainMesh.Generation` - Mesh generation time
 - `TerrainPhysics.BvhSchedule` / `TerrainPhysics.BvhComplete` - BVH construction time
-- `TerrainPhysics.ColliderSchedule` / `TerrainPhysics.ColliderComplete` - Mesh prep time
+- `BuildTerrainMeshColliderJob` - Per-tile MeshCollider.Create on worker threads
 - `TreeSpawner.Instantiation` - Static object ECB instantiation batch
 - `EndSimulationEntityCommandBufferSystem` - Deferred structural changes playback (spawn + chunk assign)
 - CPU markers for overall frame time
 
 **Typical Bottlenecks**:
 1. **TerrainMesh.Generation > 10ms**: Too many vertices or octaves
-2. **TerrainPhysics.BvhSchedule > 10ms**: Frame budget too high or `verticesPerSide` too large
-3. **EntityCommandBuffer.Playback > 2ms**: Static object spawn/despawn budget too high for density, or SubScene prefabs not re-baked after component baking changes
-4. **GPU time > CPU time**: Too many tiles or vertices rendering
+2. **TerrainPhysics.BvhComplete > 8ms**: `maxPhysicsCollidersCreatedPerFrame` too high for 48×48 tiles on Quest — lower to 1-2
+3. **BuildTerrainMeshColliderJob long tail**: Multiple parallel BVHs in one batch — reduce physics budget
+4. **EntityCommandBuffer.Playback > 2ms**: Static object spawn/despawn budget too high for density, or SubScene prefabs not re-baked after component baking changes
+5. **GPU time > CPU time**: Too many tiles or vertices rendering
 
 ---
 
@@ -102,8 +104,8 @@ Impact: Faster completion, may cause brief spikes
 
 **Reduce Collider Budget** (trade speed for smoothness):
 ```
-Max Physics Colliders Per Frame: 2 (was 4)
-Impact: Slower completion, smoother frames
+Max Physics Colliders Per Frame: 1 (was 2-6)
+Impact: Slower first-time collider completion, bounded frame spikes on Quest
 ```
 
 **Reduce collider coverage**:

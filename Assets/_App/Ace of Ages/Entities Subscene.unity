@@ -5922,8 +5922,9 @@ MonoBehaviour:
   continentalExponent: 2.5
   terrainMaterial: {fileID: 2100000, guid: dc12ba763b59e3a4586cb235c2a074fc, type: 2}
   maxCollidersCreatedPerFrame: 6
-  maxPhysicsCollidersCreatedPerFrame: 6
+  maxPhysicsCollidersCreatedPerFrame: 1
   maxColliderDistance: 220
+  maxColliderCacheMemoryMB: 53
   terrainPhysicsLayer: 11
   trailHeight: 0
   trail1Enabled: 0

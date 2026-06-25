@@ -24,55 +24,58 @@ For a 48×48 tile (Ace of Ages default), expect ~4600 triangles per collider.
 
 ## Frame Budget
 
-Collider creation is split across two independent budgets to avoid frame spikes:
+Collider work uses **split stage budgets** via `TerrainPhysicsBudget`:
 
 | Field | Controls | Default |
 |-------|----------|---------|
-| `maxCollidersCreatedPerFrame` | Burst mesh-prep jobs submitted per frame | 6 |
-| `maxPhysicsCollidersCreatedPerFrame` | BVH `MeshCollider.Create` calls per frame | 4 |
+| `maxCollidersCreatedPerFrame` | Mesh generation + prep marking per frame | 6 |
+| `maxPhysicsCollidersCreatedPerFrame` | BVH `BuildTerrainMeshColliderJob` batch size per cross-frame cycle | 1 (Quest), up to 4 desktop |
+| `maxColliderCacheMemoryMB` | LRU grid-coordinate blob cache size | 53 MB |
 
-The effective budget per frame is `min(maxCollidersCreatedPerFrame, maxPhysicsCollidersCreatedPerFrame)`, resolved by `TerrainPhysicsBudget.GetCreationBudget()`. With defaults this is **4** colliders per frame.
+| Helper | Returns |
+|--------|---------|
+| `GetPrepMarkBudget()` | `maxCollidersCreatedPerFrame` |
+| `GetBvhCreationBudget()` | `maxPhysicsCollidersCreatedPerFrame` (clamped to 2 on mobile) |
+| `GetRegistrationBudget()` | Same as BVH budget |
 
 **Priority sorting:** Closer tiles and tiles in the camera's forward direction are processed first (combined distance + view-angle score).
 
-## Multi-Stage Pipeline
+## Pipeline (2-stage cross-frame)
 
-Collider creation is split across frames to avoid main-thread stalls:
+### Stage 1 — `TerrainPhysicsScheduleSystem` / `TerrainPhysicsCompleteSystem` (Burst BVH, cross-frame)
+1. Queries tiles with `PhysicsColliderNeedsPreparation` enabled and mesh buffers ready
+2. Checks grid-coordinate blob cache first (via `TerrainDistanceTrackingSystem` on mark)
+3. Copies `VertexElement` / `IndexElement` into Persistent NativeArrays
+4. Runs `BuildTerrainMeshColliderJob` (`MeshCollider.Create`) on worker threads (budget: `GetBvhCreationBudget()`)
+5. Writes `PhysicsColliderRegistrationPending`
 
-### Stage 1 — `TerrainColliderScheduleSystem` / `TerrainColliderCompleteSystem` (Burst, cross-frame)
-1. Queries tiles with `PhysicsColliderNeedsPreparation` enabled
-2. Copies full-resolution vertex/index data into prepared buffers
-3. Calculates camera-aware priority and writes `PhysicsColliderPrepared`
-
-### Stage 2 — `TerrainPhysicsScheduleSystem` / `TerrainPhysicsCompleteSystem` (Burst BVH, cross-frame)
-1. Reads tiles with `PhysicsColliderPrepared`, sorted by priority
-2. Calls `MeshCollider.Create()` on worker threads
-3. Writes `PhysicsColliderRegistrationPending`
-
-### Stage 3 — `TerrainPhysicsSystem` (main thread, lightweight)
+### Stage 2 — `TerrainPhysicsSystem` (main thread, lightweight)
 1. Attaches `PhysicsCollider` from pending blob
 2. Adds `PhysicsColliderValid` tag
+
+When tiles leave `maxColliderDistance`, collider blobs are **retired to an LRU cache** keyed by `TerrainTile.gridCoordinate` instead of being destroyed. Re-entering tiles reuse cached blobs with no BVH rebuild.
 
 ## Systems
 
 ### `TerrainDistanceTrackingSystem`
 - Runs before `TerrainPhysicsSystem`
 - Updates `TerrainTileDistanceToPlayer.distance` for every tile
-- Marks tiles within `maxColliderDistance` as needing preparation if not already valid
-- Removes collider state from tiles beyond the distance threshold
-- Budget-limits how many tiles are marked for preparation per frame
+- Checks grid-coordinate blob cache before marking tiles for BVH work
+- Marks tiles within `maxColliderDistance` with `PhysicsColliderNeedsPreparation` (budget: `GetPrepMarkBudget()`)
+- Retires collider blobs to cache when tiles exceed distance threshold
+
+### `TerrainColliderBlobCacheSystem`
+- LRU cache of `BlobAssetReference<Collider>` keyed by `int2` grid coordinate
+- Evicts oldest entries when `maxColliderCacheMemoryMB` exceeded
 
 ### `CameraDataUpdateSystem`
 - Runs at start of `PresentationSystemGroup`
 - Reads player Transform → writes `CameraDataSingleton` (position, forward)
-- Used by the preparation job for camera-aware priority scoring
-
-### `TerrainColliderScheduleSystem` / `TerrainColliderCompleteSystem`
-- Burst-compiled parallel `PrepareColliderDataJob`
-- Copies full mesh data into `ColliderPreparedVertexElement` / `ColliderPreparedTriangleElement` buffers
+- Used for camera-aware BVH priority scoring
 
 ### `TerrainPhysicsScheduleSystem` / `TerrainPhysicsCompleteSystem`
-- Burst-compiled `CreateMeshCollidersJob` for async BVH construction
+- Burst-compiled `BuildTerrainMeshColliderJob` for async BVH construction
+- Logs warning when `BvhComplete` waits > 8ms (Quest 90fps threshold)
 
 ### `TerrainPhysicsSystem`
 - Namespace: `_App.Ace_of_Ages.Terrain`
@@ -80,36 +83,39 @@ Collider creation is split across frames to avoid main-thread stalls:
 
 ## Configuration Reference
 
-### VR (Quest 3 / PC VR, recommended)
+### VR (Quest 2 / Quest 3, recommended)
 ```
-maxColliderDistance:                   450m
+maxColliderDistance:                   220-450m
 maxCollidersCreatedPerFrame:           6
-maxPhysicsCollidersCreatedPerFrame:    4
+maxPhysicsCollidersCreatedPerFrame:    1-2
+maxColliderCacheMemoryMB:              53
+verticesPerSide:                       48 (Ace of Ages — keep full-res)
 ```
 
 ### Desktop (high-end, RTX 4080+)
 ```
 maxColliderDistance:                   600m
 maxCollidersCreatedPerFrame:           12
-maxPhysicsCollidersCreatedPerFrame:    8
+maxPhysicsCollidersCreatedPerFrame:    6-8
+maxColliderCacheMemoryMB:              53
 ```
 
-### Mobile / Quest 2
+### Mobile / Quest 2 (conservative)
 ```
 maxColliderDistance:                   300m
 maxCollidersCreatedPerFrame:           4
-maxPhysicsCollidersCreatedPerFrame:    2
+maxPhysicsCollidersCreatedPerFrame:    1
+maxColliderCacheMemoryMB:              32
 ```
 
 ## Profiler Markers
 
 | Marker | System | What it covers |
 |--------|--------|----------------|
-| `TerrainPhysics.DistanceTracking` | TerrainDistanceTrackingSystem | Distance calc + prep marking |
-| `TerrainPhysics.ColliderSchedule` | TerrainColliderScheduleSystem | Burst mesh copy job schedule |
-| `TerrainPhysics.ColliderComplete` | TerrainColliderCompleteSystem | Harvest prepared buffers |
-| `TerrainPhysics.BvhSchedule` | TerrainPhysicsScheduleSystem | BVH job schedule |
-| `TerrainPhysics.BvhComplete` | TerrainPhysicsCompleteSystem | Harvest BVH results |
+| `TerrainPhysics.DistanceTracking` | TerrainDistanceTrackingSystem | Distance calc + cache lookup + prep marking |
+| `TerrainPhysics.BvhSchedule` | TerrainPhysicsScheduleSystem | BVH job schedule + ECS buffer copy |
+| `TerrainPhysics.BvhComplete` | TerrainPhysicsCompleteSystem | Harvest BVH results (warns if > 8ms) |
+| `BuildTerrainMeshColliderJob` | Worker threads | Per-tile MeshCollider.Create (Burst) |
 | `TerrainPhysics.RegisterCollider` | TerrainPhysicsSystem | Attach PhysicsCollider |
 
 ## Common Issues
@@ -120,8 +126,9 @@ maxPhysicsCollidersCreatedPerFrame:    2
 - Confirm tiles have finished mesh generation (`meshGenerated = true`)
 
 **Physics spikes:**
-- Lower `maxPhysicsCollidersCreatedPerFrame` (try 2–3 for Quest 2/Pro)
-- Reduce `verticesPerSide` if collider triangle count is too high
+- Lower `maxPhysicsCollidersCreatedPerFrame` to **1–2** on Quest (most effective for `BuildTerrainMeshColliderJob` tail latency)
+- Keep `maxCollidersCreatedPerFrame` at 6 for mesh throughput — BVH budget is independent
+- Ensure grid cache is enabled (`maxColliderCacheMemoryMB > 0`) to avoid rebuilds when revisiting tiles during scroll
 
 **Distant terrain has no collider:**
 - Expected — tiles beyond `maxColliderDistance` have no physics

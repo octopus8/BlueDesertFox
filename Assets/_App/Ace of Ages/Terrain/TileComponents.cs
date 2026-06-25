@@ -48,6 +48,9 @@ public struct TerrainTileConfig : IComponentData
     /// <summary>Distance threshold beyond which colliders are removed completely.</summary>
     public float maxColliderDistance;
     
+    /// <summary>Maximum memory in megabytes for the grid-coordinate collider blob LRU cache.</summary>
+    public int maxColliderCacheMemoryMB;
+    
     /// <summary>Physics layer index for terrain colliders.</summary>
     public int terrainPhysicsLayer;
     

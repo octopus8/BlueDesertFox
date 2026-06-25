@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using Unity.Collections;
-using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
 using Unity.Mathematics;
 using Unity.Physics;
@@ -121,8 +120,8 @@ public class TerrainColliderVisualizer : MonoBehaviour
         var query = _entityManager.CreateEntityQuery(
             typeof(PhysicsCollider),
             typeof(TerrainTileDistanceToPlayer),
-            typeof(ColliderPreparedVertexElement),
-            typeof(ColliderPreparedTriangleElement)
+            typeof(VertexElement),
+            typeof(IndexElement)
         );
         _tilesWithColliders = query.CalculateEntityCount();
         query.Dispose();
@@ -220,8 +219,8 @@ public class TerrainColliderVisualizer : MonoBehaviour
         var query = em.CreateEntityQuery(
             ComponentType.ReadOnly<PhysicsCollider>(),
             ComponentType.ReadOnly<TerrainTileDistanceToPlayer>(),
-            ComponentType.ReadOnly<ColliderPreparedVertexElement>(),
-            ComponentType.ReadOnly<ColliderPreparedTriangleElement>(),
+            ComponentType.ReadOnly<VertexElement>(),
+            ComponentType.ReadOnly<IndexElement>(),
             ComponentType.ReadOnly<LocalTransform>()
         );
 
@@ -258,8 +257,8 @@ public class TerrainColliderVisualizer : MonoBehaviour
                     continue;
             }
 
-            var vertexBuffer = em.GetBuffer<ColliderPreparedVertexElement>(entity);
-            var indexBuffer = em.GetBuffer<ColliderPreparedTriangleElement>(entity);
+            var vertexBuffer = em.GetBuffer<VertexElement>(entity);
+            var indexBuffer = em.GetBuffer<IndexElement>(entity);
 
             var entry = GetOrCreateMeshEntry();
             UpdateTileMesh(entry.mesh, vertexBuffer, indexBuffer, tilePosition);
@@ -277,8 +276,8 @@ public class TerrainColliderVisualizer : MonoBehaviour
     /// <summary>Uploads the collider vertex and triangle buffers from the ECS entity to the given Unity <see cref="Mesh"/>, applying the tile's world-space position offset.</summary>
     private void UpdateTileMesh(
         Mesh mesh,
-        DynamicBuffer<ColliderPreparedVertexElement> vertices,
-        DynamicBuffer<ColliderPreparedTriangleElement> indices,
+        DynamicBuffer<VertexElement> vertices,
+        DynamicBuffer<IndexElement> indices,
         float3 tilePosition)
     {
         if (vertices.Length == 0 || indices.Length == 0)
@@ -294,13 +293,8 @@ public class TerrainColliderVisualizer : MonoBehaviour
         for (int i = 0; i < vertices.Length; i++)
             _vertexScratch.Add((Vector3)(tilePosition + vertices[i].value));
 
-        // ColliderPreparedTriangleElement is an int3 (3 contiguous ints per triangle).
-        // DynamicBuffer.Reinterpret requires matching element sizes, so reinterpret the
-        // NativeArray instead, expanding each int3 into 3 flat ints for SetIndices.
-        var indicesNative = indices.AsNativeArray()
-            .Reinterpret<int>(UnsafeUtility.SizeOf<ColliderPreparedTriangleElement>());
         mesh.SetVertices(_vertexScratch);
-        mesh.SetIndices(indicesNative, MeshTopology.Triangles, 0);
+        mesh.SetIndices(indices.Reinterpret<int>().AsNativeArray(), MeshTopology.Triangles, 0);
         mesh.RecalculateBounds();
     }
 }

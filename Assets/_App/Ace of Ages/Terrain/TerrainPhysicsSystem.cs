@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Diagnostics;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Entities;
@@ -14,38 +15,24 @@ using Unity.Profiling;
 namespace _App.Ace_of_Ages.Terrain
 {
     /// <summary>
-    /// Registers prepared physics colliders with the physics world.  Attaches the already-built
-    /// <see cref="BlobAssetReference{Collider}"/> (produced by <see cref="TerrainPhysicsCompleteSystem"/>)
-    /// to the tile entity as a <see cref="PhysicsCollider"/> component.
-    ///
-    /// The expensive BVH construction has been moved off the main thread: it is scheduled
-    /// cross-frame by <see cref="TerrainPhysicsScheduleSystem"/> and completed at the start of
-    /// the next frame by <see cref="TerrainPhysicsCompleteSystem"/>, running on worker threads
-    /// during the XRUpdate window.  This system is now a lightweight registration step only.
+    /// Registers prepared physics colliders with the physics world.
     /// </summary>
     [UpdateInGroup(typeof(SimulationSystemGroup))]
     [UpdateAfter(typeof(EndSimulationEntityCommandBufferSystem))]
     public partial class TerrainPhysicsSystem : SystemBase
     {
 #if UNITY_EDITOR
-        private static readonly ProfilerMarker s_RegisterMarker = new ProfilerMarker("TerrainPhysics.RegisterCollider");
+        static readonly ProfilerMarker s_RegisterMarker = new ProfilerMarker("TerrainPhysics.RegisterCollider");
 #endif
 
-        /// <summary>Registers the <see cref="TerrainTileConfig"/> singleton requirement.</summary>
         protected override void OnCreate()
         {
             RequireForUpdate<TerrainTileConfig>();
         }
 
-        /// <summary>
-        /// Processes up to <c>maxCollidersCreatedPerFrame</c> tiles that have a fully-built
-        /// <see cref="PhysicsColliderRegistrationPending"/> component, attaching the blob as a
-        /// live <see cref="PhysicsCollider"/> and marking the tile with <see cref="PhysicsColliderValid"/>.
-        /// </summary>
         protected override void OnUpdate()
         {
             var config = SystemAPI.GetSingleton<TerrainTileConfig>();
-
             if (!config.enablePhysicsColliders)
                 return;
 
@@ -55,18 +42,14 @@ namespace _App.Ace_of_Ages.Terrain
             using (s_RegisterMarker.Auto())
 #endif
             {
-                RegisterPendingColliders(TerrainPhysicsBudget.GetCreationBudget(config), ecb);
+                RegisterPendingColliders(TerrainPhysicsBudget.GetRegistrationBudget(config), ecb);
             }
 
             ecb.Playback(EntityManager);
             ecb.Dispose();
         }
 
-        /// <summary>
-        /// Iterates tiles with <see cref="PhysicsColliderRegistrationPending"/>, attaches the
-        /// collider blob as a live <see cref="PhysicsCollider"/>, and removes the pending tag.
-        /// </summary>
-        private void RegisterPendingColliders(int budget, EntityCommandBuffer ecb)
+        void RegisterPendingColliders(int budget, EntityCommandBuffer ecb)
         {
             if (budget <= 0)
                 return;
@@ -94,6 +77,9 @@ namespace _App.Ace_of_Ages.Terrain
 
                 ecb.AddComponent<PhysicsColliderValid>(entity);
                 ecb.RemoveComponent<PhysicsColliderRegistrationPending>(entity);
+
+                if (EntityManager.HasComponent<PhysicsColliderNeedsPreparation>(entity))
+                    ecb.SetComponentEnabled<PhysicsColliderNeedsPreparation>(entity, false);
             }
 
             pendingEntities.Dispose();
@@ -101,18 +87,8 @@ namespace _App.Ace_of_Ages.Terrain
     }
 
     /// <summary>
-    /// Schedules <see cref="CreateMeshCollidersJob"/> (BVH construction) as a cross-frame
-    /// background job so the expensive <c>MeshCollider.Create</c> work runs on worker threads
-    /// during the XRUpdate window rather than blocking <c>SimulationSystemGroup</c>.
-    ///
-    /// At schedule time, prepared vertex and triangle data is <b>copied</b> from live ECS
-    /// <see cref="DynamicBuffer{T}"/> into Persistent <see cref="NativeArray{T}"/>s.  This
-    /// mirrors the pattern used by <see cref="TerrainColliderScheduleSystem"/> for the mesh
-    /// preparation step and is necessary because structural changes that occur between the
-    /// schedule and completion frames would otherwise invalidate live ECS buffer pointers held by the job.
-    ///
-    /// Pairs with <see cref="TerrainPhysicsCompleteSystem"/> which harvests the BVH results in
-    /// <c>InitializationSystemGroup</c> of the following frame.
+    /// Schedules cross-frame BVH construction directly from terrain mesh buffers,
+    /// skipping the redundant intermediate prepared-buffer stage.
     /// </summary>
     [UpdateInGroup(typeof(SimulationSystemGroup))]
     [UpdateAfter(typeof(EndSimulationEntityCommandBufferSystem))]
@@ -120,28 +96,26 @@ namespace _App.Ace_of_Ages.Terrain
     public partial struct TerrainPhysicsScheduleSystem : ISystem
     {
 #if UNITY_EDITOR
-        private static readonly ProfilerMarker s_ProfilerMarker = new ProfilerMarker("TerrainPhysics.BvhSchedule");
+        static readonly ProfilerMarker s_ProfilerMarker = new ProfilerMarker("TerrainPhysics.BvhSchedule");
 #endif
 
-        // ── Cross-frame in-flight state (Persistent allocations, disposed by Complete system) ───
-        public NativeList<Entity>  _inFlightEntities;
-        public NativeArray<float3> _inFlightVertices;    // [entityIdx * _maxVertsPerTile + v]
-        public NativeArray<int3>   _inFlightTriangles;   // [entityIdx * _maxTrisPerTile  + t]
-        public NativeArray<int>    _inFlightVertexCounts;
-        public NativeArray<int>    _inFlightTriangleCounts;
+        public NativeList<Entity> _inFlightEntities;
+        public NativeArray<float3> _inFlightSourceVertices;
+        public NativeArray<int> _inFlightSourceIndices;
+        public NativeArray<int> _inFlightVertexCounts;
+        public NativeArray<int> _inFlightIndexCounts;
         public NativeArray<BlobAssetReference<Unity.Physics.Collider>> _inFlightResults;
-        public int      _maxVertsPerTile;
-        public int      _maxTrisPerTile;
+        public int _maxVertsPerTile;
+        public int _maxIndicesPerTile;
         public JobHandle _inFlightHandle;
-        public bool      _hasInFlight;
+        public bool _hasInFlight;
 
-        /// <summary>Registers the <see cref="TerrainTileConfig"/> singleton requirement.</summary>
         public void OnCreate(ref SystemState state)
         {
             state.RequireForUpdate<TerrainTileConfig>();
+            state.RequireForUpdate<CameraDataSingleton>();
         }
 
-        /// <summary>Completes any dangling in-flight job and releases its allocations.</summary>
         public void OnDestroy(ref SystemState state)
         {
             if (_hasInFlight)
@@ -151,12 +125,6 @@ namespace _App.Ace_of_Ages.Terrain
             }
         }
 
-        /// <summary>
-        /// Selects up to <c>maxCollidersCreatedPerFrame</c> tiles with prepared collider data
-        /// (sorted by camera-aware priority), copies their vertex/triangle buffers into Persistent
-        /// NativeArrays, and schedules <see cref="CreateMeshCollidersJob"/> without blocking.
-        /// Skips the frame if a previous job is still in flight.
-        /// </summary>
         public void OnUpdate(ref SystemState state)
         {
             if (_hasInFlight)
@@ -170,19 +138,26 @@ namespace _App.Ace_of_Ages.Terrain
             using (s_ProfilerMarker.Auto())
 #endif
             {
-                // ── Collect and sort candidates ───────────────────────────────────────────────
+                var cameraData = SystemAPI.GetSingleton<CameraDataSingleton>();
                 var candidates = new NativeList<ColliderEntityWithPriority>(Allocator.Temp);
 
-                foreach (var (prepared, entity) in SystemAPI
-                    .Query<RefRO<PhysicsColliderPrepared>>()
-                    .WithAll<ColliderPreparedVertexElement, ColliderPreparedTriangleElement>()
-                    .WithNone<PhysicsColliderRegistrationPending>()
+                foreach (var (tile, entity) in SystemAPI
+                    .Query<RefRO<TerrainTile>>()
+                    .WithAll<VertexElement, IndexElement, PhysicsColliderNeedsPreparation>()
+                    .WithNone<PhysicsColliderRegistrationPending, PhysicsColliderValid>()
                     .WithEntityAccess())
                 {
+                    if (!SystemAPI.IsComponentEnabled<PhysicsColliderNeedsPreparation>(entity))
+                        continue;
+
+                    if (!tile.ValueRO.meshGenerated)
+                        continue;
+
                     candidates.Add(new ColliderEntityWithPriority
                     {
-                        entity   = entity,
-                        priority = prepared.ValueRO.priority
+                        entity = entity,
+                        priority = TerrainColliderPriority.Compute(
+                            tile.ValueRO.gridCoordinate, config, cameraData)
                     });
                 }
 
@@ -195,56 +170,60 @@ namespace _App.Ace_of_Ages.Terrain
                 if (candidates.Length > 1)
                     candidates.Sort(new ColliderPriorityComparer());
 
-                int budget         = TerrainPhysicsBudget.GetCreationBudget(config);
+                int budget = TerrainPhysicsBudget.GetBvhCreationBudget(config);
+
+#if DEVELOPMENT_BUILD || UNITY_EDITOR
+                if (candidates.Length > budget)
+                {
+                    UnityEngine.Debug.LogWarning(
+                        $"[TerrainPhysics] BVH queue depth {candidates.Length} exceeds budget {budget}. " +
+                        "Processing highest-priority tiles first.");
+                }
+#endif
+
                 int tilesToProcess = math.min(candidates.Length, budget);
 
                 int maxVertsPerTile = config.verticesPerSide * config.verticesPerSide;
-                int maxTrisPerTile  = (config.verticesPerSide - 1) * (config.verticesPerSide - 1) * 2;
-                _maxVertsPerTile    = maxVertsPerTile;
-                _maxTrisPerTile     = maxTrisPerTile;
+                int maxIndicesPerTile = (config.verticesPerSide - 1) * (config.verticesPerSide - 1) * 6;
+                _maxVertsPerTile = maxVertsPerTile;
+                _maxIndicesPerTile = maxIndicesPerTile;
 
-                // ── Allocate Persistent cross-frame storage ───────────────────────────────────
-                _inFlightEntities       = new NativeList<Entity>(tilesToProcess, Allocator.Persistent);
-                _inFlightVertices       = new NativeArray<float3>(tilesToProcess * maxVertsPerTile, Allocator.Persistent);
-                _inFlightTriangles      = new NativeArray<int3>(tilesToProcess * maxTrisPerTile, Allocator.Persistent);
-                _inFlightVertexCounts   = new NativeArray<int>(tilesToProcess, Allocator.Persistent);
-                _inFlightTriangleCounts = new NativeArray<int>(tilesToProcess, Allocator.Persistent);
-                _inFlightResults        = new NativeArray<BlobAssetReference<Unity.Physics.Collider>>(
+                _inFlightEntities = new NativeList<Entity>(tilesToProcess, Allocator.Persistent);
+                _inFlightSourceVertices = new NativeArray<float3>(
+                    tilesToProcess * maxVertsPerTile, Allocator.Persistent);
+                _inFlightSourceIndices = new NativeArray<int>(
+                    tilesToProcess * maxIndicesPerTile, Allocator.Persistent);
+                _inFlightVertexCounts = new NativeArray<int>(tilesToProcess, Allocator.Persistent);
+                _inFlightIndexCounts = new NativeArray<int>(tilesToProcess, Allocator.Persistent);
+                _inFlightResults = new NativeArray<BlobAssetReference<Unity.Physics.Collider>>(
                     tilesToProcess, Allocator.Persistent);
 
-                // ── Copy buffer data from ECS into NativeArrays (main thread) ─────────────────
-                // This is the key cross-frame safety step: the job reads from these copies, not
-                // from live ECS DynamicBuffer pointers that structural changes could invalidate.
                 int scheduledCount = 0;
                 for (int i = 0; i < tilesToProcess; i++)
                 {
                     Entity entity = candidates[i].entity;
                     if (!state.EntityManager.Exists(entity))
                         continue;
-                    if (!state.EntityManager.HasBuffer<ColliderPreparedVertexElement>(entity))
-                        continue;
-                    if (!state.EntityManager.HasBuffer<ColliderPreparedTriangleElement>(entity))
-                        continue;
 
-                    var vBuf = state.EntityManager.GetBuffer<ColliderPreparedVertexElement>(entity, isReadOnly: true);
-                    var tBuf = state.EntityManager.GetBuffer<ColliderPreparedTriangleElement>(entity, isReadOnly: true);
+                    var vBuf = state.EntityManager.GetBuffer<VertexElement>(entity, isReadOnly: true);
+                    var iBuf = state.EntityManager.GetBuffer<IndexElement>(entity, isReadOnly: true);
 
                     int vCount = math.min(vBuf.Length, maxVertsPerTile);
-                    int tCount = math.min(tBuf.Length, maxTrisPerTile);
+                    int iCount = math.min(iBuf.Length, maxIndicesPerTile);
 
-                    if (vCount == 0 || tCount == 0)
+                    if (vCount == 0 || iCount < 3)
                         continue;
 
                     int vOffset = scheduledCount * maxVertsPerTile;
-                    int tOffset = scheduledCount * maxTrisPerTile;
+                    int iOffset = scheduledCount * maxIndicesPerTile;
 
                     for (int v = 0; v < vCount; v++)
-                        _inFlightVertices[vOffset + v] = vBuf[v].value;
-                    for (int t = 0; t < tCount; t++)
-                        _inFlightTriangles[tOffset + t] = tBuf[t].value;
+                        _inFlightSourceVertices[vOffset + v] = vBuf[v].value;
+                    for (int j = 0; j < iCount; j++)
+                        _inFlightSourceIndices[iOffset + j] = iBuf[j].value;
 
-                    _inFlightVertexCounts[scheduledCount]   = vCount;
-                    _inFlightTriangleCounts[scheduledCount] = tCount;
+                    _inFlightVertexCounts[scheduledCount] = vCount;
+                    _inFlightIndexCounts[scheduledCount] = iCount;
                     _inFlightEntities.Add(entity);
                     scheduledCount++;
                 }
@@ -260,77 +239,53 @@ namespace _App.Ace_of_Ages.Terrain
                 uint layerMask = 1u << config.terrainPhysicsLayer;
                 var filter = new CollisionFilter
                 {
-                    BelongsTo    = layerMask,
+                    BelongsTo = layerMask,
                     CollidesWith = ~0u,
-                    GroupIndex   = 0
+                    GroupIndex = 0
                 };
 
-                var job = new CreateMeshCollidersJob
+                var job = new BuildTerrainMeshColliderJob
                 {
-                    vertices            = _inFlightVertices,
-                    triangles           = _inFlightTriangles,
-                    vertexCounts        = _inFlightVertexCounts,
-                    triangleCounts      = _inFlightTriangleCounts,
-                    maxVerticesPerTile  = maxVertsPerTile,
-                    maxTrianglesPerTile = maxTrisPerTile,
-                    results             = _inFlightResults,
-                    filter              = filter
+                    sourceVertices = _inFlightSourceVertices,
+                    sourceIndices = _inFlightSourceIndices,
+                    vertexCounts = _inFlightVertexCounts,
+                    indexCounts = _inFlightIndexCounts,
+                    maxVerticesPerTile = maxVertsPerTile,
+                    maxIndicesPerTile = maxIndicesPerTile,
+                    filter = filter,
+                    results = _inFlightResults
                 };
 
-                // Intentionally NOT assigned to state.Dependency so the job runs freely on
-                // worker threads across the frame boundary, completing during next frame's
-                // EarlyUpdate.XRUpdate window.  state.Dependency is passed as the input
-                // dependency so the job waits for any current-frame reads to finish first.
                 _inFlightHandle = job.Schedule(scheduledCount, 1, state.Dependency);
-                _hasInFlight    = true;
+                _hasInFlight = true;
             }
         }
 
-        /// <summary>Disposes all Persistent in-flight allocations and resets the in-flight flag.</summary>
         internal static void DisposeInFlight(ref TerrainPhysicsScheduleSystem s)
         {
-            if (s._inFlightEntities.IsCreated)       s._inFlightEntities.Dispose();
-            if (s._inFlightVertices.IsCreated)        s._inFlightVertices.Dispose();
-            if (s._inFlightTriangles.IsCreated)       s._inFlightTriangles.Dispose();
-            if (s._inFlightVertexCounts.IsCreated)    s._inFlightVertexCounts.Dispose();
-            if (s._inFlightTriangleCounts.IsCreated)  s._inFlightTriangleCounts.Dispose();
-            if (s._inFlightResults.IsCreated)         s._inFlightResults.Dispose();
+            if (s._inFlightEntities.IsCreated) s._inFlightEntities.Dispose();
+            if (s._inFlightSourceVertices.IsCreated) s._inFlightSourceVertices.Dispose();
+            if (s._inFlightSourceIndices.IsCreated) s._inFlightSourceIndices.Dispose();
+            if (s._inFlightVertexCounts.IsCreated) s._inFlightVertexCounts.Dispose();
+            if (s._inFlightIndexCounts.IsCreated) s._inFlightIndexCounts.Dispose();
+            if (s._inFlightResults.IsCreated) s._inFlightResults.Dispose();
             s._hasInFlight = false;
         }
     }
 
     /// <summary>
-    /// Completes the <see cref="CreateMeshCollidersJob"/> scheduled by
-    /// <see cref="TerrainPhysicsScheduleSystem"/> the previous frame, then writes the resulting
-    /// <see cref="BlobAssetReference{Collider}"/> blobs onto their tile entities as
-    /// <see cref="PhysicsColliderRegistrationPending"/> so <see cref="TerrainPhysicsSystem"/>
-    /// can attach them to the physics world in the same frame.
-    ///
-    /// Runs in <c>InitializationSystemGroup</c> — immediately after
-    /// <c>EarlyUpdate.XRUpdate</c> finishes — so <c>Complete()</c> returns almost instantly
-    /// because BVH construction ran on worker threads during XRUpdate.
-    ///
-    /// <c>RequireForUpdate</c> is intentionally omitted so this system always ticks and never
-    /// leaves a dangling job handle if the world enters a state where singletons are absent.
+    /// Completes the cross-frame BVH job and writes results as PhysicsColliderRegistrationPending.
     /// </summary>
     [UpdateInGroup(typeof(InitializationSystemGroup))]
     [UpdateAfter(typeof(BeginInitializationEntityCommandBufferSystem))]
     public partial struct TerrainPhysicsCompleteSystem : ISystem
     {
 #if UNITY_EDITOR
-        private static readonly ProfilerMarker s_ProfilerMarker = new ProfilerMarker("TerrainPhysics.BvhComplete");
+        static readonly ProfilerMarker s_ProfilerMarker = new ProfilerMarker("TerrainPhysics.BvhComplete");
 #endif
 
-        /// <summary>RequireForUpdate intentionally omitted — must always run to drain any in-flight handle.</summary>
         public void OnCreate(ref SystemState state) { }
 
-        /// <summary>
-        /// Completes the pending <see cref="CreateMeshCollidersJob"/>, writes each built collider
-        /// as a <see cref="PhysicsColliderRegistrationPending"/> component, removes
-        /// <see cref="PhysicsColliderPrepared"/>, and frees all Persistent in-flight allocations.
-        /// Entities destroyed during the cross-frame window have their blob assets disposed to
-        /// prevent leaks.
-        /// </summary>
         public void OnUpdate(ref SystemState state)
         {
             var schedHandle = state.WorldUnmanaged.GetExistingUnmanagedSystem<TerrainPhysicsScheduleSystem>();
@@ -345,8 +300,19 @@ namespace _App.Ace_of_Ages.Terrain
             using (s_ProfilerMarker.Auto())
 #endif
             {
-                // Workers ran during XRUpdate — Complete() should return almost immediately.
+                var sw = Stopwatch.StartNew();
                 sched._inFlightHandle.Complete();
+                sw.Stop();
+
+#if DEVELOPMENT_BUILD || UNITY_EDITOR
+                double completeMs = sw.Elapsed.TotalMilliseconds;
+                if (completeMs > 8.0)
+                {
+                    UnityEngine.Debug.LogWarning(
+                        $"[TerrainPhysics] BvhComplete waited {completeMs:F1}ms for " +
+                        $"{sched._inFlightEntities.Length} collider(s). Consider lowering maxPhysicsCollidersCreatedPerFrame.");
+                }
+#endif
 
                 for (int i = 0; i < sched._inFlightEntities.Length; i++)
                 {
@@ -355,7 +321,6 @@ namespace _App.Ace_of_Ages.Terrain
 
                     if (!state.EntityManager.Exists(entity))
                     {
-                        // Entity was destroyed during the cross-frame window — dispose blob to avoid leaks.
                         if (result.IsCreated)
                             result.Dispose();
                         continue;
@@ -363,18 +328,15 @@ namespace _App.Ace_of_Ages.Terrain
 
                     if (!result.IsCreated)
                     {
-                        // Empty or degenerate buffers produced no collider — clean up preparation state.
-                        Debug.LogWarning($"[TerrainPhysics] Entity {entity.Index} produced no collider (empty buffers?), skipping");
-                        if (state.EntityManager.HasComponent<PhysicsColliderPrepared>(entity))
-                            state.EntityManager.RemoveComponent<PhysicsColliderPrepared>(entity);
+                        UnityEngine.Debug.LogWarning(
+                            $"[TerrainPhysics] Entity {entity.Index} produced no collider (empty mesh?), skipping");
+                        if (state.EntityManager.HasComponent<PhysicsColliderNeedsPreparation>(entity))
+                            state.EntityManager.SetComponentEnabled<PhysicsColliderNeedsPreparation>(entity, false);
                         continue;
                     }
 
                     state.EntityManager.AddComponentData(entity,
                         new PhysicsColliderRegistrationPending { collider = result });
-
-                    if (state.EntityManager.HasComponent<PhysicsColliderPrepared>(entity))
-                        state.EntityManager.RemoveComponent<PhysicsColliderPrepared>(entity);
                 }
 
                 TerrainPhysicsScheduleSystem.DisposeInFlight(ref sched);
@@ -384,64 +346,58 @@ namespace _App.Ace_of_Ages.Terrain
 }
 
 /// <summary>
-/// Burst-compiled parallel job that builds a <see cref="Unity.Physics.MeshCollider"/> BVH for
-/// each terrain tile in the budget.  Reads pre-copied vertex and triangle data from flat
-/// <see cref="NativeArray{T}"/>s rather than live ECS <see cref="DynamicBuffer{T}"/>s so the
-/// job is safe to run across frame boundaries without ECS structural-change invalidation.
-///
-/// Results are written to <see cref="results"/>; a default (not-created) blob indicates empty
-/// or degenerate input that the caller should skip and clean up.
-///
-/// Scheduled by <see cref="_App.Ace_of_Ages.Terrain.TerrainPhysicsScheduleSystem"/> and
-/// completed by <see cref="_App.Ace_of_Ages.Terrain.TerrainPhysicsCompleteSystem"/>.
+/// Burst job that builds int3 triangles from flat mesh indices and constructs a MeshCollider BVH.
 /// </summary>
 [BurstCompile]
-struct CreateMeshCollidersJob : IJobParallelFor
+struct BuildTerrainMeshColliderJob : IJobParallelFor
 {
-    // Flat arrays: tile i's data lives at [i * maxXxxPerTile ... i * maxXxxPerTile + count - 1]
-    [ReadOnly] public NativeArray<float3> vertices;
-    [ReadOnly] public NativeArray<int3>   triangles;
-    [ReadOnly] public NativeArray<int>    vertexCounts;
-    [ReadOnly] public NativeArray<int>    triangleCounts;
+    [ReadOnly] public NativeArray<float3> sourceVertices;
+    [ReadOnly] public NativeArray<int> sourceIndices;
+    [ReadOnly] public NativeArray<int> vertexCounts;
+    [ReadOnly] public NativeArray<int> indexCounts;
     public int maxVerticesPerTile;
-    public int maxTrianglesPerTile;
+    public int maxIndicesPerTile;
     public CollisionFilter filter;
 
     [WriteOnly]
     public NativeArray<BlobAssetReference<Unity.Physics.Collider>> results;
 
-    /// <summary>
-    /// Builds a <see cref="Unity.Physics.MeshCollider"/> BVH for the tile at
-    /// <paramref name="index"/>.  Writes a default blob when input counts are zero.
-    /// </summary>
     public void Execute(int index)
     {
         int vCount = vertexCounts[index];
-        int tCount = triangleCounts[index];
+        int iCount = indexCounts[index];
 
-        if (vCount == 0 || tCount == 0)
+        if (vCount == 0 || iCount < 3)
         {
             results[index] = default;
             return;
         }
 
-        var verts = vertices.GetSubArray(index * maxVerticesPerTile, vCount);
-        var tris  = triangles.GetSubArray(index * maxTrianglesPerTile, tCount);
+        int tCount = iCount / 3;
+        var verts = sourceVertices.GetSubArray(index * maxVerticesPerTile, vCount);
+        int iOffset = index * maxIndicesPerTile;
 
-        results[index] = Unity.Physics.MeshCollider.Create(verts, tris, filter, Unity.Physics.Material.Default);
+        var tris = new NativeArray<int3>(tCount, Allocator.Temp);
+        for (int t = 0; t < tCount; t++)
+        {
+            int io = iOffset + t * 3;
+            tris[t] = new int3(sourceIndices[io], sourceIndices[io + 1], sourceIndices[io + 2]);
+        }
+
+        results[index] = Unity.Physics.MeshCollider.Create(
+            verts, tris, filter, Unity.Physics.Material.Default);
+        tris.Dispose();
     }
 }
 
 struct ColliderEntityWithPriority
 {
     public Entity entity;
-    public int    priority;
+    public int priority;
 }
 
-/// <summary>Sorts <see cref="ColliderEntityWithPriority"/> values so higher-priority (lower value) tiles are processed first.</summary>
 struct ColliderPriorityComparer : IComparer<ColliderEntityWithPriority>
 {
-    /// <inheritdoc/>
     public int Compare(ColliderEntityWithPriority a, ColliderEntityWithPriority b)
         => a.priority.CompareTo(b.priority);
 }

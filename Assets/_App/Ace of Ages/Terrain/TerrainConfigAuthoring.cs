@@ -76,11 +76,15 @@ public class TerrainConfigAuthoring : MonoBehaviour
     public int maxCollidersCreatedPerFrame = 6;
 
     [Range(1, 8)]
-    [Tooltip("Maximum number of physics colliders created per frame (main-thread MeshCollider.Create). Keep low for VR (3-4).")]
-    public int maxPhysicsCollidersCreatedPerFrame = 4;
+    [Tooltip("Maximum BVH MeshCollider.Create calls per cross-frame batch. Keep at 1-2 for Quest VR.")]
+    public int maxPhysicsCollidersCreatedPerFrame = 1;
     
     [Tooltip("Distance beyond which colliders are removed completely (no physics beyond this distance)")]
     public float maxColliderDistance = 450f;
+
+    [Range(8, 256)]
+    [Tooltip("Maximum memory in megabytes for the grid-coordinate collider blob LRU cache")]
+    public int maxColliderCacheMemoryMB = 53;
     
     [NaughtyAttributes.Layer]
     [Tooltip("Physics layer index for all terrain colliders")]
@@ -197,6 +201,7 @@ public class TerrainConfigAuthoring : MonoBehaviour
                 maxCollidersCreatedPerFrame = authoring.maxCollidersCreatedPerFrame,
                 maxPhysicsCollidersCreatedPerFrame = authoring.maxPhysicsCollidersCreatedPerFrame,
                 maxColliderDistance = authoring.maxColliderDistance,
+                maxColliderCacheMemoryMB = authoring.maxColliderCacheMemoryMB,
                 terrainPhysicsLayer = authoring.terrainPhysicsLayer,
                 // Debug/Testing
                 renderTerrain = authoring.renderTerrain,

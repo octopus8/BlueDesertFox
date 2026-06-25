@@ -19,22 +19,15 @@ using Unity.Profiling;
 public partial class TerrainDistanceTrackingSystem : SystemBase
 {
 #if UNITY_EDITOR
-    private static readonly ProfilerMarker s_ProfilerMarker = new ProfilerMarker("TerrainPhysics.DistanceTracking");
+    static readonly ProfilerMarker s_ProfilerMarker = new ProfilerMarker("TerrainPhysics.DistanceTracking");
 #endif
 
-    /// <summary>Registers the <see cref="TerrainTileConfig"/> requirement before running.</summary>
     protected override void OnCreate()
     {
         RequireForUpdate<TerrainTileConfig>();
         RequireForUpdate<CameraDataSingleton>();
     }
 
-    /// <summary>
-    /// For each terrain tile, calculates its world-space distance to the player and marks tiles
-    /// within <see cref="TerrainTileConfig.maxColliderDistance"/> for collider creation via
-    /// <see cref="PhysicsColliderNeedsPreparation"/>. Tiles beyond the distance threshold have
-    /// their collider state removed.
-    /// </summary>
     protected override void OnUpdate()
     {
 #if UNITY_EDITOR
@@ -44,13 +37,11 @@ public partial class TerrainDistanceTrackingSystem : SystemBase
             var config = SystemAPI.GetSingleton<TerrainTileConfig>();
 
             if (!config.enablePhysicsColliders)
-            {
                 return;
-            }
 
-            // Read cached player position from the blittable singleton (written end of previous frame).
             float3 playerPosition = SystemAPI.GetSingleton<CameraDataSingleton>().position;
-            int prepBudget = TerrainPhysicsBudget.GetCreationBudget(config);
+            int prepBudget = TerrainPhysicsBudget.GetPrepMarkBudget(config);
+            var world = World.Unmanaged;
 
             var ecb = new EntityCommandBuffer(Allocator.Temp);
             var prepCandidates = new NativeList<PrepCandidate>(32, Allocator.Temp);
@@ -65,73 +56,58 @@ public partial class TerrainDistanceTrackingSystem : SystemBase
 
                 bool needsCollider = distance < config.maxColliderDistance;
 
-                var distanceData = new TerrainTileDistanceToPlayer
-                {
-                    distance = distance
-                };
+                var distanceData = new TerrainTileDistanceToPlayer { distance = distance };
 
                 if (SystemAPI.HasComponent<TerrainTileDistanceToPlayer>(entity))
-                {
                     ecb.SetComponent(entity, distanceData);
-                }
                 else
-                {
                     ecb.AddComponent(entity, distanceData);
-                }
 
                 if (!tile.ValueRO.meshGenerated)
-                {
                     continue;
-                }
 
                 if (!needsCollider)
                 {
-                    RemoveColliderState(entity, ecb, EntityManager);
+                    RetireColliderState(entity, tile.ValueRO.gridCoordinate, ecb, EntityManager, world, config);
                     continue;
                 }
 
                 if (SystemAPI.HasComponent<PhysicsColliderValid>(entity))
-                {
                     continue;
-                }
 
                 if (SystemAPI.HasComponent<PhysicsColliderRegistrationPending>(entity))
-                {
                     continue;
-                }
-
-                if (SystemAPI.HasComponent<PhysicsColliderPrepared>(entity))
-                {
-                    continue;
-                }
 
                 if (SystemAPI.HasComponent<PhysicsColliderNeedsPreparation>(entity) &&
                     SystemAPI.IsComponentEnabled<PhysicsColliderNeedsPreparation>(entity))
-                {
                     continue;
-                }
 
                 prepCandidates.Add(new PrepCandidate
                 {
                     entity = entity,
+                    gridCoordinate = tile.ValueRO.gridCoordinate,
                     distance = distance
                 });
             }
 
             if (prepCandidates.Length > 1)
-            {
                 prepCandidates.Sort(new PrepCandidateComparer());
-            }
 
             int prepMarksThisFrame = math.min(prepCandidates.Length, prepBudget);
             for (int i = 0; i < prepMarksThisFrame; i++)
             {
-                Entity entity = prepCandidates[i].entity;
+                var candidate = prepCandidates[i];
+                Entity entity = candidate.entity;
+
+                if (TerrainColliderBlobCacheSystem.TryTakeCachedCollider(
+                        world, candidate.gridCoordinate, out var cachedCollider))
+                {
+                    ecb.AddComponent(entity, new PhysicsColliderRegistrationPending { collider = cachedCollider });
+                    continue;
+                }
 
                 if (SystemAPI.HasComponent<PhysicsColliderNeedsPreparation>(entity))
-                {
                     ecb.SetComponentEnabled<PhysicsColliderNeedsPreparation>(entity, true);
-                }
                 else
                 {
                     ecb.AddComponent<PhysicsColliderNeedsPreparation>(entity);
@@ -145,69 +121,54 @@ public partial class TerrainDistanceTrackingSystem : SystemBase
         }
     }
 
-    /// <summary>Removes physics collider and related components from <paramref name="entity"/> when the tile is beyond <see cref="TerrainTileConfig.maxColliderDistance"/>.</summary>
-    private static void RemoveColliderState(Entity entity, EntityCommandBuffer ecb, EntityManager entityManager)
+    static void RetireColliderState(
+        Entity entity,
+        int2 gridCoordinate,
+        EntityCommandBuffer ecb,
+        EntityManager entityManager,
+        WorldUnmanaged world,
+        in TerrainTileConfig config)
     {
+        int vCount = config.verticesPerSide * config.verticesPerSide;
+        int tCount = (config.verticesPerSide - 1) * (config.verticesPerSide - 1) * 2;
+        int estimatedBytes = TerrainColliderBlobCacheSystem.EstimateColliderMemoryBytes(vCount, tCount);
+
         if (entityManager.HasComponent<Unity.Physics.PhysicsCollider>(entity))
         {
+            var pc = entityManager.GetComponentData<Unity.Physics.PhysicsCollider>(entity);
+            if (pc.Value.IsCreated)
+                TerrainColliderBlobCacheSystem.RetireToCache(world, gridCoordinate, pc.Value, estimatedBytes);
             ecb.RemoveComponent<Unity.Physics.PhysicsCollider>(entity);
         }
 
         if (entityManager.HasComponent<PhysicsColliderValid>(entity))
-        {
             ecb.RemoveComponent<PhysicsColliderValid>(entity);
-        }
 
         if (entityManager.HasComponent<PhysicsWorldIndex>(entity))
-        {
             ecb.RemoveComponent<PhysicsWorldIndex>(entity);
-        }
-
-        if (entityManager.HasComponent<PhysicsColliderPrepared>(entity))
-        {
-            ecb.RemoveComponent<PhysicsColliderPrepared>(entity);
-        }
 
         if (entityManager.HasComponent<PhysicsColliderRegistrationPending>(entity))
         {
             var pending = entityManager.GetComponentData<PhysicsColliderRegistrationPending>(entity);
             if (pending.collider.IsCreated)
-            {
-                pending.collider.Dispose();
-            }
-
+                TerrainColliderBlobCacheSystem.RetireToCache(world, gridCoordinate, pending.collider, estimatedBytes);
             ecb.RemoveComponent<PhysicsColliderRegistrationPending>(entity);
         }
 
-        if (entityManager.HasComponent<ColliderPreparedVertexElement>(entity))
-        {
-            ecb.RemoveComponent<ColliderPreparedVertexElement>(entity);
-        }
-
-        if (entityManager.HasComponent<ColliderPreparedTriangleElement>(entity))
-        {
-            ecb.RemoveComponent<ColliderPreparedTriangleElement>(entity);
-        }
-
         if (entityManager.HasComponent<PhysicsColliderNeedsPreparation>(entity))
-        {
             ecb.SetComponentEnabled<PhysicsColliderNeedsPreparation>(entity, false);
-        }
     }
 
     struct PrepCandidate
     {
         public Entity entity;
+        public int2 gridCoordinate;
         public float distance;
     }
 
-    /// <summary>Sorts <see cref="PrepCandidate"/> entries by ascending distance so nearest tiles are processed first.</summary>
     struct PrepCandidateComparer : IComparer<PrepCandidate>
     {
-        /// <inheritdoc/>
         public int Compare(PrepCandidate a, PrepCandidate b)
-        {
-            return a.distance.CompareTo(b.distance);
-        }
+            => a.distance.CompareTo(b.distance);
     }
 }

@@ -21,44 +21,11 @@ public struct PhysicsColliderValid : IComponentData
 }
 
 /// <summary>
-/// Buffer element for storing prepared collider vertices ready for MeshCollider.Create().
-/// Used as intermediate storage between Burst job preparation and main-thread collider creation.
-/// </summary>
-public struct ColliderPreparedVertexElement : IBufferElementData
-{
-    /// <summary>World-space vertex position written by the Burst preparation job.</summary>
-    public float3 value;
-}
-
-/// <summary>
-/// Buffer element for storing prepared triangle indices.
-/// </summary>
-public struct ColliderPreparedTriangleElement : IBufferElementData
-{
-    /// <summary>Triangle index triple (x, y, z = vertex indices) written by the Burst preparation job.</summary>
-    public int3 value;
-}
-
-/// <summary>
-/// Component indicating this tile needs collider preparation job to run.
-/// Added when mesh changes or collider needs to be created.
+/// Component indicating this tile needs collider BVH construction.
+/// Added when mesh is ready and tile is within maxColliderDistance.
 /// </summary>
 public struct PhysicsColliderNeedsPreparation : IComponentData, IEnableableComponent
 {
-}
-
-/// <summary>
-/// Component indicating this tile has prepared collider data ready for MeshCollider.Create().
-/// Added after preparation job completes, removed after collider is created.
-/// Priority is distance-based (lower = closer = higher priority).
-/// </summary>
-public struct PhysicsColliderPrepared : IComponentData
-{
-    /// <summary>
-    /// Distance-based priority score for this tile's collider creation.
-    /// Lower values indicate tiles closer to the camera and are processed first.
-    /// </summary>
-    public int priority;
 }
 
 /// <summary>
@@ -72,34 +39,83 @@ public struct PhysicsColliderRegistrationPending : IComponentData
 }
 
 /// <summary>
-/// Resolves the effective per-frame physics collider creation budget from terrain config.
-/// Uses the minimum of both budget fields so either inspector slider caps physics work.
+/// Singleton tracking aggregate terrain collider blob cache memory for LRU eviction.
+/// </summary>
+public struct TerrainColliderCacheStats : IComponentData
+{
+    public int entryCount;
+    public int totalMemoryBytes;
+}
+
+/// <summary>
+/// Resolves per-stage physics collider creation budgets from terrain config.
 /// </summary>
 public static class TerrainPhysicsBudget
 {
     /// <summary>
-    /// Returns the effective maximum number of physics colliders that may be created in a single frame.
-    /// Takes the minimum of <see cref="TerrainTileConfig.maxPhysicsCollidersCreatedPerFrame"/> and
-    /// <see cref="TerrainTileConfig.maxCollidersCreatedPerFrame"/> (when either is positive), ensuring
-    /// either inspector slider can cap physics work. Returns at least 1.
+    /// Returns the mesh-generation / prep-marking budget (<see cref="TerrainTileConfig.maxCollidersCreatedPerFrame"/>).
     /// </summary>
-    /// <param name="config">The terrain tile configuration containing the budget settings.</param>
-    /// <returns>Maximum colliders to create this frame (always &gt;= 1).</returns>
-    public static int GetCreationBudget(in TerrainTileConfig config)
+    public static int GetPrepMarkBudget(in TerrainTileConfig config)
     {
-        int budget = int.MaxValue;
-
-        if (config.maxPhysicsCollidersCreatedPerFrame > 0)
-        {
-            budget = math.min(budget, config.maxPhysicsCollidersCreatedPerFrame);
-        }
-
         if (config.maxCollidersCreatedPerFrame > 0)
-        {
-            budget = math.min(budget, config.maxCollidersCreatedPerFrame);
-        }
-
-        return math.max(1, budget == int.MaxValue ? 4 : budget);
+            return config.maxCollidersCreatedPerFrame;
+        return 4;
     }
+
+    /// <summary>
+    /// Returns the BVH / MeshCollider.Create budget (<see cref="TerrainTileConfig.maxPhysicsCollidersCreatedPerFrame"/>).
+    /// Clamped to 1–2 on mobile platforms to bound worst-case Complete() spike time on Quest.
+    /// </summary>
+    public static int GetBvhCreationBudget(in TerrainTileConfig config)
+    {
+        int budget = config.maxPhysicsCollidersCreatedPerFrame > 0
+            ? config.maxPhysicsCollidersCreatedPerFrame
+            : 4;
+
+#if !UNITY_EDITOR
+        if (UnityEngine.Application.isMobilePlatform)
+            budget = math.min(budget, 2);
+#endif
+
+        return math.max(1, budget);
+    }
+
+    /// <summary>
+    /// Returns the registration budget for attaching pending collider blobs (matches BVH throughput).
+    /// </summary>
+    public static int GetRegistrationBudget(in TerrainTileConfig config)
+        => GetBvhCreationBudget(config);
+
+    /// <summary>
+    /// Legacy combined budget — prefer stage-specific helpers above.
+    /// </summary>
+    public static int GetCreationBudget(in TerrainTileConfig config)
+        => math.min(GetPrepMarkBudget(config), GetBvhCreationBudget(config));
 }
 
+/// <summary>
+/// Camera-aware collider priority scoring shared by distance tracking and BVH scheduling.
+/// Lower score = higher priority.
+/// </summary>
+public static class TerrainColliderPriority
+{
+    /// <summary>
+    /// Computes a priority score from tile grid coordinate and camera pose.
+    /// Lower values are processed first.
+    /// </summary>
+    public static int Compute(in int2 gridCoord, in TerrainTileConfig config, in CameraDataSingleton camera)
+    {
+        float2 tileCenter = new float2(
+            gridCoord.x * config.tileSize + config.tileSize * 0.5f,
+            gridCoord.y * config.tileSize + config.tileSize * 0.5f);
+        float2 cameraPos2D = new float2(camera.position.x, camera.position.z);
+        float2 toTile = tileCenter - cameraPos2D;
+        float dist2D = math.length(toTile);
+        float normalizedDist = math.clamp(dist2D / config.viewDistance, 0f, 1f);
+        float2 fwd2D = math.normalize(new float2(camera.forward.x, camera.forward.z));
+        float2 toTileNorm = math.lengthsq(toTile) < 0.001f ? fwd2D : math.normalize(toTile);
+        float dot = math.dot(fwd2D, toTileNorm);
+        float viewScore = (dot + 1f) * 0.5f;
+        return (int)((1f - viewScore) * 1000f + normalizedDist * 500f);
+    }
+}
