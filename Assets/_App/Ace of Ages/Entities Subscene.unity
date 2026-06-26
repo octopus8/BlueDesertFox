@@ -5912,7 +5912,7 @@ MonoBehaviour:
   playerTag: Player
   tileSize: 256
   viewDistance: 850
-  verticesPerSide: 48
+  verticesPerSide: 32
   noiseFrequency: 0.005
   noiseAmplitude: 60
   noiseOctaves: 3
@@ -5935,13 +5935,13 @@ MonoBehaviour:
   trail1Frequency: 0.001
   trail1Amplitude: 500
   trail2Enabled: 1
-  trail2Width: 40
+  trail2Width: 30
   trail2BlendWidth: 10
   trail2Seed: 100
   trail2Frequency: 0.003
   trail2Amplitude: 200
   trail3Enabled: 1
-  trail3Width: 30
+  trail3Width: 20
   trail3BlendWidth: 10
   trail3Seed: 200
   trail3Frequency: 0.002
@@ -6027,12 +6027,13 @@ MonoBehaviour:
   lod1Distance: 300
   lod2Distance: 600
   lodHysteresis: 5
-  minObjectsPerTile: 400
-  maxObjectsPerTile: 400
+  minObjectsPerTile: 300
+  maxObjectsPerTile: 300
   minSpawnHeight: -100
   maxSpawnHeight: 100
   maxSlopeDegrees: 45
   maxObjectsSpawnedPerFrame: 20
+  maxPositionCalcAttemptsPerFrame: 4000
   enableObjectLODDebug: 0
   enableSpawnerDebug: 0
   enableDistanceCulling: 1
