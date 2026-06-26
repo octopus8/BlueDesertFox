@@ -35,7 +35,7 @@
 
 | System | Update After | Purpose |
 |--------|-------------|---------|
-| `TerrainTreeSpawningSystem` | `TerrainRenderingSystem` | Spawns trees on tiles |
+| `TerrainTreeSpawningSystemOptimized` | `TileScrollPositionSystem` | Spawns static objects on tiles (Burst) |
 
 ## Common Settings
 
@@ -76,7 +76,6 @@ maxSlopeDegrees: 60  // More permissive
 1. Check `treePrefabs[]` array is populated
 2. Console should show: `[TreeSpawner] Baked N tree prefabs`
 3. Try setting `maxSlopeDegrees = 90` to disable slope filter
-4. Try setting height range: `minSpawnHeight = -1000`, `maxSpawnHeight = 1000`
 
 ### Trees Spawn Too Slowly?
 - Increase `maxTreesSpawnedPerFrame` (default: 20 → try 50)
@@ -91,10 +90,10 @@ maxSlopeDegrees: 60  // More permissive
 | File | Location |
 |------|----------|
 | Components | `Assets/_App/Ace of Ages/Terrain/TileComponents.cs` |
-| Authoring | `Assets/_App/Ace of Ages/Terrain/TreeSpawnerConfigAuthoring.cs` |
-| System | `Assets/_App/Ace of Ages/Terrain/TerrainTreeSpawningSystem.cs` |
+| Authoring | `Assets/_App/Ace of Ages/Terrain/StaticObjectSpawnerConfigAuthoring.cs` |
+| System | `Assets/_App/Ace of Ages/Terrain/TerrainStaticObjectSpawningSystemOptimized.cs` |
 | Cleanup | `Assets/_App/Ace of Ages/Terrain/TileSpawningSystem.cs` |
-| Full Docs | `Assets/_App/Ace of Ages/Terrain/TREE_SPAWNING_SYSTEM.md` |
+| Full Docs | `Assets/_App/Ace of Ages/Terrain/STATIC_OBJECT_SPAWNING_SYSTEM.md` |
 | Implementation Summary | `TREE_SPAWNING_IMPLEMENTATION.md` |
 
 ## Code Snippets
@@ -151,6 +150,6 @@ Monitor in Unity Profiler:
 - ✅ **Parent-Child Hierarchy**: Trees parented to tiles (automatic cleanup)
 - ✅ **Deterministic**: Same tile = same layout
 - ✅ **Frame Budgeted**: No stuttering
-- ✅ **Filter-Based**: Height + slope filtering
+- ✅ **Filter-Based**: Slope filtering (and trail exclusion in optimized spawner)
 - ✅ **Random Variation**: Rotation + scale
 

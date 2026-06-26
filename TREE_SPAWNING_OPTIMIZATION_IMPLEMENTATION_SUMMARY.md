@@ -518,10 +518,10 @@ Distance Culling:
 
 ### Created Files
 
-1. **`TerrainTreeSpawningSystemOptimized.cs`** (435 lines)
-   - New optimized system (ISystem + Burst)
-   - `CalculateTreeSpawnPositionsJob` (Burst-compiled)
-   - `InstantiateTreesJob` (ECB-based)
+1. **`TerrainStaticObjectSpawningSystemOptimized.cs`**
+   - Optimized system (`ISystem` + Burst)
+   - `CalculateStaticObjectPositionsJob` (Burst-compiled)
+   - ECB-based batched instantiation
 
 2. **`TREE_SPAWNING_OPTIMIZATION_QUICK_REF.md`**
    - Quick reference guide for users
@@ -533,11 +533,9 @@ Distance Culling:
 ### Modified Files
 
 1. **`TileComponents.cs`**
-   - Added `TreeSpawnPosition : IBufferElementData` (lines 338-368)
+   - Added `StaticObjectSpawnPosition` buffer and spawn progress components
 
-2. **`TerrainTreeSpawningSystem.cs`**
-   - Added `[DisableAutoCreation]` attribute (line 7)
-   - Added comment explaining replacement
+*(Legacy `TerrainStaticObjectSpawningSystem.cs` was removed after migration.)*
 
 ---
 
@@ -635,20 +633,11 @@ Both optimizations share similar patterns:
 
 ### Enabling in Production
 
-**Already enabled by default!**
-- Original system has `[DisableAutoCreation]`
-- Optimized system runs automatically
+The optimized system in `TerrainStaticObjectSpawningSystemOptimized.cs` is the only spawner and runs automatically.
 
-### Rollback Procedure
+### If Issues Arise
 
-If issues arise:
-
-1. **Disable optimized**: Add `[DisableAutoCreation]` to `TerrainTreeSpawningSystemOptimized.cs` line 24
-2. **Enable original**: Remove `[DisableAutoCreation]` from `TerrainTreeSpawningSystem.cs` line 7
-3. **Recompile**: Wait for Unity to recompile scripts
-4. **Test**: Verify trees spawn correctly
-
-### Monitoring in Production
+Debug via profiler markers (`TreeSpawner.PositionCalc`, `TreeSpawner.Instantiation`) and `StaticObjectSpawnerConfigAuthoring.enableSpawnerDebug`. Roll back via git history if needed — the legacy `SystemBase` spawner was removed.
 
 Watch these profiler markers:
 - `TreeSpawner.PositionCalc` - should be <1ms

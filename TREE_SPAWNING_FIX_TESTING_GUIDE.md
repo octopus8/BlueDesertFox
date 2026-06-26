@@ -151,10 +151,10 @@ Debug logs will now show:
 ### Still No Trees Spawning?
 
 #### Check 1: System Running?
-- Console should show `[TreeSpawnerOptimized]` messages
+- Console should show `[TreeSpawnerOptimized]` messages when `enableSpawnerDebug` is on
 - If NO messages at all:
-  - Check original system is still disabled (`[DisableAutoCreation]` in `TerrainTreeSpawningSystem.cs` line 7)
-  - Verify `CameraDataSingleton` exists (Window → Entities → Systems, find `CameraDataUpdateSystem`)
+  - Verify `TerrainTreeSpawningSystemOptimized` is registered (Window → Entities → Systems)
+  - Verify `CameraDataSingleton` exists (find `CameraDataUpdateSystem`)
 
 #### Check 2: Tree Prefabs Configured?
 - Find `TreeSpawnerConfigAuthoring` component in scene

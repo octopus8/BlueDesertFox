@@ -18,7 +18,6 @@ The Static Object Spawning System procedurally places static object entities on 
 - **Deterministic**: Same tile always gets same tree layout (uses grid coordinate hash as seed)
 - **Scale Variation**: Random scale multipliers for visual variety
 - **Rotation Variation**: Random Y-axis rotation for each tree
-- **Height Filtering**: Only spawn trees within specified height range
 - **Slope Filtering**: Avoid spawning on steep terrain
 - **Frame Budgeting**: Limits object entities spawned **and destroyed** per frame to prevent ECB playback stuttering
 - **Non-Hierarchical**: Uses `StaticObjectTileOwnership` component instead of parent-child hierarchy for better performance
@@ -33,8 +32,6 @@ Configuration for static object spawning behavior.
 - `maxObjectsPerTile` - Maximum trees per tile
 - `minTreeScale` - Minimum scale multiplier
 - `maxTreeScale` - Maximum scale multiplier
-- `minSpawnHeight` - Minimum Y coordinate for spawning
-- `maxSpawnHeight` - Maximum Y coordinate for spawning
 - `slopeThreshold` - Pre-calculated cosine of max slope angle
 - `maxObjectsSpawnedPerFrame` - Shared spawn/destroy budget (max object entities created or destroyed per frame)
 
@@ -144,8 +141,6 @@ Tree Variation
 └─ maxTreeScale (0.1-2, default: 1.2)
 
 Spawn Filtering
-├─ minSpawnHeight (default: -100)
-├─ maxSpawnHeight (default: 100)
 └─ maxSlopeDegrees (0-90, default: 45)
 
 Performance
@@ -179,7 +174,7 @@ Performance
 3. Assign object prefabs to `treePrefabs[]` array
 4. Configure density (min/max trees per tile)
 5. Set variation ranges (scale)
-6. Adjust filters (height, slope)
+6. Adjust slope filter (`maxSlopeDegrees`)
 7. Set performance budget (max trees per frame)
 
 ### 3. Test in Play Mode
@@ -215,8 +210,7 @@ maxObjectsPerTile: 8
 2. **Simplify Prefabs**: Use low-poly tree models with LOD
 3. **Increase Slope Filter**: Higher `maxSlopeDegrees` = more spawn attempts = slower
 4. **Frame Budget**: Lower `maxObjectsSpawnedPerFrame` if ECB playback stutters (applies to both spawn and despawn)
-5. **Height Filter**: Narrow height range = fewer valid spawn positions = faster
-6. **SubScene re-bake**: Required after prefab baking changes in `StaticObjectSpawnerConfigAuthoring`
+5. **SubScene re-bake**: Required after prefab baking changes in `StaticObjectSpawnerConfigAuthoring`
 
 ## Implementation Details
 
@@ -298,8 +292,7 @@ float scale = random.NextFloat(config.minTreeScale, config.maxTreeScale);
 - Console should show: `[TreeSpawner] Baked N object prefabs`
 - If 0, prefabs weren't converted correctly
 
-**Check 3**: Height/slope filters too restrictive?
-- Try setting: `minSpawnHeight = -1000`, `maxSpawnHeight = 1000`
+**Check 3**: Slope filter too restrictive?
 - Try setting: `maxSlopeDegrees = 90` (no slope filtering)
 
 **Check 4**: Tiles generating meshes?
@@ -334,7 +327,7 @@ float scale = random.NextFloat(config.minTreeScale, config.maxTreeScale);
 ## See Also
 
 - `TerrainMeshGenerationSystem.cs` - Mesh generation that precedes static object spawning
-- `TerrainStaticObjectSpawningSystemOptimized.cs` - Active spawning system
+- `TerrainStaticObjectSpawningSystemOptimized.cs` - Active spawning system (legacy spawner removed)
 - `StaticObjectPositionUpdateSystem.cs` - Position update when tiles scroll
 - `TileSpawningSystem.cs` - Tile lifecycle management and static object cleanup
 - `TerrainRenderingSystem.cs` - Mesh rendering that enables static object spawning

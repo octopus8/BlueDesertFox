@@ -352,12 +352,6 @@ public struct StaticObjectSpawnerConfig : IComponentData
     /// <summary>Maximum number of Objects to spawn per tile.</summary>
     public int maxObjectsPerTile;
     
-    /// <summary>Minimum height (Y coordinate) for static object spawning.</summary>
-    public float minSpawnHeight;
-    
-    /// <summary>Maximum height (Y coordinate) for static object spawning.</summary>
-    public float maxSpawnHeight;
-    
     /// <summary>Pre-calculated slope threshold (cosine of max slope angle) for filtering steep terrain.</summary>
     public float slopeThreshold;
     

@@ -32,36 +32,17 @@ Successfully implemented procedural tree spawning on terrain tiles with the foll
 - Creates singleton `TreeSpawnerConfig` component
 - Populates `TreePrefabElement` buffer with converted entity prefabs
 
-### 2. TerrainTreeSpawningSystem.cs
-**Location**: `Assets/_App/Ace of Ages/Terrain/TerrainTreeSpawningSystem.cs`
+### 2. TerrainStaticObjectSpawningSystemOptimized.cs
+**Location**: `Assets/_App/Ace of Ages/Terrain/TerrainStaticObjectSpawningSystemOptimized.cs`  
+**Type**: `TerrainTreeSpawningSystemOptimized` (`ISystem`, Burst-compiled)
 
-**Purpose**: ECS system that spawns trees on terrain tiles after mesh rendering
+**Purpose**: ECS system that spawns static objects on terrain tiles after mesh generation. Replaced the legacy `SystemBase` spawner (removed).
 
-**Update Order**: 
+**Update Order**:
 - UpdateInGroup: `SimulationSystemGroup`
-- UpdateAfter: `TerrainRenderingSystem`
+- UpdateAfter: `CameraDataUpdateSystem`, `TileScrollPositionSystem`
 
-**Algorithm**:
-1. Query tiles with `MeshReference` + `meshGenerated=true` + no `TreesSpawned` tag
-2. Enqueue tiles to persistent `NativeQueue<Entity>`
-3. Process tiles up to frame budget (`maxTreesSpawnedPerFrame`)
-4. For each tile:
-   - Seed RNG with `gridCoordinate.GetHashCode() + 12345`
-   - Pick random tree count between min/max
-   - Spawn trees:
-     - Random vertex selection
-     - Height/slope filtering
-     - Random prefab selection
-     - Random Y rotation (0-2π)
-     - Random scale (min-max range)
-     - World position = tile position + vertex local position
-   - Track spawned trees in `SpawnedTreeReference` buffer
-   - Add `TreesSpawned` tag
-
-**Profiler Markers**:
-- `TerrainTrees.Spawning` - Overall system update
-- `TerrainTrees.Enqueue` - Finding tiles needing trees
-- `TerrainTrees.Spawn` - Actual tree instantiation
+See [`STATIC_OBJECT_SPAWNING_SYSTEM.md`](Assets/_App/Ace%20of%20Ages/Terrain/STATIC_OBJECT_SPAWNING_SYSTEM.md) for the full algorithm.
 
 ### 3. TREE_SPAWNING_SYSTEM.md
 **Location**: `Assets/_App/Ace of Ages/Terrain/TREE_SPAWNING_SYSTEM.md`

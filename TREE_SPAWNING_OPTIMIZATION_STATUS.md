@@ -29,11 +29,9 @@ Successfully implemented **Burst-compiled parallel job optimization** for `Terra
   - CameraDataSingleton integration (no managed API)
   - Profiler markers for performance tracking
 
-### 3. ✅ Disabled Original System
-- **File**: `TerrainTreeSpawningSystem.cs`
-- **Change**: Added `[DisableAutoCreation]` attribute
-- **Reason**: Enables optimized version by default
-- **Rollback**: Remove `[DisableAutoCreation]` to revert
+### 3. ✅ Legacy System Removed
+- **Former file**: `TerrainStaticObjectSpawningSystem.cs` (`TerrainTreeSpawningSystem`)
+- **Status**: Deleted; `TerrainStaticObjectSpawningSystemOptimized.cs` is the only spawner
 
 ### 4. ✅ Created Documentation
 - `TREE_SPAWNING_OPTIMIZATION_QUICK_REF.md` - User guide & testing checklist
@@ -105,31 +103,16 @@ maxTreesSpawnedPerFrame: 100 (increased from 20)
 
 ---
 
-## How to Rollback (If Needed)
-
-1. **Disable optimized system**:
-   - Open: `TerrainTreeSpawningSystemOptimized.cs`
-   - Line 24: Add `[DisableAutoCreation]`
-
-2. **Enable original system**:
-   - Open: `TerrainTreeSpawningSystem.cs`
-   - Line 7: Remove `[DisableAutoCreation]`
-
-3. **Recompile**: Wait for Unity to finish compiling
-
----
-
 ## Files Modified
 
 ### Created (New)
-✅ `Assets/_App/Ace of Ages/Terrain/TerrainTreeSpawningSystemOptimized.cs`  
+✅ `Assets/_App/Ace of Ages/Terrain/TerrainStaticObjectSpawningSystemOptimized.cs`  
 ✅ `TREE_SPAWNING_OPTIMIZATION_QUICK_REF.md`  
 ✅ `TREE_SPAWNING_OPTIMIZATION_IMPLEMENTATION_SUMMARY.md`  
 ✅ `TREE_SPAWNING_OPTIMIZATION_STATUS.md` (this file)  
 
 ### Modified (Existing)
-✅ `Assets/_App/Ace of Ages/Terrain/TileComponents.cs` - Added `TreeSpawnPosition`  
-✅ `Assets/_App/Ace of Ages/Terrain/TerrainTreeSpawningSystem.cs` - Added `[DisableAutoCreation]`  
+✅ `Assets/_App/Ace of Ages/Terrain/TileComponents.cs` - Added `StaticObjectSpawnPosition` and spawn progress components  
 
 ---
 
@@ -144,8 +127,7 @@ maxTreesSpawnedPerFrame: 100 (increased from 20)
 
 ### For Production
 - System is **ready to merge** into main branch
-- Optimized system **enabled by default**
-- Original system **preserved** for rollback safety
+- Optimized system is the **only** static object spawner (legacy system removed)
 - Full documentation included
 
 ---

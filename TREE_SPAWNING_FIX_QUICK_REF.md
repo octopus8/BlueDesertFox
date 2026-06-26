@@ -55,7 +55,7 @@ float3 localPosition = new float3(randomX, interpolatedPosition.y, randomZ);
 
 ## Files Changed
 
-- `TerrainTreeSpawningSystem.cs` - Main spawning logic with bilinear interpolation
+- `TerrainStaticObjectSpawningSystemOptimized.cs` - Main spawning logic with bilinear interpolation
 - `AGENTS.md` - Updated documentation
 - `TREE_SPAWNING_SYSTEM.md` - Updated algorithm descriptions
 

@@ -6029,8 +6029,6 @@ MonoBehaviour:
   lodHysteresis: 5
   minObjectsPerTile: 300
   maxObjectsPerTile: 300
-  minSpawnHeight: -100
-  maxSpawnHeight: 100
   maxSlopeDegrees: 45
   maxObjectsSpawnedPerFrame: 20
   maxPositionCalcAttemptsPerFrame: 4000

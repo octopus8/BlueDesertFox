@@ -94,7 +94,7 @@ public struct StaticObjectLODWeights : IBufferElementData
 
 | Old Filename | New Filename |
 |-------------|-------------|
-| `TerrainTreeSpawningSystem.cs` | `TerrainStaticObjectSpawningSystem.cs` |
+| `TerrainTreeSpawningSystem.cs` | *(removed; replaced by optimized system)* |
 | `TerrainTreeSpawningSystemOptimized.cs` | `TerrainStaticObjectSpawningSystemOptimized.cs` |
 | `TreePositionUpdateSystem.cs` | `StaticObjectPositionUpdateSystem.cs` |
 | `GlobalTreeInstanceSystem.cs` | `GlobalStaticObjectInstanceSystem.cs` |
@@ -284,8 +284,7 @@ var prefabs = EntityManager.GetBuffer<StaticObjectPrefabElement>(entity);
 
 ## Files Modified
 
-### Core Systems (8 files renamed + updated)
-- TerrainStaticObjectSpawningSystem.cs
+### Core Systems (7 files renamed + updated)
 - TerrainStaticObjectSpawningSystemOptimized.cs
 - StaticObjectPositionUpdateSystem.cs
 - GlobalStaticObjectInstanceSystem.cs

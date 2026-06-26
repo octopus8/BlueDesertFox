@@ -620,9 +620,6 @@ partial struct CalculateStaticObjectSpawnPositionsJob : IJobEntity
 
             float3 worldPosition = tileTransform.Position + localPosition;
 
-            if (worldPosition.y < config.minSpawnHeight || worldPosition.y > config.maxSpawnHeight)
-                continue;
-
             if (normal.y < config.slopeThreshold)
                 continue;
 

@@ -62,12 +62,6 @@ public class StaticObjectSpawnerConfigAuthoring : MonoBehaviour
     public int maxObjectsPerTile = 15;
     
     [Header("Spawn Filtering")]
-    [Tooltip("Minimum terrain height for object spawning (world Y coordinate)")]
-    public float minSpawnHeight = -100f;
-    
-    [Tooltip("Maximum terrain height for object spawning (world Y coordinate)")]
-    public float maxSpawnHeight = 100f;
-    
     [Tooltip("Maximum slope angle in degrees (0 = flat, 90 = vertical cliff). Objects won't spawn on steeper slopes.")]
     [Range(0f, 90f)]
     public float maxSlopeDegrees = 45f;
@@ -133,8 +127,6 @@ public class StaticObjectSpawnerConfigAuthoring : MonoBehaviour
             {
                 minObjectsPerTile = authoring.minObjectsPerTile,
                 maxObjectsPerTile = authoring.maxObjectsPerTile,
-                minSpawnHeight = authoring.minSpawnHeight,
-                maxSpawnHeight = authoring.maxSpawnHeight,
                 slopeThreshold = slopeThreshold,
                 maxObjectsSpawnedPerFrame = authoring.maxObjectsSpawnedPerFrame,
                 maxPositionCalcAttemptsPerFrame = authoring.maxPositionCalcAttemptsPerFrame,

@@ -24,29 +24,12 @@
 
 ---
 
-## How to Enable
+## Active System
 
-### Already Enabled!
+**File**: `Assets/_App/Ace of Ages/Terrain/TerrainStaticObjectSpawningSystemOptimized.cs`  
+**Type**: `TerrainTreeSpawningSystemOptimized` (`ISystem`, Burst-compiled)
 
-The optimized system is **active by default** with these changes:
-
-**File**: `TerrainTreeSpawningSystem.cs` (line 7)
-```csharp
-[DisableAutoCreation]  // ✅ Already added
-[RequireMatchingQueriesForUpdate]
-public partial class TerrainTreeSpawningSystem : SystemBase
-```
-
-**File**: `TerrainTreeSpawningSystemOptimized.cs`
-- ✅ New file created
-- ✅ Runs by default (no `[DisableAutoCreation]`)
-- ✅ Uses parallel Burst jobs
-- ✅ ECB-based batching
-
-### To Revert (If Needed)
-
-1. **Disable optimized**: Add `[DisableAutoCreation]` to line 24 of `TerrainTreeSpawningSystemOptimized.cs`
-2. **Enable original**: Remove `[DisableAutoCreation]` from line 7 of `TerrainTreeSpawningSystem.cs`
+The legacy `SystemBase` spawner was removed; this optimized system is the only static object spawner.
 
 ---
 
@@ -239,12 +222,11 @@ If different:
 
 ## Files Modified
 
-✅ **Created**:
-- `TerrainTreeSpawningSystemOptimized.cs` - New optimized system
+✅ **Active spawner**:
+- `TerrainStaticObjectSpawningSystemOptimized.cs` (`TerrainTreeSpawningSystemOptimized`)
 
-✅ **Modified**:
-- `TileComponents.cs` - Added `TreeSpawnPosition` component
-- `TerrainTreeSpawningSystem.cs` - Added `[DisableAutoCreation]`
+✅ **Related**:
+- `TileComponents.cs` - `StaticObjectSpawnPosition` buffer and spawn progress components
 
 ---
 
@@ -252,7 +234,7 @@ If different:
 
 - **This file**: Quick reference guide
 - **Agent Guide**: See `AGENTS.md` for architecture notes
-- **Implementation**: See `TerrainTreeSpawningSystemOptimized.cs` for detailed comments
+- **Implementation**: See `TerrainStaticObjectSpawningSystemOptimized.cs` for detailed comments
 
 ---
 
