@@ -15,6 +15,85 @@ using Unity.Profiling;
 namespace _App.Ace_of_Ages.Terrain
 {
     /// <summary>
+    /// Persistent NativeArray pool for cross-frame BVH construction batches.
+    /// </summary>
+    public struct TerrainPhysicsBufferPool
+    {
+        public NativeList<Entity> entities;
+        public NativeArray<float3> vertices;
+        public NativeArray<int> indices;
+        public NativeArray<int> vertexCounts;
+        public NativeArray<int> indexCounts;
+        public NativeArray<BlobAssetReference<Unity.Physics.Collider>> results;
+
+        int _batchCapacity;
+        int _maxVertsPerTile;
+        int _maxIndicesPerTile;
+
+        public int MaxVertsPerTile => _maxVertsPerTile;
+        public int MaxIndicesPerTile => _maxIndicesPerTile;
+
+        public void EnsureCapacity(int batchSize, int vertsPerSide)
+        {
+            int vertsPerTile = vertsPerSide * vertsPerSide;
+            int indicesPerTile = (vertsPerSide - 1) * (vertsPerSide - 1) * 6;
+
+            bool needsRealloc = !vertices.IsCreated
+                || _batchCapacity < batchSize
+                || _maxVertsPerTile != vertsPerTile
+                || _maxIndicesPerTile != indicesPerTile;
+
+            if (needsRealloc)
+            {
+                DisposeArrays();
+
+                _batchCapacity = math.max(_batchCapacity, batchSize);
+                _maxVertsPerTile = vertsPerTile;
+                _maxIndicesPerTile = indicesPerTile;
+
+                if (!entities.IsCreated)
+                    entities = new NativeList<Entity>(_batchCapacity, Allocator.Persistent);
+                else if (entities.Capacity < _batchCapacity)
+                    entities.Capacity = _batchCapacity;
+
+                vertices = new NativeArray<float3>(_batchCapacity * vertsPerTile, Allocator.Persistent);
+                indices = new NativeArray<int>(_batchCapacity * indicesPerTile, Allocator.Persistent);
+                vertexCounts = new NativeArray<int>(_batchCapacity, Allocator.Persistent);
+                indexCounts = new NativeArray<int>(_batchCapacity, Allocator.Persistent);
+                results = new NativeArray<BlobAssetReference<Unity.Physics.Collider>>(
+                    _batchCapacity, Allocator.Persistent);
+            }
+            else if (entities.Capacity < batchSize)
+            {
+                entities.Capacity = batchSize;
+            }
+
+            entities.Clear();
+        }
+
+        public void ReleaseBatch()
+        {
+            entities.Clear();
+        }
+
+        public void Dispose()
+        {
+            DisposeArrays();
+            if (entities.IsCreated)
+                entities.Dispose();
+        }
+
+        void DisposeArrays()
+        {
+            if (vertices.IsCreated) vertices.Dispose();
+            if (indices.IsCreated) indices.Dispose();
+            if (vertexCounts.IsCreated) vertexCounts.Dispose();
+            if (indexCounts.IsCreated) indexCounts.Dispose();
+            if (results.IsCreated) results.Dispose();
+        }
+    }
+
+    /// <summary>
     /// Registers prepared physics colliders with the physics world.
     /// </summary>
     [UpdateInGroup(typeof(SimulationSystemGroup))]
@@ -97,16 +176,10 @@ namespace _App.Ace_of_Ages.Terrain
     {
 #if UNITY_EDITOR
         static readonly ProfilerMarker s_ProfilerMarker = new ProfilerMarker("TerrainPhysics.BvhSchedule");
+        static readonly ProfilerMarker s_BufferCopyMarker = new ProfilerMarker("TerrainPhysics.BufferCopy");
 #endif
 
-        public NativeList<Entity> _inFlightEntities;
-        public NativeArray<float3> _inFlightSourceVertices;
-        public NativeArray<int> _inFlightSourceIndices;
-        public NativeArray<int> _inFlightVertexCounts;
-        public NativeArray<int> _inFlightIndexCounts;
-        public NativeArray<BlobAssetReference<Unity.Physics.Collider>> _inFlightResults;
-        public int _maxVertsPerTile;
-        public int _maxIndicesPerTile;
+        public TerrainPhysicsBufferPool _bufferPool;
         public JobHandle _inFlightHandle;
         public bool _hasInFlight;
 
@@ -119,16 +192,18 @@ namespace _App.Ace_of_Ages.Terrain
         public void OnDestroy(ref SystemState state)
         {
             if (_hasInFlight)
-            {
                 _inFlightHandle.Complete();
-                DisposeInFlight(ref this);
-            }
+
+            _bufferPool.Dispose();
         }
 
         public void OnUpdate(ref SystemState state)
         {
             if (_hasInFlight)
+            {
+                state.Dependency = JobHandle.CombineDependencies(state.Dependency, _inFlightHandle);
                 return;
+            }
 
             var config = SystemAPI.GetSingleton<TerrainTileConfig>();
             if (!config.enablePhysicsColliders)
@@ -182,59 +257,43 @@ namespace _App.Ace_of_Ages.Terrain
 #endif
 
                 int tilesToProcess = math.min(candidates.Length, budget);
+                _bufferPool.EnsureCapacity(tilesToProcess, config.verticesPerSide);
 
-                int maxVertsPerTile = config.verticesPerSide * config.verticesPerSide;
-                int maxIndicesPerTile = (config.verticesPerSide - 1) * (config.verticesPerSide - 1) * 6;
-                _maxVertsPerTile = maxVertsPerTile;
-                _maxIndicesPerTile = maxIndicesPerTile;
+                int maxVertsPerTile = _bufferPool.MaxVertsPerTile;
+                int maxIndicesPerTile = _bufferPool.MaxIndicesPerTile;
 
-                _inFlightEntities = new NativeList<Entity>(tilesToProcess, Allocator.Persistent);
-                _inFlightSourceVertices = new NativeArray<float3>(
-                    tilesToProcess * maxVertsPerTile, Allocator.Persistent);
-                _inFlightSourceIndices = new NativeArray<int>(
-                    tilesToProcess * maxIndicesPerTile, Allocator.Persistent);
-                _inFlightVertexCounts = new NativeArray<int>(tilesToProcess, Allocator.Persistent);
-                _inFlightIndexCounts = new NativeArray<int>(tilesToProcess, Allocator.Persistent);
-                _inFlightResults = new NativeArray<BlobAssetReference<Unity.Physics.Collider>>(
-                    tilesToProcess, Allocator.Persistent);
-
-                int scheduledCount = 0;
                 for (int i = 0; i < tilesToProcess; i++)
                 {
                     Entity entity = candidates[i].entity;
-                    if (!state.EntityManager.Exists(entity))
-                        continue;
-
-                    var vBuf = state.EntityManager.GetBuffer<VertexElement>(entity, isReadOnly: true);
-                    var iBuf = state.EntityManager.GetBuffer<IndexElement>(entity, isReadOnly: true);
-
-                    int vCount = math.min(vBuf.Length, maxVertsPerTile);
-                    int iCount = math.min(iBuf.Length, maxIndicesPerTile);
-
-                    if (vCount == 0 || iCount < 3)
-                        continue;
-
-                    int vOffset = scheduledCount * maxVertsPerTile;
-                    int iOffset = scheduledCount * maxIndicesPerTile;
-
-                    for (int v = 0; v < vCount; v++)
-                        _inFlightSourceVertices[vOffset + v] = vBuf[v].value;
-                    for (int j = 0; j < iCount; j++)
-                        _inFlightSourceIndices[iOffset + j] = iBuf[j].value;
-
-                    _inFlightVertexCounts[scheduledCount] = vCount;
-                    _inFlightIndexCounts[scheduledCount] = iCount;
-                    _inFlightEntities.Add(entity);
-                    scheduledCount++;
+                    if (state.EntityManager.Exists(entity))
+                        _bufferPool.entities.Add(entity);
                 }
 
                 candidates.Dispose();
 
+                int scheduledCount = _bufferPool.entities.Length;
                 if (scheduledCount == 0)
-                {
-                    DisposeInFlight(ref this);
                     return;
-                }
+
+                var vertexLookup = SystemAPI.GetBufferLookup<VertexElement>(true);
+                var indexLookup = SystemAPI.GetBufferLookup<IndexElement>(true);
+                vertexLookup.Update(ref state);
+                indexLookup.Update(ref state);
+
+                var entityArray = _bufferPool.entities.AsArray();
+
+                var copyJob = new CopyTerrainMeshBuffersJob
+                {
+                    entities = entityArray,
+                    vertexLookup = vertexLookup,
+                    indexLookup = indexLookup,
+                    outVertices = _bufferPool.vertices,
+                    outIndices = _bufferPool.indices,
+                    outVertexCounts = _bufferPool.vertexCounts,
+                    outIndexCounts = _bufferPool.indexCounts,
+                    maxVerticesPerTile = maxVertsPerTile,
+                    maxIndicesPerTile = maxIndicesPerTile
+                };
 
                 uint layerMask = 1u << config.terrainPhysicsLayer;
                 var filter = new CollisionFilter
@@ -244,31 +303,37 @@ namespace _App.Ace_of_Ages.Terrain
                     GroupIndex = 0
                 };
 
-                var job = new BuildTerrainMeshColliderJob
+                var buildJob = new BuildTerrainMeshColliderJob
                 {
-                    sourceVertices = _inFlightSourceVertices,
-                    sourceIndices = _inFlightSourceIndices,
-                    vertexCounts = _inFlightVertexCounts,
-                    indexCounts = _inFlightIndexCounts,
+                    sourceVertices = _bufferPool.vertices,
+                    sourceIndices = _bufferPool.indices,
+                    vertexCounts = _bufferPool.vertexCounts,
+                    indexCounts = _bufferPool.indexCounts,
                     maxVerticesPerTile = maxVertsPerTile,
                     maxIndicesPerTile = maxIndicesPerTile,
                     filter = filter,
-                    results = _inFlightResults
+                    results = _bufferPool.results
                 };
 
-                _inFlightHandle = job.Schedule(scheduledCount, 1, state.Dependency);
+#if UNITY_EDITOR
+                JobHandle copyHandle;
+                using (s_BufferCopyMarker.Auto())
+                {
+                    copyHandle = copyJob.Schedule(scheduledCount, 1, state.Dependency);
+                }
+#else
+                var copyHandle = copyJob.Schedule(scheduledCount, 1, state.Dependency);
+#endif
+
+                _inFlightHandle = buildJob.Schedule(scheduledCount, 1, copyHandle);
                 _hasInFlight = true;
+                state.Dependency = JobHandle.CombineDependencies(state.Dependency, _inFlightHandle);
             }
         }
 
-        internal static void DisposeInFlight(ref TerrainPhysicsScheduleSystem s)
+        internal static void ReleaseBatch(ref TerrainPhysicsScheduleSystem s)
         {
-            if (s._inFlightEntities.IsCreated) s._inFlightEntities.Dispose();
-            if (s._inFlightSourceVertices.IsCreated) s._inFlightSourceVertices.Dispose();
-            if (s._inFlightSourceIndices.IsCreated) s._inFlightSourceIndices.Dispose();
-            if (s._inFlightVertexCounts.IsCreated) s._inFlightVertexCounts.Dispose();
-            if (s._inFlightIndexCounts.IsCreated) s._inFlightIndexCounts.Dispose();
-            if (s._inFlightResults.IsCreated) s._inFlightResults.Dispose();
+            s._bufferPool.ReleaseBatch();
             s._hasInFlight = false;
         }
     }
@@ -296,6 +361,9 @@ namespace _App.Ace_of_Ages.Terrain
             if (!sched._hasInFlight)
                 return;
 
+            if (!sched._inFlightHandle.IsCompleted)
+                return;
+
 #if UNITY_EDITOR
             using (s_ProfilerMarker.Auto())
 #endif
@@ -310,14 +378,14 @@ namespace _App.Ace_of_Ages.Terrain
                 {
                     UnityEngine.Debug.LogWarning(
                         $"[TerrainPhysics] BvhComplete waited {completeMs:F1}ms for " +
-                        $"{sched._inFlightEntities.Length} collider(s). Consider lowering maxPhysicsCollidersCreatedPerFrame.");
+                        $"{sched._bufferPool.entities.Length} collider(s). Consider lowering maxPhysicsCollidersCreatedPerFrame.");
                 }
 #endif
 
-                for (int i = 0; i < sched._inFlightEntities.Length; i++)
+                for (int i = 0; i < sched._bufferPool.entities.Length; i++)
                 {
-                    Entity entity = sched._inFlightEntities[i];
-                    BlobAssetReference<Unity.Physics.Collider> result = sched._inFlightResults[i];
+                    Entity entity = sched._bufferPool.entities[i];
+                    BlobAssetReference<Unity.Physics.Collider> result = sched._bufferPool.results[i];
 
                     if (!state.EntityManager.Exists(entity))
                     {
@@ -339,9 +407,61 @@ namespace _App.Ace_of_Ages.Terrain
                         new PhysicsColliderRegistrationPending { collider = result });
                 }
 
-                TerrainPhysicsScheduleSystem.DisposeInFlight(ref sched);
+                TerrainPhysicsScheduleSystem.ReleaseBatch(ref sched);
             }
         }
+    }
+}
+
+/// <summary>
+/// Burst job that copies terrain mesh buffers into flat native arrays for BVH construction.
+/// </summary>
+[BurstCompile]
+struct CopyTerrainMeshBuffersJob : IJobParallelFor
+{
+    [ReadOnly] public NativeArray<Entity> entities;
+    [ReadOnly] public BufferLookup<VertexElement> vertexLookup;
+    [ReadOnly] public BufferLookup<IndexElement> indexLookup;
+
+    [NativeDisableParallelForRestriction]
+    public NativeArray<float3> outVertices;
+
+    [NativeDisableParallelForRestriction]
+    public NativeArray<int> outIndices;
+
+    public NativeArray<int> outVertexCounts;
+    public NativeArray<int> outIndexCounts;
+    public int maxVerticesPerTile;
+    public int maxIndicesPerTile;
+
+    public void Execute(int index)
+    {
+        Entity entity = entities[index];
+
+        if (!vertexLookup.HasBuffer(entity) || !indexLookup.HasBuffer(entity))
+        {
+            outVertexCounts[index] = 0;
+            outIndexCounts[index] = 0;
+            return;
+        }
+
+        var vBuf = vertexLookup[entity];
+        var iBuf = indexLookup[entity];
+
+        int vCount = math.min(vBuf.Length, maxVerticesPerTile);
+        int iCount = math.min(iBuf.Length, maxIndicesPerTile);
+
+        outVertexCounts[index] = vCount;
+        outIndexCounts[index] = iCount;
+
+        int vOffset = index * maxVerticesPerTile;
+        int iOffset = index * maxIndicesPerTile;
+
+        for (int v = 0; v < vCount; v++)
+            outVertices[vOffset + v] = vBuf[v].value;
+
+        for (int j = 0; j < iCount; j++)
+            outIndices[iOffset + j] = iBuf[j].value;
     }
 }
 
