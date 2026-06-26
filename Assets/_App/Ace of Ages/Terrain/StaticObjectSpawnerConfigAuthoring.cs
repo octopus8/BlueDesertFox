@@ -76,6 +76,10 @@ public class StaticObjectSpawnerConfigAuthoring : MonoBehaviour
     [Tooltip("Maximum number of object entities to spawn or destroy per frame (prevents ECB playback stuttering)")]
     [Range(1, 100)]
     public int maxObjectsSpawnedPerFrame = 20;
+
+    [Tooltip("Maximum spawn-position rejection attempts per frame, divided across tiles calculating positions")]
+    [Range(500, 50000)]
+    public int maxPositionCalcAttemptsPerFrame = 4000;
     
     [Header("Debug")]
     [Tooltip("Enable static object LOD and spawning debug logging (disable to reduce console spam)")]
@@ -133,6 +137,7 @@ public class StaticObjectSpawnerConfigAuthoring : MonoBehaviour
                 maxSpawnHeight = authoring.maxSpawnHeight,
                 slopeThreshold = slopeThreshold,
                 maxObjectsSpawnedPerFrame = authoring.maxObjectsSpawnedPerFrame,
+                maxPositionCalcAttemptsPerFrame = authoring.maxPositionCalcAttemptsPerFrame,
                 enableSpawnerDebug = authoring.enableSpawnerDebug
             });
             
@@ -289,6 +294,7 @@ public class StaticObjectSpawnerConfigAuthoring : MonoBehaviour
         maxObjectsPerTile = Mathf.Max(minObjectsPerTile, maxObjectsPerTile);
         maxSlopeDegrees = Mathf.Clamp(maxSlopeDegrees, 0f, 90f);
         maxObjectsSpawnedPerFrame = Mathf.Max(1, maxObjectsSpawnedPerFrame);
+        maxPositionCalcAttemptsPerFrame = Mathf.Max(500, maxPositionCalcAttemptsPerFrame);
         
         // Validate LOD distances are in increasing order
         lod0Distance = Mathf.Max(1f, lod0Distance);

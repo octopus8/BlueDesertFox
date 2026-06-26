@@ -363,6 +363,9 @@ public struct StaticObjectSpawnerConfig : IComponentData
     
     /// <summary>Maximum number of Objects to spawn per frame (performance budgeting).</summary>
     public int maxObjectsSpawnedPerFrame;
+
+    /// <summary>Maximum spawn-position rejection attempts per frame (spread across active tiles).</summary>
+    public int maxPositionCalcAttemptsPerFrame;
     
     /// <summary>Enable debug logging for static object spawner system.</summary>
     public bool enableSpawnerDebug;
@@ -393,6 +396,25 @@ public struct StaticObjectSpawnProgress : IComponentData
 {
     /// <summary>Next index in <see cref="StaticObjectSpawnPosition"/> buffer to instantiate.</summary>
     public int nextSpawnIndex;
+}
+
+/// <summary>
+/// Tracks incremental spawn-position calculation on a tile across frames.
+/// Removed when all positions are calculated and instantiation begins or completes.
+/// </summary>
+public struct StaticObjectPositionCalcProgress : IComponentData
+{
+    /// <summary>Deterministic target object count for this tile.</summary>
+    public int targetCount;
+
+    /// <summary>Accepted spawn positions written so far.</summary>
+    public int acceptedCount;
+
+    /// <summary>Total rejection-sampling attempts consumed.</summary>
+    public int attempts;
+
+    /// <summary>Persisted RNG state for deterministic cross-frame continuation (0 = uninitialized).</summary>
+    public uint randomState;
 }
 
 /// <summary>

@@ -197,6 +197,63 @@ public static class TrailInfluenceBurst
     }
 
     /// <summary>
+    /// LUT-based minimum 2D distance to trail centerline (fast path for spawn exclusion).
+    /// </summary>
+    public static float ComputeMinDistanceToTrailFromLUT(
+        float fX,
+        float fZ,
+        in TrailInstanceConfig trail,
+        in TrailCenterlineLUT lut,
+        NativeArray<float> centerlineX)
+    {
+        if (!trail.enabled || lut.length <= 0)
+            return float.MaxValue;
+
+        float searchRange = GetTrailMaxSearchRange(trail);
+        float rejectDist = searchRange + lut.zStep;
+
+        int nearestIndex = (int)math.round((fZ - lut.zOrigin) / lut.zStep);
+        nearestIndex = math.clamp(nearestIndex, 0, lut.length - 1);
+        float nearestCenterX = centerlineX[lut.offset + nearestIndex];
+        float crossDist = math.abs(fX - nearestCenterX);
+        if (crossDist > rejectDist)
+            return float.MaxValue;
+
+        int startIndex = (int)math.floor((fZ - searchRange - lut.zOrigin) / lut.zStep);
+        int endIndex = (int)math.ceil((fZ + searchRange - lut.zOrigin) / lut.zStep);
+        startIndex = math.clamp(startIndex, 0, lut.length - 1);
+        endIndex = math.clamp(endIndex, 0, lut.length - 1);
+
+        float minDist2D = float.MaxValue;
+        for (int i = startIndex; i <= endIndex; i++)
+        {
+            float sz = lut.zOrigin + i * lut.zStep;
+            float scx = centerlineX[lut.offset + i];
+            float dx = fX - scx;
+            float dz = fZ - sz;
+            float d2 = dx * dx + dz * dz;
+            if (d2 < minDist2D)
+                minDist2D = d2;
+        }
+
+        return math.sqrt(minDist2D);
+    }
+
+    public static bool IsInsideTrailExclusionZoneFromLUT(
+        float fX,
+        float fZ,
+        in TrailInstanceConfig trail,
+        in TrailCenterlineLUT lut,
+        NativeArray<float> centerlineX)
+    {
+        if (!trail.enabled)
+            return false;
+
+        float exclusionRadius = GetTrailMaxSearchRange(trail);
+        return ComputeMinDistanceToTrailFromLUT(fX, fZ, trail, lut, centerlineX) < exclusionRadius;
+    }
+
+    /// <summary>
     /// On-demand minimum distance for sparse checks (e.g. static object spawn exclusion).
     /// </summary>
     public static float ComputeMinDistanceToTrail(float fX, float fZ, in TrailInstanceConfig trail, float lutStep)

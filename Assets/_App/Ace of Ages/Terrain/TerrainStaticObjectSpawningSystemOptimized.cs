@@ -32,13 +32,11 @@ public struct StaticObjectSpawnWorkItem
 [UpdateBefore(typeof(EndSimulationEntityCommandBufferSystem))]
 public partial struct TerrainTreeSpawningSystemOptimized : ISystem
 {
-    private NativeQueue<Entity> _pendingTiles;
-    private NativeHashSet<Entity> _queuedEntities;
-
     private bool _startupClearDone;
 
 #if UNITY_EDITOR
     private static readonly ProfilerMarker s_PositionCalcMarker = new ProfilerMarker("TreeSpawner.PositionCalc");
+    private static readonly ProfilerMarker s_GatherWorkItemsMarker = new ProfilerMarker("TreeSpawner.GatherWorkItems");
     private static readonly ProfilerMarker s_InstantiationMarker = new ProfilerMarker("TreeSpawner.Instantiation");
 #endif
 
@@ -52,18 +50,6 @@ public partial struct TerrainTreeSpawningSystemOptimized : ISystem
         state.RequireForUpdate<TerrainTileConfig>();
         state.RequireForUpdate<BeginSimulationEntityCommandBufferSystem.Singleton>();
         state.RequireForUpdate<EndSimulationEntityCommandBufferSystem.Singleton>();
-
-        _pendingTiles = new NativeQueue<Entity>(Allocator.Persistent);
-        _queuedEntities = new NativeHashSet<Entity>(64, Allocator.Persistent);
-    }
-
-    [BurstCompile]
-    public void OnDestroy(ref SystemState state)
-    {
-        if (_pendingTiles.IsCreated)
-            _pendingTiles.Dispose();
-        if (_queuedEntities.IsCreated)
-            _queuedEntities.Dispose();
     }
 
     public void OnUpdate(ref SystemState state)
@@ -88,9 +74,10 @@ public partial struct TerrainTreeSpawningSystemOptimized : ISystem
                         .WithEntityAccess())
                     {
                         clearEcb.RemoveComponent<StaticObjectsSpawned>(entity);
+                        clearEcb.RemoveComponent<StaticObjectPositionCalcProgress>(entity);
+                        clearEcb.RemoveComponent<StaticObjectSpawnProgress>(entity);
+                        clearEcb.SetBuffer<StaticObjectSpawnPosition>(entity).Clear();
                     }
-                    _pendingTiles.Clear();
-                    _queuedEntities.Clear();
                 }
             }
         }
@@ -124,15 +111,6 @@ public partial struct TerrainTreeSpawningSystemOptimized : ISystem
         if (hasLODConfig)
             lodConfig = SystemAPI.GetSingleton<StaticObjectLODConfig>();
 
-        foreach (var (tile, entity) in SystemAPI.Query<RefRO<TerrainTile>>()
-            .WithAll<MeshReference, StaticObjectSpawnPosition>()
-            .WithNone<StaticObjectsSpawned, StaticObjectSpawnProgress>()
-            .WithEntityAccess())
-        {
-            if (tile.ValueRO.meshGenerated && _queuedEntities.Add(entity))
-                _pendingTiles.Enqueue(entity);
-        }
-
         var ecbSystem = SystemAPI.GetSingleton<BeginSimulationEntityCommandBufferSystem.Singleton>();
         var ecbForBuffers = ecbSystem.CreateCommandBuffer(state.WorldUnmanaged);
 
@@ -142,22 +120,84 @@ public partial struct TerrainTreeSpawningSystemOptimized : ISystem
             .WithNone<StaticObjectsSpawned, StaticObjectSpawnPosition>()
             .WithEntityAccess())
         {
-            if (tile.ValueRO.meshGenerated)
+            if (!tile.ValueRO.meshGenerated)
+                continue;
+
+            uint seed = (uint)(tile.ValueRO.gridCoordinate.GetHashCode() + 12345);
+            var random = new Random(seed);
+            int targetCount = random.NextInt(config.minObjectsPerTile, config.maxObjectsPerTile + 1);
+
+            ecbForBuffers.AddBuffer<StaticObjectSpawnPosition>(entity);
+            ecbForBuffers.AddComponent(entity, new StaticObjectPositionCalcProgress
             {
-                ecbForBuffers.AddBuffer<StaticObjectSpawnPosition>(entity);
-                tilesNeedingBuffer++;
-            }
+                targetCount = targetCount,
+                acceptedCount = 0,
+                attempts = 0,
+                randomState = random.state
+            });
+            tilesNeedingBuffer++;
         }
 
-        bool hasInProgress = !SystemAPI.QueryBuilder()
+        int tilesNeedingPositionCalc = 0;
+        bool hasReadyToInstantiate = false;
+        foreach (var (calcProgress, spawnPositions, _) in SystemAPI.Query<RefRO<StaticObjectPositionCalcProgress>, DynamicBuffer<StaticObjectSpawnPosition>>()
+            .WithAll<MeshReference>()
+            .WithNone<StaticObjectsSpawned>()
+            .WithEntityAccess())
+        {
+            if (calcProgress.ValueRO.acceptedCount < calcProgress.ValueRO.targetCount)
+                tilesNeedingPositionCalc++;
+            else if (spawnPositions.Length > 0)
+                hasReadyToInstantiate = true;
+        }
+
+        foreach (var (tile, entity) in SystemAPI.Query<RefRO<TerrainTile>>()
+            .WithAll<MeshReference, StaticObjectSpawnPosition>()
+            .WithNone<StaticObjectsSpawned, StaticObjectPositionCalcProgress>()
+            .WithEntityAccess())
+        {
+            if (!tile.ValueRO.meshGenerated)
+                continue;
+
+            uint seed = (uint)(tile.ValueRO.gridCoordinate.GetHashCode() + 12345);
+            var spawnPositions = state.EntityManager.GetBuffer<StaticObjectSpawnPosition>(entity, true);
+            int targetCount;
+            int acceptedCount;
+            uint randomState;
+
+            if (spawnPositions.Length > 0)
+            {
+                targetCount = spawnPositions.Length;
+                acceptedCount = spawnPositions.Length;
+                randomState = seed;
+            }
+            else
+            {
+                var random = new Random(seed);
+                targetCount = random.NextInt(config.minObjectsPerTile, config.maxObjectsPerTile + 1);
+                acceptedCount = 0;
+                randomState = random.state;
+            }
+
+            ecbForBuffers.AddComponent(entity, new StaticObjectPositionCalcProgress
+            {
+                targetCount = targetCount,
+                acceptedCount = acceptedCount,
+                attempts = 0,
+                randomState = randomState
+            });
+
+            if (acceptedCount >= targetCount && spawnPositions.Length > 0)
+                hasReadyToInstantiate = true;
+        }
+
+        bool hasInstantiationInProgress = !SystemAPI.QueryBuilder()
             .WithAll<StaticObjectSpawnProgress, StaticObjectSpawnPosition>()
             .WithNone<StaticObjectsSpawned>()
             .Build()
             .IsEmpty;
 
-        bool hasPending = _pendingTiles.Count > 0;
-
-        if (!hasInProgress && !hasPending)
+        if (tilesNeedingPositionCalc == 0 && !hasInstantiationInProgress && !hasReadyToInstantiate)
         {
             if (config.enableSpawnerDebug && tilesNeedingBuffer > 0)
                 UnityEngine.Debug.Log($"[TreeSpawnerOptimized] Adding StaticObjectSpawnPosition buffer to {tilesNeedingBuffer} tiles (will spawn next frame)");
@@ -178,13 +218,15 @@ public partial struct TerrainTreeSpawningSystemOptimized : ISystem
         }
 
         var typeSpawnWeightsBuffer = state.EntityManager.GetBuffer<StaticObjectTypeSpawnWeight>(configEntity, true);
-        var objectTypeSpawnWeights = new NativeArray<float>(treeTypeCount, Allocator.TempJob);
+        var objectTypeWeightPrefixSum = new NativeArray<float>(treeTypeCount, Allocator.TempJob);
         float equalTypeWeight = treeTypeCount > 0 ? 1f / treeTypeCount : 1f;
+        float cumulativeWeight = 0f;
         for (int i = 0; i < treeTypeCount; i++)
         {
-            objectTypeSpawnWeights[i] = i < typeSpawnWeightsBuffer.Length
+            cumulativeWeight += i < typeSpawnWeightsBuffer.Length
                 ? typeSpawnWeightsBuffer[i].weight
                 : equalTypeWeight;
+            objectTypeWeightPrefixSum[i] = cumulativeWeight;
         }
 
         var billboardTypeBuffer = state.EntityManager.GetBuffer<StaticObjectBillboardTypeElement>(configEntity, true);
@@ -192,125 +234,80 @@ public partial struct TerrainTreeSpawningSystemOptimized : ISystem
         for (int i = 0; i < treeTypeCount; i++)
             billboardTypes[i] = i < billboardTypeBuffer.Length && billboardTypeBuffer[i].isBillboard;
 
-#if UNITY_EDITOR
-        using (s_PositionCalcMarker.Auto())
-#endif
+        TrailConfig trailConfig = default;
+        bool hasTrailConfig = SystemAPI.HasSingleton<TrailConfig>();
+        if (hasTrailConfig)
+            trailConfig = SystemAPI.GetSingleton<TrailConfig>();
+
+        int maxPositionCalcAttemptsPerFrame = config.maxPositionCalcAttemptsPerFrame > 0
+            ? config.maxPositionCalcAttemptsPerFrame
+            : 4000;
+
+        int attemptBudgetPerTile = math.max(1,
+            maxPositionCalcAttemptsPerFrame / math.max(1, tilesNeedingPositionCalc));
+
+        if (tilesNeedingPositionCalc > 0)
         {
-            TrailConfig trailConfig = default;
-            bool hasTrailConfig = SystemAPI.HasSingleton<TrailConfig>();
-            if (hasTrailConfig)
-                trailConfig = SystemAPI.GetSingleton<TrailConfig>();
-
-            var positionJob = new CalculateStaticObjectSpawnPositionsJob
+#if UNITY_EDITOR
+            using (s_PositionCalcMarker.Auto())
+#endif
             {
-                config = config,
-                lodConfig = lodConfig,
-                hasLODConfig = hasLODConfig,
-                terrainConfig = terrainConfig,
-                cameraPosition = cameraData.position,
-                treeTypeCount = treeTypeCount,
-                objectPrefabRotations = objectPrefabRotations,
-                objectTypeSpawnWeights = objectTypeSpawnWeights,
-                trailConfig = trailConfig,
-                hasTrailConfig = hasTrailConfig
-            };
+                var positionJob = new CalculateStaticObjectSpawnPositionsJob
+                {
+                    config = config,
+                    lodConfig = lodConfig,
+                    hasLODConfig = hasLODConfig,
+                    terrainConfig = terrainConfig,
+                    cameraPosition = cameraData.position,
+                    treeTypeCount = treeTypeCount,
+                    objectPrefabRotations = objectPrefabRotations,
+                    objectTypeWeightPrefixSum = objectTypeWeightPrefixSum,
+                    trailConfig = trailConfig,
+                    hasTrailConfig = hasTrailConfig,
+                    attemptBudgetPerTile = attemptBudgetPerTile
+                };
 
-            state.Dependency = positionJob.ScheduleParallel(state.Dependency);
+                state.Dependency = positionJob.ScheduleParallel(state.Dependency);
+            }
         }
 
-        state.Dependency.Complete();
-
-        int budget = config.maxObjectsSpawnedPerFrame;
-        var workItems = new NativeList<StaticObjectSpawnWorkItem>(16, Allocator.TempJob);
-        var em = state.EntityManager;
         float nearTileSpawnDistance = hasLODConfig ? lodConfig.lod2Distance : terrainConfig.viewDistance * 0.5f;
         float2 cameraPos2D = new float2(cameraData.position.x, cameraData.position.z);
 
-        foreach (var (progress, spawnPositions, entity) in SystemAPI.Query<RefRO<StaticObjectSpawnProgress>, DynamicBuffer<StaticObjectSpawnPosition>>()
-            .WithNone<StaticObjectsSpawned>()
-            .WithEntityAccess())
+        var workItems = new NativeList<StaticObjectSpawnWorkItem>(16, Allocator.TempJob);
+        var remainingSpawnBudget = new NativeReference<int>(config.maxObjectsSpawnedPerFrame, Allocator.TempJob);
+
+#if UNITY_EDITOR
+        using (s_GatherWorkItemsMarker.Auto())
+#endif
         {
-            if (budget <= 0)
-                break;
-
-            int remaining = spawnPositions.Length - progress.ValueRO.nextSpawnIndex;
-            if (remaining <= 0)
-                continue;
-
-            int count = GetSpawnCountForTile(em, entity, remaining, budget, nearTileSpawnDistance, cameraPos2D);
-            if (count <= 0)
-                continue;
-
-            workItems.Add(new StaticObjectSpawnWorkItem
+            var gatherInProgressJob = new GatherInProgressSpawnWorkItemsJob
             {
-                tileEntity = entity,
-                startIndex = progress.ValueRO.nextSpawnIndex,
-                count = count
-            });
-            budget -= count;
+                remainingBudget = remainingSpawnBudget,
+                nearTileSpawnDistance = nearTileSpawnDistance,
+                cameraPos2D = cameraPos2D,
+                workItems = workItems
+            };
+
+            var gatherReadyJob = new GatherReadySpawnWorkItemsJob
+            {
+                remainingBudget = remainingSpawnBudget,
+                nearTileSpawnDistance = nearTileSpawnDistance,
+                cameraPos2D = cameraPos2D,
+                workItems = workItems
+            };
+
+            state.Dependency = gatherInProgressJob.Schedule(state.Dependency);
+            state.Dependency = gatherReadyJob.Schedule(state.Dependency);
         }
 
-        int pendingCount = _pendingTiles.Count;
-        for (int p = 0; p < pendingCount && budget > 0; p++)
-        {
-            Entity tileEntity = _pendingTiles.Dequeue();
-
-            if (!em.Exists(tileEntity) || em.HasComponent<StaticObjectsSpawned>(tileEntity))
-            {
-                _queuedEntities.Remove(tileEntity);
-                continue;
-            }
-
-            if (em.HasComponent<StaticObjectSpawnProgress>(tileEntity))
-                continue;
-
-            if (!em.HasBuffer<StaticObjectSpawnPosition>(tileEntity))
-                continue;
-
-            var spawnPositions = em.GetBuffer<StaticObjectSpawnPosition>(tileEntity, true);
-            if (spawnPositions.Length == 0)
-            {
-                _pendingTiles.Enqueue(tileEntity);
-                continue;
-            }
-
-            int count = GetSpawnCountForTile(em, tileEntity, spawnPositions.Length, budget, nearTileSpawnDistance, cameraPos2D);
-            if (count <= 0)
-            {
-                _pendingTiles.Enqueue(tileEntity);
-                continue;
-            }
-
-            workItems.Add(new StaticObjectSpawnWorkItem
-            {
-                tileEntity = tileEntity,
-                startIndex = 0,
-                count = count
-            });
-            budget -= count;
-            _queuedEntities.Remove(tileEntity);
-        }
-
-        if (workItems.Length == 0)
-        {
-            objectPrefabs.Dispose();
-            objectPrefabRotations.Dispose();
-            objectTypeSpawnWeights.Dispose();
-            billboardTypes.Dispose();
-            workItems.Dispose();
-            return;
-        }
-
-        if (config.enableSpawnerDebug)
-        {
-            int totalInstances = 0;
-            for (int i = 0; i < workItems.Length; i++)
-                totalInstances += workItems[i].count;
-            UnityEngine.Debug.Log($"[TreeSpawnerOptimized] Instantiating {totalInstances} objects across {workItems.Length} tile batches (budget: {config.maxObjectsSpawnedPerFrame})");
-        }
+        var lodInfoBuffer = state.EntityManager.GetBuffer<StaticObjectLODMaterialMeshInfoElement>(configEntity, true);
+        var lodMeshInfos = new NativeArray<MaterialMeshInfo>(lodInfoBuffer.Length, Allocator.TempJob);
+        for (int i = 0; i < lodInfoBuffer.Length; i++)
+            lodMeshInfos[i] = lodInfoBuffer[i].materialMeshInfo;
 
         var ecbSingleton = SystemAPI.GetSingleton<EndSimulationEntityCommandBufferSystem.Singleton>();
-        var ecb = ecbSingleton.CreateCommandBuffer(state.WorldUnmanaged);
+        var ecb = ecbSingleton.CreateCommandBuffer(state.WorldUnmanaged).AsParallelWriter();
 
         var spawnPositionLookup = SystemAPI.GetBufferLookup<StaticObjectSpawnPosition>(true);
         spawnPositionLookup.Update(ref state);
@@ -318,19 +315,14 @@ public partial struct TerrainTreeSpawningSystemOptimized : ISystem
         var tileTransformLookup = SystemAPI.GetComponentLookup<LocalTransform>(true);
         tileTransformLookup.Update(ref state);
 
-        var lodInfoBuffer = state.EntityManager.GetBuffer<StaticObjectLODMaterialMeshInfoElement>(configEntity, true);
-        var lodMeshInfos = new NativeArray<MaterialMeshInfo>(lodInfoBuffer.Length, Allocator.TempJob);
-        for (int i = 0; i < lodInfoBuffer.Length; i++)
-            lodMeshInfos[i] = lodInfoBuffer[i].materialMeshInfo;
-
 #if UNITY_EDITOR
         using (s_InstantiationMarker.Auto())
 #endif
         {
             var instantiateJob = new InstantiateStaticObjectsJob
             {
-                ecb = ecb.AsParallelWriter(),
-                workItems = workItems.AsArray(),
+                ecb = ecb,
+                workItems = workItems.AsDeferredJobArray(),
                 objectPrefabs = objectPrefabs,
                 billboardTypes = billboardTypes,
                 lodMeshInfos = lodMeshInfos,
@@ -338,42 +330,117 @@ public partial struct TerrainTreeSpawningSystemOptimized : ISystem
                 tileTransformLookup = tileTransformLookup
             };
 
-            state.Dependency = instantiateJob.Schedule(workItems.Length, 1, state.Dependency);
+            state.Dependency = instantiateJob.Schedule(workItems, 1, state.Dependency);
         }
 
         objectPrefabs.Dispose(state.Dependency);
-        objectPrefabRotations.Dispose();
-        objectTypeSpawnWeights.Dispose();
+        objectPrefabRotations.Dispose(state.Dependency);
+        objectTypeWeightPrefixSum.Dispose(state.Dependency);
         billboardTypes.Dispose(state.Dependency);
         lodMeshInfos.Dispose(state.Dependency);
         workItems.Dispose(state.Dependency);
+        remainingSpawnBudget.Dispose(state.Dependency);
+    }
+}
+
+[BurstCompile]
+[WithAll(typeof(MeshReference), typeof(StaticObjectSpawnProgress))]
+[WithNone(typeof(StaticObjectsSpawned))]
+partial struct GatherInProgressSpawnWorkItemsJob : IJobEntity
+{
+    public NativeReference<int> remainingBudget;
+    public float nearTileSpawnDistance;
+    public float2 cameraPos2D;
+    public NativeList<StaticObjectSpawnWorkItem> workItems;
+
+    private void Execute(
+        Entity entity,
+        in StaticObjectSpawnProgress spawnProgress,
+        in DynamicBuffer<StaticObjectSpawnPosition> spawnPositions,
+        in LocalTransform tileTransform)
+    {
+        int budget = remainingBudget.Value;
+        if (budget <= 0)
+            return;
+
+        int remaining = spawnPositions.Length - spawnProgress.nextSpawnIndex;
+        if (remaining <= 0)
+            return;
+
+        int count = GetSpawnCountForTile(tileTransform.Position, remaining, budget);
+        if (count <= 0)
+            return;
+
+        workItems.Add(new StaticObjectSpawnWorkItem
+        {
+            tileEntity = entity,
+            startIndex = spawnProgress.nextSpawnIndex,
+            count = count
+        });
+        remainingBudget.Value = budget - count;
     }
 
-    private static int GetSpawnCountForTile(
-        EntityManager em,
-        Entity tileEntity,
-        int remaining,
-        int budget,
-        float nearTileSpawnDistance,
-        float2 cameraPos2D)
+    private int GetSpawnCountForTile(float3 tilePosition, int remaining, int budget)
     {
-        if (remaining <= 0 || budget <= 0)
-            return 0;
-
-        if (em.HasComponent<LocalTransform>(tileEntity))
-        {
-            var tilePos = em.GetComponentData<LocalTransform>(tileEntity).Position;
-            float tileDist = math.distance(cameraPos2D, new float2(tilePos.x, tilePos.z));
-            if (tileDist <= nearTileSpawnDistance)
-                return remaining;
-        }
+        float tileDist = math.distance(cameraPos2D, new float2(tilePosition.x, tilePosition.z));
+        if (tileDist <= nearTileSpawnDistance)
+            return remaining;
 
         return math.min(remaining, budget);
     }
 }
 
 [BurstCompile]
-[WithAll(typeof(MeshReference))]
+[WithAll(typeof(MeshReference), typeof(StaticObjectPositionCalcProgress))]
+[WithNone(typeof(StaticObjectsSpawned), typeof(StaticObjectSpawnProgress))]
+partial struct GatherReadySpawnWorkItemsJob : IJobEntity
+{
+    public NativeReference<int> remainingBudget;
+    public float nearTileSpawnDistance;
+    public float2 cameraPos2D;
+    public NativeList<StaticObjectSpawnWorkItem> workItems;
+
+    private void Execute(
+        Entity entity,
+        in StaticObjectPositionCalcProgress calcProgress,
+        in DynamicBuffer<StaticObjectSpawnPosition> spawnPositions,
+        in LocalTransform tileTransform)
+    {
+        int budget = remainingBudget.Value;
+        if (budget <= 0)
+            return;
+
+        if (calcProgress.acceptedCount < calcProgress.targetCount)
+            return;
+
+        if (spawnPositions.Length == 0)
+            return;
+
+        int count = GetSpawnCountForTile(tileTransform.Position, spawnPositions.Length, budget);
+        if (count <= 0)
+            return;
+
+        workItems.Add(new StaticObjectSpawnWorkItem
+        {
+            tileEntity = entity,
+            startIndex = 0,
+            count = count
+        });
+        remainingBudget.Value = budget - count;
+    }
+
+    private int GetSpawnCountForTile(float3 tilePosition, int remaining, int budget)
+    {
+        float tileDist = math.distance(cameraPos2D, new float2(tilePosition.x, tilePosition.z));
+        if (tileDist <= nearTileSpawnDistance)
+            return remaining;
+
+        return math.min(remaining, budget);
+    }
+}
+
+[BurstCompile]
+[WithAll(typeof(MeshReference), typeof(StaticObjectPositionCalcProgress))]
 [WithNone(typeof(StaticObjectsSpawned))]
 partial struct CalculateStaticObjectSpawnPositionsJob : IJobEntity
 {
@@ -384,13 +451,15 @@ partial struct CalculateStaticObjectSpawnPositionsJob : IJobEntity
     [ReadOnly] public float3 cameraPosition;
     [ReadOnly] public int treeTypeCount;
     [ReadOnly] public NativeArray<quaternion> objectPrefabRotations;
-    [ReadOnly] public NativeArray<float> objectTypeSpawnWeights;
+    [ReadOnly] public NativeArray<float> objectTypeWeightPrefixSum;
     [ReadOnly] public TrailConfig trailConfig;
     [ReadOnly] public bool hasTrailConfig;
+    [ReadOnly] public int attemptBudgetPerTile;
 
     private void Execute(
         in TerrainTile tile,
         in LocalTransform tileTransform,
+        ref StaticObjectPositionCalcProgress calcProgress,
         in DynamicBuffer<VertexElement> vertices,
         in DynamicBuffer<NormalElement> normals,
         ref DynamicBuffer<StaticObjectSpawnPosition> spawnPositions)
@@ -398,24 +467,117 @@ partial struct CalculateStaticObjectSpawnPositionsJob : IJobEntity
         if (vertices.Length == 0 || normals.Length == 0)
             return;
 
-        if (spawnPositions.Length > 0)
+        if (calcProgress.acceptedCount >= calcProgress.targetCount)
             return;
 
-        var random = new Random((uint)(tile.gridCoordinate.GetHashCode() + 12345));
-
-        int objectCount = random.NextInt(config.minObjectsPerTile, config.maxObjectsPerTile + 1);
-
-        int actualStaticObjectsSpawned = 0;
-        int maxAttempts = objectCount * 3;
-        int attempts = 0;
-
         int vPerSide = terrainConfig.verticesPerSide;
+        int vertexCount = vPerSide * vPerSide;
+        if (vertices.Length < vertexCount || normals.Length < vertexCount)
+            return;
+
         float tileSize = terrainConfig.tileSize;
         float halfTileSize = tileSize * 0.5f;
+        float2 cameraPos2D = new float2(cameraPosition.x, cameraPosition.z);
 
-        while (actualStaticObjectsSpawned < objectCount && attempts < maxAttempts)
+        var random = calcProgress.randomState != 0
+            ? new Random(calcProgress.randomState)
+            : new Random((uint)(tile.gridCoordinate.GetHashCode() + 12345));
+
+        int objectCount = calcProgress.targetCount;
+        int maxAttempts = objectCount * 3;
+        int attempts = calcProgress.attempts;
+        int acceptedCount = calcProgress.acceptedCount;
+        int attemptsThisFrame = 0;
+
+        if (spawnPositions.Capacity < objectCount)
+            spawnPositions.Capacity = objectCount;
+
+        var vertexPositions = new NativeArray<float3>(vertexCount, Allocator.Temp);
+        var vertexNormals = new NativeArray<float3>(vertexCount, Allocator.Temp);
+        for (int i = 0; i < vertexCount; i++)
+        {
+            vertexPositions[i] = vertices[i].value;
+            vertexNormals[i] = normals[i].value;
+        }
+
+        byte activeTrailMask = 0;
+        byte tileTrailMask = 0;
+        float lutStep = 1f;
+        float maxSearchRange = 0f;
+        int lutLength = 0;
+        float tileWorldX = tile.gridCoordinate.x * tileSize;
+        float tileWorldZ = tile.gridCoordinate.y * tileSize;
+        NativeArray<float> trailCenterlineLuts = default;
+
+        if (hasTrailConfig)
+        {
+            lutStep = trailConfig.lutStepMeters > 0f ? trailConfig.lutStepMeters : 1f;
+            activeTrailMask = TrailInfluenceBurst.GetActiveTrailMask(
+                trailConfig.trail1, trailConfig.trail2, trailConfig.trail3);
+
+            if (activeTrailMask != 0)
+            {
+                tileTrailMask = TrailInfluenceBurst.ComputeTileTrailMask(
+                    tileWorldX, tileWorldZ, tileSize,
+                    trailConfig.trail1, trailConfig.trail2, trailConfig.trail3,
+                    activeTrailMask);
+
+                if (tileTrailMask != 0)
+                {
+                    maxSearchRange = TrailInfluenceBurst.GetMaxSearchRangeAcrossTrails(
+                        trailConfig.trail1, trailConfig.trail2, trailConfig.trail3, activeTrailMask);
+                    lutLength = TrailInfluenceBurst.ComputeLutLength(tileSize, maxSearchRange, lutStep);
+                    float lutZOrigin = TrailInfluenceBurst.ComputeLutZOrigin(tileWorldZ, maxSearchRange);
+
+                    trailCenterlineLuts = new NativeArray<float>(lutLength * 3, Allocator.Temp);
+
+                    if ((tileTrailMask & TrailMask.Trail1) != 0)
+                    {
+                        TrailInfluenceBurst.BuildTrailCenterlineLUT(
+                            trailCenterlineLuts, 0, lutZOrigin, lutStep, lutLength, trailConfig.trail1);
+                    }
+
+                    if ((tileTrailMask & TrailMask.Trail2) != 0)
+                    {
+                        TrailInfluenceBurst.BuildTrailCenterlineLUT(
+                            trailCenterlineLuts, lutLength, lutZOrigin, lutStep, lutLength, trailConfig.trail2);
+                    }
+
+                    if ((tileTrailMask & TrailMask.Trail3) != 0)
+                    {
+                        TrailInfluenceBurst.BuildTrailCenterlineLUT(
+                            trailCenterlineLuts, lutLength * 2, lutZOrigin, lutStep, lutLength, trailConfig.trail3);
+                    }
+                }
+            }
+        }
+
+        var trail1Lut = new TrailCenterlineLUT
+        {
+            offset = 0,
+            length = lutLength,
+            zOrigin = TrailInfluenceBurst.ComputeLutZOrigin(tileWorldZ, maxSearchRange),
+            zStep = lutStep
+        };
+        var trail2Lut = new TrailCenterlineLUT
+        {
+            offset = lutLength,
+            length = lutLength,
+            zOrigin = trail1Lut.zOrigin,
+            zStep = lutStep
+        };
+        var trail3Lut = new TrailCenterlineLUT
+        {
+            offset = lutLength * 2,
+            length = lutLength,
+            zOrigin = trail1Lut.zOrigin,
+            zStep = lutStep
+        };
+
+        while (acceptedCount < objectCount && attempts < maxAttempts && attemptsThisFrame < attemptBudgetPerTile)
         {
             attempts++;
+            attemptsThisFrame++;
 
             float randomX = random.NextFloat(0f, tileSize);
             float randomZ = random.NextFloat(0f, tileSize);
@@ -436,10 +598,10 @@ partial struct CalculateStaticObjectSpawnPositionsJob : IJobEntity
             int idx01 = z1 * vPerSide + x0;
             int idx11 = z1 * vPerSide + x1;
 
-            float3 v00 = vertices[idx00].value;
-            float3 v10 = vertices[idx10].value;
-            float3 v01 = vertices[idx01].value;
-            float3 v11 = vertices[idx11].value;
+            float3 v00 = vertexPositions[idx00];
+            float3 v10 = vertexPositions[idx10];
+            float3 v01 = vertexPositions[idx01];
+            float3 v11 = vertexPositions[idx11];
 
             float3 vX0 = math.lerp(v00, v10, tx);
             float3 vX1 = math.lerp(v01, v11, tx);
@@ -447,10 +609,10 @@ partial struct CalculateStaticObjectSpawnPositionsJob : IJobEntity
 
             float3 localPosition = new float3(randomX - halfTileSize, interpolatedPosition.y, randomZ - halfTileSize);
 
-            float3 n00 = normals[idx00].value;
-            float3 n10 = normals[idx10].value;
-            float3 n01 = normals[idx01].value;
-            float3 n11 = normals[idx11].value;
+            float3 n00 = vertexNormals[idx00];
+            float3 n10 = vertexNormals[idx10];
+            float3 n01 = vertexNormals[idx01];
+            float3 n11 = vertexNormals[idx11];
 
             float3 nX0 = math.lerp(n00, n10, tx);
             float3 nX1 = math.lerp(n01, n11, tx);
@@ -464,32 +626,39 @@ partial struct CalculateStaticObjectSpawnPositionsJob : IJobEntity
             if (normal.y < config.slopeThreshold)
                 continue;
 
-            if (hasTrailConfig)
+            if (tileTrailMask != 0)
             {
-                float noiseX = tile.gridCoordinate.x * terrainConfig.tileSize + randomX;
-                float noiseZ = tile.gridCoordinate.y * terrainConfig.tileSize + randomZ;
-                float lutStep = trailConfig.lutStepMeters > 0f ? trailConfig.lutStepMeters : 1f;
+                float noiseX = tileWorldX + randomX;
+                float noiseZ = tileWorldZ + randomZ;
 
-                if (TrailInfluenceBurst.IsInsideTrailExclusionZone(noiseX, noiseZ, trailConfig.trail1, lutStep) ||
-                    TrailInfluenceBurst.IsInsideTrailExclusionZone(noiseX, noiseZ, trailConfig.trail2, lutStep) ||
-                    TrailInfluenceBurst.IsInsideTrailExclusionZone(noiseX, noiseZ, trailConfig.trail3, lutStep))
+                if ((tileTrailMask & TrailMask.Trail1) != 0 &&
+                    TrailInfluenceBurst.IsInsideTrailExclusionZoneFromLUT(
+                        noiseX, noiseZ, trailConfig.trail1, trail1Lut, trailCenterlineLuts))
+                    continue;
+
+                if ((tileTrailMask & TrailMask.Trail2) != 0 &&
+                    TrailInfluenceBurst.IsInsideTrailExclusionZoneFromLUT(
+                        noiseX, noiseZ, trailConfig.trail2, trail2Lut, trailCenterlineLuts))
+                    continue;
+
+                if ((tileTrailMask & TrailMask.Trail3) != 0 &&
+                    TrailInfluenceBurst.IsInsideTrailExclusionZoneFromLUT(
+                        noiseX, noiseZ, trailConfig.trail3, trail3Lut, trailCenterlineLuts))
                     continue;
             }
 
             float typeRoll = random.NextFloat(0f, 1f);
-            float cumulativeTypeWeight = 0f;
             int objectTypeIndex = treeTypeCount - 1;
             for (int typeIndex = 0; typeIndex < treeTypeCount; typeIndex++)
             {
-                cumulativeTypeWeight += objectTypeSpawnWeights[typeIndex];
-                if (typeRoll < cumulativeTypeWeight)
+                if (typeRoll < objectTypeWeightPrefixSum[typeIndex])
                 {
                     objectTypeIndex = typeIndex;
                     break;
                 }
             }
 
-            int prefabIndexLOD0 = objectTypeIndex * 3 + 0;
+            int prefabIndexLOD0 = objectTypeIndex * 3;
             quaternion prefabRotation = objectPrefabRotations[prefabIndexLOD0];
 
             quaternion randomYRotation = quaternion.RotateY(random.NextFloat(0f, math.PI * 2f));
@@ -501,15 +670,12 @@ partial struct CalculateStaticObjectSpawnPositionsJob : IJobEntity
             if (hasLODConfig)
             {
                 float2 objectPos2D = new float2(worldPosition.x, worldPosition.z);
-                float2 cameraPos2D = new float2(cameraPosition.x, cameraPosition.z);
                 initialDistance = math.distance(objectPos2D, cameraPos2D);
 
                 if (initialDistance >= lodConfig.lod1Distance)
                     initialLODLevel = 2;
                 else if (initialDistance >= lodConfig.lod0Distance)
                     initialLODLevel = 1;
-                else
-                    initialLODLevel = 0;
             }
 
             int initialMeshIndex = (objectTypeIndex * 3) + initialLODLevel;
@@ -525,13 +691,23 @@ partial struct CalculateStaticObjectSpawnPositionsJob : IJobEntity
                 initialMeshIndex = initialMeshIndex
             });
 
-            actualStaticObjectsSpawned++;
+            acceptedCount++;
         }
+
+        if (trailCenterlineLuts.IsCreated)
+            trailCenterlineLuts.Dispose();
+
+        vertexPositions.Dispose();
+        vertexNormals.Dispose();
+
+        calcProgress.acceptedCount = acceptedCount;
+        calcProgress.attempts = attempts;
+        calcProgress.randomState = random.state;
     }
 }
 
 [BurstCompile]
-struct InstantiateStaticObjectsJob : IJobParallelFor
+struct InstantiateStaticObjectsJob : IJobParallelForDefer
 {
     public EntityCommandBuffer.ParallelWriter ecb;
 
@@ -563,7 +739,7 @@ struct InstantiateStaticObjectsJob : IJobParallelFor
         {
             var spawnData = spawnPositions[i];
 
-            int prefabIndexLOD0 = spawnData.objectTypeIndex * 3 + 0;
+            int prefabIndexLOD0 = spawnData.objectTypeIndex * 3;
             if (prefabIndexLOD0 >= objectPrefabs.Length)
                 continue;
 
@@ -614,6 +790,7 @@ struct InstantiateStaticObjectsJob : IJobParallelFor
         if (spawnComplete)
         {
             ecb.AddComponent<StaticObjectsSpawned>(index, work.tileEntity);
+            ecb.RemoveComponent<StaticObjectPositionCalcProgress>(index, work.tileEntity);
             if (work.startIndex > 0)
                 ecb.RemoveComponent<StaticObjectSpawnProgress>(index, work.tileEntity);
             ecb.SetBuffer<StaticObjectSpawnPosition>(index, work.tileEntity).Clear();
