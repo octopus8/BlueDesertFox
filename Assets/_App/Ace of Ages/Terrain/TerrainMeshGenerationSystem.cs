@@ -33,11 +33,13 @@ public partial struct TerrainMeshScheduleSystem : ISystem
     public NativeArray<float2> _inFlightUVs;
     public NativeArray<int> _inFlightIndices;
     public NativeArray<TileMeshJobData> _inFlightTileData;
+    public NativeArray<float> _inFlightTrailLuts;
     public NativeList<Entity> _inFlightEntities;
     public JobHandle _inFlightHandle;
     public bool _hasInFlight;
     public int _verticesPerTile;
     public int _indicesPerTile;
+    public int _inFlightLutLength;
 
 #if UNITY_EDITOR
     private static readonly ProfilerMarker s_ProfilerMarker = new ProfilerMarker("TerrainMesh.Schedule");
@@ -58,17 +60,22 @@ public partial struct TerrainMeshScheduleSystem : ISystem
         if (_pendingTiles.IsCreated) _pendingTiles.Dispose();
         if (_queuedTiles.IsCreated) _queuedTiles.Dispose();
 
-        // Complete and clean up any job that TerrainMeshCompleteSystem didn't get to
         if (_hasInFlight)
         {
             _inFlightHandle.Complete();
-            if (_inFlightVertices.IsCreated) _inFlightVertices.Dispose();
-            if (_inFlightNormals.IsCreated) _inFlightNormals.Dispose();
-            if (_inFlightUVs.IsCreated) _inFlightUVs.Dispose();
-            if (_inFlightIndices.IsCreated) _inFlightIndices.Dispose();
-            if (_inFlightTileData.IsCreated) _inFlightTileData.Dispose();
-            if (_inFlightEntities.IsCreated) _inFlightEntities.Dispose();
+            DisposeInFlightArrays();
         }
+    }
+
+    internal void DisposeInFlightArrays()
+    {
+        if (_inFlightVertices.IsCreated) _inFlightVertices.Dispose();
+        if (_inFlightNormals.IsCreated) _inFlightNormals.Dispose();
+        if (_inFlightUVs.IsCreated) _inFlightUVs.Dispose();
+        if (_inFlightIndices.IsCreated) _inFlightIndices.Dispose();
+        if (_inFlightTileData.IsCreated) _inFlightTileData.Dispose();
+        if (_inFlightTrailLuts.IsCreated) _inFlightTrailLuts.Dispose();
+        if (_inFlightEntities.IsCreated) _inFlightEntities.Dispose();
     }
 
     public void OnUpdate(ref SystemState state)
@@ -82,8 +89,6 @@ public partial struct TerrainMeshScheduleSystem : ISystem
             if (!config.renderTerrain)
                 return;
 
-            // TerrainMeshCompleteSystem should have cleared this before we run again.
-            // If it's still set, a previous job hasn't been consumed — skip this frame.
             if (_hasInFlight)
             {
 #if UNITY_EDITOR
@@ -99,7 +104,6 @@ public partial struct TerrainMeshScheduleSystem : ISystem
             cameraPosition = cameraData.position;
             cameraForward = cameraData.fullForward;
 
-            // Enqueue tiles that need mesh generation
             foreach (var (tile, entity) in SystemAPI.Query<RefRO<TerrainTile>>()
                 .WithAll<VertexElement>()
                 .WithAll<NormalElement>()
@@ -161,12 +165,10 @@ public partial struct TerrainMeshScheduleSystem : ISystem
 
             int tilesToProcessCount = math.min(tilesWithPriority.Length, maxMeshesPerFrame);
 
-            // Allocate the entity list with Persistent so it survives the frame boundary
             _inFlightEntities = new NativeList<Entity>(tilesToProcessCount, Allocator.Persistent);
             for (int i = 0; i < tilesToProcessCount; i++)
                 _inFlightEntities.Add(tilesWithPriority[i].entity);
 
-            // Return remaining tiles to the queue for the next frame's schedule pass
             for (int i = tilesToProcessCount; i < tilesWithPriority.Length; i++)
                 _pendingTiles.Enqueue(tilesWithPriority[i].entity);
 
@@ -180,7 +182,6 @@ public partial struct TerrainMeshScheduleSystem : ISystem
             _verticesPerTile = totalVertices;
             _indicesPerTile = totalIndices;
 
-            // Allocate flat arrays with Persistent — these must outlive this frame
             _inFlightVertices = new NativeArray<float3>(totalVertices * tilesToProcessCount, Allocator.Persistent);
             _inFlightNormals = new NativeArray<float3>(totalVertices * tilesToProcessCount, Allocator.Persistent);
             _inFlightUVs = new NativeArray<float2>(totalVertices * tilesToProcessCount, Allocator.Persistent);
@@ -188,16 +189,37 @@ public partial struct TerrainMeshScheduleSystem : ISystem
             _inFlightTileData = new NativeArray<TileMeshJobData>(tilesToProcessCount, Allocator.Persistent);
 
             float trailHeight = 0f;
+            float trailLutStep = 1f;
             TrailInstanceConfig trailInst1 = default;
             TrailInstanceConfig trailInst2 = default;
             TrailInstanceConfig trailInst3 = default;
+            byte activeTrailMask = 0;
+
             if (SystemAPI.HasSingleton<TrailConfig>())
             {
                 var trail = SystemAPI.GetSingleton<TrailConfig>();
                 trailHeight = trail.height;
+                trailLutStep = trail.lutStepMeters > 0f ? trail.lutStepMeters : 1f;
                 trailInst1 = trail.trail1;
                 trailInst2 = trail.trail2;
                 trailInst3 = trail.trail3;
+                activeTrailMask = TrailInfluenceBurst.GetActiveTrailMask(trailInst1, trailInst2, trailInst3);
+            }
+
+            float maxSearchRange = TrailInfluenceBurst.GetMaxSearchRangeAcrossTrails(
+                trailInst1, trailInst2, trailInst3, activeTrailMask);
+            _inFlightLutLength = activeTrailMask != 0
+                ? TrailInfluenceBurst.ComputeLutLength(config.tileSize, maxSearchRange, trailLutStep)
+                : 0;
+
+            if (_inFlightLutLength > 0)
+            {
+                _inFlightTrailLuts = new NativeArray<float>(
+                    tilesToProcessCount * 3 * _inFlightLutLength, Allocator.Persistent);
+            }
+            else
+            {
+                _inFlightTrailLuts = new NativeArray<float>(0, Allocator.Persistent);
             }
 
             for (int i = 0; i < tilesToProcessCount; i++)
@@ -205,10 +227,19 @@ public partial struct TerrainMeshScheduleSystem : ISystem
                 var entity = _inFlightEntities[i];
                 var tile = SystemAPI.GetComponent<TerrainTile>(entity);
 
-                double3 tileWorldPos = new double3(
-                    tile.gridCoordinate.x * config.tileSize,
-                    0,
-                    tile.gridCoordinate.y * config.tileSize);
+                float tileWorldX = tile.gridCoordinate.x * config.tileSize;
+                float tileWorldZ = tile.gridCoordinate.y * config.tileSize;
+
+                double3 tileWorldPos = new double3(tileWorldX, 0, tileWorldZ);
+
+                byte tileTrailMask = activeTrailMask != 0
+                    ? TrailInfluenceBurst.ComputeTileTrailMask(
+                        tileWorldX, tileWorldZ, config.tileSize,
+                        trailInst1, trailInst2, trailInst3, activeTrailMask)
+                    : (byte)0;
+
+                float lutZOrigin = TrailInfluenceBurst.ComputeLutZOrigin(tileWorldZ, maxSearchRange);
+                int baseLutOffset = i * 3 * _inFlightLutLength;
 
                 _inFlightTileData[i] = new TileMeshJobData
                 {
@@ -225,25 +256,67 @@ public partial struct TerrainMeshScheduleSystem : ISystem
                     vertexOffset = i * totalVertices,
                     indexOffset = i * totalIndices,
                     trailHeight = trailHeight,
+                    trailLutStep = trailLutStep,
+                    activeTrailMask = activeTrailMask,
+                    tileTrailMask = tileTrailMask,
                     trail1 = trailInst1,
                     trail2 = trailInst2,
-                    trail3 = trailInst3
+                    trail3 = trailInst3,
+                    trail1Lut = new TrailCenterlineLUT
+                    {
+                        offset = baseLutOffset,
+                        length = _inFlightLutLength,
+                        zOrigin = lutZOrigin,
+                        zStep = trailLutStep
+                    },
+                    trail2Lut = new TrailCenterlineLUT
+                    {
+                        offset = baseLutOffset + _inFlightLutLength,
+                        length = _inFlightLutLength,
+                        zOrigin = lutZOrigin,
+                        zStep = trailLutStep
+                    },
+                    trail3Lut = new TrailCenterlineLUT
+                    {
+                        offset = baseLutOffset + 2 * _inFlightLutLength,
+                        length = _inFlightLutLength,
+                        zOrigin = lutZOrigin,
+                        zStep = trailLutStep
+                    }
                 };
             }
 
-            var meshGenJob = new GenerateTileMeshJob
+            var buildLutsJob = new BuildTileTrailLutsJob
+            {
+                tileData = _inFlightTileData,
+                trailLuts = _inFlightTrailLuts
+            };
+
+            var verticesJob = new GenerateTileVerticesJob
+            {
+                tileData = _inFlightTileData,
+                trailLuts = _inFlightTrailLuts,
+                verticesPerTile = totalVertices,
+                allVertices = _inFlightVertices,
+                allUVs = _inFlightUVs
+            };
+
+            var normalsJob = new GenerateTileNormalsAndIndicesJob
             {
                 tileData = _inFlightTileData,
                 allVertices = _inFlightVertices,
                 allNormals = _inFlightNormals,
-                allUVs = _inFlightUVs,
                 allIndices = _inFlightIndices
             };
 
-            // Schedule without Complete() — workers run during next frame's EarlyUpdate.XRUpdate.
-            // Intentionally NOT assigned to state.Dependency so the job runs outside DOTS
-            // dependency tracking and keeps running after this system's update exits.
-            _inFlightHandle = meshGenJob.Schedule(tilesToProcessCount, 1, state.Dependency);
+            JobHandle lutHandle = state.Dependency;
+            if (_inFlightLutLength > 0)
+            {
+                lutHandle = buildLutsJob.Schedule(tilesToProcessCount, 1, state.Dependency);
+            }
+
+            JobHandle vertexHandle = verticesJob.Schedule(totalVertices * tilesToProcessCount, 64, lutHandle);
+            _inFlightHandle = normalsJob.Schedule(tilesToProcessCount, 1, vertexHandle);
             _hasInFlight = true;
         }
     }
@@ -270,12 +343,7 @@ public partial struct TerrainMeshScheduleSystem : ISystem
 
 /// <summary>
 /// Completes the terrain mesh generation jobs scheduled by <see cref="TerrainMeshScheduleSystem"/>
-/// the previous frame, then copies results into ECS DynamicBuffers so that
-/// <see cref="_App.Ace_of_Ages.Terrain.TerrainPhysicsSystem"/> and
-/// <see cref="TerrainStaticObjectSpawningSystemOptimized"/> (both in SimulationSystemGroup)
-/// see fresh mesh data in the same frame.
-/// Runs in InitializationSystemGroup — immediately after EarlyUpdate.XRUpdate finishes —
-/// so worker threads overlap with the XR tracking wait at no extra wall-clock cost.
+/// the previous frame, then copies results into ECS DynamicBuffers.
 /// </summary>
 [UpdateInGroup(typeof(InitializationSystemGroup))]
 [UpdateAfter(typeof(BeginInitializationEntityCommandBufferSystem))]
@@ -286,11 +354,7 @@ public partial struct TerrainMeshCompleteSystem : ISystem
     private static readonly ProfilerMarker s_BufferCopyMarker = new ProfilerMarker("TerrainMesh.BufferCopy");
 #endif
 
-    public void OnCreate(ref SystemState state)
-    {
-        // RequireForUpdate intentionally omitted: we must always run to complete any in-flight
-        // job even if the world is in a transitional state where singletons are absent.
-    }
+    public void OnCreate(ref SystemState state) { }
 
     public void OnUpdate(ref SystemState state)
     {
@@ -307,7 +371,6 @@ public partial struct TerrainMeshCompleteSystem : ISystem
         using (s_ProfilerMarker.Auto())
 #endif
         {
-            // This Complete() call should return almost immediately — workers ran during XRUpdate.
             sched._inFlightHandle.Complete();
 
             int totalVertices = sched._verticesPerTile;
@@ -367,13 +430,7 @@ public partial struct TerrainMeshCompleteSystem : ISystem
                 }
             }
 
-            if (sched._inFlightVertices.IsCreated) sched._inFlightVertices.Dispose();
-            if (sched._inFlightNormals.IsCreated) sched._inFlightNormals.Dispose();
-            if (sched._inFlightUVs.IsCreated) sched._inFlightUVs.Dispose();
-            if (sched._inFlightIndices.IsCreated) sched._inFlightIndices.Dispose();
-            if (sched._inFlightTileData.IsCreated) sched._inFlightTileData.Dispose();
-            if (sched._inFlightEntities.IsCreated) sched._inFlightEntities.Dispose();
-
+            sched.DisposeInFlightArrays();
             sched._hasInFlight = false;
         }
     }
@@ -382,7 +439,6 @@ public partial struct TerrainMeshCompleteSystem : ISystem
 /// <summary>
 /// Data passed to each job for mesh generation.
 /// </summary>
-[BurstCompile]
 public struct TileMeshJobData
 {
     public double3 tileWorldPos;
@@ -398,75 +454,157 @@ public struct TileMeshJobData
     public int vertexOffset;
     public int indexOffset;
 
-    // Trail parameters (height shared; individual shapes via TrailInstanceConfig)
     public float trailHeight;
+    public float trailLutStep;
+    public byte activeTrailMask;
+    public byte tileTrailMask;
     public TrailInstanceConfig trail1;
     public TrailInstanceConfig trail2;
     public TrailInstanceConfig trail3;
+    public TrailCenterlineLUT trail1Lut;
+    public TrailCenterlineLUT trail2Lut;
+    public TrailCenterlineLUT trail3Lut;
+}
+
+#if UNITY_EDITOR
+internal static class TerrainMeshProfiler
+{
+    internal static readonly ProfilerMarker TrailLUTBuild = new ProfilerMarker("TerrainMesh.TrailLUTBuild");
+    internal static readonly ProfilerMarker TrailInfluence = new ProfilerMarker("TerrainMesh.TrailInfluence");
+    internal static readonly ProfilerMarker BaseNoise = new ProfilerMarker("TerrainMesh.BaseNoise");
+
+    [BurstDiscard]
+    internal static void Begin(ProfilerMarker marker) => marker.Begin();
+
+    [BurstDiscard]
+    internal static void End(ProfilerMarker marker) => marker.End();
+}
+#endif
+
+/// <summary>
+/// Builds per-tile trail centerline LUTs once before vertex generation.
+/// </summary>
+[BurstCompile]
+public struct BuildTileTrailLutsJob : IJobParallelFor
+{
+    [ReadOnly] public NativeArray<TileMeshJobData> tileData;
+    [NativeDisableParallelForRestriction] public NativeArray<float> trailLuts;
+
+    public void Execute(int tileIndex)
+    {
+#if UNITY_EDITOR
+        TerrainMeshProfiler.Begin(TerrainMeshProfiler.TrailLUTBuild);
+#endif
+        var data = tileData[tileIndex];
+
+        if (data.tileTrailMask == 0)
+        {
+#if UNITY_EDITOR
+            TerrainMeshProfiler.End(TerrainMeshProfiler.TrailLUTBuild);
+#endif
+            return;
+        }
+
+        if ((data.tileTrailMask & TrailMask.Trail1) != 0)
+        {
+            TrailInfluenceBurst.BuildTrailCenterlineLUT(
+                trailLuts, data.trail1Lut.offset, data.trail1Lut.zOrigin, data.trail1Lut.zStep,
+                data.trail1Lut.length, data.trail1);
+        }
+
+        if ((data.tileTrailMask & TrailMask.Trail2) != 0)
+        {
+            TrailInfluenceBurst.BuildTrailCenterlineLUT(
+                trailLuts, data.trail2Lut.offset, data.trail2Lut.zOrigin, data.trail2Lut.zStep,
+                data.trail2Lut.length, data.trail2);
+        }
+
+        if ((data.tileTrailMask & TrailMask.Trail3) != 0)
+        {
+            TrailInfluenceBurst.BuildTrailCenterlineLUT(
+                trailLuts, data.trail3Lut.offset, data.trail3Lut.zOrigin, data.trail3Lut.zStep,
+                data.trail3Lut.length, data.trail3);
+        }
+
+#if UNITY_EDITOR
+        TerrainMeshProfiler.End(TerrainMeshProfiler.TrailLUTBuild);
+#endif
+    }
 }
 
 /// <summary>
-/// Burst-compiled parallel job that generates mesh data for terrain tiles.
-/// Each job processes one tile independently using flat arrays with offsets.
+/// Generates vertex heights and UVs in parallel across all vertices.
 /// </summary>
 [BurstCompile]
-public struct GenerateTileMeshJob : IJobParallelFor
+public struct GenerateTileVerticesJob : IJobParallelFor
 {
     [ReadOnly] public NativeArray<TileMeshJobData> tileData;
+    [ReadOnly] public NativeArray<float> trailLuts;
+    public int verticesPerTile;
+
     [NativeDisableParallelForRestriction] public NativeArray<float3> allVertices;
-    [NativeDisableParallelForRestriction] public NativeArray<float3> allNormals;
     [NativeDisableParallelForRestriction] public NativeArray<float2> allUVs;
+
+    public void Execute(int globalVertexIndex)
+    {
+        int tileIndex = globalVertexIndex / verticesPerTile;
+        int localVertexIndex = globalVertexIndex - tileIndex * verticesPerTile;
+
+        var data = tileData[tileIndex];
+        int verticesPerSide = data.verticesPerSide;
+        int x = localVertexIndex % verticesPerSide;
+        int z = localVertexIndex / verticesPerSide;
+
+        float stepSize = data.tileSize / (verticesPerSide - 1);
+        float halfTileSize = data.tileSize * 0.5f;
+        int flatIndex = data.vertexOffset + localVertexIndex;
+
+        float localX = x * stepSize;
+        float localZ = z * stepSize;
+
+        double worldX = data.tileWorldPos.x + localX;
+        double worldZ = data.tileWorldPos.z + localZ;
+
+        float height = TerrainMeshNoise.SampleHeight(
+            worldX, worldZ, data, trailLuts);
+
+        allVertices[flatIndex] = new float3(localX - halfTileSize, height, localZ - halfTileSize);
+        allUVs[flatIndex] = new float2(
+            (float)x / (verticesPerSide - 1),
+            (float)z / (verticesPerSide - 1));
+    }
+}
+
+/// <summary>
+/// Computes normals and triangle indices per tile after all vertices are written.
+/// </summary>
+[BurstCompile]
+public struct GenerateTileNormalsAndIndicesJob : IJobParallelFor
+{
+    [ReadOnly] public NativeArray<TileMeshJobData> tileData;
+
+    [ReadOnly] public NativeArray<float3> allVertices;
+    [NativeDisableParallelForRestriction] public NativeArray<float3> allNormals;
     [NativeDisableParallelForRestriction] public NativeArray<int> allIndices;
 
-    /// <summary>
-    /// Generates vertices, normals, UVs, and triangle indices for one terrain tile at <paramref name="index"/>
-    /// using multi-octave Perlin noise, writing output into pre-allocated shared native arrays at the
-    /// tile's pre-computed vertex and index offsets.
-    /// </summary>
-    public void Execute(int index)
+    public void Execute(int tileIndex)
     {
-        var data = tileData[index];
+        var data = tileData[tileIndex];
         int vertexOffset = data.vertexOffset;
         int indexOffset = data.indexOffset;
+        int verticesPerSide = data.verticesPerSide;
+        float stepSize = data.tileSize / (verticesPerSide - 1);
 
-        float stepSize = data.tileSize / (data.verticesPerSide - 1);
-        float halfTileSize = data.tileSize * 0.5f;
-
-        // Generate vertices and UVs
-        for (int z = 0; z < data.verticesPerSide; z++)
+        for (int z = 0; z < verticesPerSide; z++)
         {
-            for (int x = 0; x < data.verticesPerSide; x++)
+            for (int x = 0; x < verticesPerSide; x++)
             {
-                int vertexIndex = z * data.verticesPerSide + x;
-                int flatIndex = vertexOffset + vertexIndex;
+                int flatIndex = vertexOffset + z * verticesPerSide + x;
 
-                float localX = x * stepSize;
-                float localZ = z * stepSize;
-
-                double worldX = data.tileWorldPos.x + localX;
-                double worldZ = data.tileWorldPos.z + localZ;
-
-                float height = SampleNoise(worldX, worldZ, data);
-
-                allVertices[flatIndex] = new float3(localX - halfTileSize, height, localZ - halfTileSize);
-
-                allUVs[flatIndex] = new float2(
-                    (float)x / (data.verticesPerSide - 1),
-                    (float)z / (data.verticesPerSide - 1));
-            }
-        }
-
-        // Normals from cached heights (one noise sample per vertex; no trail re-evaluation)
-        for (int z = 0; z < data.verticesPerSide; z++)
-        {
-            for (int x = 0; x < data.verticesPerSide; x++)
-            {
-                int flatIndex = vertexOffset + z * data.verticesPerSide + x;
-
-                float heightLeft  = GetCachedHeight(x - 1, z, data.verticesPerSide, vertexOffset, allVertices);
-                float heightRight = GetCachedHeight(x + 1, z, data.verticesPerSide, vertexOffset, allVertices);
-                float heightDown  = GetCachedHeight(x, z - 1, data.verticesPerSide, vertexOffset, allVertices);
-                float heightUp    = GetCachedHeight(x, z + 1, data.verticesPerSide, vertexOffset, allVertices);
+                float heightLeft = GetCachedHeight(x - 1, z, verticesPerSide, vertexOffset, allVertices);
+                float heightRight = GetCachedHeight(x + 1, z, verticesPerSide, vertexOffset, allVertices);
+                float heightDown = GetCachedHeight(x, z - 1, verticesPerSide, vertexOffset, allVertices);
+                float heightUp = GetCachedHeight(x, z + 1, verticesPerSide, vertexOffset, allVertices);
 
                 float3 tangentX = new float3(2.0f * stepSize, heightRight - heightLeft, 0);
                 float3 tangentZ = new float3(0, heightUp - heightDown, 2.0f * stepSize);
@@ -474,31 +612,91 @@ public struct GenerateTileMeshJob : IJobParallelFor
             }
         }
 
-        // Generate indices (triangles)
         int currentIndexOffset = 0;
-        for (int z = 0; z < data.verticesPerSide - 1; z++)
+        for (int z = 0; z < verticesPerSide - 1; z++)
         {
-            for (int x = 0; x < data.verticesPerSide - 1; x++)
+            for (int x = 0; x < verticesPerSide - 1; x++)
             {
-                int baseIndex = z * data.verticesPerSide + x;
+                int baseIndex = z * verticesPerSide + x;
 
                 allIndices[indexOffset + currentIndexOffset++] = baseIndex;
-                allIndices[indexOffset + currentIndexOffset++] = baseIndex + data.verticesPerSide;
+                allIndices[indexOffset + currentIndexOffset++] = baseIndex + verticesPerSide;
                 allIndices[indexOffset + currentIndexOffset++] = baseIndex + 1;
 
                 allIndices[indexOffset + currentIndexOffset++] = baseIndex + 1;
-                allIndices[indexOffset + currentIndexOffset++] = baseIndex + data.verticesPerSide;
-                allIndices[indexOffset + currentIndexOffset++] = baseIndex + data.verticesPerSide + 1;
+                allIndices[indexOffset + currentIndexOffset++] = baseIndex + verticesPerSide;
+                allIndices[indexOffset + currentIndexOffset++] = baseIndex + verticesPerSide + 1;
             }
         }
     }
 
-    /// <summary>
-    /// Samples multi-octave noise at the given world position.
-    /// A continental mask (very low-frequency noise raised to a power) scales the amplitude
-    /// so that flat plains and tall mountains coexist naturally.
-    /// </summary>
-    private static float SampleNoise(double worldX, double worldZ, in TileMeshJobData data)
+    private static float GetCachedHeight(int x, int z, int verticesPerSide, int vertexOffset, NativeArray<float3> vertices)
+    {
+        x = math.clamp(x, 0, verticesPerSide - 1);
+        z = math.clamp(z, 0, verticesPerSide - 1);
+        return vertices[vertexOffset + z * verticesPerSide + x].y;
+    }
+}
+
+/// <summary>
+/// Height sampling helpers shared by mesh generation jobs.
+/// </summary>
+[BurstCompile]
+public static class TerrainMeshNoise
+{
+    public static float SampleHeight(
+        double worldX,
+        double worldZ,
+        in TileMeshJobData data,
+        NativeArray<float> trailLuts)
+    {
+#if UNITY_EDITOR
+        TerrainMeshProfiler.Begin(TerrainMeshProfiler.BaseNoise);
+#endif
+        float terrainHeight = SampleBaseTerrainHeight(worldX, worldZ, data);
+#if UNITY_EDITOR
+        TerrainMeshProfiler.End(TerrainMeshProfiler.BaseNoise);
+#endif
+
+        if (data.tileTrailMask == 0)
+            return terrainHeight;
+
+#if UNITY_EDITOR
+        TerrainMeshProfiler.Begin(TerrainMeshProfiler.TrailInfluence);
+#endif
+        float maxInfluence = 0f;
+
+        if ((data.tileTrailMask & TrailMask.Trail1) != 0)
+        {
+            maxInfluence = math.max(maxInfluence,
+                TrailInfluenceBurst.ComputeTrailInfluenceFromLUT(
+                    (float)worldX, (float)worldZ, data.trail1, data.trail1Lut, trailLuts));
+        }
+
+        if ((data.tileTrailMask & TrailMask.Trail2) != 0)
+        {
+            maxInfluence = math.max(maxInfluence,
+                TrailInfluenceBurst.ComputeTrailInfluenceFromLUT(
+                    (float)worldX, (float)worldZ, data.trail2, data.trail2Lut, trailLuts));
+        }
+
+        if ((data.tileTrailMask & TrailMask.Trail3) != 0)
+        {
+            maxInfluence = math.max(maxInfluence,
+                TrailInfluenceBurst.ComputeTrailInfluenceFromLUT(
+                    (float)worldX, (float)worldZ, data.trail3, data.trail3Lut, trailLuts));
+        }
+#if UNITY_EDITOR
+        TerrainMeshProfiler.End(TerrainMeshProfiler.TrailInfluence);
+#endif
+
+        if (maxInfluence > 0f)
+            return math.lerp(terrainHeight, data.trailHeight, maxInfluence);
+
+        return terrainHeight;
+    }
+
+    private static float SampleBaseTerrainHeight(double worldX, double worldZ, in TileMeshJobData data)
     {
         float continentalMask = 1f;
         if (data.continentalFrequency > 0f && data.continentalExponent > 0f)
@@ -525,92 +723,16 @@ public struct GenerateTileMeshJob : IJobParallelFor
             frequency *= data.noiseLacunarity;
         }
 
-        float terrainHeight = total / maxValue * data.noiseAmplitude * continentalMask;
-
-        float maxInfluence = 0f;
-        if (data.trail1.enabled) maxInfluence = math.max(maxInfluence, ComputeTrailInfluence((float)worldX, (float)worldZ, data.trail1));
-        if (data.trail2.enabled) maxInfluence = math.max(maxInfluence, ComputeTrailInfluence((float)worldX, (float)worldZ, data.trail2));
-        if (data.trail3.enabled) maxInfluence = math.max(maxInfluence, ComputeTrailInfluence((float)worldX, (float)worldZ, data.trail3));
-
-        if (maxInfluence > 0f)
-            return math.lerp(terrainHeight, data.trailHeight, maxInfluence);
-
-        return terrainHeight;
-    }
-
-    /// <summary>
-    /// Returns a 0–1 influence value for a single trail at world position (fX, fZ).
-    /// 1.0 = fully inside the flat zone; 0–1 = inside the blend zone; 0.0 = outside.
-    /// Uses a two-stage minimum-distance search along the trail centerline so that
-    /// high-amplitude/high-frequency trails remain accurate at sharp bends.
-    ///
-    /// Stage 1 – coarse pass: 32 uniform samples across ±searchRange in Z.
-    /// Stage 2 – refine pass: 16 samples in a ±2-step window around the coarse best,
-    ///           bringing worst-case distance error to well under 1 m.
-    /// </summary>
-    private static float ComputeTrailInfluence(float fX, float fZ, in TrailInstanceConfig trail)
-    {
-        float halfWidth   = trail.width * 0.5f;
-        float searchRange = halfWidth + trail.blendWidth;
-        float minDist2D   = float.MaxValue;
-        float bestSz      = fZ;
-
-        const int kCoarseSamples = 32;
-        float coarseStep = (2f * searchRange) / (kCoarseSamples - 1);
-        for (int si = 0; si < kCoarseSamples; si++)
-        {
-            float sz  = fZ - searchRange + si * coarseStep;
-            float scx = trail.amplitude * noise.snoise(new float2(sz * trail.frequency + trail.seed, 0f));
-            float dx  = fX - scx;
-            float dz  = fZ - sz;
-            float d2  = dx * dx + dz * dz;
-            if (d2 < minDist2D) { minDist2D = d2; bestSz = sz; }
-        }
-
-        const int kRefineSamples = 16;
-        float refineRange = coarseStep * 2f;
-        float refineStep  = (2f * refineRange) / (kRefineSamples - 1);
-        for (int si = 0; si < kRefineSamples; si++)
-        {
-            float sz  = bestSz - refineRange + si * refineStep;
-            float scx = trail.amplitude * noise.snoise(new float2(sz * trail.frequency + trail.seed, 0f));
-            float dx  = fX - scx;
-            float dz  = fZ - sz;
-            float d2  = dx * dx + dz * dz;
-            if (d2 < minDist2D) minDist2D = d2;
-        }
-
-        float minDist = math.sqrt(minDist2D);
-
-        if (minDist < halfWidth)
-            return 1f;
-
-        if (minDist < halfWidth + trail.blendWidth)
-            return 1f - math.smoothstep(halfWidth, halfWidth + trail.blendWidth, minDist);
-
-        return 0f;
-    }
-
-    private static float GetCachedHeight(int x, int z, int verticesPerSide, int vertexOffset, NativeArray<float3> vertices)
-    {
-        x = math.clamp(x, 0, verticesPerSide - 1);
-        z = math.clamp(z, 0, verticesPerSide - 1);
-        return vertices[vertexOffset + z * verticesPerSide + x].y;
+        return total / maxValue * data.noiseAmplitude * continentalMask;
     }
 }
 
-/// <summary>
-/// Helper struct for storing entity with its calculated priority for mesh generation.
-/// </summary>
 struct MeshTileWithPriority
 {
     public Entity entity;
     public float priority;
 }
 
-/// <summary>
-/// Comparer for sorting tiles by priority (ascending - lower = higher priority).
-/// </summary>
 struct TilePriorityComparer : IComparer<MeshTileWithPriority>
 {
     public int Compare(MeshTileWithPriority a, MeshTileWithPriority b)

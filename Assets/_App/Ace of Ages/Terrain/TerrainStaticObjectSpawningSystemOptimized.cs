@@ -468,10 +468,11 @@ partial struct CalculateStaticObjectSpawnPositionsJob : IJobEntity
             {
                 float noiseX = tile.gridCoordinate.x * terrainConfig.tileSize + randomX;
                 float noiseZ = tile.gridCoordinate.y * terrainConfig.tileSize + randomZ;
+                float lutStep = trailConfig.lutStepMeters > 0f ? trailConfig.lutStepMeters : 1f;
 
-                if (IsInsideTrailExclusionZone(noiseX, noiseZ, trailConfig.trail1) ||
-                    IsInsideTrailExclusionZone(noiseX, noiseZ, trailConfig.trail2) ||
-                    IsInsideTrailExclusionZone(noiseX, noiseZ, trailConfig.trail3))
+                if (TrailInfluenceBurst.IsInsideTrailExclusionZone(noiseX, noiseZ, trailConfig.trail1, lutStep) ||
+                    TrailInfluenceBurst.IsInsideTrailExclusionZone(noiseX, noiseZ, trailConfig.trail2, lutStep) ||
+                    TrailInfluenceBurst.IsInsideTrailExclusionZone(noiseX, noiseZ, trailConfig.trail3, lutStep))
                     continue;
             }
 
@@ -526,29 +527,6 @@ partial struct CalculateStaticObjectSpawnPositionsJob : IJobEntity
 
             actualStaticObjectsSpawned++;
         }
-    }
-
-    private static bool IsInsideTrailExclusionZone(float noiseX, float noiseZ, in TrailInstanceConfig trail)
-    {
-        if (!trail.enabled)
-            return false;
-
-        float exclusionRadius = trail.width * 0.5f + trail.blendWidth;
-        float minDist2D = float.MaxValue;
-
-        const int kSearchSamples = 9;
-        for (int si = 0; si < kSearchSamples; si++)
-        {
-            float t = si / (float)(kSearchSamples - 1);
-            float sz = noiseZ + math.lerp(-exclusionRadius, exclusionRadius, t);
-            float scx = trail.amplitude * noise.snoise(new float2(sz * trail.frequency + trail.seed, 0f));
-            float dx = noiseX - scx;
-            float dz = noiseZ - sz;
-            float d2 = dx * dx + dz * dz;
-            if (d2 < minDist2D) minDist2D = d2;
-        }
-
-        return math.sqrt(minDist2D) < exclusionRadius;
     }
 }
 

@@ -94,6 +94,10 @@ public class TerrainConfigAuthoring : MonoBehaviour
     [Tooltip("Y height of all flat trail surfaces in world units (shared by all three trails)")]
     public float trailHeight = 0f;
 
+    [Tooltip("Spacing in meters between trail centerline LUT samples (lower = sharper blends, higher = faster)")]
+    [Min(0.25f)]
+    public float trailLutStepMeters = 1f;
+
     [Header("Trail 1")]
     [Tooltip("Enable a flat winding trail carved into the terrain")]
     public bool trail1Enabled = false;
@@ -271,6 +275,7 @@ public class TerrainConfigAuthoring : MonoBehaviour
             AddComponent(entity, new TrailConfig
             {
                 height = authoring.trailHeight,
+                lutStepMeters = authoring.trailLutStepMeters,
                 trail1 = new TrailInstanceConfig
                 {
                     enabled   = authoring.trail1Enabled,
@@ -393,6 +398,7 @@ public class TerrainConfigAuthoring : MonoBehaviour
         noiseLacunarity = Mathf.Max(1f, noiseLacunarity);
         continentalFrequency = Mathf.Max(0f, continentalFrequency);
         continentalExponent = Mathf.Max(0.1f, continentalExponent);
+        trailLutStepMeters = Mathf.Max(0.25f, trailLutStepMeters);
         trail1Width     = Mathf.Max(0f, trail1Width);
         trail1BlendWidth= Mathf.Max(0f, trail1BlendWidth);
         trail1Frequency = Mathf.Max(0f, trail1Frequency);

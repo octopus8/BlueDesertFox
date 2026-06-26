@@ -100,6 +100,12 @@ public struct TrailConfig : IComponentData
     /// <summary>Y height of all flat trail surfaces in world units (shared by trail1/2/3).</summary>
     public float height;
 
+    /// <summary>
+    /// Spacing in meters between centerline LUT samples used for mesh generation and spawn exclusion.
+    /// Lower values sharpen blend edges; higher values reduce LUT build cost.
+    /// </summary>
+    public float lutStepMeters;
+
     public TrailInstanceConfig trail1;
     public TrailInstanceConfig trail2;
     public TrailInstanceConfig trail3;

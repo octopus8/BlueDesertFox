@@ -58,7 +58,10 @@ Move player to trigger tile spawning
 ```
 
 **Check These Markers**:
-- `TerrainMesh.Generation` - Mesh generation time
+- `TerrainMesh.Schedule` / `TerrainMesh.Complete` - Mesh generation scheduling and buffer copy
+- `TerrainMesh.TrailLUTBuild` - Per-tile trail centerline LUT build (Editor only)
+- `TerrainMesh.TrailInfluence` - LUT-based trail height blending per vertex (Editor only)
+- `TerrainMesh.BaseNoise` - Base terrain octave noise per vertex (Editor only)
 - `TerrainPhysics.BvhSchedule` / `TerrainPhysics.BvhComplete` - BVH construction time
 - `BuildTerrainMeshColliderJob` - Per-tile MeshCollider.Create on worker threads
 - `TreeSpawner.Instantiation` - Static object ECB instantiation batch
@@ -96,6 +99,19 @@ Impact: 25% faster mesh generation
 ```
 Max Colliders Per Frame: 5 (was 3)
 Impact: Faster completion, may cause brief spikes
+```
+
+**Tune Trail LUT Step** (when three trails are enabled):
+```
+Trail LUT Step Meters: 1.0 (default)
+Impact: Lower values (0.5) sharpen blend edges but increase LUT build cost;
+        higher values (2.0) reduce LUT samples with softer trail shoulders.
+```
+
+**Disable unused trails**:
+```
+Trail 2/3 Enabled: false
+Impact: Skips LUT build and influence lookup for disabled trails entirely.
 ```
 
 ---
@@ -208,6 +224,15 @@ int octaves = (distance < 200f) ? config.noiseOctaves : 1;
 ```
 Sample noise at lower resolution, interpolate between samples
 Advanced technique, requires code modification
+```
+
+**Method D**: Trail centerline LUT (implemented)
+```
+Trail LUT Step Meters: 1.0 on TerrainConfigAuthoring
+Impact: Replaces per-vertex 48-sample snoise search with one LUT build per tile
+        (~900 snoise/tile vs ~330k with three trails at 48×48 vertices).
+Tiles outside trail corridors skip LUT build and trail influence entirely.
+Vertex jobs run in parallel (batch size 64) even when maxCollidersCreatedPerFrame = 1.
 ```
 
 ---
