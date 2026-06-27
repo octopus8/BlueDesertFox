@@ -13,7 +13,7 @@ GameObject:
   - component: {fileID: 1457611377608924246}
   - component: {fileID: 8847291038472910386}
   m_Layer: 0
-  m_Name: TreeLowPoly01_2
+  m_Name: TreeLowPoly02_2
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -67,7 +67,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: 4966c97af29e6dc42bb56bf6c233b01a, type: 2}
+  - {fileID: 2100000, guid: ff114e7c76dcc2045a253538ba8b46a0, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
