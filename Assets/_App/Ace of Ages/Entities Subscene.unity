@@ -6005,24 +6005,13 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1528308289}
-  m_Enabled: 0
+  m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: f17144813f71f9c4eab8e31b81e2c2db, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::StaticObjectSpawnerConfigAuthoring
   objectLODSets:
-  - objectTypeName: Test Tree
-    lod0: {fileID: 1790061847135392082, guid: 3f54f0a690281804a9fa0bb6a0b2c43f, type: 3}
-    lod1: {fileID: 268780033425554496, guid: 5cfabf8fb09c20f49b7721a267c890b8, type: 3}
-    lod2: {fileID: 7576544295198489702, guid: 1ec78d46ddfa3964b94a0ef0aa5b9612, type: 3}
-    objectTypeSpawnWeight: 100
-    lod2IsBillboard: 1
-  - objectTypeName: Turret
-    lod0: {fileID: 7576544295198489702, guid: 1ec78d46ddfa3964b94a0ef0aa5b9612, type: 3}
-    lod1: {fileID: 7576544295198489702, guid: 1ec78d46ddfa3964b94a0ef0aa5b9612, type: 3}
-    lod2: {fileID: 7576544295198489702, guid: 1ec78d46ddfa3964b94a0ef0aa5b9612, type: 3}
-    objectTypeSpawnWeight: 0
-    lod2IsBillboard: 0
+  - {fileID: 11400000, guid: e7de8a9f2d9ca814682cdfb9073cd20e, type: 2}
   lod0Distance: 200
   lod1Distance: 300
   lod2Distance: 600

@@ -8,32 +8,6 @@ using UnityEngine;
 /// </summary>
 public class StaticObjectSpawnerConfigAuthoring : MonoBehaviour
 {
-    /// <summary>
-    /// Container for a static object type with 3 LOD levels and spawn weight distribution.
-    /// </summary>
-    [System.Serializable]
-    public class StaticObjectLODSet
-    {
-        [Tooltip("Name for this object type (for debugging)")]
-        public string objectTypeName = "Object";
-        
-        [Tooltip("Highest detail mesh (0-50m from player)")]
-        public GameObject lod0;
-        
-        [Tooltip("Medium detail mesh (50-150m from player)")]
-        public GameObject lod1;
-        
-        [Tooltip("Lowest detail mesh (150m+ from player)")]
-        public GameObject lod2;
-        
-        [Tooltip("Relative spawn probability for this object type vs other types. Auto-normalized at bake time.")]
-        [Min(0f)]
-        public float objectTypeSpawnWeight = 1f;
-        
-        [Tooltip("When true, LOD2 is a camera-facing billboard that rotates to face the camera each frame.")]
-        public bool lod2IsBillboard = false;
-    }
-    
     [Header("Static Object LOD Sets")]
     [Tooltip("Array of object types with LOD variants to randomly spawn on terrain tiles")]
     public StaticObjectLODSet[] objectLODSets;
@@ -199,7 +173,7 @@ public class StaticObjectSpawnerConfigAuthoring : MonoBehaviour
                 
                 if (lodPrefabs[0] == null)
                 {
-                    Debug.LogError($"[StaticObjectSpawner] Object type '{lodSet.objectTypeName}' missing LOD0 (required)! Skipping this object type.", authoring);
+                    Debug.LogError($"[StaticObjectSpawner] Object type '{lodSet.name}' missing LOD0 (required)! Skipping this object type.", authoring);
                     continue;
                 }
                 
@@ -236,7 +210,7 @@ public class StaticObjectSpawnerConfigAuthoring : MonoBehaviour
 #if UNITY_EDITOR
                                     UnityEditor.EditorUtility.SetDirty(mat);
 #endif
-                                    Debug.Log($"[StaticObjectSpawner] Enabled GPU instancing on material '{mat.name}' for '{lodSet.objectTypeName}' LOD{lodLevel}.", mat);
+                                    Debug.Log($"[StaticObjectSpawner] Enabled GPU instancing on material '{mat.name}' for '{lodSet.name}' LOD{lodLevel}.", mat);
                                 }
                             }
                         }
@@ -251,9 +225,9 @@ public class StaticObjectSpawnerConfigAuthoring : MonoBehaviour
                             : (lodPrefabs[1] != null ? lodPrefabs[1] : lodPrefabs[0]);
                         
                         if (lodLevel == 1)
-                            Debug.LogWarning($"[StaticObjectSpawner] Object '{lodSet.objectTypeName}' LOD1 missing, using LOD0 as fallback", authoring);
+                            Debug.LogWarning($"[StaticObjectSpawner] Object '{lodSet.name}' LOD1 missing, using LOD0 as fallback", authoring);
                         else
-                            Debug.LogWarning($"[StaticObjectSpawner] Object '{lodSet.objectTypeName}' LOD2 missing, using LOD{(lodPrefabs[1] != null ? "1" : "0")} as fallback", authoring);
+                            Debug.LogWarning($"[StaticObjectSpawner] Object '{lodSet.name}' LOD2 missing, using LOD{(lodPrefabs[1] != null ? "1" : "0")} as fallback", authoring);
                         
                         if (fallbackPrefab != null)
                         {
@@ -263,7 +237,7 @@ public class StaticObjectSpawnerConfigAuthoring : MonoBehaviour
                     }
                 }
                 
-                Debug.Log($"[StaticObjectSpawner] Baked object type '{lodSet.objectTypeName}' with {(lodPrefabs[1] != null ? "3" : lodPrefabs[2] != null ? "2" : "1")} LOD levels (type spawn weight: {normalizedTypeSpawnWeight:F2})");
+                Debug.Log($"[StaticObjectSpawner] Baked object type '{lodSet.name}' with {(lodPrefabs[1] != null ? "3" : lodPrefabs[2] != null ? "2" : "1")} LOD levels (type spawn weight: {normalizedTypeSpawnWeight:F2})");
                 validObjectTypes++;
             }
             
