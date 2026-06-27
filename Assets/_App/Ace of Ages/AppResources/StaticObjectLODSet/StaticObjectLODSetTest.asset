@@ -10,11 +10,11 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 86bf5fcb4230ff84a8dab3ac93ce3773, type: 3}
-  m_Name: StaticObjectLODSetTree00
+  m_Name: StaticObjectLODSetTest
   m_EditorClassIdentifier: Assembly-CSharp::StaticObjectLODSet
-  name: Tree00
-  lod0: {fileID: 1790061847135392082, guid: 3f54f0a690281804a9fa0bb6a0b2c43f, type: 3}
-  lod1: {fileID: 268780033425554496, guid: 5cfabf8fb09c20f49b7721a267c890b8, type: 3}
-  lod2: {fileID: 7576544295198489702, guid: 1ec78d46ddfa3964b94a0ef0aa5b9612, type: 3}
+  name: Test
+  lod0: {fileID: 1790061847135392082, guid: ce85d4a0361727a4a99d1802940fc339, type: 3}
+  lod1: {fileID: 1790061847135392082, guid: 10d8932589ac8224fbd17148364798b1, type: 3}
+  lod2: {fileID: 1790061847135392082, guid: ed83084c5d5c2f34aa2aeb13303853ee, type: 3}
   objectTypeSpawnWeight: 1
-  lod2IsBillboard: 1
+  lod2IsBillboard: 0
