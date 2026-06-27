@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::StaticObjectLODSet
   name: Tree00
   lod0: {fileID: 1790061847135392082, guid: 3f54f0a690281804a9fa0bb6a0b2c43f, type: 3}
-  lod1: {fileID: 268780033425554496, guid: 5cfabf8fb09c20f49b7721a267c890b8, type: 3}
+  lod1: {fileID: 4922588999693537203, guid: 1102ac1201d59f244ba5407dbaf9c0c1, type: 3}
   lod2: {fileID: 7576544295198489702, guid: 1ec78d46ddfa3964b94a0ef0aa5b9612, type: 3}
   objectTypeSpawnWeight: 1
   lod2IsBillboard: 1

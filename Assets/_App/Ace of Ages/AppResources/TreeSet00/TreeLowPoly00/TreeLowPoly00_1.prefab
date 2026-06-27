@@ -12,7 +12,7 @@ GameObject:
   - component: {fileID: 4210674812554691975}
   - component: {fileID: 4005266643377868353}
   m_Layer: 0
-  m_Name: TreeLowPoly00_2
+  m_Name: TreeLowPoly00_1
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
