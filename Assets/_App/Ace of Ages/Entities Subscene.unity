@@ -5932,19 +5932,19 @@ MonoBehaviour:
   trail1Width: 60
   trail1BlendWidth: 10
   trail1Seed: 0
-  trail1Frequency: 0.001
+  trail1Frequency: 0.0015
   trail1Amplitude: 500
   trail2Enabled: 1
   trail2Width: 30
   trail2BlendWidth: 10
   trail2Seed: 100
-  trail2Frequency: 0.0005
+  trail2Frequency: 0.001
   trail2Amplitude: 200
   trail3Enabled: 1
   trail3Width: 30
   trail3BlendWidth: 10
   trail3Seed: 200
-  trail3Frequency: 0.0005
+  trail3Frequency: 0.001
   trail3Amplitude: 200
   renderTerrain: 1
   enablePhysicsColliders: 1
