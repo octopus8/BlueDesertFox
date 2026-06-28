@@ -680,7 +680,7 @@ partial struct CalculateStaticObjectSpawnPositionsJob : IJobEntity
             var typeScale = objectTypeScales[objectTypeIndex];
             float scale = typeScale.baseScale;
             if (typeScale.maxScaleDelta > 0f)
-                scale += random.NextFloat(-typeScale.maxScaleDelta, typeScale.maxScaleDelta);
+                scale += random.NextFloat(-typeScale.maxScaleDelta, typeScale.maxScaleDelta) * typeScale.baseScale;
             scale = math.max(scale, 0.001f);
 
             byte initialLODLevel = 0;
