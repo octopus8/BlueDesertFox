@@ -10,10 +10,10 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 86bf5fcb4230ff84a8dab3ac93ce3773, type: 3}
-  m_Name: StaticObjectLODSetTree03
+  m_Name: StaticObjectLODSetTree00-Bushy
   m_EditorClassIdentifier: Assembly-CSharp::StaticObjectLODSet
   name: Tree00
-  lod0: {fileID: 1790061847135392082, guid: db998ff86ad6c33438ab59bd76d49f83, type: 3}
-  lod1: {fileID: 1790061847135392082, guid: 7395bb76c3ec2b84b99887245652a02f, type: 3}
-  lod2: {fileID: 7576544295198489702, guid: 696c8f1784de5764cadd507e59f7d44c, type: 3}
+  lod0: {fileID: 1790061847135392082, guid: 3f54f0a690281804a9fa0bb6a0b2c43f, type: 3}
+  lod1: {fileID: 4922588999693537203, guid: 1102ac1201d59f244ba5407dbaf9c0c1, type: 3}
+  lod2: {fileID: 7576544295198489702, guid: 1ec78d46ddfa3964b94a0ef0aa5b9612, type: 3}
   lod2IsBillboard: 1

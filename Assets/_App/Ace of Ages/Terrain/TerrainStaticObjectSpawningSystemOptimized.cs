@@ -236,7 +236,13 @@ public partial struct TerrainTreeSpawningSystemOptimized : ISystem
 
         var typeScaleBuffer = state.EntityManager.GetBuffer<StaticObjectTypeScaleElement>(configEntity, true);
         var objectTypeScales = new NativeArray<StaticObjectTypeScaleElement>(treeTypeCount, Allocator.TempJob);
-        var defaultTypeScale = new StaticObjectTypeScaleElement { baseScale = 1f, maxScaleDelta = 0f };
+        var defaultTypeScale = new StaticObjectTypeScaleElement
+        {
+            baseScale = 1f,
+            maxScaleDelta = 0f,
+            lod1ScaleMultiplier = 1f,
+            lod2ScaleMultiplier = 1f
+        };
         for (int i = 0; i < treeTypeCount; i++)
             objectTypeScales[i] = i < typeScaleBuffer.Length ? typeScaleBuffer[i] : defaultTypeScale;
 
@@ -331,6 +337,7 @@ public partial struct TerrainTreeSpawningSystemOptimized : ISystem
                 ecb = ecb,
                 workItems = workItems.AsDeferredJobArray(),
                 objectPrefabs = objectPrefabs,
+                objectTypeScales = objectTypeScales,
                 billboardTypes = billboardTypes,
                 lodMeshInfos = lodMeshInfos,
                 spawnPositionLookup = spawnPositionLookup,
@@ -726,6 +733,7 @@ struct InstantiateStaticObjectsJob : IJobParallelForDefer
 
     [ReadOnly] public NativeArray<StaticObjectSpawnWorkItem> workItems;
     [ReadOnly] public NativeArray<Entity> objectPrefabs;
+    [ReadOnly] public NativeArray<StaticObjectTypeScaleElement> objectTypeScales;
     [ReadOnly] public NativeArray<bool> billboardTypes;
     [ReadOnly] public NativeArray<MaterialMeshInfo> lodMeshInfos;
 
@@ -761,11 +769,17 @@ struct InstantiateStaticObjectsJob : IJobParallelForDefer
 
             float3 worldPosition = tilePosition + spawnData.localPosition;
 
+            var typeScale = spawnData.objectTypeIndex < objectTypeScales.Length
+                ? objectTypeScales[spawnData.objectTypeIndex]
+                : new StaticObjectTypeScaleElement { baseScale = 1f, lod1ScaleMultiplier = 1f, lod2ScaleMultiplier = 1f };
+            float spawnScale = spawnData.scale;
+            float displayScale = spawnScale * typeScale.GetLodScaleMultiplier(spawnData.initialLODLevel);
+
             ecb.SetComponent(index, objectEntity, new LocalTransform
             {
                 Position = worldPosition,
                 Rotation = spawnData.rotation,
-                Scale = spawnData.scale
+                Scale = displayScale
             });
 
             if (lodMeshInfos.Length > spawnData.initialMeshIndex)
@@ -780,7 +794,8 @@ struct InstantiateStaticObjectsJob : IJobParallelForDefer
                 objectTypeIndex = spawnData.objectTypeIndex,
                 currentLODLevel = spawnData.initialLODLevel,
                 lastDistanceToPlayer = spawnData.initialDistance,
-                isBillboardType = isBillboard
+                isBillboardType = isBillboard,
+                spawnScale = spawnScale
             });
 
             ecb.AddComponent(index, objectEntity, new StaticObjectTileOwnership

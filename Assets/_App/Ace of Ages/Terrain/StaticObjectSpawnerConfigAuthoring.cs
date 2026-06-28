@@ -406,13 +406,39 @@ public class StaticObjectSpawnerConfigAuthoring : MonoBehaviour
 
                 
 
+                float lod1Scale = lodPrefabs[1] != null
+
+                    ? math.cmax(lodPrefabs[1].transform.lossyScale)
+
+                    : baseScale;
+
+                float lod2Scale = lodPrefabs[2] != null
+
+                    ? math.cmax(lodPrefabs[2].transform.lossyScale)
+
+                    : (lodPrefabs[1] != null ? lod1Scale : baseScale);
+
+                if (lod1Scale <= 0f)
+
+                    lod1Scale = baseScale;
+
+                if (lod2Scale <= 0f)
+
+                    lod2Scale = lod1Scale;
+
+                
+
                 typeScaleBuffer.Add(new StaticObjectTypeScaleElement
 
                 {
 
                     baseScale = baseScale,
 
-                    maxScaleDelta = math.max(0f, entry.maxScaleDelta)
+                    maxScaleDelta = math.max(0f, entry.maxScaleDelta),
+
+                    lod1ScaleMultiplier = lod1Scale / baseScale,
+
+                    lod2ScaleMultiplier = lod2Scale / baseScale
 
                 });
 

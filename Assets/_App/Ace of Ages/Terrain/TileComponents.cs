@@ -508,6 +508,9 @@ public struct GlobalStaticObjectInstanceData : IComponentData
     
     /// <summary>When true, LOD2 is a camera-facing billboard that should rotate to face the camera each frame.</summary>
     public bool isBillboardType;
+    
+    /// <summary>Spawn scale relative to LOD0 prefab (base scale plus random delta).</summary>
+    public float spawnScale;
 }
 
 /// <summary>
@@ -621,6 +624,22 @@ public struct StaticObjectTypeScaleElement : IBufferElementData
     
     /// <summary>Maximum random scale offset applied per instance (+/- this value).</summary>
     public float maxScaleDelta;
+    
+    /// <summary>LOD1 display scale multiplier relative to LOD0 prefab scale.</summary>
+    public float lod1ScaleMultiplier;
+    
+    /// <summary>LOD2 display scale multiplier relative to LOD0 prefab scale.</summary>
+    public float lod2ScaleMultiplier;
+    
+    /// <summary>Returns display scale multiplier for the given LOD level relative to LOD0 spawn scale.</summary>
+    public float GetLodScaleMultiplier(byte lodLevel)
+    {
+        if (lodLevel == 1)
+            return lod1ScaleMultiplier;
+        if (lodLevel == 2)
+            return lod2ScaleMultiplier;
+        return 1f;
+    }
 }
 
 

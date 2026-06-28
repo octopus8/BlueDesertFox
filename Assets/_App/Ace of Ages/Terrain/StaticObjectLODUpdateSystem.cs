@@ -184,6 +184,28 @@ public partial struct StaticObjectLODUpdateSystem : ISystem
         var lodMeshInfos = new NativeArray<MaterialMeshInfo>(lodInfoBuffer.Length, Allocator.TempJob);
         for (int i = 0; i < lodInfoBuffer.Length; i++)
             lodMeshInfos[i] = lodInfoBuffer[i].materialMeshInfo;
+
+        int objectTypeCount = lodConfig.lodsPerObjectType > 0
+            ? lodMeshInfos.Length / lodConfig.lodsPerObjectType
+            : 0;
+        var objectTypeScales = new NativeArray<StaticObjectTypeScaleElement>(objectTypeCount, Allocator.TempJob);
+        var defaultTypeScale = new StaticObjectTypeScaleElement
+        {
+            baseScale = 1f,
+            lod1ScaleMultiplier = 1f,
+            lod2ScaleMultiplier = 1f
+        };
+        if (state.EntityManager.HasBuffer<StaticObjectTypeScaleElement>(configEntity))
+        {
+            var typeScaleBuffer = state.EntityManager.GetBuffer<StaticObjectTypeScaleElement>(configEntity, isReadOnly: true);
+            for (int i = 0; i < objectTypeCount; i++)
+                objectTypeScales[i] = i < typeScaleBuffer.Length ? typeScaleBuffer[i] : defaultTypeScale;
+        }
+        else
+        {
+            for (int i = 0; i < objectTypeCount; i++)
+                objectTypeScales[i] = defaultTypeScale;
+        }
         
         // Schedule Burst-compiled job for LOD updates with distance-tiered filtering
         var updateJob = new StaticObjectLODUpdateJob
@@ -197,11 +219,13 @@ public partial struct StaticObjectLODUpdateSystem : ISystem
             activeChunksSet = _activeChunksSet,
             maxStaticObjectsPerFrame = MaxStaticObjectsPerFrame,
             frameCounter = _frameCounter, // Pass frame counter for distance-tiered updates
-            lodMeshInfos = lodMeshInfos
+            lodMeshInfos = lodMeshInfos,
+            objectTypeScales = objectTypeScales
         };
         
         state.Dependency = updateJob.ScheduleParallel(state.Dependency);
         lodMeshInfos.Dispose(state.Dependency);
+        objectTypeScales.Dispose(state.Dependency);
         
 #if UNITY_EDITOR
         s_ProfilerMarker.Data.End();
@@ -241,6 +265,7 @@ public partial struct StaticObjectLODUpdateSystem : ISystem
         [ReadOnly] public int maxStaticObjectsPerFrame;
         [ReadOnly] public int frameCounter; // For distance-tiered updates
         [ReadOnly] public NativeArray<MaterialMeshInfo> lodMeshInfos;
+        [ReadOnly] public NativeArray<StaticObjectTypeScaleElement> objectTypeScales;
         
         /// <summary>
         /// Skips static objects outside the active chunk set, applies distance-tiered frame-budget skipping,
@@ -248,7 +273,7 @@ public partial struct StaticObjectLODUpdateSystem : ISystem
         /// and writes the correct <see cref="MaterialMeshInfo"/> BRG ID for the chosen LOD.
         /// </summary>
         private void Execute(
-            in LocalTransform transform,
+            ref LocalTransform transform,
             ref GlobalStaticObjectInstanceData instanceData,
             ref MaterialMeshInfo materialMeshInfo,
             in StaticObjectChunkMembership chunkMembership)
@@ -285,6 +310,13 @@ public partial struct StaticObjectLODUpdateSystem : ISystem
                 
                 if (lodMeshInfos.Length > newMeshIndex)
                     materialMeshInfo = lodMeshInfos[newMeshIndex];
+                
+                float spawnScale = instanceData.spawnScale > 0f ? instanceData.spawnScale : transform.Scale;
+                if (instanceData.objectTypeIndex < objectTypeScales.Length)
+                {
+                    var typeScale = objectTypeScales[instanceData.objectTypeIndex];
+                    transform.Scale = spawnScale * typeScale.GetLodScaleMultiplier(newLOD);
+                }
                 
                 instanceData.currentLODLevel = newLOD;
             }

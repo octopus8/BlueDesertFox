@@ -10,10 +10,10 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 86bf5fcb4230ff84a8dab3ac93ce3773, type: 3}
-  m_Name: StaticObjectLODSetTree02
+  m_Name: StaticObjectLODSetTree03-Dead
   m_EditorClassIdentifier: Assembly-CSharp::StaticObjectLODSet
   name: Tree00
-  lod0: {fileID: 1790061847135392082, guid: d13eee9c32ba6bb4d9e4e62736cf089d, type: 3}
-  lod1: {fileID: 4922588999693537203, guid: 4ebdd2bb2c23dd44ab0862a489345312, type: 3}
-  lod2: {fileID: 7576544295198489702, guid: a891a0da8ceae3647b3b682b32c95718, type: 3}
+  lod0: {fileID: 1790061847135392082, guid: db998ff86ad6c33438ab59bd76d49f83, type: 3}
+  lod1: {fileID: 1790061847135392082, guid: 7395bb76c3ec2b84b99887245652a02f, type: 3}
+  lod2: {fileID: 7576544295198489702, guid: 696c8f1784de5764cadd507e59f7d44c, type: 3}
   lod2IsBillboard: 1
