@@ -234,6 +234,12 @@ public partial struct TerrainTreeSpawningSystemOptimized : ISystem
         for (int i = 0; i < treeTypeCount; i++)
             billboardTypes[i] = i < billboardTypeBuffer.Length && billboardTypeBuffer[i].isBillboard;
 
+        var typeScaleBuffer = state.EntityManager.GetBuffer<StaticObjectTypeScaleElement>(configEntity, true);
+        var objectTypeScales = new NativeArray<StaticObjectTypeScaleElement>(treeTypeCount, Allocator.TempJob);
+        var defaultTypeScale = new StaticObjectTypeScaleElement { baseScale = 1f, maxScaleDelta = 0f };
+        for (int i = 0; i < treeTypeCount; i++)
+            objectTypeScales[i] = i < typeScaleBuffer.Length ? typeScaleBuffer[i] : defaultTypeScale;
+
         TrailConfig trailConfig = default;
         bool hasTrailConfig = SystemAPI.HasSingleton<TrailConfig>();
         if (hasTrailConfig)
@@ -261,6 +267,7 @@ public partial struct TerrainTreeSpawningSystemOptimized : ISystem
                     cameraPosition = cameraData.position,
                     treeTypeCount = treeTypeCount,
                     objectPrefabRotations = objectPrefabRotations,
+                    objectTypeScales = objectTypeScales,
                     objectTypeWeightPrefixSum = objectTypeWeightPrefixSum,
                     trailConfig = trailConfig,
                     hasTrailConfig = hasTrailConfig,
@@ -335,6 +342,7 @@ public partial struct TerrainTreeSpawningSystemOptimized : ISystem
 
         objectPrefabs.Dispose(state.Dependency);
         objectPrefabRotations.Dispose(state.Dependency);
+        objectTypeScales.Dispose(state.Dependency);
         objectTypeWeightPrefixSum.Dispose(state.Dependency);
         billboardTypes.Dispose(state.Dependency);
         lodMeshInfos.Dispose(state.Dependency);
@@ -451,6 +459,7 @@ partial struct CalculateStaticObjectSpawnPositionsJob : IJobEntity
     [ReadOnly] public float3 cameraPosition;
     [ReadOnly] public int treeTypeCount;
     [ReadOnly] public NativeArray<quaternion> objectPrefabRotations;
+    [ReadOnly] public NativeArray<StaticObjectTypeScaleElement> objectTypeScales;
     [ReadOnly] public NativeArray<float> objectTypeWeightPrefixSum;
     [ReadOnly] public TrailConfig trailConfig;
     [ReadOnly] public bool hasTrailConfig;
@@ -661,6 +670,12 @@ partial struct CalculateStaticObjectSpawnPositionsJob : IJobEntity
             quaternion randomYRotation = quaternion.RotateY(random.NextFloat(0f, math.PI * 2f));
             quaternion rotation = math.mul(randomYRotation, prefabRotation);
 
+            var typeScale = objectTypeScales[objectTypeIndex];
+            float scale = typeScale.baseScale;
+            if (typeScale.maxScaleDelta > 0f)
+                scale += random.NextFloat(-typeScale.maxScaleDelta, typeScale.maxScaleDelta);
+            scale = math.max(scale, 0.001f);
+
             byte initialLODLevel = 0;
             float initialDistance = 0f;
 
@@ -685,7 +700,8 @@ partial struct CalculateStaticObjectSpawnPositionsJob : IJobEntity
                 objectTypeIndex = objectTypeIndex,
                 initialLODLevel = initialLODLevel,
                 initialDistance = initialDistance,
-                initialMeshIndex = initialMeshIndex
+                initialMeshIndex = initialMeshIndex,
+                scale = scale
             });
 
             acceptedCount++;
@@ -749,7 +765,7 @@ struct InstantiateStaticObjectsJob : IJobParallelForDefer
             {
                 Position = worldPosition,
                 Rotation = spawnData.rotation,
-                Scale = 1f
+                Scale = spawnData.scale
             });
 
             if (lodMeshInfos.Length > spawnData.initialMeshIndex)

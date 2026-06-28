@@ -445,6 +445,9 @@ public struct StaticObjectSpawnPosition : IBufferElementData
     
     /// <summary>Initial mesh index based on object type and LOD level.</summary>
     public int initialMeshIndex;
+    
+    /// <summary>Uniform scale for this instance (prefab base scale plus random delta).</summary>
+    public float scale;
 }
 
 /// <summary>
@@ -605,6 +608,19 @@ public struct StaticObjectBillboardTypeElement : IBufferElementData
 {
     /// <summary>When true, LOD2 for this object type rotates to face the camera each frame.</summary>
     public bool isBillboard;
+}
+
+/// <summary>
+/// Per-object-type scale configuration baked from LOD0 prefab transform and entry maxScaleDelta.
+/// Indexed by objectTypeIndex.
+/// </summary>
+public struct StaticObjectTypeScaleElement : IBufferElementData
+{
+    /// <summary>Base uniform scale from LOD0 prefab (max axis of lossyScale).</summary>
+    public float baseScale;
+    
+    /// <summary>Maximum random scale offset applied per instance (+/- this value).</summary>
+    public float maxScaleDelta;
 }
 
 

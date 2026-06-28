@@ -5,6 +5,7 @@ public struct StaticObjectLODSetEntry
 {
     public StaticObjectLODSet lodSet;
     [Min(0f)] public float spawnWeight;
+    public float maxScaleDelta;
 }
 
 [CreateAssetMenu(fileName = "StaticObjectLODSet", menuName = "Scriptable Objects/Static Object LOD Set")]
