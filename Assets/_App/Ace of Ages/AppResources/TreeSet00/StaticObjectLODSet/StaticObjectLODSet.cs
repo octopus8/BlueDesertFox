@@ -1,5 +1,12 @@
 using UnityEngine;
 
+[System.Serializable]
+public struct StaticObjectLODSetEntry
+{
+    public StaticObjectLODSet lodSet;
+    [Min(0f)] public float spawnWeight;
+}
+
 [CreateAssetMenu(fileName = "StaticObjectLODSet", menuName = "Scriptable Objects/Static Object LOD Set")]
 public class StaticObjectLODSet : ScriptableObject
 {
@@ -7,6 +14,5 @@ public class StaticObjectLODSet : ScriptableObject
     public GameObject lod0;
     public GameObject lod1;
     public GameObject lod2;
-    public float objectTypeSpawnWeight;
     public bool lod2IsBillboard;
 }

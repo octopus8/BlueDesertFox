@@ -16,5 +16,4 @@ MonoBehaviour:
   lod0: {fileID: 1790061847135392082, guid: d13eee9c32ba6bb4d9e4e62736cf089d, type: 3}
   lod1: {fileID: 4922588999693537203, guid: 4ebdd2bb2c23dd44ab0862a489345312, type: 3}
   lod2: {fileID: 7576544295198489702, guid: a891a0da8ceae3647b3b682b32c95718, type: 3}
-  objectTypeSpawnWeight: 1
   lod2IsBillboard: 1
