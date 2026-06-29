@@ -5997,14 +5997,14 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::StaticObjectSpawnerConfigAuthoring
   objectLODSets:
   - lodSet: {fileID: 11400000, guid: e7de8a9f2d9ca814682cdfb9073cd20e, type: 2}
-    spawnWeight: 0.5
-    maxScaleDelta: 0.3
+    spawnWeight: 1
+    maxScaleDelta: 0
   - lodSet: {fileID: 11400000, guid: b77b000478ae3ac48b61b9af41161eba, type: 2}
-    spawnWeight: 0.25
-    maxScaleDelta: 0.3
+    spawnWeight: 1
+    maxScaleDelta: 0
   - lodSet: {fileID: 11400000, guid: d47c3ee472c3bb2498b37658e653adbf, type: 2}
-    spawnWeight: 0.1
-    maxScaleDelta: 0.3
+    spawnWeight: 1
+    maxScaleDelta: 0
   lod0Distance: 200
   lod1Distance: 300
   lod2Distance: 600
