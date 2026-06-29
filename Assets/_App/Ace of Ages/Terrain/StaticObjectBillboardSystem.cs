@@ -10,8 +10,9 @@ using Unity.Transforms;
 /// Uses Y-axis-only (cylindrical) rotation so the billboard stays upright regardless of camera pitch.
 /// </summary>
 [BurstCompile]
-[UpdateInGroup(typeof(SimulationSystemGroup))]
-[UpdateAfter(typeof(StaticObjectLODUpdateSystem))]
+[UpdateInGroup(typeof(TransformSystemGroup))]
+[UpdateAfter(typeof(objectPositionUpdateSystem))]
+[UpdateBefore(typeof(LocalToWorldSystem))]
 [RequireMatchingQueriesForUpdate]
 public partial struct StaticObjectBillboardSystem : ISystem
 {

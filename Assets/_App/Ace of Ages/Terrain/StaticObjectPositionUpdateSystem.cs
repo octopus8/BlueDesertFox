@@ -57,21 +57,22 @@ public partial struct objectPositionUpdateSystem : ISystem
         
         /// <summary>
         /// If the owning tile entity still exists, sets the static object's world position to
-        /// <c>tileTransform.Position + ownership.localOffset</c>.
+        /// <c>tileTransform.Position + ownership.localOffset</c> and reapplies the spawn rotation
+        /// stored in <see cref="StaticObjectTileOwnership.localRotation"/>.
         /// </summary>
         private void Execute(
             in StaticObjectTileOwnership ownership,
             ref LocalTransform transform)
         {
-            // Check if tile still exists
             if (!tileTransformLookup.HasComponent(ownership.tileEntity))
                 return;
-            
-            // Get tile's current position
+
             var tileTransform = tileTransformLookup[ownership.tileEntity];
-            
-            // Update tree position: tile position + local offset
-            transform.Position = tileTransform.Position + ownership.localOffset;
+
+            transform = LocalTransform.FromPositionRotationScale(
+                tileTransform.Position + ownership.localOffset,
+                ownership.localRotation,
+                transform.Scale);
         }
     }
 }

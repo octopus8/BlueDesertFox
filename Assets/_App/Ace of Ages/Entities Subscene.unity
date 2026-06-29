@@ -6008,6 +6008,9 @@ MonoBehaviour:
   - lodSet: {fileID: 11400000, guid: 4101bf1351cde7442a780cfaa191badb, type: 2}
     spawnWeight: 1
     maxScaleDelta: 0.5
+  - lodSet: {fileID: 11400000, guid: 6c907d32e667f4348a66bfff024ae84f, type: 2}
+    spawnWeight: 0
+    maxScaleDelta: 0
   lod0Distance: 200
   lod1Distance: 400
   lod2Distance: 600

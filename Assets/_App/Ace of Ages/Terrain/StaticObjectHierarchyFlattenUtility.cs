@@ -72,15 +72,16 @@ public static class StaticObjectHierarchyFlattenUtility
             if (entityManager.HasComponent<Parent>(e))
                 entityManager.RemoveComponent<Parent>(e);
 
-            entityManager.SetComponentData(e, LocalTransformFromWorldMatrix(worldMat));
+            var worldTransform = LocalTransformFromWorldMatrix(worldMat);
+            entityManager.SetComponentData(e, worldTransform);
 
             if (!entityManager.HasComponent<StaticObjectTileOwnership>(e))
             {
-                var worldPos = worldMat.c3.xyz;
                 entityManager.AddComponentData(e, new StaticObjectTileOwnership
                 {
                     tileEntity = rootOwnership.tileEntity,
-                    localOffset = worldPos - tileWorldPos
+                    localOffset = worldTransform.Position - tileWorldPos,
+                    localRotation = worldTransform.Rotation
                 });
             }
         }

@@ -815,7 +815,8 @@ struct InstantiateStaticObjectsJob : IJobParallelForDefer
             ecb.AddComponent(index, objectEntity, new StaticObjectTileOwnership
             {
                 tileEntity = work.tileEntity,
-                localOffset = spawnData.localPosition
+                localOffset = spawnData.localPosition,
+                localRotation = spawnData.rotation
             });
 
             ecb.AddComponent(index, objectEntity, new StaticObjectChunkMembership

@@ -473,6 +473,9 @@ public struct StaticObjectTileOwnership : IComponentData
     
     /// <summary>Local position offset from tile origin (relative to tile's position).</summary>
     public float3 localOffset;
+
+    /// <summary>World-space Y rotation baked at spawn (reapplied each frame when tiles scroll).</summary>
+    public quaternion localRotation;
 }
 
 /// <summary>
