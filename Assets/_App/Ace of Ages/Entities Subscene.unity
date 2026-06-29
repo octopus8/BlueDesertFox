@@ -5999,21 +5999,31 @@ MonoBehaviour:
   - lodSet: {fileID: 11400000, guid: e7de8a9f2d9ca814682cdfb9073cd20e, type: 2}
     spawnWeight: 1
     maxScaleDelta: 0.5
+  - lodSet: {fileID: 11400000, guid: b77b000478ae3ac48b61b9af41161eba, type: 2}
+    spawnWeight: 1
+    maxScaleDelta: 0.5
+  - lodSet: {fileID: 11400000, guid: d47c3ee472c3bb2498b37658e653adbf, type: 2}
+    spawnWeight: 1
+    maxScaleDelta: 0.5
+  - lodSet: {fileID: 11400000, guid: 4101bf1351cde7442a780cfaa191badb, type: 2}
+    spawnWeight: 1
+    maxScaleDelta: 0.5
   lod0Distance: 200
-  lod1Distance: 300
+  lod1Distance: 400
   lod2Distance: 600
   lodHysteresis: 5
   minObjectsPerTile: 300
   maxObjectsPerTile: 300
   maxSlopeDegrees: 45
-  maxObjectsSpawnedPerFrame: 20
+  maxObjectsSpawnedPerFrame: 150
+  maxNearObjectsSpawnedPerFrame: 300
   maxPositionCalcAttemptsPerFrame: 4000
   enableObjectLODDebug: 0
   enableSpawnerDebug: 0
   enableDistanceCulling: 1
   maxObjectRenderDistance: 1000
   maxUniqueBatches: 32
-  vrFrameSkipScrolling: 4
+  vrFrameSkipScrolling: 2
   playerVelocityThreshold: 0.5
 --- !u!1 &1730959682
 GameObject:

@@ -95,7 +95,7 @@ public partial struct StaticObjectLODUpdateSystem : ISystem
         // Get configuration
         var lodConfig = SystemAPI.GetSingleton<StaticObjectLODConfig>();
         
-        // Read cached player position from the blittable singleton (written end of previous frame).
+        // Read player position from CameraDataSingleton (updated at start of Simulation this frame).
         float3 playerPosition = SystemAPI.GetSingleton<CameraDataSingleton>().position;
         
 #if UNITY_EDITOR
@@ -124,11 +124,9 @@ public partial struct StaticObjectLODUpdateSystem : ISystem
         s_VelocityCalcMarker.Data.End();
 #endif
         
-        // VR OPTIMIZATION: Adaptive frame skip based on player velocity
-        if (_frameCounter % effectiveFrameSkip != 0)
-        {
-            return;
-        }
+        // VR OPTIMIZATION: Adaptive frame skip based on player velocity.
+        // Near-field objects (within lod0Distance) always update; distant chunks skip on off-frames.
+        bool skipDistantUpdate = _frameCounter % effectiveFrameSkip != 0;
         
 #if UNITY_EDITOR
         s_ProfilerMarker.Data.Begin();
@@ -141,8 +139,9 @@ public partial struct StaticObjectLODUpdateSystem : ISystem
         _activeChunks.Clear();
         _activeChunksSet.Clear();
         
-        // Cover all chunks that can contain objects needing LOD transitions (not just 3x3 neighbors)
-        float coverageDistance = lodConfig.lod2Distance + lodConfig.hysteresisDelta;
+        float coverageDistance = skipDistantUpdate
+            ? lodConfig.lod0Distance + lodConfig.hysteresisDelta
+            : lodConfig.lod2Distance + lodConfig.hysteresisDelta;
         int chunkRadius = StaticObjectSpatialChunkUtility.GetChunkRadiusForDistance(coverageDistance);
         for (int x = -chunkRadius; x <= chunkRadius; x++)
         {
@@ -155,7 +154,9 @@ public partial struct StaticObjectLODUpdateSystem : ISystem
         }
         
         // Add rotating chunks beyond LOD coverage for stale LOD correction on distant visible objects
-        int extraChunksNeeded = math.max(0, lodConfig.maxChunksUpdatedPerFrame - _activeChunks.Length);
+        int extraChunksNeeded = skipDistantUpdate
+            ? 0
+            : math.max(0, lodConfig.maxChunksUpdatedPerFrame - _activeChunks.Length);
         if (extraChunksNeeded > 0)
         {
             int outerRadius = chunkRadius + 1;
@@ -184,6 +185,15 @@ public partial struct StaticObjectLODUpdateSystem : ISystem
         var lodMeshInfos = new NativeArray<MaterialMeshInfo>(lodInfoBuffer.Length, Allocator.TempJob);
         for (int i = 0; i < lodInfoBuffer.Length; i++)
             lodMeshInfos[i] = lodInfoBuffer[i].materialMeshInfo;
+
+        NativeArray<AABB> lodRenderBounds = default;
+        if (state.EntityManager.HasBuffer<StaticObjectLODRenderBoundsElement>(configEntity))
+        {
+            var boundsBuffer = state.EntityManager.GetBuffer<StaticObjectLODRenderBoundsElement>(configEntity, isReadOnly: true);
+            lodRenderBounds = new NativeArray<AABB>(boundsBuffer.Length, Allocator.TempJob);
+            for (int i = 0; i < boundsBuffer.Length; i++)
+                lodRenderBounds[i] = boundsBuffer[i].bounds;
+        }
 
         int objectTypeCount = lodConfig.lodsPerObjectType > 0
             ? lodMeshInfos.Length / lodConfig.lodsPerObjectType
@@ -218,13 +228,17 @@ public partial struct StaticObjectLODUpdateSystem : ISystem
             lodsPerObjectType = lodConfig.lodsPerObjectType,
             activeChunksSet = _activeChunksSet,
             maxStaticObjectsPerFrame = MaxStaticObjectsPerFrame,
-            frameCounter = _frameCounter, // Pass frame counter for distance-tiered updates
+            frameCounter = _frameCounter,
+            maxUpdateDistance = skipDistantUpdate ? lodConfig.lod0Distance : 0f,
             lodMeshInfos = lodMeshInfos,
+            lodRenderBounds = lodRenderBounds,
             objectTypeScales = objectTypeScales
         };
         
         state.Dependency = updateJob.ScheduleParallel(state.Dependency);
         lodMeshInfos.Dispose(state.Dependency);
+        if (lodRenderBounds.IsCreated)
+            lodRenderBounds.Dispose(state.Dependency);
         objectTypeScales.Dispose(state.Dependency);
         
 #if UNITY_EDITOR
@@ -253,6 +267,7 @@ public partial struct StaticObjectLODUpdateSystem : ISystem
     /// OPTIMIZED v3.0: Added distance-tiered updates (4 tiers: 0-100m, 100-200m, 200-300m, 300m+).
     /// </summary>
     [BurstCompile]
+    [WithAll(typeof(RenderBounds))]
     private partial struct StaticObjectLODUpdateJob : IJobEntity
     {
         [ReadOnly] public float3 playerPosition;
@@ -263,8 +278,11 @@ public partial struct StaticObjectLODUpdateSystem : ISystem
         [ReadOnly] public int lodsPerObjectType;
         [ReadOnly] public NativeHashSet<int2> activeChunksSet;
         [ReadOnly] public int maxStaticObjectsPerFrame;
-        [ReadOnly] public int frameCounter; // For distance-tiered updates
+        [ReadOnly] public int frameCounter;
+        /// <summary>When &gt; 0, only objects within this distance are updated (near-field bypass on skipped frames).</summary>
+        [ReadOnly] public float maxUpdateDistance;
         [ReadOnly] public NativeArray<MaterialMeshInfo> lodMeshInfos;
+        [ReadOnly] public NativeArray<AABB> lodRenderBounds;
         [ReadOnly] public NativeArray<StaticObjectTypeScaleElement> objectTypeScales;
         
         /// <summary>
@@ -276,6 +294,7 @@ public partial struct StaticObjectLODUpdateSystem : ISystem
             ref LocalTransform transform,
             ref GlobalStaticObjectInstanceData instanceData,
             ref MaterialMeshInfo materialMeshInfo,
+            ref RenderBounds renderBounds,
             in StaticObjectChunkMembership chunkMembership)
         {
             // OPTIMIZED: O(1) chunk lookup using HashSet
@@ -286,18 +305,20 @@ public partial struct StaticObjectLODUpdateSystem : ISystem
             float2 objectPos2D = new float2(transform.Position.x, transform.Position.z);
             float2 playerPos2D = new float2(playerPosition.x, playerPosition.z);
             float distance = math.distance(objectPos2D, playerPos2D);
+
+            if (maxUpdateDistance > 0f && distance > maxUpdateDistance)
+                return;
             
             // OPTIMIZED v3.0: Distance-tiered updates (4 tiers)
-            // Near static objects (0-100m): Update every frame
-            // Mid static objects (100-200m): Update every 2 frames
-            // Far static objects (200-300m): Update every 4 frames
-            // Very far static objects (300m+): Update every 8 frames
-            if (distance > 300f && frameCounter % 8 != 0)
-                return;
-            if (distance > 200f && frameCounter % 4 != 0)
-                return;
-            if (distance > 100f && frameCounter % 2 != 0)
-                return;
+            if (maxUpdateDistance <= 0f)
+            {
+                if (distance > 300f && frameCounter % 8 != 0)
+                    return;
+                if (distance > 200f && frameCounter % 4 != 0)
+                    return;
+                if (distance > 100f && frameCounter % 2 != 0)
+                    return;
+            }
             
             // Determine new LOD level with hysteresis
             byte currentLOD = instanceData.currentLODLevel;
@@ -310,6 +331,9 @@ public partial struct StaticObjectLODUpdateSystem : ISystem
                 
                 if (lodMeshInfos.Length > newMeshIndex)
                     materialMeshInfo = lodMeshInfos[newMeshIndex];
+
+                if (lodRenderBounds.IsCreated && lodRenderBounds.Length > newMeshIndex)
+                    renderBounds.Value = lodRenderBounds[newMeshIndex];
                 
                 float spawnScale = instanceData.spawnScale > 0f ? instanceData.spawnScale : transform.Scale;
                 if (instanceData.objectTypeIndex < objectTypeScales.Length)

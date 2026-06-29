@@ -1,4 +1,5 @@
 using Unity.Entities;
+using Unity.Mathematics;
 using Unity.Rendering;
 using UnityEngine;
 
@@ -12,6 +13,8 @@ using UnityEngine;
 /// LOD-update systems can retrieve the correct <see cref="MaterialMeshInfo"/> for any LOD slot
 /// without touching managed arrays.
 ///
+/// Also populates per-LOD <see cref="RenderBounds"/> and per-type max bounds for frustum culling.
+///
 /// After the buffer is populated, a <see cref="StaticObjectLODMeshInfoReady"/> tag is added to the
 /// config entity and this system disables itself.
 /// </summary>
@@ -20,6 +23,7 @@ using UnityEngine;
 public partial class StaticObjectLODMeshInfoInitSystem : SystemBase
 {
     private const int MaxEmptyBufferRetries = 120;
+    private const int LodsPerObjectType = 3;
     private int _emptyBufferRetryCount;
 
     /// <summary>Registers <see cref="StaticObjectSpawnerConfig"/> and <see cref="StaticObjectPrefabElement"/> requirements.</summary>
@@ -50,11 +54,19 @@ public partial class StaticObjectLODMeshInfoInitSystem : SystemBase
             return;
         }
 
-        if (!EntityManager.HasBuffer<StaticObjectLODMaterialMeshInfoElement>(configEntity))
-            EntityManager.AddBuffer<StaticObjectLODMaterialMeshInfoElement>(configEntity);
+        if (!EntityManager.HasBuffer<StaticObjectLODMaterialMeshInfoElement>(configEntity) ||
+            !EntityManager.HasBuffer<StaticObjectLODRenderBoundsElement>(configEntity) ||
+            !EntityManager.HasBuffer<StaticObjectTypeMaxRenderBoundsElement>(configEntity))
+        {
+            LogEmptyPrefabBufferFatal(configEntity,
+                "LOD lookup buffers are missing on the config entity. Re-bake the Entities SubScene.");
+            return;
+        }
 
         var prefabBuffer = EntityManager.GetBuffer<StaticObjectPrefabElement>(configEntity, isReadOnly: true);
         var infoBuffer = EntityManager.GetBuffer<StaticObjectLODMaterialMeshInfoElement>(configEntity);
+        var boundsBuffer = EntityManager.GetBuffer<StaticObjectLODRenderBoundsElement>(configEntity);
+        var maxBoundsBuffer = EntityManager.GetBuffer<StaticObjectTypeMaxRenderBoundsElement>(configEntity);
 
         if (prefabBuffer.Length == 0)
         {
@@ -78,6 +90,8 @@ public partial class StaticObjectLODMeshInfoInitSystem : SystemBase
 
         _emptyBufferRetryCount = 0;
         infoBuffer.Clear();
+        boundsBuffer.Clear();
+        maxBoundsBuffer.Clear();
 
         int missing = 0;
         for (int i = 0; i < prefabBuffer.Length; i++)
@@ -87,12 +101,19 @@ public partial class StaticObjectLODMeshInfoInitSystem : SystemBase
             if (!EntityManager.Exists(prefabEntity) || !EntityManager.HasComponent<MaterialMeshInfo>(prefabEntity))
             {
                 infoBuffer.Clear();
+                boundsBuffer.Clear();
+                maxBoundsBuffer.Clear();
                 missing++;
                 break;
             }
 
             var info = EntityManager.GetComponentData<MaterialMeshInfo>(prefabEntity);
             infoBuffer.Add(new StaticObjectLODMaterialMeshInfoElement { materialMeshInfo = info });
+
+            AABB bounds = EntityManager.HasComponent<RenderBounds>(prefabEntity)
+                ? EntityManager.GetComponentData<RenderBounds>(prefabEntity).Value
+                : new AABB { Center = float3.zero, Extents = new float3(5f, 10f, 5f) };
+            boundsBuffer.Add(new StaticObjectLODRenderBoundsElement { bounds = bounds });
         }
 
         if (missing > 0)
@@ -101,12 +122,53 @@ public partial class StaticObjectLODMeshInfoInitSystem : SystemBase
             return;
         }
 
+        int objectTypeCount = prefabBuffer.Length / LodsPerObjectType;
+        for (int typeIndex = 0; typeIndex < objectTypeCount; typeIndex++)
+        {
+            AABB maxBounds = default;
+            bool hasBounds = false;
+            for (int lod = 0; lod < LodsPerObjectType; lod++)
+            {
+                int slotIndex = typeIndex * LodsPerObjectType + lod;
+                if (slotIndex >= boundsBuffer.Length)
+                    continue;
+
+                var lodBounds = boundsBuffer[slotIndex].bounds;
+                if (!hasBounds)
+                {
+                    maxBounds = lodBounds;
+                    hasBounds = true;
+                }
+                else
+                {
+                    maxBounds = EncapsulateAabb(maxBounds, lodBounds);
+                }
+            }
+
+            if (!hasBounds)
+                maxBounds = new AABB { Center = float3.zero, Extents = new float3(5f, 10f, 5f) };
+
+            maxBoundsBuffer.Add(new StaticObjectTypeMaxRenderBoundsElement { bounds = maxBounds });
+        }
+
         int populatedCount = infoBuffer.Length;
+        int maxBoundsCount = maxBoundsBuffer.Length;
 
         EntityManager.AddComponent<StaticObjectLODMeshInfoReady>(configEntity);
         Enabled = false;
 
-        Debug.Log($"[StaticObjectLODMeshInfoInit] Populated {populatedCount} LOD MaterialMeshInfo slots.");
+        Debug.Log($"[StaticObjectLODMeshInfoInit] Populated {populatedCount} LOD MaterialMeshInfo slots and {maxBoundsCount} type max-bounds entries.");
+    }
+
+    private static AABB EncapsulateAabb(AABB a, AABB b)
+    {
+        float3 aMin = a.Center - a.Extents;
+        float3 aMax = a.Center + a.Extents;
+        float3 bMin = b.Center - b.Extents;
+        float3 bMax = b.Center + b.Extents;
+        float3 min = math.min(aMin, bMin);
+        float3 max = math.max(aMax, bMax);
+        return new AABB { Center = (min + max) * 0.5f, Extents = (max - min) * 0.5f };
     }
 
     private void LogEmptyPrefabBufferFatal(Entity configEntity, string detail)

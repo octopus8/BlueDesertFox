@@ -92,6 +92,14 @@ public class StaticObjectSpawnerConfigAuthoring : MonoBehaviour
 
 
 
+    [Tooltip("Maximum objects to spawn per frame for tiles within LOD0 distance (near-field). Default: 300.")]
+
+    [Range(1, 800)]
+
+    public int maxNearObjectsSpawnedPerFrame = 300;
+
+
+
     [Tooltip("Maximum spawn-position rejection attempts per frame, divided across tiles calculating positions")]
 
     [Range(500, 50000)]
@@ -208,6 +216,8 @@ public class StaticObjectSpawnerConfigAuthoring : MonoBehaviour
 
                 maxObjectsSpawnedPerFrame = authoring.maxObjectsSpawnedPerFrame,
 
+                maxNearObjectsSpawnedPerFrame = authoring.maxNearObjectsSpawnedPerFrame,
+
                 maxPositionCalcAttemptsPerFrame = authoring.maxPositionCalcAttemptsPerFrame,
 
                 enableSpawnerDebug = authoring.enableSpawnerDebug
@@ -255,6 +265,10 @@ public class StaticObjectSpawnerConfigAuthoring : MonoBehaviour
             // Add buffer for object prefab entities
 
             var objectPrefabBuffer = AddBuffer<StaticObjectPrefabElement>(entity);
+
+            AddBuffer<StaticObjectLODMaterialMeshInfoElement>(entity);
+            AddBuffer<StaticObjectLODRenderBoundsElement>(entity);
+            AddBuffer<StaticObjectTypeMaxRenderBoundsElement>(entity);
 
             
 
@@ -579,6 +593,8 @@ public class StaticObjectSpawnerConfigAuthoring : MonoBehaviour
         maxSlopeDegrees = Mathf.Clamp(maxSlopeDegrees, 0f, 90f);
 
         maxObjectsSpawnedPerFrame = Mathf.Max(1, maxObjectsSpawnedPerFrame);
+
+        maxNearObjectsSpawnedPerFrame = Mathf.Max(1, maxNearObjectsSpawnedPerFrame);
 
         maxPositionCalcAttemptsPerFrame = Mathf.Max(500, maxPositionCalcAttemptsPerFrame);
 

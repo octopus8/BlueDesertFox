@@ -422,7 +422,25 @@ public partial struct TerrainMeshCompleteSystem : ISystem
 
                     if (state.EntityManager.HasComponent<StaticObjectsSpawned>(entity))
                     {
+                        if (state.EntityManager.HasBuffer<SpawnedStaticObjectReference>(entity))
+                        {
+                            var spawnedObjects = state.EntityManager.GetBuffer<SpawnedStaticObjectReference>(entity);
+                            for (int objIdx = spawnedObjects.Length - 1; objIdx >= 0; objIdx--)
+                            {
+                                var objectEntity = spawnedObjects[objIdx].objectEntity;
+                                if (state.EntityManager.Exists(objectEntity))
+                                    state.EntityManager.DestroyEntity(objectEntity);
+                                spawnedObjects.RemoveAt(objIdx);
+                            }
+                        }
+
                         state.EntityManager.RemoveComponent<StaticObjectsSpawned>(entity);
+                        if (state.EntityManager.HasComponent<StaticObjectSpawnProgress>(entity))
+                            state.EntityManager.RemoveComponent<StaticObjectSpawnProgress>(entity);
+                        if (state.EntityManager.HasComponent<StaticObjectPositionCalcProgress>(entity))
+                            state.EntityManager.RemoveComponent<StaticObjectPositionCalcProgress>(entity);
+                        if (state.EntityManager.HasBuffer<StaticObjectSpawnPosition>(entity))
+                            state.EntityManager.GetBuffer<StaticObjectSpawnPosition>(entity).Clear();
 #if UNITY_EDITOR
                         UnityEngine.Debug.Log($"[TerrainMesh] Removed StaticObjectsSpawned tag from regenerated tile {tile.gridCoordinate}");
 #endif

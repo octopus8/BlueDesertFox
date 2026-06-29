@@ -358,6 +358,9 @@ public struct StaticObjectSpawnerConfig : IComponentData
     /// <summary>Maximum number of Objects to spawn per frame (performance budgeting).</summary>
     public int maxObjectsSpawnedPerFrame;
 
+    /// <summary>Maximum objects to spawn per frame for tiles within LOD0 distance (near-field burst budget).</summary>
+    public int maxNearObjectsSpawnedPerFrame;
+
     /// <summary>Maximum spawn-position rejection attempts per frame (spread across active tiles).</summary>
     public int maxPositionCalcAttemptsPerFrame;
     
@@ -577,6 +580,23 @@ public struct StaticObjectChunkMembership : IComponentData
 public struct StaticObjectLODMaterialMeshInfoElement : IBufferElementData
 {
     public Unity.Rendering.MaterialMeshInfo materialMeshInfo;
+}
+
+/// <summary>
+/// Per-LOD-prefab render bounds lookup (same index order as StaticObjectLODMaterialMeshInfoElement).
+/// </summary>
+public struct StaticObjectLODRenderBoundsElement : IBufferElementData
+{
+    public Unity.Mathematics.AABB bounds;
+}
+
+/// <summary>
+/// Conservative max render bounds per object type (union of all LOD prefab bounds).
+/// Used at spawn time so frustum culling is safe before the first LOD pass runs.
+/// </summary>
+public struct StaticObjectTypeMaxRenderBoundsElement : IBufferElementData
+{
+    public Unity.Mathematics.AABB bounds;
 }
 
 /// <summary>

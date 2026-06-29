@@ -3,10 +3,10 @@ using Unity.Mathematics;
 using UnityEngine;
 
 /// <summary>
-/// Reads the player's Transform once at the start of PresentationSystemGroup and writes
+/// Reads the player's Transform once at the start of SimulationSystemGroup and writes
 /// pose data into CameraDataSingleton for use by terrain systems without managed references.
 /// </summary>
-[UpdateInGroup(typeof(PresentationSystemGroup), OrderFirst = true)]
+[UpdateInGroup(typeof(SimulationSystemGroup), OrderFirst = true)]
 public partial class CameraDataUpdateSystem : SystemBase
 {
     protected override void OnCreate()
