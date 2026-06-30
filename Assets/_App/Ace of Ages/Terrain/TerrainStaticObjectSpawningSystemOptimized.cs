@@ -436,6 +436,13 @@ public partial struct TerrainTreeSpawningSystemOptimized : ISystem
         var tileTransformLookup = SystemAPI.GetComponentLookup<LocalTransform>(true);
         tileTransformLookup.Update(ref state);
 
+        var hierarchicalPrefabs = new NativeArray<bool>(objectPrefabCount, Allocator.TempJob);
+        for (int i = 0; i < objectPrefabCount; i++)
+        {
+            hierarchicalPrefabs[i] = state.EntityManager.HasComponent<PendingStaticObjectRendererStrip>(
+                objectPrefabsBuffer[i].prefabEntity);
+        }
+
 #if UNITY_EDITOR
         using (s_InstantiationMarker.Auto())
 #endif
@@ -445,6 +452,7 @@ public partial struct TerrainTreeSpawningSystemOptimized : ISystem
                 ecb = ecb,
                 workItems = workItems.AsDeferredJobArray(),
                 objectPrefabs = objectPrefabs,
+                hierarchicalPrefabs = hierarchicalPrefabs,
                 objectTypeScales = objectTypeScales,
                 billboardTypes = billboardTypes,
                 lodMeshInfos = lodMeshInfos,
@@ -462,6 +470,7 @@ public partial struct TerrainTreeSpawningSystemOptimized : ISystem
         }
 
         objectPrefabs.Dispose(state.Dependency);
+        hierarchicalPrefabs.Dispose(state.Dependency);
         objectPrefabRotations.Dispose(state.Dependency);
         objectTypeScales.Dispose(state.Dependency);
         objectTypeWeightPrefixSum.Dispose(state.Dependency);
@@ -754,6 +763,7 @@ struct InstantiateStaticObjectsJob : IJobParallelForDefer
 
     [ReadOnly] public NativeArray<StaticObjectSpawnWorkItem> workItems;
     [ReadOnly] public NativeArray<Entity> objectPrefabs;
+    [ReadOnly] public NativeArray<bool> hierarchicalPrefabs;
     [ReadOnly] public NativeArray<StaticObjectTypeScaleElement> objectTypeScales;
     [ReadOnly] public NativeArray<bool> billboardTypes;
     [ReadOnly] public NativeArray<MaterialMeshInfo> lodMeshInfos;
@@ -828,6 +838,9 @@ struct InstantiateStaticObjectsJob : IJobParallelForDefer
             };
             ecb.SetComponent(index, objectEntity, spawnTransform);
             ecb.SetComponent(index, objectEntity, StaticObjectHierarchyFlattenUtility.LocalToWorldFromLocalTransform(spawnTransform));
+
+            if (prefabIndexLOD0 < hierarchicalPrefabs.Length && hierarchicalPrefabs[prefabIndexLOD0])
+                ecb.AddComponent<DisableRendering>(index, objectEntity);
 
             if (lodMeshInfos.Length > meshIndex)
                 ecb.SetComponent(index, objectEntity, lodMeshInfos[meshIndex]);

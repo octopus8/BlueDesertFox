@@ -1,5 +1,6 @@
 using Unity.Entities;
 using Unity.Mathematics;
+using Unity.Rendering;
 using UnityEngine;
 
 /// <summary>
@@ -59,6 +60,9 @@ public class TurretBarrelAuthoring : MonoBehaviour
                 minPitchAngle = math.radians(authoring.minPitchDegrees),
                 maxPitchAngle = math.radians(authoring.maxPitchDegrees)
             });
+
+            if (authoring.GetComponent<MeshRenderer>() != null)
+                AddComponent<DisableRendering>(entity);
         }
     }
 }

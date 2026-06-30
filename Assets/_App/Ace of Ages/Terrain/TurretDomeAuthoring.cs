@@ -1,5 +1,6 @@
 using Unity.Entities;
 using Unity.Mathematics;
+using Unity.Rendering;
 using UnityEngine;
 
 /// <summary>
@@ -31,6 +32,9 @@ public class TurretDomeAuthoring : MonoBehaviour
                 rotationSpeed = authoring.rotationSpeed,
                 currentYAngle = 0f
             });
+
+            if (authoring.GetComponent<MeshRenderer>() != null)
+                AddComponent<DisableRendering>(entity);
         }
     }
 }

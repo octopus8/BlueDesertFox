@@ -11,8 +11,7 @@ using Unity.Entities;
 /// their <see cref="Unity.Rendering.MaterialMeshInfo"/> and are rendered via Entities.Graphics (BRG).
 /// </summary>
 [RequireMatchingQueriesForUpdate]
-[UpdateInGroup(typeof(SimulationSystemGroup))]
-[UpdateAfter(typeof(EndSimulationEntityCommandBufferSystem))]
+[UpdateInGroup(typeof(PresentationSystemGroup), OrderFirst = true)]
 public partial struct StaticObjectLinkedRendererStripSystem : ISystem
 {
     /// <summary>Registers the <see cref="PendingStaticObjectRendererStrip"/> requirement.</summary>
