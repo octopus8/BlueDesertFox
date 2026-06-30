@@ -820,12 +820,14 @@ struct InstantiateStaticObjectsJob : IJobParallelForDefer
             int meshIndex = (spawnData.objectTypeIndex * 3) + spawnLod;
             float displayScale = spawnScale * typeScale.GetLodScaleMultiplier(spawnLod);
 
-            ecb.SetComponent(index, objectEntity, new LocalTransform
+            var spawnTransform = new LocalTransform
             {
                 Position = worldPosition,
                 Rotation = spawnData.rotation,
                 Scale = displayScale
-            });
+            };
+            ecb.SetComponent(index, objectEntity, spawnTransform);
+            ecb.SetComponent(index, objectEntity, StaticObjectHierarchyFlattenUtility.LocalToWorldFromLocalTransform(spawnTransform));
 
             if (lodMeshInfos.Length > meshIndex)
                 ecb.SetComponent(index, objectEntity, lodMeshInfos[meshIndex]);

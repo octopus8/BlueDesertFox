@@ -10,6 +10,13 @@ using Unity.Transforms;
 public static class StaticObjectHierarchyFlattenUtility
 {
     /// <summary>
+    /// Builds a <see cref="LocalToWorld"/> matrix from a world-space <see cref="LocalTransform"/>.
+    /// Use when writing transforms after <see cref="LocalToWorldSystem"/> has already run this frame.
+    /// </summary>
+    public static LocalToWorld LocalToWorldFromLocalTransform(LocalTransform lt)
+        => new LocalToWorld { Value = float4x4.TRS(lt.Position, lt.Rotation, new float3(lt.Scale)) };
+
+    /// <summary>
     /// Flattens all entities in <see cref="LinkedEntityGroup"/> under <paramref name="root"/>.
     /// Expects <paramref name="root"/> to already have world-space <see cref="LocalTransform"/> and tile ownership.
     /// </summary>
@@ -74,6 +81,7 @@ public static class StaticObjectHierarchyFlattenUtility
 
             var worldTransform = LocalTransformFromWorldMatrix(worldMat);
             entityManager.SetComponentData(e, worldTransform);
+            entityManager.SetComponentData(e, LocalToWorldFromLocalTransform(worldTransform));
 
             if (!entityManager.HasComponent<StaticObjectTileOwnership>(e))
             {
