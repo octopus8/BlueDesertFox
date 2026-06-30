@@ -196,8 +196,8 @@ public partial struct TileSpawningSystem : ISystem
         var spawnedObjects = state.EntityManager.GetBuffer<SpawnedStaticObjectReference>(tileEntity);
         foreach (var objectRef in spawnedObjects)
         {
-            if (state.EntityManager.Exists(objectRef.objectEntity))
-                ecb.DestroyEntity(objectRef.objectEntity);
+            StaticObjectHierarchyDestroyUtility.DestroyHierarchy(
+                objectRef.objectEntity, ecb, state.EntityManager);
         }
     }
 
@@ -233,14 +233,29 @@ public partial struct TileSpawningSystem : ISystem
             if (destroyed >= budget)
                 continue;
 
-            for (int i = buffer.Length - 1; i >= 0 && destroyed < budget; i--)
+            for (int i = buffer.Length - 1; i >= 0; i--)
             {
+                if (destroyed >= budget)
+                    break;
+
                 var objectEntity = buffer[i].objectEntity;
-                if (em.Exists(objectEntity))
+                if (!em.Exists(objectEntity))
                 {
-                    ecb.DestroyEntity(objectEntity);
-                    destroyed++;
+                    buffer.RemoveAt(i);
+                    continue;
                 }
+
+                int groupCount = StaticObjectHierarchyDestroyUtility.CountLinkedEntities(objectEntity, em);
+                if (groupCount == 0)
+                {
+                    buffer.RemoveAt(i);
+                    continue;
+                }
+
+                if (destroyed + groupCount > budget)
+                    continue;
+
+                destroyed += StaticObjectHierarchyDestroyUtility.DestroyHierarchy(objectEntity, ecb, em);
                 buffer.RemoveAt(i);
             }
 

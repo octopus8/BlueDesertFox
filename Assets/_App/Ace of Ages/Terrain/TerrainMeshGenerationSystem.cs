@@ -428,8 +428,8 @@ public partial struct TerrainMeshCompleteSystem : ISystem
                             for (int objIdx = spawnedObjects.Length - 1; objIdx >= 0; objIdx--)
                             {
                                 var objectEntity = spawnedObjects[objIdx].objectEntity;
-                                if (state.EntityManager.Exists(objectEntity))
-                                    state.EntityManager.DestroyEntity(objectEntity);
+                                StaticObjectHierarchyDestroyUtility.DestroyHierarchyImmediate(
+                                    objectEntity, state.EntityManager);
                                 spawnedObjects.RemoveAt(objIdx);
                             }
                         }

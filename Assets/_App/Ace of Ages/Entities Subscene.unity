@@ -586,7 +586,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::BulletPoolConfigAuthoring
   initialPoolSize: 50
-  maxPoolSize: 50
+  maxPoolSize: 300
 --- !u!4 &582652031
 Transform:
   m_ObjectHideFlags: 0
@@ -615,7 +615,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::DirtExplosionPoolConfigAuthoring
   initialPoolSize: 50
-  maxPoolSize: 50
+  maxPoolSize: 300
   lifetime: 2.5
 --- !u!1001 &582819465
 PrefabInstance:
@@ -5996,20 +5996,20 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::StaticObjectSpawnerConfigAuthoring
   objectLODSets:
-  - lodSet: {fileID: 11400000, guid: e7de8a9f2d9ca814682cdfb9073cd20e, type: 2}
-    spawnWeight: 1
-    maxScaleDelta: 0.5
-  - lodSet: {fileID: 11400000, guid: b77b000478ae3ac48b61b9af41161eba, type: 2}
-    spawnWeight: 1
-    maxScaleDelta: 0.5
-  - lodSet: {fileID: 11400000, guid: d47c3ee472c3bb2498b37658e653adbf, type: 2}
-    spawnWeight: 1
-    maxScaleDelta: 0.5
   - lodSet: {fileID: 11400000, guid: 4101bf1351cde7442a780cfaa191badb, type: 2}
     spawnWeight: 1
-    maxScaleDelta: 0.5
-  - lodSet: {fileID: 11400000, guid: 6c907d32e667f4348a66bfff024ae84f, type: 2}
-    spawnWeight: 0
+    maxScaleDelta: 0
+  - lodSet: {fileID: 11400000, guid: b77b000478ae3ac48b61b9af41161eba, type: 2}
+    spawnWeight: 0.1
+    maxScaleDelta: 0
+  - lodSet: {fileID: 11400000, guid: e7de8a9f2d9ca814682cdfb9073cd20e, type: 2}
+    spawnWeight: 0.1
+    maxScaleDelta: 0
+  - lodSet: {fileID: 11400000, guid: d47c3ee472c3bb2498b37658e653adbf, type: 2}
+    spawnWeight: 0.1
+    maxScaleDelta: 0
+  - lodSet: {fileID: 11400000, guid: d4d8140911406aa4084f758af61cd1bf, type: 2}
+    spawnWeight: 0.01
     maxScaleDelta: 0
   lod0Distance: 200
   lod1Distance: 400
