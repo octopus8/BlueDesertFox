@@ -12,6 +12,7 @@ using Unity.Transforms;
 [BurstCompile]
 [UpdateInGroup(typeof(TransformSystemGroup))]
 [UpdateAfter(typeof(objectPositionUpdateSystem))]
+[UpdateAfter(typeof(StaticObjectLODUpdateSystem))]
 [UpdateBefore(typeof(LocalToWorldSystem))]
 [RequireMatchingQueriesForUpdate]
 public partial struct StaticObjectBillboardSystem : ISystem

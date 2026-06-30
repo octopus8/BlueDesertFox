@@ -410,12 +410,21 @@ public partial struct TerrainTreeSpawningSystemOptimized : ISystem
             lodMeshInfos[i] = lodInfoBuffer[i].materialMeshInfo;
 
         NativeArray<Unity.Mathematics.AABB> objectTypeMaxRenderBounds = default;
+        NativeArray<Unity.Mathematics.AABB> lodRenderBounds = default;
         if (state.EntityManager.HasBuffer<StaticObjectTypeMaxRenderBoundsElement>(configEntity))
         {
             var maxBoundsBuffer = state.EntityManager.GetBuffer<StaticObjectTypeMaxRenderBoundsElement>(configEntity, true);
             objectTypeMaxRenderBounds = new NativeArray<Unity.Mathematics.AABB>(maxBoundsBuffer.Length, Allocator.TempJob);
             for (int i = 0; i < maxBoundsBuffer.Length; i++)
                 objectTypeMaxRenderBounds[i] = maxBoundsBuffer[i].bounds;
+        }
+
+        if (state.EntityManager.HasBuffer<StaticObjectLODRenderBoundsElement>(configEntity))
+        {
+            var boundsBuffer = state.EntityManager.GetBuffer<StaticObjectLODRenderBoundsElement>(configEntity, true);
+            lodRenderBounds = new NativeArray<Unity.Mathematics.AABB>(boundsBuffer.Length, Allocator.TempJob);
+            for (int i = 0; i < boundsBuffer.Length; i++)
+                lodRenderBounds[i] = boundsBuffer[i].bounds;
         }
 
         var ecbSingleton = SystemAPI.GetSingleton<EndSimulationEntityCommandBufferSystem.Singleton>();
@@ -439,9 +448,14 @@ public partial struct TerrainTreeSpawningSystemOptimized : ISystem
                 objectTypeScales = objectTypeScales,
                 billboardTypes = billboardTypes,
                 lodMeshInfos = lodMeshInfos,
+                lodRenderBounds = lodRenderBounds,
                 objectTypeMaxRenderBounds = objectTypeMaxRenderBounds,
                 spawnPositionLookup = spawnPositionLookup,
-                tileTransformLookup = tileTransformLookup
+                tileTransformLookup = tileTransformLookup,
+                cameraPosition = cameraData.position,
+                hasLODConfig = hasLODConfig,
+                lod0Distance = hasLODConfig ? lodConfig.lod0Distance : 0f,
+                lod1Distance = hasLODConfig ? lodConfig.lod1Distance : 0f
             };
 
             state.Dependency = instantiateJob.Schedule(workItems, 1, state.Dependency);
@@ -453,6 +467,8 @@ public partial struct TerrainTreeSpawningSystemOptimized : ISystem
         objectTypeWeightPrefixSum.Dispose(state.Dependency);
         billboardTypes.Dispose(state.Dependency);
         lodMeshInfos.Dispose(state.Dependency);
+        if (lodRenderBounds.IsCreated)
+            lodRenderBounds.Dispose(state.Dependency);
         if (objectTypeMaxRenderBounds.IsCreated)
             objectTypeMaxRenderBounds.Dispose(state.Dependency);
         workItems.Dispose(state.Dependency);
@@ -741,10 +757,15 @@ struct InstantiateStaticObjectsJob : IJobParallelForDefer
     [ReadOnly] public NativeArray<StaticObjectTypeScaleElement> objectTypeScales;
     [ReadOnly] public NativeArray<bool> billboardTypes;
     [ReadOnly] public NativeArray<MaterialMeshInfo> lodMeshInfos;
+    [ReadOnly] public NativeArray<Unity.Mathematics.AABB> lodRenderBounds;
     [ReadOnly] public NativeArray<Unity.Mathematics.AABB> objectTypeMaxRenderBounds;
 
     [ReadOnly] public BufferLookup<StaticObjectSpawnPosition> spawnPositionLookup;
     [ReadOnly] public ComponentLookup<LocalTransform> tileTransformLookup;
+    [ReadOnly] public float3 cameraPosition;
+    [ReadOnly] public bool hasLODConfig;
+    [ReadOnly] public float lod0Distance;
+    [ReadOnly] public float lod1Distance;
 
     public void Execute(int index)
     {
@@ -779,7 +800,25 @@ struct InstantiateStaticObjectsJob : IJobParallelForDefer
                 ? objectTypeScales[spawnData.objectTypeIndex]
                 : new StaticObjectTypeScaleElement { baseScale = 1f, lod1ScaleMultiplier = 1f, lod2ScaleMultiplier = 1f };
             float spawnScale = spawnData.scale;
-            float displayScale = spawnScale * typeScale.GetLodScaleMultiplier(spawnData.initialLODLevel);
+
+            byte spawnLod = spawnData.initialLODLevel;
+            float spawnDistance = spawnData.initialDistance;
+            if (hasLODConfig)
+            {
+                float2 objectPos2D = new float2(worldPosition.x, worldPosition.z);
+                float2 cameraPos2D = new float2(cameraPosition.x, cameraPosition.z);
+                spawnDistance = math.distance(objectPos2D, cameraPos2D);
+
+                if (spawnDistance >= lod1Distance)
+                    spawnLod = 2;
+                else if (spawnDistance >= lod0Distance)
+                    spawnLod = 1;
+                else
+                    spawnLod = 0;
+            }
+
+            int meshIndex = (spawnData.objectTypeIndex * 3) + spawnLod;
+            float displayScale = spawnScale * typeScale.GetLodScaleMultiplier(spawnLod);
 
             ecb.SetComponent(index, objectEntity, new LocalTransform
             {
@@ -788,10 +827,17 @@ struct InstantiateStaticObjectsJob : IJobParallelForDefer
                 Scale = displayScale
             });
 
-            if (lodMeshInfos.Length > spawnData.initialMeshIndex)
-                ecb.SetComponent(index, objectEntity, lodMeshInfos[spawnData.initialMeshIndex]);
+            if (lodMeshInfos.Length > meshIndex)
+                ecb.SetComponent(index, objectEntity, lodMeshInfos[meshIndex]);
 
-            if (objectTypeMaxRenderBounds.IsCreated && spawnData.objectTypeIndex < objectTypeMaxRenderBounds.Length)
+            if (lodRenderBounds.IsCreated && lodRenderBounds.Length > meshIndex)
+            {
+                ecb.SetComponent(index, objectEntity, new RenderBounds
+                {
+                    Value = lodRenderBounds[meshIndex]
+                });
+            }
+            else if (objectTypeMaxRenderBounds.IsCreated && spawnData.objectTypeIndex < objectTypeMaxRenderBounds.Length)
             {
                 ecb.SetComponent(index, objectEntity, new RenderBounds
                 {
@@ -806,8 +852,8 @@ struct InstantiateStaticObjectsJob : IJobParallelForDefer
             {
                 prefabIndex = prefabIndexLOD0,
                 objectTypeIndex = spawnData.objectTypeIndex,
-                currentLODLevel = spawnData.initialLODLevel,
-                lastDistanceToPlayer = spawnData.initialDistance,
+                currentLODLevel = spawnLod,
+                lastDistanceToPlayer = spawnDistance,
                 isBillboardType = isBillboard,
                 spawnScale = spawnScale
             });

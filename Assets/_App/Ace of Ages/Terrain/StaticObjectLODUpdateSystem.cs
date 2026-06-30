@@ -323,25 +323,26 @@ public partial struct StaticObjectLODUpdateSystem : ISystem
             // Determine new LOD level with hysteresis
             byte currentLOD = instanceData.currentLODLevel;
             byte newLOD = DetermineLODLevel(distance, currentLOD, lod0Distance, lod1Distance, lod2Distance, hysteresis);
-            
-            // Update if LOD changed — write MaterialMeshInfo so BRG switches mesh/material.
+
+            float spawnScale = instanceData.spawnScale > 0f ? instanceData.spawnScale : transform.Scale;
+            if (instanceData.objectTypeIndex < objectTypeScales.Length)
+            {
+                var typeScale = objectTypeScales[instanceData.objectTypeIndex];
+                // Apply target LOD scale before mesh swap on the transition frame (no early pre-scale).
+                transform.Scale = spawnScale * typeScale.GetLodScaleMultiplier(newLOD);
+            }
+
+            // Update if LOD changed — write MaterialMeshInfo after scale so BRG switches mesh/material.
             if (newLOD != currentLOD)
             {
                 int newMeshIndex = (instanceData.objectTypeIndex * lodsPerObjectType) + newLOD;
-                
+
                 if (lodMeshInfos.Length > newMeshIndex)
                     materialMeshInfo = lodMeshInfos[newMeshIndex];
 
                 if (lodRenderBounds.IsCreated && lodRenderBounds.Length > newMeshIndex)
                     renderBounds.Value = lodRenderBounds[newMeshIndex];
-                
-                float spawnScale = instanceData.spawnScale > 0f ? instanceData.spawnScale : transform.Scale;
-                if (instanceData.objectTypeIndex < objectTypeScales.Length)
-                {
-                    var typeScale = objectTypeScales[instanceData.objectTypeIndex];
-                    transform.Scale = spawnScale * typeScale.GetLodScaleMultiplier(newLOD);
-                }
-                
+
                 instanceData.currentLODLevel = newLOD;
             }
             
