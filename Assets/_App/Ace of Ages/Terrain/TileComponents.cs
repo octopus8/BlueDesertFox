@@ -539,9 +539,6 @@ public struct StaticObjectLODConfig : IComponentData
     
     // QUEST 3 VR OPTIMIZATIONS
     
-    /// <summary>Maximum number of unique mesh/material batch combinations. Default: 32. Increase if seeing capacity warnings.</summary>
-    public int maxUniqueBatches;
-    
     /// <summary>Frame skip interval when player velocity exceeds threshold during terrain scrolling. Default: 4 (update every 4th frame). Quest 3 recommended: 3-4.</summary>
     public int vrFrameSkipScrolling;
     

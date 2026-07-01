@@ -54,10 +54,6 @@ public class StaticObjectSpawnerConfigAuthoring : MonoBehaviour
     public int maxPositionCalcAttemptsPerFrame = 4000;
 
     [Header("Quest 3 VR Optimizations")]
-    [Tooltip("Maximum number of unique mesh/material batch combinations. Increase if seeing capacity warnings in logs. Default: 32")]
-    [Range(16, 128)]
-    public int maxUniqueBatches = 32;
-
     [Tooltip("Frame skip interval when player velocity exceeds threshold during terrain scrolling. Quest 3 @ 72Hz recommended: 3-4. Higher = more performance, less responsive LOD.")]
     [Range(1, 8)]
     public int vrFrameSkipScrolling = 4;
@@ -106,7 +102,6 @@ public class StaticObjectSpawnerConfigAuthoring : MonoBehaviour
                 lodsPerObjectType = 3, // Hardcoded to 3 LOD levels
                 maxChunksUpdatedPerFrame = 25,
                 // Quest 3 VR Optimizations
-                maxUniqueBatches = authoring.maxUniqueBatches,
                 vrFrameSkipScrolling = authoring.vrFrameSkipScrolling,
                 playerVelocityThreshold = authoring.playerVelocityThreshold
             });

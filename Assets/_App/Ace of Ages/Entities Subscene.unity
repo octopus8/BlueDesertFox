@@ -6020,7 +6020,6 @@ MonoBehaviour:
   maxObjectsSpawnedPerFrame: 100
   maxNearObjectsSpawnedPerFrame: 300
   maxPositionCalcAttemptsPerFrame: 4000
-  maxUniqueBatches: 32
   vrFrameSkipScrolling: 2
   playerVelocityThreshold: 0.5
 --- !u!1 &1730959682

@@ -1,5 +1,7 @@
 # ✅ FIXED: Nested Native Container Error - Implementation Complete
 
+> **Historical:** `GlobalTreeInstanceSystem` was removed in May 2026 when static object rendering migrated to Entities Graphics (BRG).
+
 **Date**: May 2, 2026  
 **Error**: `InvalidOperationException: Nested native containers are illegal in jobs`  
 **Status**: ✅ **RESOLVED**  

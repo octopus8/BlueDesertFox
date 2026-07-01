@@ -99,7 +99,7 @@ public struct StaticObjectLODWeights : IBufferElementData
 | `TerrainTreeSpawningSystem.cs` | *(removed; replaced by optimized system)* |
 | `TerrainTreeSpawningSystemOptimized.cs` | `TerrainStaticObjectSpawningSystemOptimized.cs` |
 | `TreePositionUpdateSystem.cs` | `StaticObjectPositionUpdateSystem.cs` |
-| `GlobalTreeInstanceSystem.cs` | `GlobalStaticObjectInstanceSystem.cs` |
+| `GlobalTreeInstanceSystem.cs` | *(removed; replaced by Entities Graphics / BRG via `MaterialMeshInfo`)* |
 | `TreeLODUpdateSystem.cs` | `StaticObjectLODUpdateSystem.cs` |
 | `TreeSpatialChunkingSystem.cs` | `StaticObjectSpatialChunkingSystem.cs` |
 | `TreeLODDebugSystem.cs` | `StaticObjectLODDebugSystem.cs` |
@@ -285,7 +285,7 @@ var prefabs = EntityManager.GetBuffer<StaticObjectPrefabElement>(entity);
 ### Core Systems (7 files renamed + updated)
 - TerrainStaticObjectSpawningSystemOptimized.cs
 - StaticObjectPositionUpdateSystem.cs
-- GlobalStaticObjectInstanceSystem.cs
+- *(GlobalStaticObjectInstanceSystem.cs removed — rendering via Entities Graphics / BRG)*
 - StaticObjectLODUpdateSystem.cs
 - StaticObjectSpatialChunkingSystem.cs
 - StaticObjectLODDebugSystem.cs
