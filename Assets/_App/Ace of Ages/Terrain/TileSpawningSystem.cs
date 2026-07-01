@@ -4,10 +4,6 @@ using Unity.Entities;
 using Unity.Mathematics;
 using Unity.Transforms;
 
-#if UNITY_EDITOR
-using UnityEngine;
-#endif
-
 /// <summary>
 /// System that spawns and despawns terrain tiles based on player position.
 /// Uses a NativeParallelHashMap to track active tiles efficiently.

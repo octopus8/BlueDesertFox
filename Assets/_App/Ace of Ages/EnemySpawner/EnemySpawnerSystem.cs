@@ -3,9 +3,6 @@ using Unity.Entities;
 using Unity.Mathematics;
 using Unity.Physics;
 using Unity.Transforms;
-using UnityEngine;
-
-
 /// <summary>
 /// Spawns enemy entities in bowling-pin formations on a Unity Splines path when an
 /// <see cref="EnemySpawner.doSpawn"/> flag is raised. Each spawned entity receives
@@ -51,7 +48,6 @@ partial struct EnemySpawnerSystem : ISystem
         {
             if (enemySpawner.ValueRW.doSpawn)
             {
-                Debug.Log("SPAWN!!");
                 enemySpawner.ValueRW.doSpawn = false;
                 
                 // Get the spline data from the referenced spline entity

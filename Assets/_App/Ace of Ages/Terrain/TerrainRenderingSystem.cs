@@ -62,7 +62,6 @@ public partial class TerrainRenderingSystem : SystemBase
             if (materialRef != null && materialRef.material != null)
             {
                 _terrainMaterial = materialRef.material;
-                Debug.Log($"[TerrainRendering] Using material from TerrainConfigAuthoring: {_terrainMaterial.name}");
                 return;
             }
         }
@@ -70,7 +69,6 @@ public partial class TerrainRenderingSystem : SystemBase
         _terrainMaterial = Resources.Load<Material>("TerrainMaterial");
         if (_terrainMaterial != null)
         {
-            Debug.Log($"[TerrainRendering] Loaded material from Resources: {_terrainMaterial.name}");
             return;
         }
         // Last resort: create a debug material

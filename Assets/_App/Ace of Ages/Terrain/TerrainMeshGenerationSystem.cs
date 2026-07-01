@@ -441,9 +441,6 @@ public partial struct TerrainMeshCompleteSystem : ISystem
                             state.EntityManager.RemoveComponent<StaticObjectPositionCalcProgress>(entity);
                         if (state.EntityManager.HasBuffer<StaticObjectSpawnPosition>(entity))
                             state.EntityManager.GetBuffer<StaticObjectSpawnPosition>(entity).Clear();
-#if UNITY_EDITOR
-                        UnityEngine.Debug.Log($"[TerrainMesh] Removed StaticObjectsSpawned tag from regenerated tile {tile.gridCoordinate}");
-#endif
                     }
                 }
             }

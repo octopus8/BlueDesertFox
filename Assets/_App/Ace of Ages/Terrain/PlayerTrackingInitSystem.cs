@@ -19,12 +19,9 @@ using UnityEngine;
 [UpdateInGroup(typeof(InitializationSystemGroup))]
 public partial class PlayerTrackingInitSystem : SystemBase
 {
-    private bool _hasLoggedAttempt = false;
-    
     /// <summary>Registers <see cref="PlayerTrackingSearch"/> and <see cref="PlayerTransformReference"/> requirements.</summary>
     protected override void OnCreate()
     {
-        // Require both components to exist
         RequireForUpdate<PlayerTrackingSearch>();
         RequireForUpdate<PlayerTransformReference>();
     }
@@ -36,7 +33,6 @@ public partial class PlayerTrackingInitSystem : SystemBase
     /// </summary>
     protected override void OnUpdate()
     {
-        // Check if any entities need initialization
         bool needsInit = false;
         
         foreach (var search in SystemAPI.Query<RefRO<PlayerTrackingSearch>>())
@@ -49,29 +45,13 @@ public partial class PlayerTrackingInitSystem : SystemBase
         }
         
         if (!needsInit)
-        {
-            // All entities are initialized, no work to do
             return;
-        }
         
-        if (!_hasLoggedAttempt)
-        {
-            Debug.Log("[PlayerTrackingInitSystem] Attempting to find player GameObject...");
-            _hasLoggedAttempt = true;
-        }
-        
-        // Process uninitialized entities
         foreach (var (search, entity) in SystemAPI.Query<RefRW<PlayerTrackingSearch>>().WithEntityAccess())
         {
-            // Skip if already initialized
             if (search.ValueRO.initialized)
-            {
                 continue;
-            }
             
-            Debug.Log($"[PlayerTrackingInitSystem] Searching for player. Mode: {search.ValueRO.mode}, Search: '{search.ValueRO.searchString}'");
-            
-            // Find the target transform
             Transform playerTransform = FindPlayer(search.ValueRO);
             
             if (playerTransform == null)
@@ -82,21 +62,16 @@ public partial class PlayerTrackingInitSystem : SystemBase
                 continue;
             }
             
-            Debug.Log($"[PlayerTrackingInitSystem] ✅ Found player: {playerTransform.name} at position {playerTransform.position}");
-            
-            // Update the PlayerTransformReference
             var playerRef = EntityManager.GetComponentObject<PlayerTransformReference>(entity);
             if (playerRef != null)
             {
                 playerRef.playerTransform = playerTransform;
-                Debug.Log($"[PlayerTrackingInitSystem] ✅ PlayerTransformReference updated successfully");
             }
             else
             {
                 Debug.LogError("[PlayerTrackingInitSystem] PlayerTransformReference component is null!");
             }
             
-            // Mark as initialized
             search.ValueRW.initialized = true;
         }
     }
@@ -120,26 +95,10 @@ public partial class PlayerTrackingInitSystem : SystemBase
                 
                 var foundByName = GameObject.Find(name);
                 if (foundByName != null)
-                {
-                    Debug.Log($"[PlayerTrackingInitSystem] Found GameObject by name: '{name}'");
                     return foundByName.transform;
-                }
-                else
-                {
-                    Debug.LogWarning($"[PlayerTrackingInitSystem] Could not find GameObject named '{name}'\n" +
-                        $"Make sure the GameObject exists and is active in the hierarchy.");
-                    
-                    // Debug: List similar GameObjects
-                    var allObjects = Object.FindObjectsByType<GameObject>(FindObjectsSortMode.None);
-                    Debug.Log($"[PlayerTrackingInitSystem] Searching through {allObjects.Length} GameObjects...");
-                    foreach (var obj in allObjects)
-                    {
-                        if (obj.name.Contains("XR") || obj.name.Contains("Origin") || obj.name.Contains("Rig"))
-                        {
-                            Debug.Log($"  - Found similar: '{obj.name}' (active: {obj.activeInHierarchy})");
-                        }
-                    }
-                }
+
+                Debug.LogWarning($"[PlayerTrackingInitSystem] Could not find GameObject named '{name}'\n" +
+                    $"Make sure the GameObject exists and is active in the hierarchy.");
                 break;
                 
             case PlayerTrackingSearch.Mode.FindByTag:
@@ -154,14 +113,9 @@ public partial class PlayerTrackingInitSystem : SystemBase
                 {
                     var foundByTag = GameObject.FindGameObjectWithTag(tag);
                     if (foundByTag != null)
-                    {
-                        Debug.Log($"[PlayerTrackingInitSystem] Found GameObject by tag: '{tag}'");
                         return foundByTag.transform;
-                    }
-                    else
-                    {
-                        Debug.LogWarning($"[PlayerTrackingInitSystem] Could not find GameObject with tag '{tag}'");
-                    }
+
+                    Debug.LogWarning($"[PlayerTrackingInitSystem] Could not find GameObject with tag '{tag}'");
                 }
                 catch (UnityException e)
                 {
@@ -171,19 +125,12 @@ public partial class PlayerTrackingInitSystem : SystemBase
                 
             case PlayerTrackingSearch.Mode.FindMainCamera:
                 if (Camera.main != null)
-                {
-                    Debug.Log($"[PlayerTrackingInitSystem] Found Main Camera: '{Camera.main.name}'");
                     return Camera.main.transform;
-                }
-                else
-                {
-                    Debug.LogWarning("[PlayerTrackingInitSystem] No camera tagged as MainCamera found");
-                }
+
+                Debug.LogWarning("[PlayerTrackingInitSystem] No camera tagged as MainCamera found");
                 break;
         }
         
         return null;
     }
 }
-
-

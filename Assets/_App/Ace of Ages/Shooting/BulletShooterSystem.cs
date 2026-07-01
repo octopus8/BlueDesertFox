@@ -110,8 +110,6 @@ public partial struct BulletShooterSystem : ISystem
             
             // Update last fire time
             shooter.ValueRW.lastFireTime = SystemAPI.Time.ElapsedTime;
-            
-            Debug.Log($"[BulletShooterSystem] Fired bullet at position {spawnPosition}, velocity {bulletVelocity} (scroll contribution: {terrainVelocity})");
         }
     }
 }

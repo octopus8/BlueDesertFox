@@ -34,12 +34,11 @@ The terrain system consists of **20+ ECS systems** organized in categories:
 17. **TerrainAnchorSystem** - Anchored entity positioning
 18. **WorldOriginTrackingInitSystem** - Optional world origin tracking
 
-### Debug Tools (3)
-- **TerrainTrackingDebugger** (MonoBehaviour)
-- **TerrainTileGizmoVisualizer** (MonoBehaviour)
-- **TerrainRenderingDebugSystem** (ECS system, disabled by default)
-- **StaticObjectLODDebugSystem** (ECS system, Editor only)
-- **StaticObjectCleanupDebugSystem** (ECS system, disabled by default)
+### Diagnostics (2)
+- **StaticObjectCleanupDebugSystem** — Orphan static-object detection (`LogWarning`)
+- **TerrainStatusInspector** — Editor window (`Window → Terrain → Status Inspector`)
+
+See [Debug Tools](DEBUG_TOOLS.md) for profiler markers and console diagnostics.
 
 ---
 

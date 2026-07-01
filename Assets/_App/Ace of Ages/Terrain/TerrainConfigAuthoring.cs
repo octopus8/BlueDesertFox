@@ -177,9 +177,6 @@ public class TerrainConfigAuthoring : MonoBehaviour
     [Tooltip("Enable physics collider generation (disable for debugging/performance testing)")]
     public bool enablePhysicsColliders = true;
     
-    [Tooltip("Enable TerrainRenderingDebugSystem logging (disable to reduce console spam)")]
-    public bool enableRenderingDebug;
-    
     /// <summary>Bakes all terrain configuration fields into the <see cref="TerrainTileConfig"/> singleton ECS component.</summary>
     public class Baker : Baker<TerrainConfigAuthoring>
     {
@@ -209,8 +206,7 @@ public class TerrainConfigAuthoring : MonoBehaviour
                 terrainPhysicsLayer = authoring.terrainPhysicsLayer,
                 // Debug/Testing
                 renderTerrain = authoring.renderTerrain,
-                enablePhysicsColliders = authoring.enablePhysicsColliders,
-                enableRenderingDebug = authoring.enableRenderingDebug
+                enablePhysicsColliders = authoring.enablePhysicsColliders
             });
             
             // Create scroll velocity singleton (starts inactive)

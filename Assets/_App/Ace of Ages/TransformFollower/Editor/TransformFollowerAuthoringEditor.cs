@@ -91,7 +91,6 @@ public class TransformFollowerAuthoringEditor : Editor
                     if (found != null)
                     {
                         EditorGUIUtility.PingObject(found);
-                        Debug.Log($"Found '{targetNameProp.stringValue}' in scene!", found);
                     }
                     else
                     {
@@ -120,7 +119,6 @@ public class TransformFollowerAuthoringEditor : Editor
                         if (found != null)
                         {
                             EditorGUIUtility.PingObject(found);
-                            Debug.Log($"Found GameObject with tag '{targetTagProp.stringValue}': {found.name}", found);
                         }
                     }
                     catch

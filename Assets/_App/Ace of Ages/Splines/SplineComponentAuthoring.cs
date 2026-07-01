@@ -35,7 +35,7 @@ public class SplineComponentAuthoring : MonoBehaviour
 
             if (splineContainer is null)
             {
-                Debug.Log($"From {nameof(SplineComponentBaker)}.Bake(). spline container is null");
+                Debug.LogWarning($"From {nameof(SplineComponentBaker)}.Bake(). spline container is null");
                 return;
             }
 

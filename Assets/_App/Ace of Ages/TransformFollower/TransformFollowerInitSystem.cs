@@ -36,68 +36,45 @@ public partial class TransformFollowerInitSystem : SystemBase
     /// </summary>
     protected override void OnUpdate()
     {
-        // Get all entities that need initialization
         var entities = _uninitializedQuery.ToEntityArray(Unity.Collections.Allocator.Temp);
         var searchParams = _uninitializedQuery.ToComponentDataArray<TransformFollowerTargetSearch>(Unity.Collections.Allocator.Temp);
-        
-        int initializedCount = 0;
-        int failedCount = 0;
         
         for (int i = 0; i < entities.Length; i++)
         {
             var entity = entities[i];
             var search = searchParams[i];
             
-            // Skip if already initialized
             if (search.initialized)
-            {
                 continue;
-            }
             
-            Debug.Log($"[TransformFollowerInitSystem] Initializing entity {i}. Mode: {search.mode}, Search: '{search.searchString}'");
-            
-            // Find the target transform
             Transform targetTransform = FindTarget(search);
             
             if (targetTransform == null)
             {
                 Debug.LogWarning($"[TransformFollowerInitSystem] Could not find target! " +
                     $"Mode: {search.mode}, Search: '{search.searchString}'");
-                failedCount++;
                 continue;
             }
             
-            Debug.Log($"[TransformFollowerInitSystem] Found target: {targetTransform.name} at position {targetTransform.position}");
-            
-            // Add the TransformReference component
             if (!EntityManager.HasComponent<TransformReference>(entity))
             {
                 EntityManager.AddComponentObject(entity, new TransformReference
                 {
                     target = targetTransform
                 });
-                Debug.Log($"[TransformFollowerInitSystem] Added TransformReference to entity");
             }
             else
             {
                 var transformRef = EntityManager.GetComponentObject<TransformReference>(entity);
                 transformRef.target = targetTransform;
-                Debug.Log($"[TransformFollowerInitSystem] Updated TransformReference on entity");
             }
             
-            // Mark as initialized
             search.initialized = true;
             EntityManager.SetComponentData(entity, search);
-            initializedCount++;
         }
         
         entities.Dispose();
         searchParams.Dispose();
-        
-        if (initializedCount > 0 || failedCount > 0)
-        {
-            Debug.Log($"[TransformFollowerInitSystem] Initialization complete. Initialized: {initializedCount}, Failed: {failedCount}");
-        }
     }
     
     /// <summary>
@@ -110,8 +87,6 @@ public partial class TransformFollowerInitSystem : SystemBase
     {
         string searchString = searchParams.searchString.ToString();
         
-        Debug.Log($"[TransformFollowerInitSystem] FindTarget - Mode: {searchParams.mode}, Search: '{searchString}'");
-        
         switch (searchParams.mode)
         {
             case TransformFollowerTargetSearch.Mode.FindByName:
@@ -122,20 +97,7 @@ public partial class TransformFollowerInitSystem : SystemBase
                 }
                 var foundByName = GameObject.Find(searchString);
                 if (foundByName == null)
-                {
                     Debug.LogError($"[TransformFollowerInitSystem] Could not find GameObject named '{searchString}'");
-                    
-                    // Debug: List all GameObjects in the scene
-                    var allObjects = Object.FindObjectsByType<GameObject>(FindObjectsSortMode.None);
-                    Debug.Log($"[TransformFollowerInitSystem] Found {allObjects.Length} GameObjects in scene:");
-                    foreach (var obj in allObjects)
-                    {
-                        if (obj.name.Contains("Controller") || obj.name.Contains("Attach"))
-                        {
-                            Debug.Log($"  - {obj.name}");
-                        }
-                    }
-                }
                 return foundByName != null ? foundByName.transform : null;
                 
             case TransformFollowerTargetSearch.Mode.FindByTag:
@@ -156,7 +118,6 @@ public partial class TransformFollowerInitSystem : SystemBase
                 }
                 
             case TransformFollowerTargetSearch.Mode.DirectReference:
-                // Direct references don't work across subscene boundaries
                 Debug.LogWarning("[TransformFollowerInitSystem] DirectReference mode doesn't work across subscenes");
                 return null;
                 
@@ -165,6 +126,3 @@ public partial class TransformFollowerInitSystem : SystemBase
         }
     }
 }
-
-
-

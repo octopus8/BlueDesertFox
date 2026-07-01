@@ -101,7 +101,6 @@ public partial struct DirtExplosionPoolSystem : ISystem
         }
         
         _initialized = true;
-        Debug.Log($"[DirtExplosionPoolSystem] Initialized pool with {config.initialPoolSize} explosions");
     }
     
     /// <summary>

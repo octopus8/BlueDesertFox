@@ -5947,7 +5947,6 @@ MonoBehaviour:
   trail3Amplitude: 200
   renderTerrain: 1
   enablePhysicsColliders: 1
-  enableRenderingDebug: 0
 --- !u!4 &1528308291
 Transform:
   m_ObjectHideFlags: 0
@@ -6021,10 +6020,6 @@ MonoBehaviour:
   maxObjectsSpawnedPerFrame: 100
   maxNearObjectsSpawnedPerFrame: 300
   maxPositionCalcAttemptsPerFrame: 4000
-  enableObjectLODDebug: 0
-  enableSpawnerDebug: 0
-  enableDistanceCulling: 1
-  maxObjectRenderDistance: 1000
   maxUniqueBatches: 32
   vrFrameSkipScrolling: 2
   playerVelocityThreshold: 0.5

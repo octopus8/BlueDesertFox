@@ -346,61 +346,26 @@ receiveShadows: true,
 
 ## Rendering Debug Tools
 
-### TerrainTileGizmoVisualizer
+Use **[Debug Tools](DEBUG_TOOLS.md)** and the **Terrain Status Inspector** (`Window → Terrain → Status Inspector`) to diagnose rendering issues in play mode.
 
-Visual debugging in Scene view:
-
-```csharp
-// Add to GameObject in scene
-TerrainTileGizmoVisualizer:
-  - Draw Tile Bounds: ✅
-  - Draw Grid Coordinates: ✅
-  - Tile Color: Green
-  - Tile With Mesh Color: Yellow
-  - Tile With Rendering Color: Cyan
-```
-
-**Shows**:
-- Green wireframes: Tiles without mesh
-- Yellow wireframes: Tiles with mesh data
-- Cyan wireframes: Tiles with rendering
-- Grid coordinates as text labels
-
-### TerrainRenderingDebugSystem
-
-Optional logging system (disabled by default):
-
-**To enable**: Uncomment `[UpdateInGroup]` attribute in code
-
-**Logs every 10 seconds**:
-```
-[TerrainDebug] ========== Terrain Tile Analysis ==========
-[TerrainDebug] Total tiles: 25
-[TerrainDebug] Tiles with mesh data: 25
-[TerrainDebug] Tiles with rendering components: 23
-[TerrainDebug] Tiles with RenderBounds: 23
-```
-
-## Troubleshooting Rendering
-
-### Terrain Not Visible
+### Terrain Not Visible — Checklist
 
 **Check 1: Are meshes generated?**
 ```
-Add TerrainTileGizmoVisualizer
-Look for yellow wireframes (mesh data exists)
+Terrain Status Inspector → play-mode tile / mesh counts
+Profiler → TerrainMesh.Generation marker
 ```
 
 **Check 2: Does rendering system run?**
 ```
-Look for console errors from TerrainRenderingSystem
-Check material is assigned (_terrainMaterial != null)
+Console: [TerrainRendering] warnings or errors
+Confirm TerrainMaterial is assigned or in Resources
 ```
 
 **Check 3: Are bounds correct?**
 ```
-Enable TerrainRenderingDebugSystem
-Check "Tiles with RenderBounds" count
+Terrain Status Inspector → tiles with rendering components
+Profiler → PresentationSystemGroup
 ```
 
 **Check 4: Camera culling**

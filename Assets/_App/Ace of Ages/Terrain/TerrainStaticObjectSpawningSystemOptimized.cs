@@ -207,8 +207,6 @@ public partial struct TerrainTreeSpawningSystemOptimized : ISystem
 
         if (tilesNeedingPositionCalc == 0 && !hasInstantiationInProgress && !hasReadyToInstantiate)
         {
-            if (config.enableSpawnerDebug && tilesNeedingBuffer > 0)
-                UnityEngine.Debug.Log($"[TreeSpawnerOptimized] Adding StaticObjectSpawnPosition buffer to {tilesNeedingBuffer} tiles (will spawn next frame)");
             return;
         }
 

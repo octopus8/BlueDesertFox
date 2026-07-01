@@ -1,927 +1,193 @@
 # Debug Tools - Diagnostic Utilities
 
-Complete guide to debugging and diagnostic tools for the terrain system.
+Guide to diagnosing terrain issues after runtime debug visualizers were removed. Production systems log **warnings and errors only** for misconfiguration and anomalies; routine success tracing was stripped to reduce console spam.
 
-## Available Debug Tools
+## Quick Reference
 
-The terrain system includes three debug utilities:
-
-1. **TerrainTrackingDebugger** - Runtime diagnostics and status checks
-2. **TerrainTileGizmoVisualizer** - Scene view visualization
-3. **TerrainRenderingDebugSystem** - Rendering diagnostics (optional)
-
----
-
-## TerrainTrackingDebugger
-
-**File**: `TerrainTrackingDebugger.cs`  
-**Type**: MonoBehaviour  
-**Purpose**: Runtime diagnostic tool for tracking and tile status
-
-### Setup
-
-1. Create GameObject in your scene (e.g., "TerrainDebug")
-2. Add `TerrainTrackingDebugger` component
-3. Configure Inspector settings:
-   - Show GUI: ✅ (displays on-screen status)
-   - Log Every Frame: ❌ (causes spam)
-   - Log Interval: 2.0s
-
-### Context Menu Commands
-
-Right-click the component in Inspector:
-
-#### Check Tracking Status
-
-**Command**: `Check Tracking Status`  
-**Purpose**: Verifies player tracking is working
-
-**Output Example (Success)**:
-```
-=== Terrain Tracking Status ===
-🔍 Search Mode: FindMainCamera
-🔍 Search String: ''
-🔍 Initialized: True
-✅ Tracking: XR Origin Hands (XR Rig)
-   GameObject: XR Origin Hands (XR Rig)
-   Position: (0.0, 1.5, 0.0)
-   Active: True
-📦 Active Terrain Tiles: 25
-✅ TerrainTileConfig found
-   Tile Size: 100m
-   View Distance: 500m
-   Vertices Per Side: 32
-```
-
-**Output Example (Failure)**:
-```
-=== Terrain Tracking Status ===
-❌ No default ECS world found! Is the scene running?
-```
-
-Or:
-```
-⚠️ PlayerTransformReference exists but Transform is null!
-   Player search has not completed yet. Wait a frame or check PlayerTrackingInitSystem.
-```
-
-#### Force Refresh Player
-
-**Command**: `Force Refresh Player`  
-**Purpose**: Manually re-runs player search  
-**Use When**: Player spawns late or tracking needs reset
+| Tool | Type | When to Use |
+|------|------|-------------|
+| **Terrain Status Inspector** | Editor window | First stop — material, URP, packages, play-mode entity counts |
+| **Console warnings/errors** | Runtime logs | Player tracking failures, bake errors, pool exhaustion, orphan objects |
+| **Unity Profiler** | Profiler markers | Frame cost of mesh, physics, LOD, static-object systems |
+| **Authoring gizmos** | Scene view (edit mode) | Preview view distance and tile grid on `TerrainConfigAuthoring` |
+| **Feature toggles** | Inspector | `renderTerrain` / `enablePhysicsColliders` on `TerrainConfigAuthoring` |
 
 ---
 
-### On-Screen GUI
+## Terrain Status Inspector
 
-When `Show GUI` enabled, displays:
+**File**: `Editor/TerrainStatusInspector.cs`  
+**Menu**: `Window → Terrain → Status Inspector`
 
-```
-┌────────────────────────────────┐
-│ Terrain Tracking Status        │
-├────────────────────────────────┤
-│ Player: XR Origin Hands        │
-│ Position: (0.0, 1.5, 0.0)      │
-│ Active Tiles: 25               │
-│                                │
-│ Tracking Valid: ✅             │
-└────────────────────────────────┘
-```
+### What It Checks
 
-**Position**: Top-left corner of Game view  
-**Update Rate**: Every frame (low overhead)  
-**Color Coding**:
-- Green ✅: Tracking valid
-- Red ❌: Tracking failed
+**Edit mode:**
+- `TerrainMaterial` exists in `Resources`
+- URP is configured
+- Required Entities packages are present
 
-### Inspector Fields
+**Play mode (additional):**
+- ECS world and terrain singletons
+- Active tile / rendering entity counts
+- Player tracking initialization state
 
-**Read-Only Status Display**:
-- Show GUI - Toggle on-screen display
-- Tracking Valid - Is player tracking working?
-- Player Position - Current player position
-- Player Name - Tracked GameObject name
-- Active Tile Count - Number of active tiles
+### Actions
 
-**Debug Settings**:
-- Log Every Frame - Logs tracking status every frame (warning: spam!)
-- Log Interval - Seconds between automatic status logs
+- **Create TerrainMaterial** — runs `Tools → Terrain → Create Terrain Material`
+- **Setup Physics Layers** — runs `Tools → Terrain → Setup Physics Layer`
 
-### API Access
-
-```csharp
-// Get debugger instance
-var debugger = FindFirstObjectByType<TerrainTrackingDebugger>();
-
-// Trigger status check from code
-debugger.CheckTrackingStatus();
-
-// Force refresh player
-debugger.ForceRefreshPlayer();
-```
+Use this instead of the removed runtime `TerrainTrackingDebugger` overlay.
 
 ---
 
-## TerrainTileGizmoVisualizer
+## Runtime Validation (`StaticObjectCleanupDebugSystem`)
 
-**File**: `TerrainTileGizmoVisualizer.cs`  
-**Type**: MonoBehaviour  
-**Purpose**: Visualizes tiles in Scene view with wireframes and labels
+**File**: `StaticObjectCleanupDebugSystem.cs`  
+**Type**: ECS system (`TreeCleanupDebugSystem`)  
+**Update**: Every 2 seconds after tile spawning
 
-### Setup
+Automatically detects static objects whose parent tile entity no longer exists (cleanup leak):
 
-1. Create GameObject in scene (e.g., "TileVisualizer")
-2. Add `TerrainTileGizmoVisualizer` component
-3. Configure visualization:
-   - Draw Tile Bounds: ✅
-   - Draw Grid Coordinates: ✅
-   - Tile Color: Green
-   - Tile With Mesh Color: Yellow
-   - Tile With Rendering Color: Cyan
-
-### Visualization Features
-
-#### Tile Bounds Wireframes
-
-Shows color-coded boxes for each tile:
-
-**Green**: Tile exists, no mesh data yet
 ```
-Tile spawned, waiting for mesh generation
+[StaticObjectCleanup] Found N orphaned static objects!
+Objects exist but their parent tiles have been destroyed.
 ```
 
-**Yellow**: Tile has mesh data
-```
-Mesh generated, waiting for rendering setup
-```
-
-**Cyan**: Tile has rendering components
-```
-Fully functional, visible in Game view
-```
-
-#### Grid Coordinate Labels
-
-Shows grid coordinates as text above each tile:
-```
-    (-1, 1)      (0, 1)       (1, 1)
-    
-    (-1, 0)    👤 (0, 0)      (1, 0)
-    
-    (-1, -1)     (0, -1)      (1, -1)
-```
-
-**Size**: Scales with Scene view zoom  
-**Position**: Top of tile bounds box
-
-### Inspector Info
-
-Real-time statistics:
-
-**Total Tiles**: Count of all tile entities  
-**Tiles With Mesh**: Count with mesh data generated  
-**Tiles With Rendering**: Count with rendering components
-
-### Scene View Usage
-
-**Workflow**:
-1. Enter Play mode
-2. Open Scene view (alongside Game view)
-3. Navigate around to see tiles
-4. Color changes show tile states
-5. Grid coordinates help identify specific tiles
-
-**Tips**:
-- Use 2D view mode for top-down tile overview
-- Frame selection (F key) on tiles to zoom to them
-- Pause playmode to freeze tile state
-
-### Example Use Cases
-
-**Use Case 1: Verify Spawning**
-```
-Problem: No terrain visible
-Debug: Add gizmo visualizer
-Result: See green wireframes → tiles spawning but not generating
-Solution: Check mesh generation system
-```
-
-**Use Case 2: Check Generation Progress**
-```
-Watch colors change: Green → Yellow → Cyan
-Shows pipeline progression for each tile
-```
-
-**Use Case 3: Debug Scrolling**
-```
-Enable Draw Grid Coordinates
-Watch grid numbers change as terrain scrolls
-Verify tiles spawn ahead, despawn behind
-```
+No Inspector flag — always active when the terrain subscene is loaded. If you see this warning, investigate tile despawn / static-object cleanup in `TileSpawningSystem`.
 
 ---
 
-## TerrainRenderingDebugSystem
+## Console Diagnostics
 
-**File**: `TerrainRenderingDebugSystem.cs`  
-**Type**: SystemBase  
-**Purpose**: Logs rendering component status periodically  
-**Status**: Disabled by default (commented out UpdateInGroup)
+Filter the Console with `[Terrain`, `[PlayerTracking`, `[StaticObject`, or `[BulletPool`.
 
-### Enabling the System
+### Expected on Success
 
-Uncomment the update group attribute:
+Normal play should be **quiet**. You should **not** see success-path `Debug.Log` spam on startup.
 
-```csharp
-// Before:
-// [UpdateInGroup(typeof(PresentationSystemGroup), OrderLast = true)]
+### Warnings to Investigate
 
-// After:
-[UpdateInGroup(typeof(PresentationSystemGroup), OrderLast = true)]
-```
+| Message prefix | Likely cause |
+|----------------|--------------|
+| `[PlayerTrackingInitSystem] Could not find player` | Wrong search mode/name/tag; player inactive at init |
+| `[WorldOriginTrackingInitSystem] Could not find world origin` | Missing world-origin GameObject |
+| `[TerrainRendering] No material assigned` | Missing `TerrainMaterial` in Resources |
+| `[StaticObjectSpawner]` (bake) | Missing LOD prefabs or invalid spawner config |
+| `[BulletPoolSystem] Pool exhausted` | Increase pool size or reduce fire rate |
+| `[StaticObjectCleanup] Found N orphaned` | Tile despawn not destroying static objects |
 
-### Console Output
+### Errors
 
-Logs every 10 seconds:
-
-```
-[TerrainDebug] ========== Terrain Tile Analysis ==========
-[TerrainDebug] Total tiles: 25
-[TerrainDebug] Camera position: (0.0, 1.6, 0.0)
-[TerrainDebug] Camera culling mask: 1
-[TerrainDebug] Camera far clip: 1000
-[TerrainDebug] Tiles with mesh data: 25
-[TerrainDebug] Tiles with rendering components: 23
-[TerrainDebug] Tiles with LocalToWorld: 25
-[TerrainDebug] Tiles with RenderBounds: 23
-[TerrainDebug] --- First Tile Detail (Entity 123:1) ---
-[TerrainDebug]   Grid: (0, 0)
-[TerrainDebug]   MeshGenerated: True
-[TerrainDebug]   Position: (0.0, 0.0, 0.0)
-[TerrainDebug]   Has MaterialMeshInfo: True
-```
-
-### When to Enable
-
-**Enable when**:
-- Tiles spawning but not rendering
-- Need detailed component status
-- Debugging rendering pipeline
-
-**Keep disabled when**:
-- System working correctly (reduces console spam)
-- Building for release (minor performance impact)
+Treat all `Debug.LogError` as blocking — terrain, spawning, or rendering will not work correctly until resolved.
 
 ---
 
-## Unity Built-in Debug Tools
+## Unity Profiler Markers
 
-### Entity Debugger
+Editor and development builds include zero-cost-in-release profiler scopes:
 
-**Window → Entities → Hierarchy**
+| Marker | System |
+|--------|--------|
+| `TerrainMesh.Generation` | `TerrainMeshGenerationSystem` |
+| `TerrainMesh.PrioritySort` | Mesh generation priority pass |
+| `TerrainPhysics.ColliderCreation` | Physics collider pipeline |
+| `TreeLOD.Update` | `StaticObjectLODUpdateSystem` |
+| `TreeLOD.VelocityCalc` | Player velocity for LOD throttling |
+| `TreeLOD.ChunkFilter` | Active chunk set construction |
 
-Shows all ECS entities in world:
-```
-World (Default)
-├─ Systems
-│  ├─ InitializationSystemGroup
-│  │  └─ PlayerTrackingInitSystem
-│  ├─ SimulationSystemGroup
-│  │  ├─ ScrollTerrainSystem
-│  │  ├─ TileSpawningSystem
-│  │  └─ ...
-│  └─ PresentationSystemGroup
-│     └─ TerrainRenderingSystem
-│
-└─ Entities
-   ├─ Entity 0 (Singletons)
-   │  ├─ TerrainTileConfig
-   │  ├─ ScrollConfig
-   │  └─ ...
-   ├─ Entity 1 (Terrain Tile)
-   │  ├─ TerrainTile
-   │  ├─ LocalTransform
-   │  ├─ VertexElement [buffer]
-   │  └─ ...
-   └─ Entity 2 (Terrain Tile)
-      └─ ...
-```
-
-**Usage**:
-1. Select entity to inspect components
-2. View component values in real-time
-3. Verify component presence/absence
+Open **Window → Analysis → Profiler**, enable **Deep Profiling** only if needed (expensive in VR).
 
 ---
 
-### Systems Window
+## Editor Setup Tools
 
-**Window → Entities → Systems**
+### Create Terrain Material
 
-Shows system execution timing:
-```
-SimulationSystemGroup (11.2ms)
-├─ ScrollTerrainSystem (0.01ms)
-├─ TileSpawningSystem (0.3ms)
-├─ TileScrollPositionSystem (0.05ms)
-├─ TerrainMeshGenerationSystem (8.5ms) ← Bottleneck!
-├─ TerrainDistanceTrackingSystem (0.1ms)
-├─ TerrainColliderPreparationSystem (1.2ms)
-└─ TerrainPhysicsSystem (5.8ms)
-```
+**Menu**: `Tools → Terrain → Create Terrain Material`  
+**File**: `Editor/TerrainMaterialCreator.cs`
 
-**Usage**:
-1. Identify slow systems (red bars)
-2. Click system to see details
-3. Profile marker breakdown available
+Creates `Assets/Resources/TerrainMaterial.mat` (URP/Lit) if missing. Also runs automatically on editor load when the material is absent.
+
+### Setup Physics Layers
+
+**Menu**: `Tools → Terrain → Setup Physics Layer`  
+**File**: `Editor/SetupTerrainPhysicsLayers.cs`
+
+Configures **Terrain** and **TerrainLowDetail** physics layers and collision matrix entries.
 
 ---
 
-### Profiler
+## Authoring Gizmos (Edit Mode)
 
-**Window → Analysis → Profiler**
+### TerrainConfigAuthoring
 
-**Key Markers** to watch:
-- `TerrainMesh.Generation` - Overall mesh generation time
-- `TerrainMesh.JobSchedule` - Job overhead
-- `TerrainPhysics.ColliderCreation` - Main thread collider creation
-- `TerrainPhysics.CacheLookup` - Cache access time
-- `TerrainPhysics.LRUEviction` - Cache eviction time
+Select the terrain config GameObject in the SubScene. **Selected** gizmos show:
+- View distance sphere around the config origin
+- Tile grid preview for the current `tileSize` / `viewDistance`
 
-**Profile Workflow**:
-1. Enable "Deep Profile"
-2. Play scene
-3. Move player to trigger tile spawning
-4. Look for terrain markers in CPU timeline
-5. Check frame spikes align with terrain work
+Useful for verifying coverage without entering play mode.
+
+### TerrainAnchorTagAuthoring
+
+Shows anchor sphere and axis when selected — confirms anchor placement for scroll-following entities.
 
 ---
 
-## Custom Debug Extensions
+## Feature Toggles (Testing)
 
-### Add Custom Gizmo Colors
+On `TerrainConfigAuthoring` under **Debug/Testing**:
 
-Extend `TerrainTileGizmoVisualizer`:
+| Field | Default | Purpose |
+|-------|---------|---------|
+| `renderTerrain` | true | Disable to test static-object rendering in isolation |
+| `enablePhysicsColliders` | true | Disable to profile mesh/rendering without physics cost |
 
-```csharp
-// In TerrainTileGizmoVisualizer.cs, add field:
-public Color tileWithPhysicsColor = Color.blue;
-
-// In OnDrawGizmos():
-if (EntityManager.HasComponent<PhysicsCollider>(entity))
-{
-    Gizmos.color = tileWithPhysicsColor;
-}
-```
-
-**Result**: Blue wireframes show tiles with colliders.
+These are functional switches, not console debug flags.
 
 ---
 
-### Add Distance Display
+## Removed Tools (v3.1+)
 
-Show distance to each tile:
+The following were removed to reduce runtime overhead and console noise. Use the replacements above.
 
-```csharp
-void OnDrawGizmos()
-{
-    // ... existing gizmo code ...
-    
-    if (EntityManager.HasComponent<TerrainTileDistanceToPlayer>(entity))
-    {
-        var distInfo = EntityManager.GetComponentData<TerrainTileDistanceToPlayer>(entity);
-        
-        // Draw distance as text
-        var labelPos = tileCenterWorld + Vector3.up * 5f;
-        Handles.Label(labelPos, $"{distInfo.distance:F0}m\nLOD: {distInfo.lodLevel}");
-    }
-}
-```
+| Removed | Replacement |
+|---------|-------------|
+| `TerrainTrackingDebugger` | Terrain Status Inspector + console warnings from `PlayerTrackingInitSystem` |
+| `TerrainTileGizmoVisualizer` | Terrain Status Inspector play-mode tile counts; `TerrainConfigAuthoring` gizmos |
+| `TerrainColliderVisualizer` | Profiler physics markers; disable `enablePhysicsColliders` to A/B test |
+| `TerrainRenderingDebugSystem` | Terrain Status Inspector; console errors from `TerrainRenderingSystem` |
+| `StaticObjectLODDebugSystem` | Profiler `TreeLOD.*` markers |
+| `TransformFollowerDebugger` | Console warnings from `TransformFollowerInitSystem` |
+| `enableRenderingDebug` / `enableSpawnerDebug` / `enableObjectLODDebug` | Removed — use Profiler and console warnings |
 
 ---
 
-### Add Performance Overlay
+## Common Workflows
 
-Create custom performance monitor:
+### Player tracking not working
 
-```csharp
-using Unity.Entities;
-using Unity.Profiling;
-using UnityEngine;
+1. Open **Terrain Status Inspector** in play mode
+2. Check Console for `[PlayerTrackingInitSystem]` warnings
+3. Verify `TerrainConfigAuthoring` player search mode matches your scene setup  
+   → [Player Tracking Setup](PLAYER_TRACKING.md)
 
-public class TerrainPerformanceMonitor : MonoBehaviour
-{
-    private ProfilerRecorder _meshGenRecorder;
-    private ProfilerRecorder _physicsRecorder;
-    
-    void OnEnable()
-    {
-        _meshGenRecorder = ProfilerRecorder.StartNew(
-            ProfilerCategory.Scripts, 
-            "TerrainMesh.Generation"
-        );
-        _physicsRecorder = ProfilerRecorder.StartNew(
-            ProfilerCategory.Scripts, 
-            "TerrainPhysics.ColliderCreation"
-        );
-    }
-    
-    void OnDisable()
-    {
-        _meshGenRecorder.Dispose();
-        _physicsRecorder.Dispose();
-    }
-    
-    void OnGUI()
-    {
-        GUILayout.Label($"Mesh Gen: {_meshGenRecorder.LastValue / 1e6:F2}ms");
-        GUILayout.Label($"Physics: {_physicsRecorder.LastValue / 1e6:F2}ms");
-    }
-}
-```
+### Terrain not visible
 
----
+1. Terrain Status Inspector → confirm material and URP
+2. Console: `[TerrainRendering]` errors
+3. Camera far clip > `viewDistance`; culling mask includes terrain layer  
+   → [Troubleshooting — Not Rendering](TROUBLESHOOTING.md#issue-2-terrain-not-rendering)
 
-## Diagnostic Workflows
+### Performance investigation
 
-### Workflow 1: "Terrain Not Spawning"
+1. Profiler → filter `Terrain` / `TreeLOD`
+2. Temporarily disable `enablePhysicsColliders` or reduce `verticesPerSide`  
+   → [Performance Optimization](PERFORMANCE.md)
 
-```
-Step 1: Add TerrainTrackingDebugger
-Step 2: Right-click → Check Tracking Status
-Step 3: Review console output
+### Static object leaks
 
-If "Transform is null":
-  → Player tracking failed
-  → See PLAYER_TRACKING.md
-
-If "Active Terrain Tiles: 0":
-  → Spawning system not running
-  → Check SubScene baked correctly
-  → Check TerrainTileConfig exists
-
-If "Active Terrain Tiles: 25":
-  → Tiles spawning, but not visible
-  → Continue to Workflow 2
-```
-
-### Workflow 2: "Terrain Not Visible"
-
-```
-Step 1: Add TerrainTileGizmoVisualizer
-Step 2: Open Scene view while in Play mode
-Step 3: Look for wireframes
-
-If GREEN wireframes:
-  → Tiles spawned, no mesh data
-  → Check TerrainMeshGenerationSystem
-  → Check console for generation errors
-
-If YELLOW wireframes:
-  → Mesh data exists, not rendering
-  → Check TerrainRenderingSystem
-  → Check material exists
-  → Check camera settings
-
-If CYAN wireframes:
-  → Rendering components added, still not visible
-  → Check camera culling mask
-  → Check camera far clip plane
-  → Check RenderBounds values
-```
-
-### Workflow 3: "Performance Issues"
-
-```
-Step 1: Open Profiler (Window → Analysis → Profiler)
-Step 2: Enable "Deep Profile"
-Step 3: Play and move player
-Step 4: Identify bottleneck system
-
-If TerrainMesh.Generation high:
-  → Reduce Vertices Per Side
-  → Reduce Noise Octaves
-  → Increase frame budget
-
-If TerrainPhysics.ColliderCreation high:
-  → Reduce Max Colliders Per Frame
-  → Increase cache size
-  → Optimize LOD distances
-```
-
-### Workflow 4: "Scrolling Not Working"
-
-```
-Step 1: Add TerrainTrackingDebugger with Show GUI enabled
-Step 2: Watch tile count while scrolling
-Step 3: Add TerrainTileGizmoVisualizer with Draw Grid Coordinates
-Step 4: Watch grid numbers change
-
-If tile count stable:
-  → Tiles not spawning/despawning
-  → Check Scroll Enabled = true
-  → Check Scroll Speed ≠ 0
-
-If grid numbers not changing:
-  → TileScrollPositionSystem not running
-  → Check ScrollConfig.enabled
-  → Check console for errors
-
-If visual terrain not moving but numbers change:
-  → Rendering using cached positions
-  → Restart scene
-```
-
----
-
-## Logging Strategies
-
-### Strategic Logging
-
-Add logs at key points:
-
-#### In PlayerTrackingInitSystem
-
-Already logs by default:
-```csharp
-Debug.Log("[PlayerTrackingInitSystem] Attempting to find player GameObject...");
-Debug.Log($"[PlayerTrackingInitSystem] ✅ Found player: {playerTransform.name}");
-```
-
-#### In ScrollTerrainSystem
-
-Uncomment to log scroll progress:
-```csharp
-#if UNITY_EDITOR
-float totalDistance = math.length(scrollOffset.ValueRO.accumulatedOffset);
-if (totalDistance % 100f < config.scrollSpeed * SystemAPI.Time.DeltaTime)
-{
-    UnityEngine.Debug.Log($"ScrollTerrainSystem: Scrolled {totalDistance:F1}m");
-}
-#endif
-```
-
-Logs every 100m scrolled.
-
-#### Custom Tile Spawning Logs
-
-Add to TileSpawningSystem:
-```csharp
-// After spawning tiles
-#if UNITY_EDITOR
-UnityEngine.Debug.Log($"[TileSpawning] Spawned {tilesToSpawn.Length} tiles, " +
-                      $"despawned {tilesToDespawn.Length} tiles");
-#endif
-```
-
-### Conditional Compilation
-
-Use `#if UNITY_EDITOR` to exclude logs from builds:
-
-```csharp
-#if UNITY_EDITOR
-Debug.Log("Debug info");
-#endif
-```
-
-**Benefits**:
-- Zero cost in builds
-- No string allocations in release
-- Easier debugging in editor
-
----
-
-## Performance Profiling
-
-### Using Profiler Markers
-
-**View Markers**:
-1. Open Profiler (Window → Analysis → Profiler)
-2. Enable "Deep Profile"
-3. Look for markers starting with "Terrain" or "TerrainPhysics"
-
-**Available Markers**:
-- `TerrainMesh.Generation`
-- `TerrainMesh.JobSchedule`
-- `TerrainMesh.BufferCopy`
-- `TerrainMesh.PrioritySort`
-- `TerrainPhysics.PrepareJob`
-- `TerrainPhysics.DistanceTracking`
-- `TerrainPhysics.CacheLookup`
-- `TerrainPhysics.ColliderCreation`
-- `TerrainPhysics.LRUEviction`
-
-**Add Custom Markers**:
-```csharp
-#if UNITY_EDITOR
-using Unity.Profiling;
-
-private static readonly ProfilerMarker s_MyMarker = 
-    new ProfilerMarker("MyCustomMarker");
-
-void MyMethod()
-{
-    using (s_MyMarker.Auto())
-    {
-        // Code to profile
-    }
-}
-#endif
-```
-
----
-
-## Entity Inspection
-
-### Entity Debugger Window
-
-**Window → Entities → Hierarchy**
-
-**Features**:
-- Browse all entities by world
-- Select entity to see components
-- View component values in real-time
-- Filter by component type
-
-**Usage Example**:
-```
-1. Find "World (Default)" → "Entities"
-2. Search filter: "TerrainTile"
-3. Select first entity
-4. Inspector shows all components:
-   - TerrainTile: gridCoordinate (0, 0), meshGenerated: true
-   - LocalTransform: Position (0, 0, 0)
-   - VertexElement: [1024 elements]
-   - ...
-```
-
-### Query Debugger
-
-**Window → Entities → Query**
-
-**Features**:
-- View all queries in systems
-- See entity counts per query
-- Debug query performance
-
-**Usage**:
-```
-1. Find "TileSpawningSystem"
-2. View query: [TerrainTile]
-3. Shows: 25 entities matched
-```
-
----
-
-## Common Debug Scenarios
-
-### Scenario 1: New System Not Running
-
-**Symptoms**: System code doesn't execute
-
-**Debug Steps**:
-```
-1. Window → Entities → Systems
-2. Find your system in hierarchy
-3. Check if listed and enabled
-4. Check RequireForUpdate dependencies
-```
-
-**Common Causes**:
-- Required singleton doesn't exist
-- System not in update group
-- System disabled via [DisableAutoCreation]
-
----
-
-### Scenario 2: Component Not Added
-
-**Symptoms**: HasComponent returns false
-
-**Debug Steps**:
-```
-1. Window → Entities → Hierarchy
-2. Select entity
-3. Check component list in Inspector
-4. Verify component added via ECB
-```
-
-**Common Causes**:
-- ECB not played back
-- Structural change during query iteration
-- Entity destroyed before component added
-
----
-
-### Scenario 3: Buffer Empty
-
-**Symptoms**: Buffer.Length = 0 after population
-
-**Debug Steps**:
-```
-1. Add breakpoint in system populating buffer
-2. Step through code
-3. Verify buffer.Add() calls execute
-4. Check buffer capacity
-```
-
-**Common Causes**:
-- Job didn't complete (dependency not completed)
-- Buffer cleared after population
-- Wrong entity queried
-
----
-
-### Scenario 4: Cache Not Working
-
-**Symptoms**: Low cache hit rate, high collider creation time
-
-**Debug Steps**:
-```
-Add logging in TerrainPhysicsSystem:
-
-if (_colliderCache.TryGetValue(cacheKey, out var entry))
-{
-    Debug.Log($"Cache HIT for LOD {lodLevel}");
-}
-else
-{
-    Debug.Log($"Cache MISS for LOD {lodLevel}, creating new collider");
-}
-
-// Periodically log cache stats
-Debug.Log($"Cache size: {_colliderCache.Count()}, Memory: {_totalCacheMemoryBytes/1024/1024}MB");
-```
-
-**Common Causes**:
-- Config changes invalidate cache
-- Cache memory limit too low
-- Hash collision (rare)
-
----
-
-## Advanced Debugging Techniques
-
-### Technique 1: Entity Snapshot
-
-Capture entity state for analysis:
-
-```csharp
-public class EntitySnapshot
-{
-    public Entity entity;
-    public int2 gridCoordinate;
-    public bool meshGenerated;
-    public float3 position;
-    public int vertexCount;
-    public bool hasPhysics;
-    public bool hasRendering;
-}
-
-public EntitySnapshot[] CaptureAllTiles()
-{
-    var world = World.DefaultGameObjectInjectionWorld;
-    var em = world.EntityManager;
-    var query = em.CreateEntityQuery(typeof(TerrainTile));
-    var entities = query.ToEntityArray(Allocator.Temp);
-    
-    var snapshots = new EntitySnapshot[entities.Length];
-    
-    for (int i = 0; i < entities.Length; i++)
-    {
-        var entity = entities[i];
-        var tile = em.GetComponentData<TerrainTile>(entity);
-        var transform = em.GetComponentData<LocalTransform>(entity);
-        var vertices = em.GetBuffer<VertexElement>(entity);
-        
-        snapshots[i] = new EntitySnapshot
-        {
-            entity = entity,
-            gridCoordinate = tile.gridCoordinate,
-            meshGenerated = tile.meshGenerated,
-            position = transform.Position,
-            vertexCount = vertices.Length,
-            hasPhysics = em.HasComponent<Unity.Physics.PhysicsCollider>(entity),
-            hasRendering = em.HasComponent<MeshReference>(entity)
-        };
-    }
-    
-    entities.Dispose();
-    query.Dispose();
-    
-    return snapshots;
-}
-```
-
----
-
-### Technique 2: Tile State Machine Tracer
-
-Track tile state transitions:
-
-```csharp
-public class TileStateTracer : MonoBehaviour
-{
-    private Dictionary<Entity, string> _tileStates = new();
-    
-    void Update()
-    {
-        var world = World.DefaultGameObjectInjectionWorld;
-        var em = world.EntityManager;
-        var query = em.CreateEntityQuery(typeof(TerrainTile));
-        var entities = query.ToEntityArray(Allocator.Temp);
-        
-        foreach (var entity in entities)
-        {
-            string state = DetermineState(em, entity);
-            
-            if (!_tileStates.ContainsKey(entity))
-            {
-                _tileStates[entity] = state;
-                Debug.Log($"Tile {entity.Index} created: {state}");
-            }
-            else if (_tileStates[entity] != state)
-            {
-                Debug.Log($"Tile {entity.Index} transition: {_tileStates[entity]} → {state}");
-                _tileStates[entity] = state;
-            }
-        }
-        
-        entities.Dispose();
-        query.Dispose();
-    }
-    
-    string DetermineState(EntityManager em, Entity entity)
-    {
-        var tile = em.GetComponentData<TerrainTile>(entity);
-        
-        if (!tile.meshGenerated)
-            return "SPAWNED";
-        else if (!em.HasComponent<MeshReference>(entity))
-            return "MESH_GENERATED";
-        else if (!em.HasComponent<Unity.Physics.PhysicsCollider>(entity))
-            return "RENDERING";
-        else
-            return "COMPLETE";
-    }
-}
-```
-
----
-
-### Technique 3: Visualize Priorities
-
-Show priority values in Scene view:
-
-```csharp
-// Add to TerrainTileGizmoVisualizer
-void OnDrawGizmos()
-{
-    // ... existing code ...
-    
-    // Show priority for collider preparation
-    if (EntityManager.HasComponent<PhysicsColliderPrepared>(entity))
-    {
-        var prepared = EntityManager.GetComponentData<PhysicsColliderPrepared>(entity);
-        
-        var labelPos = tileCenterWorld + Vector3.up * 10f;
-        Handles.Label(labelPos, $"Priority: {prepared.priority}");
-    }
-}
-```
-
----
-
-## Console Filtering
-
-### Filter Terrain Logs
-
-In Console window:
-```
-Search: [Terrain
-Shows: [TerrainMesh], [TerrainPhysics], [PlayerTracking] logs
-```
-
-### Log Categories
-
-Use consistent prefixes:
-- `[PlayerTracking]` - Player tracking messages
-- `[TileSpawning]` - Tile creation/destruction
-- `[TerrainMesh]` - Mesh generation
-- `[TerrainPhysics]` - Collider creation
-- `[TerrainDebug]` - Debug system messages
-
----
-
-## Related Documentation
-
-- **[Troubleshooting Guide](TROUBLESHOOTING.md)** - Problem solving with debug tools
-- **[Performance Optimization](PERFORMANCE.md)** - Using profiling for optimization
-- **[System Pipeline](SYSTEM_PIPELINE.md)** - Understanding system execution
-- **[API Reference](API_REFERENCE.md)** - Programmatic debugging
+Watch Console for `[StaticObjectCleanup] Found N orphaned static objects` during scroll/despawn testing.
 
 ---
 
 **Back to**: [Documentation Hub](README.md)
-

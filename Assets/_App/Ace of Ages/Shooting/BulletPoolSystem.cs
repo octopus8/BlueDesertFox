@@ -112,7 +112,6 @@ public partial struct BulletPoolSystem : ISystem
         }
         
         _initialized = true;
-        Debug.Log($"[BulletPoolSystem] Initialized pool with {config.initialPoolSize} bullets");
     }
     
     /// <summary>

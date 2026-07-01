@@ -35,9 +35,9 @@ The Infinite Terrain System generates procedural terrain tiles around a player i
 ### Presentation Layer
 - `TerrainRenderingSystem` - Creates Unity Meshes, sets up rendering
 
-### Debug Layer
-- `TerrainTrackingDebugger` - Runtime diagnostics
-- `TerrainTileGizmoVisualizer` - Scene view visualization
+### Diagnostics
+- `StaticObjectCleanupDebugSystem` - Orphan static-object warnings at runtime
+- `TerrainStatusInspector` - Editor window for material, URP, and play-mode status
 
 ## Data Flow
 

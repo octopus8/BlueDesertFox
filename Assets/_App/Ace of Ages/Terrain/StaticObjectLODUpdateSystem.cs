@@ -248,16 +248,6 @@ public partial struct StaticObjectLODUpdateSystem : ISystem
         // Update velocity tracking for next frame
         _lastPlayerPosition = playerPosition;
         _lastDeltaTime = SystemAPI.Time.DeltaTime;
-        
-        // Log periodically (must complete job first for accurate count)
-        if (lodConfig.enableObjectLODDebug && _frameCounter % 120 == 0)
-        {
-            state.Dependency.Complete();
-            // Get static object count for logging
-            var query = SystemAPI.QueryBuilder().WithAll<GlobalStaticObjectInstance, StaticObjectChunkMembership>().Build();
-            int totalStaticObjects = query.CalculateEntityCount();
-            UnityEngine.Debug.Log($"[StaticObjectLOD] Velocity: {velocity:F2} m/s, FrameSkip: {effectiveFrameSkip}, Processing {_activeChunks.Length} chunks (total: {totalStaticObjects} static objects)");
-        }
     }
     
     /// <summary>

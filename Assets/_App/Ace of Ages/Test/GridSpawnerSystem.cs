@@ -2,7 +2,6 @@ using Unity.Burst;
 using Unity.Entities;
 using Unity.Mathematics;
 using Unity.Transforms;
-using UnityEngine;
 
 /// <summary>
 /// System that spawns objects in a grid pattern in the XY plane.
@@ -46,8 +45,6 @@ partial struct GridSpawnerSystem : ISystem
                 // Calculate center offset to center the grid around the origin
                 float centerOffset = -(gridSize - 1) * spacing * 0.5f;
                 
-                Debug.Log($"GridSpawner: Starting spawn of {gridSize}x{gridSize} grid ({gridSize * gridSize} entities) at Z={zPosition}");
-                
                 // Get the prefab's scale to preserve it
                 float prefabScale = 1f;
                 if (SystemAPI.HasComponent<LocalTransform>(prefabEntity))
@@ -82,8 +79,6 @@ partial struct GridSpawnerSystem : ISystem
                 
                 // Mark as spawned to prevent repeated spawning
                 gridSpawner.ValueRW.hasSpawned = true;
-                
-                Debug.Log($"GridSpawner: Completed spawn of {gridSize * gridSize} entities");
             }
         }
     }

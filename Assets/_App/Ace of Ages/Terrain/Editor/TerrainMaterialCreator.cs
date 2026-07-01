@@ -35,7 +35,6 @@ public static class TerrainMaterialCreator
         
         if (material == null)
         {
-            Debug.Log("[TerrainMaterialCreator] TerrainMaterial not found in Resources, creating it now...");
             CreateTerrainMaterial();
         }
     }
@@ -77,11 +76,6 @@ public static class TerrainMaterialCreator
         AssetDatabase.SaveAssets();
         AssetDatabase.Refresh();
         
-        Debug.Log($"[TerrainMaterialCreator] ✓ Created TerrainMaterial at: {assetPath}");
-        Debug.Log($"[TerrainMaterialCreator]   Shader: {urpLitShader.name}");
-        Debug.Log($"[TerrainMaterialCreator]   Color: Greenish-gray");
-        
-        // Ping the asset in project window
         EditorGUIUtility.PingObject(terrainMaterial);
     }
 }

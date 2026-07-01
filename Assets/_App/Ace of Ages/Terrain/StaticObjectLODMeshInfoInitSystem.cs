@@ -151,13 +151,8 @@ public partial class StaticObjectLODMeshInfoInitSystem : SystemBase
             maxBoundsBuffer.Add(new StaticObjectTypeMaxRenderBoundsElement { bounds = maxBounds });
         }
 
-        int populatedCount = infoBuffer.Length;
-        int maxBoundsCount = maxBoundsBuffer.Length;
-
         EntityManager.AddComponent<StaticObjectLODMeshInfoReady>(configEntity);
         Enabled = false;
-
-        Debug.Log($"[StaticObjectLODMeshInfoInit] Populated {populatedCount} LOD MaterialMeshInfo slots and {maxBoundsCount} type max-bounds entries.");
     }
 
     private static AABB EncapsulateAabb(AABB a, AABB b)

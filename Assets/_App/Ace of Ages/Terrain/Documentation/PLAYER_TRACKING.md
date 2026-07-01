@@ -117,7 +117,7 @@ Player Tag: (not used)
 **Tips**:
 - Use full path if ambiguous: "XR Origin/Camera Offset/Main Camera"
 - Check spelling carefully
-- Test with TerrainTrackingDebugger
+- Test with **Window → Terrain → Status Inspector** in play mode
 
 ---
 
@@ -150,37 +150,23 @@ Player Tag: "Player"
 
 ## Troubleshooting Player Tracking
 
-### Using TerrainTrackingDebugger
+### Using Terrain Status Inspector
 
-The easiest way to diagnose tracking issues:
-
-1. Add `TerrainTrackingDebugger` component to any GameObject
+1. **Window → Terrain → Status Inspector**
 2. Enter Play mode
-3. Right-click component → `Check Tracking Status`
-4. Review console output
+3. Review play-mode checks (player reference, tile counts)
+4. Check Console for `[PlayerTrackingInitSystem]` warnings or errors
 
-**Example Output (Success)**:
+**Example Console Warning (failure)**:
 ```
-=== Terrain Tracking Status ===
-🔍 Search Mode: FindMainCamera
-🔍 Search String: ''
-🔍 Initialized: True
-✅ Tracking: Main Camera
-   GameObject: Main Camera
-   Position: (0.0, 1.5, 0.0)
-   Active: True
-📦 Active Terrain Tiles: 25
+[PlayerTrackingInitSystem] Could not find player GameObject!
+Mode: FindByName, Search: 'PlayerRig'
+The terrain system will not work until a player is found.
 ```
 
-**Example Output (Failure)**:
+**Example Console Error (misconfiguration)**:
 ```
-=== Terrain Tracking Status ===
-🔍 Search Mode: FindByName
-🔍 Search String: 'PlayerRig'
-🔍 Initialized: True
-⚠️ PlayerTransformReference exists but Transform is null!
-   Player search completed but failed to find GameObject.
-   Check that a GameObject matching search mode 'FindByName' exists.
+[PlayerTrackingInitSystem] FindByName mode requires a search string!
 ```
 
 ### Common Issues
@@ -231,7 +217,7 @@ The easiest way to diagnose tracking issues:
 **Debug Steps**:
 1. Verify player position is not at extreme coordinates (>100,000)
 2. Check TerrainTileConfig has reasonable values
-3. Add TerrainTileGizmoVisualizer to see if tiles exist but invisible
+3. Open **Terrain Status Inspector** in play mode to confirm tiles exist
 4. See [Troubleshooting Guide](TROUBLESHOOTING.md)
 
 ---
@@ -348,17 +334,12 @@ public struct PlayerTrackingSearch : IComponentData
 
 ### Test 2: Runtime Check
 1. Enter Play mode
-2. Open Console
-3. Look for:
-   ```
-   [PlayerTrackingInitSystem] ✅ Found player: [name]
-   ```
-4. If missing → tracking failed
+2. Open Console — should be quiet on success
+3. If `[PlayerTrackingInitSystem]` warnings appear → tracking failed
 
-### Test 3: Use Debug Tool
-1. Add TerrainTrackingDebugger to scene
-2. Right-click → Check Tracking Status
-3. Review detailed output
+### Test 3: Use Terrain Status Inspector
+1. **Window → Terrain → Status Inspector**
+2. Enter Play mode and review player/tile status
 
 ## Best Practices
 
@@ -366,7 +347,7 @@ public struct PlayerTrackingSearch : IComponentData
 ✅ **Keep SubScene closed** during gameplay (reduces Inspector overhead)  
 ✅ **Tag your camera** as MainCamera for fallback  
 ✅ **Name VR rigs consistently** across scenes  
-✅ **Test tracking** with debugger before building  
+✅ **Test tracking** with Terrain Status Inspector before building  
 
 ❌ **Don't use FindByName** with dynamic spawning  
 ❌ **Don't track destroyed** GameObjects  

@@ -59,9 +59,6 @@ public struct TerrainTileConfig : IComponentData
     
     /// <summary>Whether to generate physics colliders for terrain tiles (disable for debugging/performance testing).</summary>
     public bool enablePhysicsColliders;
-    
-    /// <summary>Whether to enable TerrainRenderingDebugSystem logging (disable to reduce console spam).</summary>
-    public bool enableRenderingDebug;
 }
 
 /// <summary>
@@ -363,9 +360,6 @@ public struct StaticObjectSpawnerConfig : IComponentData
 
     /// <summary>Maximum spawn-position rejection attempts per frame (spread across active tiles).</summary>
     public int maxPositionCalcAttemptsPerFrame;
-    
-    /// <summary>Enable debug logging for static object spawner system.</summary>
-    public bool enableSpawnerDebug;
 }
 
 /// <summary>
@@ -542,15 +536,6 @@ public struct StaticObjectLODConfig : IComponentData
     
     /// <summary>Maximum number of spatial chunks to update per frame for LOD calculations.</summary>
     public int maxChunksUpdatedPerFrame;
-    
-    /// <summary>Whether to enable object LOD and spawning debug logging (disable to reduce console spam).</summary>
-    public bool enableObjectLODDebug;
-    
-    /// <summary>Enable distance-based culling for object rendering (objects beyond maxObjectRenderDistance won't render).</summary>
-    public bool enableDistanceCulling;
-    
-    /// <summary>Maximum distance to render trees in meters. objects beyond this distance are culled (not rendered). Quest 3 recommended: 300-500m.</summary>
-    public float maxObjectRenderDistance;
     
     // QUEST 3 VR OPTIMIZATIONS
     

@@ -439,15 +439,7 @@ if (distance > config.viewDistance * 1.5f)
 
 ## Build Optimization
 
-### Strip Debug Code
-
-**Remove** from build:
-```
-- TerrainTrackingDebugger
-- TerrainTileGizmoVisualizer
-- TerrainRenderingDebugSystem
-- All #if UNITY_EDITOR blocks (automatic)
-```
+Runtime debug visualizers and verbose logging were removed from source. Editor-only profiler markers and `#if UNITY_EDITOR` blocks are stripped automatically in release builds.
 
 ### Build Settings
 

@@ -195,7 +195,6 @@ Set via `StaticObjectSpawnerConfigAuthoring`:
 | `maxChunksUpdatedPerFrame` | 20 | Spatial chunks processed per LOD update pass |
 | `vrFrameSkipScrolling` | 1 | Frame skip during fast scrolling (less = more responsive) |
 | `playerVelocityThreshold` | 10 m/s | Velocity above which scrolling frame skip applies |
-| `enableObjectLODDebug` | false | Log LOD stats every 120 frames |
 | `lodsPerObjectType` | 3 | Number of LOD levels per object type (LOD0/1/2) |
 
 ---

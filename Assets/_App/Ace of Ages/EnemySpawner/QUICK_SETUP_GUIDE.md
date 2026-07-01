@@ -114,7 +114,7 @@ Your enemy prefab **must have**:
 
 ### Enemies spawn but don't approach
 **Check**: Open Console, look for errors about `PlayerTransformReference`  
-**Fix**: Use context menu on `TerrainTrackingDebugger`: "Check Tracking Status"
+**Fix**: Open **Window → Terrain → Status Inspector** in play mode; check Console for `[PlayerTrackingInitSystem]` warnings
 
 ### Enemies approach but don't follow spline
 **Check**: `approachThreshold` might be too small, enemies may be overshooting  

@@ -184,9 +184,11 @@ Located in `Assets/_App/Ace of Ages/Terrain/`:
 - Physics: `maxCollidersCreatedPerFrame` (6), `maxPhysicsCollidersCreatedPerFrame` (4), `maxColliderDistance` (450m)
 
 **Debugging Tools**:
-- `TerrainTrackingDebugger`: Attach to any GameObject, use context menu "Check Tracking Status" to verify player reference, shows GUI overlay in play mode
-- Editor window: Window → Terrain → Status Inspector (checks material, URP config, entity counts)
-- Profiler markers: `TerrainMesh.Generation`, `TerrainPhysics.ColliderCreation`, `TerrainMesh.PrioritySort` (monitor to ensure <5ms per frame)
+- Editor window: **Window → Terrain → Status Inspector** (material, URP, play-mode tile counts, player tracking)
+- `StaticObjectCleanupDebugSystem`: Automatic `LogWarning` when orphaned static objects detected after tile despawn
+- Console: production systems emit warnings/errors only (no success-path spam); filter `[PlayerTracking`, `[Terrain`, `[StaticObjectCleanup`
+- Profiler markers: `TerrainMesh.Generation`, `TerrainPhysics.ColliderCreation`, `TerrainMesh.PrioritySort`, `TreeLOD.*` (monitor to ensure <5ms per frame)
+- See `Assets/_App/Ace of Ages/Terrain/Documentation/DEBUG_TOOLS.md` for full diagnostic guide
 
 **Performance Tuning**:
 - High-end VR (RTX 4080+): Set `maxCollidersCreatedPerFrame` to 5-8

@@ -53,21 +53,6 @@ public class StaticObjectSpawnerConfigAuthoring : MonoBehaviour
     [Range(500, 50000)]
     public int maxPositionCalcAttemptsPerFrame = 4000;
 
-    [Header("Debug")]
-    [Tooltip("Enable static object LOD and spawning debug logging (disable to reduce console spam)")]
-    public bool enableObjectLODDebug;
-
-    [Tooltip("Enable static object spawner system debug logging (disable to reduce console spam)")]
-    public bool enableSpawnerDebug;
-
-    [Header("Distance Culling (VR Performance)")]
-    [Tooltip("Enable distance-based culling for object rendering. Objects beyond maxObjectRenderDistance won't render. Recommended ON for VR.")]
-    public bool enableDistanceCulling = true;
-
-    [Tooltip("Maximum distance to render objects in meters. Objects beyond this distance are culled (not rendered). Quest 3 recommended: 300-500m.")]
-    [Range(100f, 1000f)]
-    public float maxObjectRenderDistance = 400f;
-
     [Header("Quest 3 VR Optimizations")]
     [Tooltip("Maximum number of unique mesh/material batch combinations. Increase if seeing capacity warnings in logs. Default: 32")]
     [Range(16, 128)]
@@ -108,8 +93,7 @@ public class StaticObjectSpawnerConfigAuthoring : MonoBehaviour
                 slopeThreshold = slopeThreshold,
                 maxObjectsSpawnedPerFrame = authoring.maxObjectsSpawnedPerFrame,
                 maxNearObjectsSpawnedPerFrame = authoring.maxNearObjectsSpawnedPerFrame,
-                maxPositionCalcAttemptsPerFrame = authoring.maxPositionCalcAttemptsPerFrame,
-                enableSpawnerDebug = authoring.enableSpawnerDebug
+                maxPositionCalcAttemptsPerFrame = authoring.maxPositionCalcAttemptsPerFrame
             });
 
             // Create static object LOD config singleton
@@ -121,9 +105,6 @@ public class StaticObjectSpawnerConfigAuthoring : MonoBehaviour
                 hysteresisDelta = authoring.lodHysteresis,
                 lodsPerObjectType = 3, // Hardcoded to 3 LOD levels
                 maxChunksUpdatedPerFrame = 25,
-                enableObjectLODDebug = authoring.enableObjectLODDebug,
-                enableDistanceCulling = authoring.enableDistanceCulling,
-                maxObjectRenderDistance = authoring.maxObjectRenderDistance,
                 // Quest 3 VR Optimizations
                 maxUniqueBatches = authoring.maxUniqueBatches,
                 vrFrameSkipScrolling = authoring.vrFrameSkipScrolling,
@@ -247,7 +228,6 @@ public class StaticObjectSpawnerConfigAuthoring : MonoBehaviour
 #if UNITY_EDITOR
                                     UnityEditor.EditorUtility.SetDirty(mat);
 #endif
-                                    Debug.Log($"[StaticObjectSpawner] Enabled GPU instancing on material '{mat.name}' for '{lodSet.name}' LOD{lodLevel}.", mat);
                                 }
                             }
                         }
@@ -274,17 +254,12 @@ public class StaticObjectSpawnerConfigAuthoring : MonoBehaviour
                     }
                 }
 
-                Debug.Log($"[StaticObjectSpawner] Baked object type '{lodSet.name}' with {(lodPrefabs[1] != null ? "3" : lodPrefabs[2] != null ? "2" : "1")} LOD levels (type spawn weight: {normalizedTypeSpawnWeight:F2})");
                 validObjectTypes++;
             }
 
             if (objectPrefabBuffer.Length == 0)
             {
                 Debug.LogError("[StaticObjectSpawner] No valid object prefabs were converted to entities!", authoring);
-            }
-            else
-            {
-                Debug.Log($"[StaticObjectSpawner] Baked {validObjectTypes} object types with {objectPrefabBuffer.Length} total LOD prefabs");
             }
         }
     }
@@ -305,9 +280,6 @@ public class StaticObjectSpawnerConfigAuthoring : MonoBehaviour
         lod1Distance = Mathf.Max(lod0Distance + 1f, lod1Distance);
         lod2Distance = Mathf.Max(lod1Distance + 1f, lod2Distance);
         lodHysteresis = Mathf.Max(0f, lodHysteresis);
-
-        // Validate distance culling settings
-        maxObjectRenderDistance = Mathf.Clamp(maxObjectRenderDistance, 100f, 1000f);
 
         if (objectLODSets == null)
             return;

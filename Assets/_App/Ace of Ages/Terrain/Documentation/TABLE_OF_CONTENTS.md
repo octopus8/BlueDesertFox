@@ -56,7 +56,7 @@ Complete index of all Terrain system documentation.
 
 | Document | Description |
 |----------|-------------|
-| [DEBUG_TOOLS.md](DEBUG_TOOLS.md) | TerrainTrackingDebugger, gizmos, profiler markers |
+| [DEBUG_TOOLS.md](DEBUG_TOOLS.md) | Terrain Status Inspector, profiler markers, console diagnostics |
 | [TROUBLESHOOTING.md](TROUBLESHOOTING.md) | Solutions to common issues |
 | [PERFORMANCE.md](PERFORMANCE.md) | Optimization guide and platform presets |
 | [EXTENSIONS.md](EXTENSIONS.md) | Adding biomes, custom LOD, water, minimap |
@@ -108,14 +108,10 @@ Complete index of all Terrain system documentation.
 | `ConstantScrollVelocitySystem.cs` | Fixed scroll for testing |
 | `WorldOriginTrackingInitSystem.cs` | Optional world origin GO tracking |
 
-### Debug & Editor
+### Diagnostics & Editor
 | File | Purpose |
 |------|---------|
-| `TerrainTrackingDebugger.cs` | Runtime GUI overlay + context-menu checks |
-| `TerrainTileGizmoVisualizer.cs` | Scene-view tile bounds gizmos |
-| `TerrainColliderVisualizer.cs` | Runtime physics mesh overlay (VR) |
-| `StaticObjectLODDebugSystem.cs` | Editor-only LOD level gizmos |
-| `StaticObjectCleanupDebugSystem.cs` | Orphan object detection logging |
+| `StaticObjectCleanupDebugSystem.cs` | Orphan static-object detection (`LogWarning` every 2s) |
 | `Editor/TerrainStatusInspector.cs` | Window → Terrain → Status Inspector |
 | `Editor/TerrainMaterialCreator.cs` | Auto-creates Resources/TerrainMaterial |
 | `Editor/SetupTerrainPhysicsLayers.cs` | Tools → Terrain → Setup Physics Layer |

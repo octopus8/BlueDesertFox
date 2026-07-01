@@ -86,17 +86,8 @@ public class PlayerShootingInput : MonoBehaviour
             double currentTime = Time.timeAsDouble;
             if (currentTime - shooter.lastFireTime >= shooter.fireRate)
             {
-                // Trigger shoot
                 shooter.doShoot = true;
                 _entityManager.SetComponentData(_playerShipEntity, shooter);
-                
-                Debug.Log($"[PlayerShootingInput] Fire button pressed - triggered shoot");
-            }
-            else
-            {
-                // Still in cooldown
-                float remainingCooldown = (float)(shooter.fireRate - (currentTime - shooter.lastFireTime));
-                Debug.Log($"[PlayerShootingInput] Fire button pressed but still in cooldown ({remainingCooldown:F2}s remaining)");
             }
         }
     }
@@ -120,9 +111,6 @@ public class PlayerShootingInput : MonoBehaviour
         
         _entityManager = world.EntityManager;
         
-        // Wait for player ship entity to exist (SubScene baking may take a few frames)
-        Debug.Log("[PlayerShootingInput] Waiting for PlayerShip entity to be created...");
-        
         int retryCount = 0;
         const int maxRetries = 300; // 5 seconds at 60fps
         
@@ -138,13 +126,9 @@ public class PlayerShootingInput : MonoBehaviour
                 entities.Dispose();
                 query.Dispose();
                 
-                Debug.Log($"[PlayerShootingInput] Found PlayerShip entity after {retryCount} frames!");
-                
-                // Initialize input action
                 InitializeInputAction();
                 
                 _initialized = true;
-                Debug.Log("[PlayerShootingInput] Initialized successfully");
                 yield break;
             }
             
@@ -187,9 +171,8 @@ public class PlayerShootingInput : MonoBehaviour
             return;
         }
         
-        InputSystem.actions.Enable(); // Enable whole asset
-        _fireAction.actionMap.Enable(); // Enable Player action map
-        _fireAction.Enable(); // Enable specific action
-        Debug.Log("[PlayerShootingInput] Fire action initialized successfully");
+        InputSystem.actions.Enable();
+        _fireAction.actionMap.Enable();
+        _fireAction.Enable();
     }
 }

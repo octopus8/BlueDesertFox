@@ -50,8 +50,6 @@ public class TransformFollowerAuthoring : MonoBehaviour
     /// </summary>
     void Start()
     {
-        Debug.Log($"[TransformFollower] Start() called on {gameObject.name}", this);
-        
         // NOTE: This Start() method will NOT run for GameObjects in baked subscenes!
         // Subscenes are fully converted to entities at edit time, and MonoBehaviours are destroyed.
         // The TransformFollowerInitSystem handles initialization at runtime instead.
@@ -73,7 +71,6 @@ public class TransformFollowerAuthoring : MonoBehaviour
         // Set the Transform reference at runtime (after baking)
         // This allows us to reference GameObjects outside the subscene
         var world = World.DefaultGameObjectInjectionWorld;
-        Debug.Log($"[TransformFollower] Initializing on {gameObject.name}. World exists: {world != null}", this);
         
         if (world == null)
         {
@@ -107,18 +104,12 @@ public class TransformFollowerAuthoring : MonoBehaviour
             yield break;
         }
         
-        Debug.Log($"[TransformFollower] Found valid entity for {gameObject.name}", this);
-        
         Transform targetTransform = FindTarget();
         
         if (targetTransform == null)
         {
             Debug.LogWarning($"TransformFollower on {gameObject.name}: Could not find target! " +
                 $"Mode: {targetMode}, Name: '{targetName}', Tag: '{targetTag}'", this);
-        }
-        else
-        {
-            Debug.Log($"[TransformFollower] Found target transform: {targetTransform.name} at position {targetTransform.position}", this);
         }
         
         // Add or set the managed component with the Transform reference
@@ -128,7 +119,6 @@ public class TransformFollowerAuthoring : MonoBehaviour
             {
                 target = targetTransform
             });
-            Debug.Log($"[TransformFollower] Added TransformReference component to entity", this);
         }
         else
         {
@@ -136,7 +126,6 @@ public class TransformFollowerAuthoring : MonoBehaviour
             {
                 target = targetTransform
             });
-            Debug.Log($"[TransformFollower] Updated TransformReference component on entity", this);
         }
     }
     
@@ -147,8 +136,6 @@ public class TransformFollowerAuthoring : MonoBehaviour
     /// </summary>
     private Transform FindTarget()
     {
-        Debug.Log($"[TransformFollower] FindTarget called. Mode: {targetMode}, Name: '{targetName}', Tag: '{targetTag}'", this);
-        
         switch (targetMode)
         {
             case TargetMode.FindByName:
@@ -157,14 +144,12 @@ public class TransformFollowerAuthoring : MonoBehaviour
                     Debug.LogError($"TransformFollower on {gameObject.name}: Target name is empty!", this);
                     return null;
                 }
-                Debug.Log($"[TransformFollower] Searching for GameObject with name: '{targetName}'", this);
                 var foundByName = GameObject.Find(targetName);
                 if (foundByName == null)
                 {
                     Debug.LogError($"TransformFollower on {gameObject.name}: Could not find GameObject named '{targetName}'", this);
                     return null;
                 }
-                Debug.Log($"[TransformFollower] Successfully found GameObject: {foundByName.name}", this);
                 return foundByName.transform;
                 
             case TargetMode.FindByTag:
@@ -173,14 +158,12 @@ public class TransformFollowerAuthoring : MonoBehaviour
                     Debug.LogError($"TransformFollower on {gameObject.name}: Target tag is empty!", this);
                     return null;
                 }
-                Debug.Log($"[TransformFollower] Searching for GameObject with tag: '{targetTag}'", this);
                 var foundByTag = GameObject.FindGameObjectWithTag(targetTag);
                 if (foundByTag == null)
                 {
                     Debug.LogError($"TransformFollower on {gameObject.name}: Could not find GameObject with tag '{targetTag}'", this);
                     return null;
                 }
-                Debug.Log($"[TransformFollower] Successfully found GameObject: {foundByTag.name}", this);
                 return foundByTag.transform;
                 
             case TargetMode.DirectReference:
@@ -189,7 +172,6 @@ public class TransformFollowerAuthoring : MonoBehaviour
                     Debug.LogError($"TransformFollower on {gameObject.name}: Target GameObject reference is null!", this);
                     return null;
                 }
-                Debug.Log($"[TransformFollower] Using direct reference: {targetGameObject.name}", this);
                 return targetGameObject.transform;
                 
             default:

@@ -63,7 +63,7 @@ Complete index of all documentation across the Ace of Ages project.
 
 | Document                                                             | Description                                       |
 | -------------------------------------------------------------------- | ------------------------------------------------- |
-| [Debug Tools](../Terrain/Documentation/DEBUG_TOOLS.md)               | TerrainTrackingDebugger, gizmos, profiler markers |
+| [Debug Tools](../Terrain/Documentation/DEBUG_TOOLS.md)               | Terrain Status Inspector, profiler markers, console diagnostics |
 | [Troubleshooting Guide](../Terrain/Documentation/TROUBLESHOOTING.md) | Solutions to common issues                        |
 | [Performance Optimization](../Terrain/Documentation/PERFORMANCE.md)  | Tuning guide and platform presets                 |
 | [Extension Guide](../Terrain/Documentation/EXTENSIONS.md)            | Adding biomes, custom LOD, water, minimap         |

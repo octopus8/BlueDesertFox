@@ -42,7 +42,7 @@ Welcome to the comprehensive documentation for the DOTS-based infinite terrain s
 
 ### Troubleshooting & Debugging
 - **[Troubleshooting Guide](TROUBLESHOOTING.md)** - Solutions to common problems
-- **[Debug Tools](DEBUG_TOOLS.md)** - Using TerrainTrackingDebugger and visualization tools
+- **[Debug Tools](DEBUG_TOOLS.md)** - Terrain Status Inspector, profiler markers, console diagnostics
 - **[Performance Optimization](PERFORMANCE.md)** - Tuning for maximum performance
 
 ### Advanced Topics
@@ -138,11 +138,10 @@ Spatial Grid Cell Size:    100m   // Chunk size for culling
 5. **Physics problems?** → [Physics System](PHYSICS_SYSTEM.md)
 6. **Static objects not rendering?** → [Static Object Rendering System](STATIC_OBJECT_RENDERING.md)
 
-**Debug Tools Available**:
-- `TerrainTrackingDebugger` - Player tracking and tile status
-- `TerrainTileGizmoVisualizer` - Visual tile debugging in Scene view
-- `TreeLODDebugSystem` - LOD level visualization
-- `TreeCleanupDebugSystem` - Tree lifecycle validation
+**Diagnostic tools:**
+- `TerrainStatusInspector` — Editor window (`Window → Terrain → Status Inspector`)
+- `StaticObjectCleanupDebugSystem` — Automatic orphan static-object warnings
+- Unity Profiler markers — See [Debug Tools](DEBUG_TOOLS.md)
 
 ---
 
@@ -221,10 +220,9 @@ Terrain/
 │  │  ├─ PlayerScrollVelocitySystem.cs
 │  │  └─ ConstantScrollVelocitySystem.cs
 │  │
-│  └─ Debug Tools:
-│     ├─ TerrainTrackingDebugger.cs
-│     ├─ TerrainTileGizmoVisualizer.cs
-│     └─ TerrainRenderingDebugSystem.cs
+│  └─ Diagnostics:
+│     ├─ StaticObjectCleanupDebugSystem.cs
+│     └─ Editor/TerrainStatusInspector.cs
 ```
 
 ---

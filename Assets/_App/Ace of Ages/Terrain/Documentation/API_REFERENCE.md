@@ -395,7 +395,7 @@ public partial class PlayerTrackingInitSystem : SystemBase
 **API**:
 ```csharp
 // None - system runs automatically
-// Check status via TerrainTrackingDebugger
+// Diagnose via Window → Terrain → Status Inspector or Console warnings
 ```
 
 ---
