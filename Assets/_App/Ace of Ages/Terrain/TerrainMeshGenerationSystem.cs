@@ -188,6 +188,8 @@ public partial struct TerrainMeshScheduleSystem : ISystem
             _inFlightIndices = new NativeArray<int>(totalIndices * tilesToProcessCount, Allocator.Persistent);
             _inFlightTileData = new NativeArray<TileMeshJobData>(tilesToProcessCount, Allocator.Persistent);
 
+            float slopeTan = math.tan(math.radians(config.slopeAngleDegrees));
+
             float trailHeight = 0f;
             float trailLutStep = 1f;
             TrailInstanceConfig trailInst1 = default;
@@ -246,6 +248,7 @@ public partial struct TerrainMeshScheduleSystem : ISystem
                     tileWorldPos = tileWorldPos,
                     verticesPerSide = verticesPerSide,
                     tileSize = config.tileSize,
+                    slopeTan = slopeTan,
                     noiseFrequency = config.noiseFrequency,
                     noiseAmplitude = config.noiseAmplitude,
                     noiseOctaves = config.noiseOctaves,
@@ -459,6 +462,7 @@ public struct TileMeshJobData
     public double3 tileWorldPos;
     public int verticesPerSide;
     public float tileSize;
+    public float slopeTan;
     public float noiseFrequency;
     public float noiseAmplitude;
     public int noiseOctaves;
@@ -738,7 +742,7 @@ public static class TerrainMeshNoise
             frequency *= data.noiseLacunarity;
         }
 
-        return total / maxValue * data.noiseAmplitude * continentalMask;
+        return total / maxValue * data.noiseAmplitude * continentalMask + (float)worldZ * data.slopeTan;
     }
 }
 

@@ -15,6 +15,9 @@ public struct TerrainTileConfig : IComponentData
     
     /// <summary>Number of vertices per side of each tile (e.g., 32 = 32x32 grid).</summary>
     public int verticesPerSide;
+
+    /// <summary>Constant terrain grade along world +Z in degrees. Positive = uphill as Z increases.</summary>
+    public float slopeAngleDegrees;
     
     /// <summary>Base frequency of the Perlin noise used for height generation (e.g. 0.01). Higher values = smaller terrain features.</summary>
     public float noiseFrequency;

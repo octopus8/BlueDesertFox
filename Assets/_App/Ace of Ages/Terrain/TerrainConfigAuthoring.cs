@@ -39,6 +39,10 @@ public class TerrainConfigAuthoring : MonoBehaviour
     
     [Tooltip("Number of vertices per side of each tile (higher = more detailed)")]
     public int verticesPerSide = 32;
+
+    [Tooltip("Constant terrain grade along world +Z in degrees. 0 = flat. Positive = uphill as Z increases.")]
+    [Range(-60f, 60f)]
+    public float slopeAngleDegrees = 0f;
     
     [Header("Procedural Noise Settings")]
     [Tooltip("Base frequency of the noise (higher = more variation)")]
@@ -191,6 +195,7 @@ public class TerrainConfigAuthoring : MonoBehaviour
                 tileSize = authoring.tileSize,
                 viewDistance = authoring.viewDistance,
                 verticesPerSide = authoring.verticesPerSide,
+                slopeAngleDegrees = authoring.slopeAngleDegrees,
                 noiseFrequency = authoring.noiseFrequency,
                 noiseAmplitude = authoring.noiseAmplitude,
                 noiseOctaves = authoring.noiseOctaves,
@@ -389,6 +394,7 @@ public class TerrainConfigAuthoring : MonoBehaviour
         tileSize = Mathf.Max(1f, tileSize);
         viewDistance = Mathf.Max(tileSize, viewDistance);
         verticesPerSide = Mathf.Max(2, verticesPerSide);
+        slopeAngleDegrees = Mathf.Clamp(slopeAngleDegrees, -60f, 60f);
         noiseFrequency = Mathf.Max(0.0001f, noiseFrequency);
         noiseAmplitude = Mathf.Max(0f, noiseAmplitude);
         noiseLacunarity = Mathf.Max(1f, noiseLacunarity);
