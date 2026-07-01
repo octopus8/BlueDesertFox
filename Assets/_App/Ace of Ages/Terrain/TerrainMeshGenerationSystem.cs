@@ -684,26 +684,39 @@ public static class TerrainMeshNoise
         TerrainMeshProfiler.Begin(TerrainMeshProfiler.TrailInfluence);
 #endif
         float maxInfluence = 0f;
+        float trailSlopeZ = 0f;
 
         if ((data.tileTrailMask & TrailMask.Trail1) != 0)
         {
-            maxInfluence = math.max(maxInfluence,
-                TrailInfluenceBurst.ComputeTrailInfluenceFromLUT(
-                    (float)worldX, (float)worldZ, data.trail1, data.trail1Lut, trailLuts));
+            var result = TrailInfluenceBurst.ComputeTrailInfluenceFromLUT(
+                (float)worldX, (float)worldZ, data.trail1, data.trail1Lut, trailLuts);
+            if (result.influence > maxInfluence)
+            {
+                maxInfluence = result.influence;
+                trailSlopeZ = result.centerlineZ;
+            }
         }
 
         if ((data.tileTrailMask & TrailMask.Trail2) != 0)
         {
-            maxInfluence = math.max(maxInfluence,
-                TrailInfluenceBurst.ComputeTrailInfluenceFromLUT(
-                    (float)worldX, (float)worldZ, data.trail2, data.trail2Lut, trailLuts));
+            var result = TrailInfluenceBurst.ComputeTrailInfluenceFromLUT(
+                (float)worldX, (float)worldZ, data.trail2, data.trail2Lut, trailLuts);
+            if (result.influence > maxInfluence)
+            {
+                maxInfluence = result.influence;
+                trailSlopeZ = result.centerlineZ;
+            }
         }
 
         if ((data.tileTrailMask & TrailMask.Trail3) != 0)
         {
-            maxInfluence = math.max(maxInfluence,
-                TrailInfluenceBurst.ComputeTrailInfluenceFromLUT(
-                    (float)worldX, (float)worldZ, data.trail3, data.trail3Lut, trailLuts));
+            var result = TrailInfluenceBurst.ComputeTrailInfluenceFromLUT(
+                (float)worldX, (float)worldZ, data.trail3, data.trail3Lut, trailLuts);
+            if (result.influence > maxInfluence)
+            {
+                maxInfluence = result.influence;
+                trailSlopeZ = result.centerlineZ;
+            }
         }
 #if UNITY_EDITOR
         TerrainMeshProfiler.End(TerrainMeshProfiler.TrailInfluence);
@@ -711,7 +724,7 @@ public static class TerrainMeshNoise
 
         if (maxInfluence > 0f)
         {
-            float slopedTrailHeight = data.trailHeight + (float)worldZ * data.slopeTan;
+            float slopedTrailHeight = data.trailHeight + trailSlopeZ * data.slopeTan;
             return math.lerp(terrainHeight, slopedTrailHeight, maxInfluence);
         }
 

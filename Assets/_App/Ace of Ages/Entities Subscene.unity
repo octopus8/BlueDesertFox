@@ -5932,7 +5932,7 @@ MonoBehaviour:
   trail1Width: 60
   trail1BlendWidth: 10
   trail1Seed: 0
-  trail1Frequency: 0.0015
+  trail1Frequency: 0.002
   trail1Amplitude: 500
   trail2Enabled: 1
   trail2Width: 30
@@ -5976,8 +5976,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ea650e9e97214c68a8aab550673cff51, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerScrollVelocityAuthoring
-  speed: 40
-  rotationSpeed: 20
+  speed: 30
+  rotationSpeed: 30
   worldOriginSearchMode: 0
   worldOriginName: XR Origin Hands (XR Rig)
   worldOriginTag: MainCamera

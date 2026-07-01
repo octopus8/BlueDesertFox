@@ -68,6 +68,7 @@ public struct TerrainTileConfig : IComponentData
 /// Per-trail settings. Height is shared across all trails and lives on <see cref="TrailConfig"/>.
 /// The centerline of each trail is defined by centerX(Z) = amplitude * snoise(Z * frequency + seed, 0),
 /// guaranteeing the path always advances in the +Z direction (cannot turn past 90°).
+/// Trail cross-section is level (ski-trail style): grade uses world +Z at the nearest centerline sample.
 /// </summary>
 public struct TrailInstanceConfig
 {
@@ -94,6 +95,8 @@ public struct TrailInstanceConfig
 /// Singleton configuration for up to three procedural winding trails carved flat into the terrain.
 /// All trails share a single Y height value; each trail has its own shape parameters via
 /// <see cref="TrailInstanceConfig"/>. Where trails overlap the maximum carve influence wins.
+/// Cross-section stays level perpendicular to the winding centerline; downhill grade follows
+/// <see cref="TerrainTileConfig.slopeAngleDegrees"/> at the nearest centerline world Z.
 /// </summary>
 public struct TrailConfig : IComponentData
 {

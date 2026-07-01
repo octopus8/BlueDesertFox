@@ -13,6 +13,15 @@ public static class TrailMask
 }
 
 /// <summary>
+/// Trail carve influence at a world XZ point plus the nearest centerline sample Z used for slope.
+/// </summary>
+public struct TrailInfluenceResult
+{
+    public float influence;
+    public float centerlineZ;
+}
+
+/// <summary>
 /// Metadata describing a precomputed centerline X lookup table for one trail on one tile.
 /// </summary>
 public struct TrailCenterlineLUT
@@ -147,7 +156,7 @@ public static class TrailInfluenceBurst
         }
     }
 
-    public static float ComputeTrailInfluenceFromLUT(
+    public static TrailInfluenceResult ComputeTrailInfluenceFromLUT(
         float fX,
         float fZ,
         in TrailInstanceConfig trail,
@@ -155,7 +164,7 @@ public static class TrailInfluenceBurst
         NativeArray<float> centerlineX)
     {
         if (!trail.enabled || lut.length <= 0)
-            return 0f;
+            return default;
 
         float halfWidth = trail.width * 0.5f;
         float searchRange = halfWidth + trail.blendWidth;
@@ -166,7 +175,7 @@ public static class TrailInfluenceBurst
         float nearestCenterX = centerlineX[lut.offset + nearestIndex];
         float crossDist = math.abs(fX - nearestCenterX);
         if (crossDist > rejectDist)
-            return 0f;
+            return default;
 
         int startIndex = (int)math.floor((fZ - searchRange - lut.zOrigin) / lut.zStep);
         int endIndex = (int)math.ceil((fZ + searchRange - lut.zOrigin) / lut.zStep);
@@ -174,6 +183,7 @@ public static class TrailInfluenceBurst
         endIndex = math.clamp(endIndex, 0, lut.length - 1);
 
         float minDist2D = float.MaxValue;
+        int bestIndex = nearestIndex;
         for (int i = startIndex; i <= endIndex; i++)
         {
             float sz = lut.zOrigin + i * lut.zStep;
@@ -182,18 +192,28 @@ public static class TrailInfluenceBurst
             float dz = fZ - sz;
             float d2 = dx * dx + dz * dz;
             if (d2 < minDist2D)
+            {
                 minDist2D = d2;
+                bestIndex = i;
+            }
         }
 
+        float centerlineZ = lut.zOrigin + bestIndex * lut.zStep;
         float minDist = math.sqrt(minDist2D);
 
         if (minDist < halfWidth)
-            return 1f;
+            return new TrailInfluenceResult { influence = 1f, centerlineZ = centerlineZ };
 
         if (minDist < halfWidth + trail.blendWidth)
-            return 1f - math.smoothstep(halfWidth, halfWidth + trail.blendWidth, minDist);
+        {
+            return new TrailInfluenceResult
+            {
+                influence = 1f - math.smoothstep(halfWidth, halfWidth + trail.blendWidth, minDist),
+                centerlineZ = centerlineZ
+            };
+        }
 
-        return 0f;
+        return default;
     }
 
     /// <summary>
