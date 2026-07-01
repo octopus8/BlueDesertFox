@@ -710,7 +710,10 @@ public static class TerrainMeshNoise
 #endif
 
         if (maxInfluence > 0f)
-            return math.lerp(terrainHeight, data.trailHeight, maxInfluence);
+        {
+            float slopedTrailHeight = data.trailHeight + (float)worldZ * data.slopeTan;
+            return math.lerp(terrainHeight, slopedTrailHeight, maxInfluence);
+        }
 
         return terrainHeight;
     }
