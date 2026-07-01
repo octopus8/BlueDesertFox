@@ -3,6 +3,8 @@
 **Version:** 1.0  
 **Status:** ✅ Complete
 
+> **Note:** TreeSpawner / TreeSpawnerConfig names in the migration tables below are **historical only**. The project uses `StaticObjectSpawnerConfig`, `TerrainStaticObjectSpawningSystemOptimized`, and related static object components exclusively.
+
 ## Overview
 
 Generalized the tree-specific spawning system into a reusable static object spawner capable of spawning any ground-based static objects (trees, rocks, bushes, props, etc.) on terrain tiles. Added per-object-type LOD spawn weight distribution to control initial LOD probability at spawn time.
@@ -163,17 +165,11 @@ maxObjectsPerTile: 40
 
 ## Breaking Changes
 
-⚠️ **No Backward Compatibility** - This is a clean break refactoring.
+⚠️ **No Backward Compatibility** - This is a clean break refactoring. Migration is complete in this repository.
 
-**Action Required:**
-1. Update scene GameObjects with `TreeSpawnerConfigAuthoring` → replace with `StaticObjectSpawnerConfigAuthoring`
-2. Reassign prefab references to new `objectLODSets` array
-3. Configure LOD spawn weights (defaults: 0.6/0.3/0.1)
-4. Re-bake subscenes
+**For new scenes:** Use `StaticObjectSpawnerConfigAuthoring` on the terrain config GameObject, assign `objectLODSets`, configure LOD spawn weights (defaults: 0.6/0.3/0.1), and re-bake subscenes.
 
-**Compile Errors:**
-- Any custom code referencing old component names will fail to compile
-- Update using the Component Renaming table above
+**Compile Errors:** Any custom code referencing old component names will fail to compile. Update using the Component Renaming table above.
 
 ## Implementation Status
 
@@ -240,7 +236,9 @@ else
 
 ## Migration Guide
 
-### For Existing Scenes
+This section documents the one-time migration from the legacy tree spawner. Existing scenes in this project have already been migrated.
+
+### For Existing Scenes (historical)
 
 1. **Backup Scene:**
    ```
@@ -249,7 +247,7 @@ else
 
 2. **Update Terrain GameObject:**
    ```
-   - Remove TreeSpawnerConfigAuthoring component
+   - Remove legacy TreeSpawnerConfigAuthoring component (if present)
    - Add StaticObjectSpawnerConfigAuthoring component
    - Assign object prefabs to objectLODSets array
    - Configure LOD spawn weights (or use defaults)

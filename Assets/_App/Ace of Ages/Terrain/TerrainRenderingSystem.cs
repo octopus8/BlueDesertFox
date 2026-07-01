@@ -117,7 +117,7 @@ public partial class TerrainRenderingSystem : SystemBase
     /// </summary>
     protected override void OnUpdate()
     {
-        // Always process tiles for MeshReference (needed for tree spawning)
+        // Always process tiles for MeshReference (needed for static object spawning)
         // But skip actual rendering setup if renderTerrain is disabled
         var config = SystemAPI.GetSingleton<TerrainTileConfig>();
         bool shouldRender = config.renderTerrain;
@@ -175,7 +175,7 @@ public partial class TerrainRenderingSystem : SystemBase
     }
     /// <summary>
     /// Creates a Unity Mesh from buffer data using NativeArray API to avoid GC allocations.
-    /// If shouldRender is false, only adds MeshReference (for tree spawning) but skips rendering setup.
+    /// If shouldRender is false, only adds MeshReference (for static object spawning) but skips rendering setup.
     /// </summary>
     private void CreateAndAssignMesh(
         Entity entity,
@@ -201,7 +201,7 @@ public partial class TerrainRenderingSystem : SystemBase
         mesh.SetIndices(indicesNative, MeshTopology.Triangles, 0);
         // Recalculate bounds
         mesh.RecalculateBounds();
-        // Always add MeshReference (needed for tree spawning system)
+        // Always add MeshReference (needed for static object spawning system)
         EntityManager.AddComponentData(entity, new MeshReference { mesh = mesh });
         // Skip rendering setup if terrain rendering is disabled
         if (!shouldRender)

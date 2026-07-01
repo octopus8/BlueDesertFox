@@ -7,7 +7,7 @@
 The Static Object Spawning System procedurally places static object entities on terrain tiles after mesh generation, with configurable density, variation, and performance budgeting.
 
 **Related Documentation:**
-- **[Tree Rendering System](Documentation/TREE_RENDERING_SYSTEM.md)** - Instanced rendering, LOD, and culling (v3.0)
+- **[Static Object Rendering System](Documentation/STATIC_OBJECT_RENDERING.md)** - Instanced rendering, LOD, and culling (v3.0)
 - **[System Reference](Documentation/SYSTEM_REFERENCE.md)** - Complete system APIs
 - **[Performance Guide](Documentation/PERFORMANCE.md)** - Optimization strategies
 
@@ -110,7 +110,7 @@ Tracks which terrain tile a tree belongs to and its local offset, without using 
 **Performance**:
 - **Frame Budget**: Configurable via `maxObjectsSpawnedPerFrame` (`StaticObjectSpawnerConfig`) — counts **instances**, not tiles
 - **Typical**: 20 objects spawned per frame keeps `EntityCommandBuffer.Playback` under ~1–2ms for static objects
-- **Profiler Markers**: `TreeSpawner.PositionCalc`, `TreeSpawner.Instantiation`, `EndSimulationEntityCommandBufferSystem`
+- **Profiler Markers**: `StaticObjectSpawner.PositionCalc`, `StaticObjectSpawner.Instantiation`, `EndSimulationEntityCommandBufferSystem`
 
 ### TileSpawningSystem (Modified)
 
@@ -167,7 +167,7 @@ Performance
 2. Unity will convert to entity prefabs during baking
 3. Must have `LocalTransform` component (added automatically)
 
-### 2. Configure Tree Spawner
+### 2. Configure Static Object Spawner
 
 1. Find GameObject with `TerrainConfigAuthoring` component
 2. Add `StaticObjectSpawnerConfigAuthoring` component
@@ -289,7 +289,7 @@ float scale = random.NextFloat(config.minTreeScale, config.maxTreeScale);
 - Look for component on same GameObject as TerrainConfigAuthoring
 
 **Check 2**: object prefabs valid?
-- Console should show: `[TreeSpawner] Baked N object prefabs`
+- Console should show: `[StaticObjectSpawner] Baked N object prefabs`
 - If 0, prefabs weren't converted correctly
 
 **Check 3**: Slope filter too restrictive?

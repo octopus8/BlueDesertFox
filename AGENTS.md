@@ -67,7 +67,7 @@ Located in `Assets/LiquidForce/TextureBlender/`:
 
 ### Ace of Ages Game Systems
 Located in `Assets/_App/Ace of Ages/`:
-- **Terrain System** (`Terrain/`): DOTS-based infinite terrain with procedural generation using multi-octave Perlin noise, parallel Burst-compiled mesh generation, full-resolution physics colliders with distance culling, camera-aware prioritization, optional directional auto-scrolling, and procedural tree spawning (see `Terrain/ARCHITECTURE.md`, `Terrain/TREE_SPAWNING_SYSTEM.md`)
+- **Terrain System** (`Terrain/`): DOTS-based infinite terrain with procedural generation using multi-octave Perlin noise, parallel Burst-compiled mesh generation, full-resolution physics colliders with distance culling, camera-aware prioritization, optional directional auto-scrolling, and procedural static object spawning (see `Terrain/ARCHITECTURE.md`, `Terrain/STATIC_OBJECT_SPAWNING_SYSTEM.md`)
 - **Terrain Core Systems**: 
   - `PlayerTrackingInitSystem`: Finds and assigns player Transform reference at runtime (runs in `InitializationSystemGroup`), searches via `PlayerTrackingSearch` component with modes: FindByName, FindByTag, FindAutoHandPlayer, FindMainCamera
   - `ScrollTerrainSystem`: Updates `ScrollOffset` each frame in player's forward direction (XZ plane projection) when auto-scroll enabled

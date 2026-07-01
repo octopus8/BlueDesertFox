@@ -93,7 +93,7 @@
 
 ### Entity Pooling Strategy
 - **Pattern**: `NativeQueue<Entity>` (persistent allocator)
-- **Inspiration**: `TerrainTreeSpawningSystemOptimized` pattern
+- **Inspiration**: `TerrainStaticObjectSpawningSystemOptimized` pattern
 - **Benefits**: Zero GC, reuses entities, supports dynamic growth
 - **Pool lifecycle**: Pre-spawn → Get → Use → Return → Reuse
 

@@ -572,7 +572,7 @@ protected override void OnUpdate()
 
 ## Systems 10-18: Tree & Scroll Velocity Systems
 
-**Detailed Documentation:** See [Tree Rendering System](TREE_RENDERING_SYSTEM.md) for comprehensive coverage of:
+**Detailed Documentation:** See [Static Object Rendering System](STATIC_OBJECT_RENDERING.md) for comprehensive coverage of:
 - **System 10:** TerrainStaticObjectSpawningSystemOptimized
 - **System 11:** StaticObjectSpatialChunkingSystem
 - **System 12:** StaticObjectPositionUpdateSystem

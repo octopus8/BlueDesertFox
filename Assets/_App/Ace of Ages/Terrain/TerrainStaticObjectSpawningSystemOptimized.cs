@@ -30,22 +30,22 @@ struct SpawnTileCandidate
 }
 
 /// <summary>
-/// OPTIMIZED: Burst-compiled system that spawns tree entities on terrain tiles after mesh generation.
+/// OPTIMIZED: Burst-compiled system that spawns static object entities on terrain tiles after mesh generation.
 /// Uses parallel jobs for position calculation and EntityCommandBuffer for batched structural changes.
-/// Designed for Quest 3 VR performance with scrolling terrain and high tree density.
+/// Designed for Quest 3 VR performance with scrolling terrain and high object density.
 /// </summary>
 [RequireMatchingQueriesForUpdate]
 [UpdateInGroup(typeof(SimulationSystemGroup))]
 [UpdateAfter(typeof(CameraDataUpdateSystem))]
 [UpdateAfter(typeof(TileScrollPositionSystem))]
 [UpdateBefore(typeof(EndSimulationEntityCommandBufferSystem))]
-public partial struct TerrainTreeSpawningSystemOptimized : ISystem
+public partial struct TerrainStaticObjectSpawningSystemOptimized : ISystem
 {
     private bool _startupClearDone;
 
 #if UNITY_EDITOR
-    private static readonly ProfilerMarker s_PositionCalcMarker = new ProfilerMarker("TreeSpawner.PositionCalc");
-    private static readonly ProfilerMarker s_InstantiationMarker = new ProfilerMarker("TreeSpawner.Instantiation");
+    private static readonly ProfilerMarker s_PositionCalcMarker = new ProfilerMarker("StaticObjectSpawner.PositionCalc");
+    private static readonly ProfilerMarker s_InstantiationMarker = new ProfilerMarker("StaticObjectSpawner.Instantiation");
 #endif
 
     [BurstCompile]
@@ -96,7 +96,7 @@ public partial struct TerrainTreeSpawningSystemOptimized : ISystem
         if (objectPrefabsBuffer.Length == 0)
         {
 #if UNITY_EDITOR
-            UnityEngine.Debug.LogWarning("[TreeSpawnerOptimized] No tree prefabs configured!");
+            UnityEngine.Debug.LogWarning("[StaticObjectSpawner] No object prefabs configured!");
 #endif
             return;
         }
@@ -107,7 +107,7 @@ public partial struct TerrainTreeSpawningSystemOptimized : ISystem
         if (treeTypeCount == 0)
         {
 #if UNITY_EDITOR
-            UnityEngine.Debug.LogWarning($"[TreeSpawnerOptimized] Not enough prefabs for LOD system. Need at least 3, have {objectPrefabCount}");
+            UnityEngine.Debug.LogWarning($"[StaticObjectSpawner] Not enough prefabs for LOD system. Need at least 3, have {objectPrefabCount}");
 #endif
             return;
         }

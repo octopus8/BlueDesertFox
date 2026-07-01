@@ -64,7 +64,7 @@ Move player to trigger tile spawning
 - `TerrainMesh.BaseNoise` - Base terrain octave noise per vertex (Editor only)
 - `TerrainPhysics.BvhSchedule` / `TerrainPhysics.BvhComplete` - BVH construction time
 - `BuildTerrainMeshColliderJob` - Per-tile MeshCollider.Create on worker threads
-- `TreeSpawner.Instantiation` - Static object ECB instantiation batch
+- `StaticObjectSpawner.Instantiation` - Static object ECB instantiation batch
 - `EndSimulationEntityCommandBufferSystem` - Deferred structural changes playback (spawn + chunk assign)
 - CPU markers for overall frame time
 
