@@ -6015,10 +6015,10 @@ MonoBehaviour:
   lod1Distance: 400
   lod2Distance: 600
   lodHysteresis: 5
-  minObjectsPerTile: 300
-  maxObjectsPerTile: 300
+  minObjectsPerTile: 275
+  maxObjectsPerTile: 275
   maxSlopeDegrees: 45
-  maxObjectsSpawnedPerFrame: 150
+  maxObjectsSpawnedPerFrame: 100
   maxNearObjectsSpawnedPerFrame: 300
   maxPositionCalcAttemptsPerFrame: 4000
   enableObjectLODDebug: 0
