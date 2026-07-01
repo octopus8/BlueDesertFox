@@ -23,13 +23,6 @@ public class PlayerScrollVelocityAuthoring : MonoBehaviour
     [Tooltip("Rotation speed multiplier for world origin tracking (higher = faster rotation toward world origin direction)")]
     public float rotationSpeed = 2.0f;
     
-    [Header("Vertical Movement")]
-    [Tooltip("Minimum Y position for the world origin (prevents moving too far down)")]
-    public float minVerticalPosition = -100f;
-    
-    [Tooltip("Maximum Y position for the world origin (prevents moving too far up)")]
-    public float maxVerticalPosition = 100f;
-    
     [Header("World Origin Tracking")]
     [Tooltip("How to find the world origin GameObject at runtime")]
     public WorldOriginSearchMode worldOriginSearchMode = WorldOriginSearchMode.FindMainCamera;
@@ -51,9 +44,7 @@ public class PlayerScrollVelocityAuthoring : MonoBehaviour
             AddComponent(entity, new PlayerTerrainScrollVelocityConfig
             {
                 speed = authoring.speed,
-                rotationSpeed = authoring.rotationSpeed,
-                minVerticalPosition = authoring.minVerticalPosition,
-                maxVerticalPosition = authoring.maxVerticalPosition
+                rotationSpeed = authoring.rotationSpeed
             });
             
             // Determine world origin search mode and parameters

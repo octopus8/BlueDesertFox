@@ -23,8 +23,6 @@ Add to the same SubScene GameObject as `TerrainConfigAuthoring`. Only one veloci
 |-------|---------|-------------|
 | `speed` | 50 m/s | Total scroll speed at level pitch (0° pitch = full horizontal scroll) |
 | `rotationSpeed` | 2.0 | Bank-to-turn rotation multiplier for the world origin |
-| `minVerticalPosition` | -100m | Lower Y clamp for the world origin |
-| `maxVerticalPosition` | 100m | Upper Y clamp for the world origin |
 | `worldOriginSearchMode` | FindMainCamera | How to find the world origin GO at runtime |
 | `worldOriginName` | "Main Camera" | Name to search (only for FindByName mode) |
 | `worldOriginTag` | "MainCamera" | Tag to search (only for FindByTag mode) |
@@ -64,7 +62,7 @@ Using sine maps ±90° bank → ±1.0 rotation speed and 0°/180° bank → 0 ro
 
 #### World Origin Vertical Movement
 
-The world origin's Y position is adjusted by `verticalVelocity × deltaTime` each frame, clamped to `[minVerticalPosition, maxVerticalPosition]`.
+The world origin's Y position is adjusted by `verticalVelocity × deltaTime` each frame with no vertical bounds.
 
 ---
 
@@ -118,8 +116,6 @@ public struct PlayerTerrainScrollVelocityConfig : IComponentData
 {
     public float speed;               // Total speed (m/s)
     public float rotationSpeed;       // Bank turn multiplier
-    public float minVerticalPosition; // Y lower clamp
-    public float maxVerticalPosition; // Y upper clamp
 }
 ```
 

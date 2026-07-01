@@ -5977,8 +5977,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PlayerScrollVelocityAuthoring
   speed: 40
   rotationSpeed: 20
-  minVerticalPosition: -20
-  maxVerticalPosition: 40
   worldOriginSearchMode: 0
   worldOriginName: XR Origin Hands (XR Rig)
   worldOriginTag: MainCamera

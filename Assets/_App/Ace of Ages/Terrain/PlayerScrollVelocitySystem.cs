@@ -74,7 +74,6 @@ public partial class PlayerScrollVelocitySystem : SystemBase
         {
             UnityEngine.Vector3 currentPosition = worldOriginRef.worldOriginTransform.position;
             float newYPosition = currentPosition.y + (verticalVelocity * SystemAPI.Time.DeltaTime);
-            newYPosition = math.clamp(newYPosition, config.minVerticalPosition, config.maxVerticalPosition);
             worldOriginRef.worldOriginTransform.position = new UnityEngine.Vector3(
                 currentPosition.x,
                 newYPosition,

@@ -272,16 +272,6 @@ public struct PlayerTerrainScrollVelocityConfig : IComponentData
     /// Higher values make the scroll direction rotate faster toward the world origin direction.
     /// </summary>
     public float rotationSpeed;
-    
-    /// <summary>
-    /// Minimum Y position for the world origin (prevents moving too far down).
-    /// </summary>
-    public float minVerticalPosition;
-    
-    /// <summary>
-    /// Maximum Y position for the world origin (prevents moving too far up).
-    /// </summary>
-    public float maxVerticalPosition;
 }
 
 /// <summary>
