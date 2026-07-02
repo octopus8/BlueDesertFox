@@ -6008,13 +6008,13 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1527544356}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.35355338, y: -0.35355338, z: 0.1464466, w: 0.8535535}
+  m_LocalRotation: {x: 0.18023993, y: -0.37533024, z: 0.07465782, w: 0.90612745}
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 45, y: -45, z: 0}
+  m_LocalEulerAnglesHint: {x: 22.5, y: -45, z: 0}
 --- !u!1 &1528308289
 GameObject:
   m_ObjectHideFlags: 0
@@ -6052,7 +6052,7 @@ MonoBehaviour:
   tileSize: 256
   viewDistance: 850
   verticesPerSide: 32
-  slopeAngleDegrees: -10
+  slopeAngleDegrees: -15
   noiseFrequency: 0.005
   noiseAmplitude: 60
   noiseOctaves: 2
@@ -6066,26 +6066,26 @@ MonoBehaviour:
   maxColliderDistance: 220
   maxColliderCacheMemoryMB: 53
   terrainPhysicsLayer: 11
-  trailHeight: -5
+  trailHeight: 0
   trailLutStepMeters: 1
   trail1Enabled: 1
-  trail1Width: 30
-  trail1BlendWidth: 30
+  trail1Width: 20
+  trail1BlendWidth: 40
   trail1Seed: 0
   trail1Frequency: 0.001
   trail1Amplitude: 200
   trail2Enabled: 1
-  trail2Width: 30
-  trail2BlendWidth: 30
+  trail2Width: 20
+  trail2BlendWidth: 40
   trail2Seed: 100
   trail2Frequency: 0.001
-  trail2Amplitude: 200
+  trail2Amplitude: 150
   trail3Enabled: 1
-  trail3Width: 60
+  trail3Width: 30
   trail3BlendWidth: 60
   trail3Seed: 200
   trail3Frequency: 0.0015
-  trail3Amplitude: 400
+  trail3Amplitude: 300
   renderTerrain: 1
   enablePhysicsColliders: 1
 --- !u!4 &1528308291
@@ -6116,7 +6116,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ea650e9e97214c68a8aab550673cff51, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerScrollVelocityAuthoring
-  speed: 0.01
+  speed: 30
   rotationSpeed: 30
   worldOriginSearchMode: 0
   worldOriginName: XR Origin Hands (XR Rig)
