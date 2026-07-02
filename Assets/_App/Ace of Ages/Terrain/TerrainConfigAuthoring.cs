@@ -218,7 +218,8 @@ public class TerrainConfigAuthoring : MonoBehaviour
             AddComponent(entity, new TerrainScrollVelocity
             {
                 direction = float3.zero,
-                speed = 0f
+                speed = 0f,
+                verticalSpeed = 0f
             });
             
             // Create scroll offset singleton (starts at zero)

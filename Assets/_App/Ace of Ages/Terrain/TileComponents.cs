@@ -232,14 +232,15 @@ public struct PlayerTrackingSearch : IComponentData
 
 /// <summary>
 /// Singleton component that tracks accumulated terrain scroll distance.
-/// Used for auto-scrolling terrain in the direction the player is facing (XZ plane).
+/// Used for auto-scrolling terrain in the direction the player is facing (XZ plane)
+/// and for pitch-driven vertical scroll (Y axis).
 /// </summary>
 public struct ScrollOffset : IComponentData
 {
     /// <summary>
-    /// Total distance the terrain has scrolled as a directional vector (locked to XZ plane, Y=0).
+    /// Total distance the terrain has scrolled as a directional vector.
+    /// XZ components come from horizontal scroll; Y from pitch-driven vertical scroll.
     /// This offset is subtracted from tile positions to create the scrolling effect.
-    /// Direction is determined by the player's forward direction projected onto the XZ plane.
     /// </summary>
     public float3 accumulatedOffset;
 }
@@ -251,14 +252,23 @@ public struct ScrollOffset : IComponentData
 public struct TerrainScrollVelocity : IComponentData
 {
     /// <summary>
-    /// Normalized direction vector for scrolling (expected to be pre-normalized by provider system).
+    /// Normalized direction vector for horizontal scrolling (expected to be pre-normalized by provider system).
     /// </summary>
     public float3 direction;
     
     /// <summary>
-    /// Speed of scrolling in units per second. Set to 0 to disable scrolling.
+    /// Horizontal scroll speed in units per second. Set to 0 to disable horizontal scrolling.
     /// </summary>
     public float speed;
+
+    /// <summary>
+    /// Vertical scroll speed in units per second (positive = terrain moves down in world space).
+    /// Driven by player pitch when using <see cref="PlayerScrollVelocitySystem"/>.
+    /// </summary>
+    public float verticalSpeed;
+
+    /// <summary>Combined world-space terrain velocity (horizontal + vertical).</summary>
+    public readonly float3 WorldVelocity => direction * speed + new float3(0f, verticalSpeed, 0f);
 }
 
 /// <summary>

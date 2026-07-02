@@ -30,6 +30,7 @@ public partial struct ConstantScrollVelocitySystem : ISystem
         
         scrollVelocity.ValueRW.direction = config.direction;
         scrollVelocity.ValueRW.speed = config.speed;
+        scrollVelocity.ValueRW.verticalSpeed = 0f;
     }
 }
 

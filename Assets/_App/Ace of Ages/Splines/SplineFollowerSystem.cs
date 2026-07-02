@@ -32,7 +32,7 @@ partial struct SplineFollowerSystem : ISystem
             float3 scrollVelocity = float3.zero;
             if (SystemAPI.TryGetSingleton<TerrainScrollVelocity>(out var scrollVel))
             {
-                scrollVelocity = scrollVel.direction * scrollVel.speed;
+                scrollVelocity = scrollVel.WorldVelocity;
             }
             
             SplineFollowerJob splineFollowerJob = new SplineFollowerJob

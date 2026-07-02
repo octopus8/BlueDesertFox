@@ -32,15 +32,12 @@ public partial struct ScrollTerrainSystem : ISystem
     {
         var scrollVelocity = SystemAPI.GetSingleton<TerrainScrollVelocity>();
         
-        // Early return if speed is zero
-        if (scrollVelocity.speed == 0f)
+        if (scrollVelocity.speed == 0f && scrollVelocity.verticalSpeed == 0f)
             return;
         
-        // Get the scroll offset singleton
         RefRW<ScrollOffset> scrollOffset = SystemAPI.GetSingletonRW<ScrollOffset>();
         
-        // Accumulate scroll distance using provided direction and speed
-        float3 scrollDelta = scrollVelocity.direction * scrollVelocity.speed * SystemAPI.Time.DeltaTime;
+        float3 scrollDelta = scrollVelocity.WorldVelocity * SystemAPI.Time.DeltaTime;
         scrollOffset.ValueRW.accumulatedOffset += scrollDelta;
     }
 }

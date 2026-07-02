@@ -43,7 +43,7 @@ partial struct FormationMovementSystem : ISystem
         float3 scrollVelocity = float3.zero;
         if (SystemAPI.TryGetSingleton<TerrainScrollVelocity>(out var scrollVel))
         {
-            scrollVelocity = scrollVel.direction * scrollVel.speed;
+            scrollVelocity = scrollVel.WorldVelocity;
         }
         
         // Schedule Burst-compiled job for movement calculations

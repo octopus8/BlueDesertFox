@@ -2,9 +2,9 @@ using Unity.Entities;
 using Unity.Mathematics;
 
 /// <summary>
-/// Drives terrain scroll and vertical world-origin movement from a single speed value distributed by pitch angle.
+/// Drives terrain scroll (horizontal and vertical) from a single speed value distributed by pitch angle.
 /// At pitch = 0 (level): terrain scrolls at full speed, vertical = 0.
-/// At pitch = 90 (nose-up): scroll = 0, vertical rises at full speed.
+/// At pitch = 90 (nose-up): horizontal scroll = 0, terrain scrolls down at full speed.
 /// Also rotates the world origin based on player roll (bank-to-turn steering).
 /// Only runs when PlayerTerrainScrollVelocityConfig exists in the scene.
 /// </summary>
@@ -25,8 +25,8 @@ public partial class PlayerScrollVelocitySystem : SystemBase
 
     /// <summary>
     /// Reads the player ship's pitch and bank angles from <see cref="CameraDataSingleton"/> (written at
-    /// end of previous frame), distributes the configured <c>speed</c> between horizontal scroll and
-    /// vertical movement, writes the resulting <see cref="TerrainScrollVelocity"/>, and optionally
+    /// end of previous frame), distributes the configured <c>speed</c> between horizontal and vertical
+    /// terrain scroll, writes the resulting <see cref="TerrainScrollVelocity"/>, and optionally
     /// rotates the world-origin Transform based on bank angle.
     /// Writing to the world-origin managed Transform must remain on the main thread.
     /// </summary>
@@ -55,6 +55,7 @@ public partial class PlayerScrollVelocitySystem : SystemBase
         RefRW<TerrainScrollVelocity> scrollVelocity = SystemAPI.GetSingletonRW<TerrainScrollVelocity>();
         scrollVelocity.ValueRW.direction = baseScrollDirection;
         scrollVelocity.ValueRW.speed = config.speed * cosPitch;
+        scrollVelocity.ValueRW.verticalSpeed = config.speed * sinPitch;
 
         // Rotate world origin based on cached bank angle (already normalised to –180..180 by CameraDataUpdateSystem).
         if (worldOriginRef?.worldOriginTransform != null)
@@ -64,21 +65,6 @@ public partial class PlayerScrollVelocitySystem : SystemBase
 
             float rotationAmount = rotationSpeed * config.rotationSpeed * SystemAPI.Time.DeltaTime;
             worldOriginRef.worldOriginTransform.rotation *= UnityEngine.Quaternion.Euler(0, rotationAmount, 0);
-        }
-
-        // Vertical velocity is the sin(pitch) portion of the total speed.
-        // Nose-up (positive pitch) raises the world origin; nose-down lowers it.
-        float verticalVelocity = config.speed * sinPitch;
-
-        if (worldOriginRef?.worldOriginTransform != null)
-        {
-            UnityEngine.Vector3 currentPosition = worldOriginRef.worldOriginTransform.position;
-            float newYPosition = currentPosition.y + (verticalVelocity * SystemAPI.Time.DeltaTime);
-            worldOriginRef.worldOriginTransform.position = new UnityEngine.Vector3(
-                currentPosition.x,
-                newYPosition,
-                currentPosition.z
-            );
         }
     }
 }

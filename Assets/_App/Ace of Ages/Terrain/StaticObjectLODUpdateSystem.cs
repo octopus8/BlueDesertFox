@@ -110,9 +110,10 @@ public partial struct StaticObjectLODUpdateSystem : ISystem
         }
 
         // Terrain scroll moves content past a stationary player — treat scroll speed as velocity
-        if (SystemAPI.TryGetSingleton<TerrainScrollVelocity>(out var scrollVelocity) && scrollVelocity.speed > 0f)
+        if (SystemAPI.TryGetSingleton<TerrainScrollVelocity>(out var scrollVelocity)
+            && math.lengthsq(scrollVelocity.WorldVelocity) > 0f)
         {
-            velocity = math.max(velocity, scrollVelocity.speed);
+            velocity = math.max(velocity, math.length(scrollVelocity.WorldVelocity));
         }
         
         // Determine frame skip based on velocity

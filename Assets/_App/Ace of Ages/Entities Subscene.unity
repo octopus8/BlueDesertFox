@@ -5929,23 +5929,23 @@ MonoBehaviour:
   trailHeight: -5
   trailLutStepMeters: 1
   trail1Enabled: 1
-  trail1Width: 60
-  trail1BlendWidth: 90
+  trail1Width: 30
+  trail1BlendWidth: 30
   trail1Seed: 0
-  trail1Frequency: 0.002
-  trail1Amplitude: 500
-  trail2Enabled: 0
+  trail1Frequency: 0.001
+  trail1Amplitude: 200
+  trail2Enabled: 1
   trail2Width: 30
   trail2BlendWidth: 30
   trail2Seed: 100
   trail2Frequency: 0.001
   trail2Amplitude: 200
-  trail3Enabled: 0
-  trail3Width: 30
-  trail3BlendWidth: 30
+  trail3Enabled: 1
+  trail3Width: 60
+  trail3BlendWidth: 60
   trail3Seed: 200
-  trail3Frequency: 0.001
-  trail3Amplitude: 200
+  trail3Frequency: 0.0015
+  trail3Amplitude: 500
   renderTerrain: 1
   enablePhysicsColliders: 1
 --- !u!4 &1528308291
@@ -5976,7 +5976,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ea650e9e97214c68a8aab550673cff51, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerScrollVelocityAuthoring
-  speed: 30
+  speed: 50
   rotationSpeed: 30
   worldOriginSearchMode: 0
   worldOriginName: XR Origin Hands (XR Rig)

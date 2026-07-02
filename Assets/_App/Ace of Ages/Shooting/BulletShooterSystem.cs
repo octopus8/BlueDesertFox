@@ -87,7 +87,7 @@ public partial struct BulletShooterSystem : ISystem
             if (SystemAPI.HasSingleton<TerrainScrollVelocity>())
             {
                 var sv = SystemAPI.GetSingleton<TerrainScrollVelocity>();
-                terrainVelocity = sv.direction * sv.speed;
+                terrainVelocity = sv.WorldVelocity;
             }
             
             float3 bulletVelocity = forward * shooter.ValueRO.bulletSpeed - terrainVelocity;

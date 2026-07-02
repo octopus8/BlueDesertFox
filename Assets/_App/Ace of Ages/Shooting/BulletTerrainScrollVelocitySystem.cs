@@ -31,7 +31,7 @@ public partial struct BulletTerrainScrollVelocitySystem : ISystem
     {
         float3 terrainVelocity = float3.zero;
         if (SystemAPI.TryGetSingleton(out TerrainScrollVelocity sv))
-            terrainVelocity = sv.direction * sv.speed;
+            terrainVelocity = sv.WorldVelocity;
 
         foreach (var (velocityRw, bulletData) in SystemAPI.Query<RefRW<PhysicsVelocity>, RefRO<BulletData>>()
                      .WithAll<Bullet>())

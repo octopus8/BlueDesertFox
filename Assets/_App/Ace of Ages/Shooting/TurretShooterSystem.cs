@@ -86,7 +86,7 @@ public partial struct TurretShooterSystem : ISystem
         if (SystemAPI.HasSingleton<TerrainScrollVelocity>())
         {
             var sv = SystemAPI.GetSingleton<TerrainScrollVelocity>();
-            terrainVelocity = sv.direction * sv.speed;
+            terrainVelocity = sv.WorldVelocity;
         }
 
         double currentTime = SystemAPI.Time.ElapsedTime;

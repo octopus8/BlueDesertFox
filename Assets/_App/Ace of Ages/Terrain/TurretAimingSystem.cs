@@ -45,7 +45,7 @@ public partial struct TurretAimingSystem : ISystem
         float3 playerPos = SystemAPI.GetSingleton<CameraDataSingleton>().position;
 
         var scrollVel = SystemAPI.GetSingleton<TerrainScrollVelocity>();
-        float3 scrollVelocity = scrollVel.direction * scrollVel.speed;
+        float3 scrollVelocity = scrollVel.WorldVelocity;
 
         // Lead from scroll only: ignore player-relative motion (VR locomotion etc.).
         float3 playerVelocity = scrollVelocity;
