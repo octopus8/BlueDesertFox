@@ -208,26 +208,19 @@ for each vertex at position (x, y, z):
 System calculates smooth normals using cross-product method:
 
 ```csharp
-// For each vertex, average normals of adjacent triangles
-for each triangle (v0, v1, v2):
-{
-    float3 edge1 = v1 - v0;
-    float3 edge2 = v2 - v0;
-    float3 normal = math.normalize(math.cross(edge1, edge2));
-    
-    // Accumulate to vertex normals
-    vertexNormals[i0] += normal;
-    vertexNormals[i1] += normal;
-    vertexNormals[i2] += normal;
-}
+// Central finite differences on the height field
+float heightLeft  = GetHeight(x - 1, z);
+float heightRight = GetHeight(x + 1, z);
+float heightDown  = GetHeight(x, z - 1);
+float heightUp    = GetHeight(x, z + 1);
 
-// Normalize accumulated normals
-for each vertex:
-    normals[i] = math.normalize(accumulatedNormal[i]);
+float3 tangentX = new float3(2.0f * stepSize, heightRight - heightLeft, 0);
+float3 tangentZ = new float3(0, heightUp - heightDown, 2.0f * stepSize);
+normal = math.normalize(math.cross(tangentZ, tangentX));
 ```
 
 **Effect**: Smooth shading across terrain  
-**Edge handling**: Tiles calculate normals independently (may have seams)
+**Edge handling**: Edge vertices sample heights in world space so adjacent tiles produce matching normals at boundaries (no lighting seams)
 
 ### Mesh Attributes
 

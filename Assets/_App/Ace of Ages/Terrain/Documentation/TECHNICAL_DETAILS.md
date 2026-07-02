@@ -95,54 +95,35 @@ float sample = noise.cnoise(new float2(x, z));
 
 ## Normal Calculation
 
-### Smooth Normals Algorithm
+### Height-Gradient Normals Algorithm
 
-Normals calculated using **averaged face normals** method:
-
-#### Step 1: Calculate Face Normals
+Normals are calculated using **central finite differences** on the height field in `GenerateTileNormalsAndIndicesJob`:
 
 ```csharp
-for each triangle (v0, v1, v2):
-{
-    // Calculate edges
-    float3 edge1 = v1 - v0;
-    float3 edge2 = v2 - v0;
-    
-    // Cross product gives perpendicular vector
-    float3 faceNormal = math.cross(edge1, edge2);
-    
-    // No normalization yet (weight by area)
-    accumulatedNormals[i0] += faceNormal;
-    accumulatedNormals[i1] += faceNormal;
-    accumulatedNormals[i2] += faceNormal;
-}
+// For each vertex at grid (x, z):
+float heightLeft  = GetHeight(x - 1, z);
+float heightRight = GetHeight(x + 1, z);
+float heightDown  = GetHeight(x, z - 1);
+float heightUp    = GetHeight(x, z + 1);
+
+float3 tangentX = new float3(2.0f * stepSize, heightRight - heightLeft, 0);
+float3 tangentZ = new float3(0, heightUp - heightDown, 2.0f * stepSize);
+normal = math.normalize(math.cross(tangentZ, tangentX));
 ```
 
-**Why not normalize immediately?**: Larger triangles contribute more (area-weighted).
+**Interior vertices**: Heights are read from the tile's vertex buffer (fast path).
 
-#### Step 2: Normalize Accumulated Normals
+**Edge vertices**: Heights are sampled from world-space via `TerrainMeshNoise.SampleHeight` at `±stepSize` offsets, crossing tile boundaries. This ensures adjacent tiles compute identical normals at shared boundary positions.
 
-```csharp
-for (int i = 0; i < vertexCount; i++)
-{
-    // Normalize to unit length
-    normals[i] = math.normalize(accumulatedNormals[i]);
-}
-```
+**Result**: Smooth shading across terrain surface with seamless lighting at tile edges.
 
-**Result**: Smooth shading across terrain surface.
+### Edge Normal Issue (Resolved)
 
-### Edge Normal Issue
+**Previous problem**: Interior-only height lookups clamped at tile edges, producing asymmetric one-sided derivatives and visible lighting seams at tile boundaries.
 
-**Problem**: Tiles calculate normals independently  
-**Result**: Seams visible at tile boundaries (normal discontinuities)
+**Solution**: Edge vertices sample heights in world space for normal derivatives. Adjacent tiles at the same world position receive matching normals without sharing vertices or neighbor tile lookups.
 
-**Current Solution**: Accept seams as limitation
-
-**Future Solution**: Share edge vertices between adjacent tiles
-- Requires tile neighbor awareness
-- More complex data structure
-- Potential performance cost
+**Performance**: ~`4 × 4 × (verticesPerSide - 1)` extra height samples per tile during mesh generation (edge band only).
 
 ### Normal Validation
 

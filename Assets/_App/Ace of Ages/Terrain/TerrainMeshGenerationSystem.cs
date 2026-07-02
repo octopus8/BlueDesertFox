@@ -309,6 +309,7 @@ public partial struct TerrainMeshScheduleSystem : ISystem
             var normalsJob = new GenerateTileNormalsAndIndicesJob
             {
                 tileData = _inFlightTileData,
+                trailLuts = _inFlightTrailLuts,
                 allVertices = _inFlightVertices,
                 allNormals = _inFlightNormals,
                 allIndices = _inFlightIndices
@@ -606,6 +607,7 @@ public struct GenerateTileVerticesJob : IJobParallelFor
 public struct GenerateTileNormalsAndIndicesJob : IJobParallelFor
 {
     [ReadOnly] public NativeArray<TileMeshJobData> tileData;
+    [ReadOnly] public NativeArray<float> trailLuts;
 
     [ReadOnly] public NativeArray<float3> allVertices;
     [NativeDisableParallelForRestriction] public NativeArray<float3> allNormals;
@@ -618,6 +620,7 @@ public struct GenerateTileNormalsAndIndicesJob : IJobParallelFor
         int indexOffset = data.indexOffset;
         int verticesPerSide = data.verticesPerSide;
         float stepSize = data.tileSize / (verticesPerSide - 1);
+        int lastIndex = verticesPerSide - 1;
 
         for (int z = 0; z < verticesPerSide; z++)
         {
@@ -625,10 +628,29 @@ public struct GenerateTileNormalsAndIndicesJob : IJobParallelFor
             {
                 int flatIndex = vertexOffset + z * verticesPerSide + x;
 
-                float heightLeft = GetCachedHeight(x - 1, z, verticesPerSide, vertexOffset, allVertices);
-                float heightRight = GetCachedHeight(x + 1, z, verticesPerSide, vertexOffset, allVertices);
-                float heightDown = GetCachedHeight(x, z - 1, verticesPerSide, vertexOffset, allVertices);
-                float heightUp = GetCachedHeight(x, z + 1, verticesPerSide, vertexOffset, allVertices);
+                float heightLeft;
+                float heightRight;
+                float heightDown;
+                float heightUp;
+
+                bool isEdgeVertex = x == 0 || x == lastIndex || z == 0 || z == lastIndex;
+                if (isEdgeVertex)
+                {
+                    double worldX = data.tileWorldPos.x + x * stepSize;
+                    double worldZ = data.tileWorldPos.z + z * stepSize;
+
+                    heightLeft = TerrainMeshNoise.SampleHeight(worldX - stepSize, worldZ, data, trailLuts);
+                    heightRight = TerrainMeshNoise.SampleHeight(worldX + stepSize, worldZ, data, trailLuts);
+                    heightDown = TerrainMeshNoise.SampleHeight(worldX, worldZ - stepSize, data, trailLuts);
+                    heightUp = TerrainMeshNoise.SampleHeight(worldX, worldZ + stepSize, data, trailLuts);
+                }
+                else
+                {
+                    heightLeft = GetCachedHeight(x - 1, z, verticesPerSide, vertexOffset, allVertices);
+                    heightRight = GetCachedHeight(x + 1, z, verticesPerSide, vertexOffset, allVertices);
+                    heightDown = GetCachedHeight(x, z - 1, verticesPerSide, vertexOffset, allVertices);
+                    heightUp = GetCachedHeight(x, z + 1, verticesPerSide, vertexOffset, allVertices);
+                }
 
                 float3 tangentX = new float3(2.0f * stepSize, heightRight - heightLeft, 0);
                 float3 tangentZ = new float3(0, heightUp - heightDown, 2.0f * stepSize);
