@@ -462,7 +462,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 919132149155446097, guid: 87f4999611a81074d84b81fdce75df7b, type: 3}
       propertyPath: m_IsActive
-      value: 1
+      value: 0
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -5868,13 +5868,13 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1527544356}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.04190992, y: -0.38228944, z: 0.017359655, w: 0.92292845}
+  m_LocalRotation: {x: 0.35355338, y: -0.35355338, z: 0.1464466, w: 0.8535535}
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 5.2, y: -45, z: 0}
+  m_LocalEulerAnglesHint: {x: 45, y: -45, z: 0}
 --- !u!1 &1528308289
 GameObject:
   m_ObjectHideFlags: 0
@@ -5919,8 +5919,8 @@ MonoBehaviour:
   noiseLacunarity: 2
   noisePersistence: 0.5
   continentalFrequency: 0.0008
-  continentalExponent: 2.5
-  terrainMaterial: {fileID: 2100000, guid: dc12ba763b59e3a4586cb235c2a074fc, type: 2}
+  continentalExponent: 0.1
+  terrainMaterial: {fileID: 2100000, guid: 411dec7a1b8d44c4192cf209c47ed6ae, type: 2}
   maxCollidersCreatedPerFrame: 1
   maxPhysicsCollidersCreatedPerFrame: 1
   maxColliderDistance: 220
@@ -5945,7 +5945,7 @@ MonoBehaviour:
   trail3BlendWidth: 60
   trail3Seed: 200
   trail3Frequency: 0.0015
-  trail3Amplitude: 500
+  trail3Amplitude: 400
   renderTerrain: 1
   enablePhysicsColliders: 1
 --- !u!4 &1528308291
@@ -6013,8 +6013,8 @@ MonoBehaviour:
   lod1Distance: 400
   lod2Distance: 600
   lodHysteresis: 5
-  minObjectsPerTile: 275
-  maxObjectsPerTile: 275
+  minObjectsPerTile: 250
+  maxObjectsPerTile: 250
   maxSlopeDegrees: 45
   maxObjectsSpawnedPerFrame: 100
   maxNearObjectsSpawnedPerFrame: 300
