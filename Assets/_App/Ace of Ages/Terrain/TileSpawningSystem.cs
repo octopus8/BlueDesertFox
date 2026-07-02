@@ -54,6 +54,7 @@ public partial struct TileSpawningSystem : ISystem
 
         var cameraData = SystemAPI.GetSingleton<CameraDataSingleton>();
         float3 playerPosition = cameraData.position;
+        float2 playerPos2D = new float2(playerPosition.x, playerPosition.z);
 
         var scrollOffset = SystemAPI.GetSingleton<ScrollOffset>();
         float3 effectivePlayerPosition = playerPosition + scrollOffset.accumulatedOffset;
@@ -80,7 +81,8 @@ public partial struct TileSpawningSystem : ISystem
                     gridCoord.y * config.tileSize + config.tileSize * 0.5f
                 );
                 float3 tileCenterScrolled = tileCenterBase - scrollOffset.accumulatedOffset;
-                float distanceToTile = math.distance(tileCenterScrolled, playerPosition);
+                float2 tileCenter2D = new float2(tileCenterScrolled.x, tileCenterScrolled.z);
+                float distanceToTile = math.distance(tileCenter2D, playerPos2D);
 
                 if (distanceToTile <= config.viewDistance)
                 {
@@ -99,7 +101,8 @@ public partial struct TileSpawningSystem : ISystem
                 gridCoord.y * config.tileSize + config.tileSize * 0.5f
             );
             float3 tileCenterScrolled = tileCenterBase - scrollOffset.accumulatedOffset;
-            float distanceToTile = math.distance(tileCenterScrolled, playerPosition);
+            float2 tileCenter2D = new float2(tileCenterScrolled.x, tileCenterScrolled.z);
+            float distanceToTile = math.distance(tileCenter2D, playerPos2D);
 
             if (distanceToTile > config.viewDistance)
                 tilesToDespawn.Add(gridCoord);

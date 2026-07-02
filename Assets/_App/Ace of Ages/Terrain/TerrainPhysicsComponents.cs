@@ -103,13 +103,16 @@ public static class TerrainColliderPriority
     /// Computes a priority score from tile grid coordinate and camera pose.
     /// Lower values are processed first.
     /// </summary>
-    public static int Compute(in int2 gridCoord, in TerrainTileConfig config, in CameraDataSingleton camera)
+    public static int Compute(in int2 gridCoord, in TerrainTileConfig config, in CameraDataSingleton camera, in float3 scrollOffset)
     {
-        float2 tileCenter = new float2(
+        float3 tileCenterBase = new float3(
             gridCoord.x * config.tileSize + config.tileSize * 0.5f,
+            0f,
             gridCoord.y * config.tileSize + config.tileSize * 0.5f);
+        float3 tileCenterScrolled = tileCenterBase - scrollOffset;
         float2 cameraPos2D = new float2(camera.position.x, camera.position.z);
-        float2 toTile = tileCenter - cameraPos2D;
+        float2 tileCenter2D = new float2(tileCenterScrolled.x, tileCenterScrolled.z);
+        float2 toTile = tileCenter2D - cameraPos2D;
         float dist2D = math.length(toTile);
         float normalizedDist = math.clamp(dist2D / config.viewDistance, 0f, 1f);
         float2 fwd2D = math.normalize(new float2(camera.forward.x, camera.forward.z));

@@ -187,6 +187,7 @@ namespace _App.Ace_of_Ages.Terrain
         {
             state.RequireForUpdate<TerrainTileConfig>();
             state.RequireForUpdate<CameraDataSingleton>();
+            state.RequireForUpdate<ScrollOffset>();
         }
 
         public void OnDestroy(ref SystemState state)
@@ -214,6 +215,7 @@ namespace _App.Ace_of_Ages.Terrain
 #endif
             {
                 var cameraData = SystemAPI.GetSingleton<CameraDataSingleton>();
+                float3 scrollOffset = SystemAPI.GetSingleton<ScrollOffset>().accumulatedOffset;
                 var candidates = new NativeList<ColliderEntityWithPriority>(Allocator.Temp);
 
                 foreach (var (tile, entity) in SystemAPI
@@ -232,7 +234,7 @@ namespace _App.Ace_of_Ages.Terrain
                     {
                         entity = entity,
                         priority = TerrainColliderPriority.Compute(
-                            tile.ValueRO.gridCoordinate, config, cameraData)
+                            tile.ValueRO.gridCoordinate, config, cameraData, scrollOffset)
                     });
                 }
 

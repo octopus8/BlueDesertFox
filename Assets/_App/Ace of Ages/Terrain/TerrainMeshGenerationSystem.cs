@@ -50,6 +50,7 @@ public partial struct TerrainMeshScheduleSystem : ISystem
     {
         state.RequireForUpdate<TerrainTileConfig>();
         state.RequireForUpdate<CameraDataSingleton>();
+        state.RequireForUpdate<ScrollOffset>();
 
         _pendingTiles = new NativeQueue<Entity>(Allocator.Persistent);
         _queuedTiles = new NativeHashSet<Entity>(256, Allocator.Persistent);
@@ -103,6 +104,7 @@ public partial struct TerrainMeshScheduleSystem : ISystem
             var cameraData = SystemAPI.GetSingleton<CameraDataSingleton>();
             cameraPosition = cameraData.position;
             cameraForward = cameraData.fullForward;
+            float3 scrollOffset = SystemAPI.GetSingleton<ScrollOffset>().accumulatedOffset;
 
             foreach (var (tile, entity) in SystemAPI.Query<RefRO<TerrainTile>>()
                 .WithAll<VertexElement>()
@@ -137,7 +139,7 @@ public partial struct TerrainMeshScheduleSystem : ISystem
                 var tile = SystemAPI.GetComponent<TerrainTile>(entity);
                 if (!tile.meshGenerated || tile.needsRegeneration)
                 {
-                    float priority = CalculateTilePriority(tile, config, cameraPosition, cameraForward);
+                    float priority = CalculateTilePriority(tile, config, cameraPosition, cameraForward, scrollOffset);
                     tilesWithPriority.Add(new MeshTileWithPriority { entity = entity, priority = priority });
                     processedEntities.Add(entity);
                 }
@@ -324,14 +326,17 @@ public partial struct TerrainMeshScheduleSystem : ISystem
         }
     }
 
-    private static float CalculateTilePriority(TerrainTile tile, TerrainTileConfig config, float3 cameraPosition, float3 cameraForward)
+    private static float CalculateTilePriority(TerrainTile tile, TerrainTileConfig config, float3 cameraPosition, float3 cameraForward, float3 scrollOffset)
     {
-        float2 tileCenter = new float2(
+        float3 tileCenterBase = new float3(
             tile.gridCoordinate.x * config.tileSize + config.tileSize * 0.5f,
+            0f,
             tile.gridCoordinate.y * config.tileSize + config.tileSize * 0.5f);
+        float3 tileCenterScrolled = tileCenterBase - scrollOffset;
 
         float2 cameraPos2D = new float2(cameraPosition.x, cameraPosition.z);
-        float2 toTile = tileCenter - cameraPos2D;
+        float2 tileCenter2D = new float2(tileCenterScrolled.x, tileCenterScrolled.z);
+        float2 toTile = tileCenter2D - cameraPos2D;
         float distance = math.length(toTile);
         float normalizedDistance = math.clamp(distance / config.viewDistance, 0f, 1f);
 
