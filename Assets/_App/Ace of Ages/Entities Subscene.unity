@@ -6054,7 +6054,7 @@ MonoBehaviour:
   verticesPerSide: 32
   slopeAngleDegrees: -15
   noiseFrequency: 0.005
-  noiseAmplitude: 60
+  noiseAmplitude: 20
   noiseOctaves: 2
   noiseLacunarity: 2
   noisePersistence: 0.5
@@ -6066,7 +6066,7 @@ MonoBehaviour:
   maxColliderDistance: 220
   maxColliderCacheMemoryMB: 53
   terrainPhysicsLayer: 11
-  trailHeight: 0
+  trailHeight: -10
   trailLutStepMeters: 1
   trail1Enabled: 1
   trail1Width: 20
