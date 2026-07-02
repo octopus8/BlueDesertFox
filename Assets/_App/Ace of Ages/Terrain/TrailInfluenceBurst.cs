@@ -43,6 +43,15 @@ public static class TrailInfluenceBurst
         return trail.width * 0.5f + trail.blendWidth;
     }
 
+    /// <summary>
+    /// Radius of the fully-flat trail core used for static object spawn exclusion.
+    /// The blend zone outside this radius allows spawning.
+    /// </summary>
+    public static float GetTrailFlatCoreRadius(in TrailInstanceConfig trail)
+    {
+        return trail.width * 0.5f;
+    }
+
     public static byte GetActiveTrailMask(in TrailInstanceConfig trail1, in TrailInstanceConfig trail2, in TrailInstanceConfig trail3)
     {
         byte mask = 0;
@@ -259,6 +268,10 @@ public static class TrailInfluenceBurst
         return math.sqrt(minDist2D);
     }
 
+    /// <summary>
+    /// Returns true when a point lies inside the flat trail core (spawn exclusion zone).
+    /// Points in the blend zone return false and may spawn static objects.
+    /// </summary>
     public static bool IsInsideTrailExclusionZoneFromLUT(
         float fX,
         float fZ,
@@ -269,7 +282,7 @@ public static class TrailInfluenceBurst
         if (!trail.enabled)
             return false;
 
-        float exclusionRadius = GetTrailMaxSearchRange(trail);
+        float exclusionRadius = GetTrailFlatCoreRadius(trail);
         return ComputeMinDistanceToTrailFromLUT(fX, fZ, trail, lut, centerlineX) < exclusionRadius;
     }
 
@@ -302,12 +315,15 @@ public static class TrailInfluenceBurst
         return math.sqrt(minDist2D);
     }
 
+    /// <summary>
+    /// On-demand flat-core exclusion check (spawn exclusion = flat core only; blend zone allows objects).
+    /// </summary>
     public static bool IsInsideTrailExclusionZone(float fX, float fZ, in TrailInstanceConfig trail, float lutStep)
     {
         if (!trail.enabled)
             return false;
 
-        float exclusionRadius = GetTrailMaxSearchRange(trail);
+        float exclusionRadius = GetTrailFlatCoreRadius(trail);
         return ComputeMinDistanceToTrail(fX, fZ, trail, lutStep) < exclusionRadius;
     }
 }

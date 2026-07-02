@@ -19,6 +19,7 @@ The Static Object Spawning System procedurally places static object entities on 
 - **Scale Variation**: Random scale multipliers for visual variety
 - **Rotation Variation**: Random Y-axis rotation for each tree
 - **Slope Filtering**: Avoid spawning on steep terrain
+- **Trail Exclusion**: Static objects are excluded from the flat trail core only (`width/2`); the blend shoulders allow spawning
 - **Frame Budgeting**: Limits object entities spawned **and destroyed** per frame to prevent ECB playback stuttering
 - **Non-Hierarchical**: Uses `StaticObjectTileOwnership` component instead of parent-child hierarchy for better performance
 
