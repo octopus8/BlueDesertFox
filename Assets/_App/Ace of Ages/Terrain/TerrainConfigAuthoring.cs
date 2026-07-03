@@ -94,6 +94,9 @@ public class TerrainConfigAuthoring : MonoBehaviour
     [Tooltip("Physics layer index for all terrain colliders")]
     public int terrainPhysicsLayer = 0;
 
+    [Tooltip("Physics material for terrain colliders (friction and bounciness). Leave empty for Unity Physics defaults.")]
+    public PhysicsMaterial terrainPhysicsMaterial;
+
     [Header("Trail – Shared")]
     [Tooltip("Y height of all flat trail surfaces in world units (shared by all three trails)")]
     public float trailHeight = 0f;
@@ -209,6 +212,7 @@ public class TerrainConfigAuthoring : MonoBehaviour
                 maxColliderDistance = authoring.maxColliderDistance,
                 maxColliderCacheMemoryMB = authoring.maxColliderCacheMemoryMB,
                 terrainPhysicsLayer = authoring.terrainPhysicsLayer,
+                terrainColliderMaterial = TerrainPhysicsMaterialUtility.FromPhysicsMaterial(authoring.terrainPhysicsMaterial),
                 // Debug/Testing
                 renderTerrain = authoring.renderTerrain,
                 enablePhysicsColliders = authoring.enablePhysicsColliders

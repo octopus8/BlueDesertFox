@@ -633,6 +633,10 @@ PrefabInstance:
       propertyPath: m_Layer
       value: 13
       objectReference: {fileID: 0}
+    - target: {fileID: 1122383940670264, guid: 01489deeeb7ca1744877c2e3e590d958, type: 3}
+      propertyPath: m_IsActive
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 4147015843481072, guid: 01489deeeb7ca1744877c2e3e590d958, type: 3}
       propertyPath: m_LocalScale.x
       value: 0.03
@@ -6065,7 +6069,7 @@ MonoBehaviour:
   tileSize: 256
   viewDistance: 850
   verticesPerSide: 32
-  slopeAngleDegrees: -15
+  slopeAngleDegrees: -20
   noiseFrequency: 0.005
   noiseAmplitude: 20
   noiseOctaves: 2
@@ -6079,6 +6083,7 @@ MonoBehaviour:
   maxColliderDistance: 220
   maxColliderCacheMemoryMB: 53
   terrainPhysicsLayer: 11
+  terrainPhysicsMaterial: {fileID: 13400000, guid: 6ca36172f3540ad4b8bb526b8c406034, type: 2}
   trailHeight: -10
   trailLutStepMeters: 1
   trail1Enabled: 1

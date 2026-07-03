@@ -1,5 +1,6 @@
 using Unity.Entities;
 using Unity.Mathematics;
+using Unity.Physics;
 using UnityEngine;
 
 /// <summary>
@@ -56,6 +57,9 @@ public struct TerrainTileConfig : IComponentData
     
     /// <summary>Physics layer index for terrain colliders.</summary>
     public int terrainPhysicsLayer;
+
+    /// <summary>Unity Physics material applied when creating terrain mesh colliders.</summary>
+    public Unity.Physics.Material terrainColliderMaterial;
     
     /// <summary>Whether to render terrain tiles (disable for tree-only testing).</summary>
     public bool renderTerrain;

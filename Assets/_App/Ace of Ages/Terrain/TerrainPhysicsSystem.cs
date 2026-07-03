@@ -314,6 +314,7 @@ namespace _App.Ace_of_Ages.Terrain
                     maxVerticesPerTile = maxVertsPerTile,
                     maxIndicesPerTile = maxIndicesPerTile,
                     filter = filter,
+                    colliderMaterial = config.terrainColliderMaterial,
                     results = _bufferPool.results
                 };
 
@@ -480,6 +481,7 @@ struct BuildTerrainMeshColliderJob : IJobParallelFor
     public int maxVerticesPerTile;
     public int maxIndicesPerTile;
     public CollisionFilter filter;
+    public Unity.Physics.Material colliderMaterial;
 
     [WriteOnly]
     public NativeArray<BlobAssetReference<Unity.Physics.Collider>> results;
@@ -507,7 +509,7 @@ struct BuildTerrainMeshColliderJob : IJobParallelFor
         }
 
         results[index] = Unity.Physics.MeshCollider.Create(
-            verts, tris, filter, Unity.Physics.Material.Default);
+            verts, tris, filter, colliderMaterial);
         tris.Dispose();
     }
 }

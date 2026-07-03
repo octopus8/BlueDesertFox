@@ -1,6 +1,44 @@
 using Unity.Entities;
 using Unity.Mathematics;
 using Unity.Physics;
+using UnityEngine;
+using Collider = Unity.Physics.Collider;
+using Material = Unity.Physics.Material;
+
+/// <summary>
+/// Converts UnityEngine physics materials to Unity Physics collider materials.
+/// </summary>
+public static class TerrainPhysicsMaterialUtility
+{
+    /// <summary>
+    /// Creates a Unity Physics material from an optional classic <see cref="PhysicsMaterial"/>.
+    /// Returns <see cref="Material.Default"/> when <paramref name="source"/> is null.
+    /// </summary>
+    public static Material FromPhysicsMaterial(PhysicsMaterial source)
+    {
+        if (source == null)
+            return Material.Default;
+
+        var material = Material.Default;
+        material.Friction = math.max(source.staticFriction, source.dynamicFriction);
+        material.Restitution = source.bounciness;
+        material.FrictionCombinePolicy = ToCombinePolicy(source.frictionCombine);
+        material.RestitutionCombinePolicy = ToCombinePolicy(source.bounceCombine);
+        return material;
+    }
+
+    static Material.CombinePolicy ToCombinePolicy(PhysicsMaterialCombine combine)
+    {
+        return combine switch
+        {
+            PhysicsMaterialCombine.Average => Material.CombinePolicy.ArithmeticMean,
+            PhysicsMaterialCombine.Multiply => Material.CombinePolicy.GeometricMean,
+            PhysicsMaterialCombine.Minimum => Material.CombinePolicy.Minimum,
+            PhysicsMaterialCombine.Maximum => Material.CombinePolicy.Maximum,
+            _ => Material.CombinePolicy.ArithmeticMean
+        };
+    }
+}
 
 /// <summary>
 /// Component storing cached distance from this tile to the player.
