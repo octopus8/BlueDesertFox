@@ -43,7 +43,11 @@ public class TransformFollowTarget : MonoBehaviour
     [Tooltip("Rotate the follower to face the target's movement direction (yaw only).")]
     [SerializeField] private bool followDirection;
 
-    [SerializeField] private float smoothTime;
+    [Tooltip("Rotation smoothing duration when Follow Rotation is enabled. 0 = instant snap.")]
+    [SerializeField] private float rotationSmoothTime;
+
+    [Tooltip("Rotation smoothing duration when Follow Direction is enabled. 0 = instant snap.")]
+    [SerializeField] private float directionSmoothTime;
 
     private bool _snapOnNextUpdate = true;
     private bool _loggedWaitingForSubScene;
@@ -76,23 +80,20 @@ public class TransformFollowTarget : MonoBehaviour
         _hasPreviousTargetPosition = true;
 
         targetPosition += positionOffset;
-        bool instant = smoothTime <= 0f || _snapOnNextUpdate;
-        float smoothFactor = instant ? 1f : Mathf.Clamp01(Time.deltaTime / smoothTime);
+        follower.position = targetPosition;
 
-        follower.position = instant
-            ? targetPosition
-            : Vector3.Lerp(follower.position, targetPosition, smoothFactor);
-
-        ApplyFollowerRotation(targetRotation, targetVelocity, smoothFactor, instant);
+        ApplyFollowerRotation(targetRotation, targetVelocity, _snapOnNextUpdate);
 
         _snapOnNextUpdate = false;
     }
 
-    private void ApplyFollowerRotation(Quaternion targetRotation, Vector3 targetVelocity, float smoothFactor, bool instant)
+    private void ApplyFollowerRotation(Quaternion targetRotation, Vector3 targetVelocity, bool snapOnEnable)
     {
         if (followDirection && TryGetDirectionRotation(targetVelocity, out Quaternion directionRotation))
         {
-            follower.rotation = instant
+            bool snap = snapOnEnable || directionSmoothTime <= 0f;
+            float smoothFactor = GetSmoothFactor(directionSmoothTime, snap);
+            follower.rotation = snap
                 ? directionRotation
                 : Quaternion.Slerp(follower.rotation, directionRotation, smoothFactor);
             return;
@@ -101,9 +102,16 @@ public class TransformFollowTarget : MonoBehaviour
         if (!followRotation)
             return;
 
-        follower.rotation = instant
+        bool snapRotation = snapOnEnable || rotationSmoothTime <= 0f;
+        float rotationFactor = GetSmoothFactor(rotationSmoothTime, snapRotation);
+        follower.rotation = snapRotation
             ? targetRotation
-            : Quaternion.Slerp(follower.rotation, targetRotation, smoothFactor);
+            : Quaternion.Slerp(follower.rotation, targetRotation, rotationFactor);
+    }
+
+    private static float GetSmoothFactor(float smoothDuration, bool snap)
+    {
+        return snap ? 1f : Mathf.Clamp01(Time.deltaTime / smoothDuration);
     }
 
     private static bool TryGetDirectionRotation(Vector3 velocity, out Quaternion rotation)
