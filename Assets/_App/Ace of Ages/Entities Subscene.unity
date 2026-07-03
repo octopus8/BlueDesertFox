@@ -809,7 +809,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 0, y: 11, z: 0}
-  m_LocalScale: {x: 0.5, y: 0.5, z: 0.5}
+  m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
@@ -6071,7 +6071,7 @@ MonoBehaviour:
   verticesPerSide: 32
   slopeAngleDegrees: -20
   noiseFrequency: 0.005
-  noiseAmplitude: 20
+  noiseAmplitude: 40
   noiseOctaves: 2
   noiseLacunarity: 2
   noisePersistence: 0.5
@@ -6084,7 +6084,7 @@ MonoBehaviour:
   maxColliderCacheMemoryMB: 53
   terrainPhysicsLayer: 11
   terrainPhysicsMaterial: {fileID: 13400000, guid: 6ca36172f3540ad4b8bb526b8c406034, type: 2}
-  trailHeight: -10
+  trailHeight: -20
   trailLutStepMeters: 1
   trail1Enabled: 1
   trail1Width: 20

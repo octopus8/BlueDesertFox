@@ -17,6 +17,8 @@ public class TransformFollowTarget : MonoBehaviour
         EntitiesSubScene
     }
 
+    const float MinDirectionSpeedSq = 0.0001f;
+
     [Tooltip("Transform to move (main scene, e.g. XR Origin root).")]
     [SerializeField] private Transform follower;
 
@@ -34,16 +36,25 @@ public class TransformFollowTarget : MonoBehaviour
     [SerializeField] private string entitiesSubSceneTargetName = "Player Follow Object";
 
     [SerializeField] private Vector3 positionOffset = Vector3.zero;
+
+    [Tooltip("Match the target object's rotation.")]
     [SerializeField] private bool followRotation;
+
+    [Tooltip("Rotate the follower to face the target's movement direction (yaw only).")]
+    [SerializeField] private bool followDirection;
+
     [SerializeField] private float smoothTime;
 
     private bool _snapOnNextUpdate = true;
     private bool _loggedWaitingForSubScene;
+    private Vector3 _previousTargetPosition;
+    private bool _hasPreviousTargetPosition;
 
     private void OnEnable()
     {
         _snapOnNextUpdate = true;
         _loggedWaitingForSubScene = false;
+        _hasPreviousTargetPosition = false;
     }
 
     private void LateUpdate()
@@ -57,25 +68,55 @@ public class TransformFollowTarget : MonoBehaviour
         if (!TryGetTargetPose(out Vector3 targetPosition, out Quaternion targetRotation))
             return;
 
+        Vector3 targetVelocity = Vector3.zero;
+        if (_hasPreviousTargetPosition)
+            targetVelocity = targetPosition - _previousTargetPosition;
+
+        _previousTargetPosition = targetPosition;
+        _hasPreviousTargetPosition = true;
+
         targetPosition += positionOffset;
+        bool instant = smoothTime <= 0f || _snapOnNextUpdate;
+        float smoothFactor = instant ? 1f : Mathf.Clamp01(Time.deltaTime / smoothTime);
 
-        if (smoothTime > 0f && !_snapOnNextUpdate)
+        follower.position = instant
+            ? targetPosition
+            : Vector3.Lerp(follower.position, targetPosition, smoothFactor);
+
+        ApplyFollowerRotation(targetRotation, targetVelocity, smoothFactor, instant);
+
+        _snapOnNextUpdate = false;
+    }
+
+    private void ApplyFollowerRotation(Quaternion targetRotation, Vector3 targetVelocity, float smoothFactor, bool instant)
+    {
+        if (followDirection && TryGetDirectionRotation(targetVelocity, out Quaternion directionRotation))
         {
-            float smoothFactor = Mathf.Clamp01(Time.deltaTime / smoothTime);
-            follower.position = Vector3.Lerp(follower.position, targetPosition, smoothFactor);
-
-            if (followRotation)
-                follower.rotation = Quaternion.Slerp(follower.rotation, targetRotation, smoothFactor);
+            follower.rotation = instant
+                ? directionRotation
+                : Quaternion.Slerp(follower.rotation, directionRotation, smoothFactor);
+            return;
         }
-        else
+
+        if (!followRotation)
+            return;
+
+        follower.rotation = instant
+            ? targetRotation
+            : Quaternion.Slerp(follower.rotation, targetRotation, smoothFactor);
+    }
+
+    private static bool TryGetDirectionRotation(Vector3 velocity, out Quaternion rotation)
+    {
+        var flatVelocity = new Vector3(velocity.x, 0f, velocity.z);
+        if (flatVelocity.sqrMagnitude < MinDirectionSpeedSq)
         {
-            follower.position = targetPosition;
-
-            if (followRotation)
-                follower.rotation = targetRotation;
-
-            _snapOnNextUpdate = false;
+            rotation = Quaternion.identity;
+            return false;
         }
+
+        rotation = Quaternion.LookRotation(flatVelocity.normalized, Vector3.up);
+        return true;
     }
 
     private bool TryGetTargetPose(out Vector3 position, out Quaternion rotation)

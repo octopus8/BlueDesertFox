@@ -212,7 +212,8 @@ MonoBehaviour:
   entitiesSubSceneTargetName: Player Follow Object
   positionOffset: {x: 0, y: 0, z: 0}
   followRotation: 0
-  smoothTime: 0
+  followDirection: 1
+  smoothTime: 0.5
 --- !u!1001 &250512250
 PrefabInstance:
   m_ObjectHideFlags: 0
