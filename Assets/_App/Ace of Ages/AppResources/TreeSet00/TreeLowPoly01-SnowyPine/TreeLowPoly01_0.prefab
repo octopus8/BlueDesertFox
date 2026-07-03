@@ -12,6 +12,7 @@ GameObject:
   - component: {fileID: 4645095208263671462}
   - component: {fileID: 5812071685220835922}
   - component: {fileID: 8847291038472910385}
+  - component: {fileID: 5322338549797805999}
   m_Layer: 0
   m_Name: TreeLowPoly01_0
   m_TagString: Untagged
@@ -103,3 +104,26 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 8a4f2c1e9b7d6a3058471e2f0c9d8b7a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::StaticObjectPrefabAuthoring
+--- !u!136 &5322338549797805999
+CapsuleCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1790061847135392082}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 2
+  m_Radius: 0.23
+  m_Height: 3.6204193
+  m_Direction: 1
+  m_Center: {x: -0.000718683, y: 1.694029, z: 0.00053429604}

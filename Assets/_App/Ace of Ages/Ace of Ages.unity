@@ -213,7 +213,7 @@ MonoBehaviour:
   positionOffset: {x: 0, y: 0, z: 0}
   followRotation: 0
   followDirection: 1
-  smoothTime: 0.5
+  smoothTime: 0
 --- !u!1001 &250512250
 PrefabInstance:
   m_ObjectHideFlags: 0
