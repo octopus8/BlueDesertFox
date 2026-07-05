@@ -711,9 +711,9 @@ GameObject:
   - component: {fileID: 935523115}
   - component: {fileID: 935523114}
   - component: {fileID: 935523113}
-  - component: {fileID: 935523112}
   - component: {fileID: 935523116}
   - component: {fileID: 935523117}
+  - component: {fileID: 935523118}
   m_Layer: 0
   m_Name: Player Follow Object
   m_TagString: Untagged
@@ -721,27 +721,6 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!135 &935523112
-SphereCollider:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 935523111}
-  m_Material: {fileID: 13400000, guid: 405948a58cc473445b373b74996a860a, type: 2}
-  m_IncludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ExcludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_LayerOverridePriority: 0
-  m_IsTrigger: 0
-  m_ProvidesContacts: 0
-  m_Enabled: 1
-  serializedVersion: 3
-  m_Radius: 0.5
-  m_Center: {x: 0, y: 0, z: 0}
 --- !u!23 &935523113
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -853,6 +832,29 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f8e7d6c5b4a3928170f1e2d3c4b5a697, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerFollowObjectAuthoring
+--- !u!136 &935523118
+CapsuleCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 935523111}
+  m_Material: {fileID: 13400000, guid: 405948a58cc473445b373b74996a860a, type: 2}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 2
+  m_Radius: 0.5
+  m_Height: 1
+  m_Direction: 1
+  m_Center: {x: 0, y: 0, z: 0}
 --- !u!1 &961978237
 GameObject:
   m_ObjectHideFlags: 0
