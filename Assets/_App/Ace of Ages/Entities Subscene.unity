@@ -815,8 +815,8 @@ Rigidbody:
     m_Bits: 0
   m_ImplicitCom: 1
   m_ImplicitTensor: 1
-  m_UseGravity: 1
-  m_IsKinematic: 0
+  m_UseGravity: 0
+  m_IsKinematic: 1
   m_Interpolate: 0
   m_Constraints: 112
   m_CollisionDetection: 0
@@ -832,6 +832,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f8e7d6c5b4a3928170f1e2d3c4b5a697, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerFollowObjectAuthoring
+  rayHeightAbove: 2
+  rayLengthBelow: 50
+  fallbackTerrainLayer: 11
+  springStiffness: 400
+  springDamping: 35
+  groundFriction: 0.25
+  groundedDistance: 0.25
 --- !u!136 &935523118
 CapsuleCollider:
   m_ObjectHideFlags: 0
@@ -849,7 +856,7 @@ CapsuleCollider:
   m_LayerOverridePriority: 0
   m_IsTrigger: 0
   m_ProvidesContacts: 0
-  m_Enabled: 1
+  m_Enabled: 0
   serializedVersion: 2
   m_Radius: 0.5
   m_Height: 1
