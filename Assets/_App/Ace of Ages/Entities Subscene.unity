@@ -837,9 +837,9 @@ MonoBehaviour:
   fallbackTerrainLayer: 11
   rideablePhysicsLayer: 15
   springStiffness: 400
-  springDamping: 10
+  springDamping: 35
   groundFriction: 0.1
-  groundedDistance: 0.2
+  groundedDistance: 0.25
 --- !u!136 &935523118
 CapsuleCollider:
   m_ObjectHideFlags: 0
