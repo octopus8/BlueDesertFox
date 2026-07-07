@@ -27,6 +27,12 @@ public class PlayerFollowObjectAuthoring : MonoBehaviour
     [Tooltip("Max distance to terrain surface before considered grounded.")]
     [SerializeField] private float groundedDistance = 0.25f;
 
+    [Header("Facing")]
+    [Tooltip("Seconds to smooth yaw toward movement direction. Higher = less terrain jitter. 0 = instant.")]
+    [SerializeField] private float yawRotationSmoothTime = 0.2f;
+    [Tooltip("Minimum horizontal speed (m/s) before yaw updates.")]
+    [SerializeField] private float minYawSpeed = 0.5f;
+
     public class Baker : Baker<PlayerFollowObjectAuthoring>
     {
         public override void Bake(PlayerFollowObjectAuthoring authoring)
@@ -59,6 +65,8 @@ public class PlayerFollowObjectAuthoring : MonoBehaviour
                 springDamping = authoring.springDamping,
                 groundFriction = authoring.groundFriction,
                 groundedDistance = authoring.groundedDistance,
+                yawRotationSmoothTime = authoring.yawRotationSmoothTime,
+                minYawSpeed = authoring.minYawSpeed,
                 capsuleRadius = capsuleRadius,
                 capsuleHalfCylinder = capsuleHalfCylinder,
                 capsuleCenter = capsuleCenter
@@ -67,6 +75,7 @@ public class PlayerFollowObjectAuthoring : MonoBehaviour
             AddComponent(entity, new PlayerFollowObjectMotionState
             {
                 velocity = float3.zero,
+                smoothedYaw = 0f,
                 wasGrounded = 0
             });
         }

@@ -19,6 +19,8 @@ public struct PlayerFollowObjectGroundConfig : IComponentData
     public float springDamping;
     public float groundFriction;
     public float groundedDistance;
+    public float yawRotationSmoothTime;
+    public float minYawSpeed;
     public float capsuleRadius;
     public float capsuleHalfCylinder;
     public float3 capsuleCenter;
@@ -30,6 +32,7 @@ public struct PlayerFollowObjectGroundConfig : IComponentData
 public struct PlayerFollowObjectMotionState : IComponentData
 {
     public float3 velocity;
+    public float smoothedYaw;
     public byte wasGrounded;
 }
 
@@ -161,6 +164,16 @@ public partial class PlayerFollowObjectGroundContactSystem : SystemBase
             localTransform.ValueRW.Position = position;
             motionState.ValueRW.velocity = velocity;
             motionState.ValueRW.wasGrounded = grounded ? (byte)1 : (byte)0;
+
+            float smoothedYaw = motionState.ValueRO.smoothedYaw;
+            UpdateSmoothedYaw(
+                ref smoothedYaw,
+                velocity,
+                config.ValueRO.minYawSpeed,
+                config.ValueRO.yawRotationSmoothTime,
+                dt);
+            motionState.ValueRW.smoothedYaw = smoothedYaw;
+            localTransform.ValueRW.Rotation = quaternion.RotateY(smoothedYaw);
         }
     }
 
@@ -273,5 +286,22 @@ public partial class PlayerFollowObjectGroundContactSystem : SystemBase
         float3 tangent = RemoveNormalComponent(velocity, normal);
         float damping = math.max(0f, 1f - groundFriction * dt);
         velocity = normal * math.dot(velocity, normal) + tangent * damping;
+    }
+
+    private static void UpdateSmoothedYaw(
+        ref float smoothedYaw,
+        float3 velocity,
+        float minYawSpeed,
+        float yawRotationSmoothTime,
+        float dt)
+    {
+        float3 flat = new float3(velocity.x, 0f, velocity.z);
+        if (math.lengthsq(flat) < minYawSpeed * minYawSpeed)
+            return;
+
+        float targetYaw = math.atan2(flat.x, flat.z);
+        float delta = math.atan2(math.sin(targetYaw - smoothedYaw), math.cos(targetYaw - smoothedYaw));
+        float t = yawRotationSmoothTime <= 0f ? 1f : math.saturate(dt / yawRotationSmoothTime);
+        smoothedYaw += delta * t;
     }
 }

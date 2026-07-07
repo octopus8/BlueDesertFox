@@ -211,8 +211,8 @@ MonoBehaviour:
   entitiesSubScene: {fileID: 702503745}
   entitiesSubSceneTargetName: Player Follow Object
   positionOffset: {x: 0, y: 0, z: 0}
-  followRotation: 0
-  followDirection: 1
+  followRotation: 1
+  followDirection: 0
   rotationSmoothTime: 0
   directionSmoothTime: 0.1
 --- !u!1001 &250512250
