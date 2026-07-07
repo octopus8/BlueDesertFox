@@ -14,6 +14,8 @@ public class PlayerFollowObjectAuthoring : MonoBehaviour
     [SerializeField] private float rayHeightAbove = 2f;
     [SerializeField] private float rayLengthBelow = 50f;
     [SerializeField] private int fallbackTerrainLayer = 11;
+    [Tooltip("Physics layer for ramps and other rideable launch surfaces (not blocking obstacles).")]
+    [SerializeField] private int rideablePhysicsLayer = 15;
 
     [Header("Spring-Damper")]
     [SerializeField] private float springStiffness = 400f;
@@ -52,6 +54,7 @@ public class PlayerFollowObjectAuthoring : MonoBehaviour
                 rayHeightAbove = authoring.rayHeightAbove,
                 rayLengthBelow = authoring.rayLengthBelow,
                 fallbackTerrainLayer = authoring.fallbackTerrainLayer,
+                rideablePhysicsLayer = authoring.rideablePhysicsLayer,
                 springStiffness = authoring.springStiffness,
                 springDamping = authoring.springDamping,
                 groundFriction = authoring.groundFriction,

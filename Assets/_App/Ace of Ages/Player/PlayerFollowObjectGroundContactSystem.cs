@@ -14,6 +14,7 @@ public struct PlayerFollowObjectGroundConfig : IComponentData
     public float rayHeightAbove;
     public float rayLengthBelow;
     public int fallbackTerrainLayer;
+    public int rideablePhysicsLayer;
     public float springStiffness;
     public float springDamping;
     public float groundFriction;
@@ -33,7 +34,7 @@ public struct PlayerFollowObjectMotionState : IComponentData
 }
 
 /// <summary>
-/// Drives the Player Follow Object entity along terrain using Unity Physics raycasts
+/// Drives the Player Follow Object entity along terrain and rideable surfaces using Unity Physics raycasts
 /// with a normal-axis spring-damper, and blocks obstacles via capsule casts.
 /// </summary>
 [UpdateInGroup(typeof(FixedStepSimulationSystemGroup))]
@@ -41,6 +42,8 @@ public partial class PlayerFollowObjectGroundContactSystem : SystemBase
 {
     private const float ObstacleSkin = 0.001f;
     private const float MinCastDistance = 1e-4f;
+    private const float GroundHitDistanceMargin = 0.5f;
+    private const float WalkableSlopeThreshold = 0.5f;
 
     protected override void OnCreate()
     {
@@ -60,33 +63,44 @@ public partial class PlayerFollowObjectGroundContactSystem : SystemBase
             && SystemAPI.HasSingleton<PhysicsWorldSingleton>();
 
         CollisionWorld collisionWorld = default;
-        CollisionFilter terrainFilter = default;
-        CollisionFilter obstacleFilter = default;
 
         if (hasPhysicsWorld)
         {
             Dependency.Complete();
             collisionWorld = SystemAPI.GetSingleton<PhysicsWorldSingleton>().PhysicsWorld.CollisionWorld;
-            int terrainLayer = terrainConfig.terrainPhysicsLayer;
-            uint terrainLayerMask = 1u << terrainLayer;
-            terrainFilter = new CollisionFilter
-            {
-                BelongsTo = ~0u,
-                CollidesWith = terrainLayerMask,
-                GroupIndex = 0
-            };
-            obstacleFilter = new CollisionFilter
-            {
-                BelongsTo = ~0u,
-                CollidesWith = ~terrainLayerMask,
-                GroupIndex = 0
-            };
         }
 
         foreach (var (config, motionState, localTransform) in SystemAPI
                      .Query<RefRO<PlayerFollowObjectGroundConfig>, RefRW<PlayerFollowObjectMotionState>, RefRW<LocalTransform>>()
                      .WithAll<PlayerFollowObjectTag>())
         {
+            CollisionFilter groundFilter = default;
+            CollisionFilter obstacleFilter = default;
+
+            if (hasPhysicsWorld)
+            {
+                int terrainLayer = terrainConfig.terrainPhysicsLayer;
+                int rideableLayer = config.ValueRO.rideablePhysicsLayer;
+                if (rideableLayer < 0 || rideableLayer > 30)
+                    rideableLayer = 15;
+
+                uint terrainLayerMask = 1u << terrainLayer;
+                uint rideableLayerMask = 1u << rideableLayer;
+                uint groundLayerMask = terrainLayerMask | rideableLayerMask;
+                groundFilter = new CollisionFilter
+                {
+                    BelongsTo = ~0u,
+                    CollidesWith = groundLayerMask,
+                    GroupIndex = 0
+                };
+                obstacleFilter = new CollisionFilter
+                {
+                    BelongsTo = ~0u,
+                    CollidesWith = ~groundLayerMask,
+                    GroupIndex = 0
+                };
+            }
+
             float3 position = localTransform.ValueRO.Position;
             float3 velocity = motionState.ValueRO.velocity;
             bool wasGrounded = motionState.ValueRO.wasGrounded != 0;
@@ -94,10 +108,11 @@ public partial class PlayerFollowObjectGroundContactSystem : SystemBase
             float3 normal = math.up();
 
             if (hasPhysicsWorld
-                && TryGetTerrainHit(collisionWorld, terrainFilter, position, config.ValueRO, out RaycastHit terrainHit))
+                && TryGetGroundHit(collisionWorld, groundFilter, position, config.ValueRO, out RaycastHit groundHit)
+                && IsValidGroundHit(groundHit, position, config.ValueRO))
             {
-                normal = math.normalizesafe(terrainHit.SurfaceNormal, math.up());
-                float3 surfaceTarget = terrainHit.Position + normal * config.ValueRO.bottomOffset;
+                normal = math.normalizesafe(groundHit.SurfaceNormal, math.up());
+                float3 surfaceTarget = groundHit.Position + normal * config.ValueRO.bottomOffset;
                 float error = math.dot(surfaceTarget - position, normal);
                 grounded = math.abs(error) < config.ValueRO.groundedDistance;
                 bool approachingSurface = error > 0f && error < 3f;
@@ -149,6 +164,14 @@ public partial class PlayerFollowObjectGroundContactSystem : SystemBase
         }
     }
 
+    private static bool IsValidGroundHit(RaycastHit hit, float3 position, in PlayerFollowObjectGroundConfig config)
+    {
+        float3 rayStart = position + math.up() * config.rayHeightAbove;
+        float hitDistance = math.distance(rayStart, hit.Position);
+        float maxDistance = config.rayHeightAbove + config.bottomOffset + config.groundedDistance + GroundHitDistanceMargin;
+        return hitDistance <= maxDistance;
+    }
+
     private static void ApplySpringDamper(
         ref float3 velocity,
         float3 position,
@@ -163,9 +186,9 @@ public partial class PlayerFollowObjectGroundContactSystem : SystemBase
         velocity += springAccel * dt;
     }
 
-    private static bool TryGetTerrainHit(
+    private static bool TryGetGroundHit(
         CollisionWorld collisionWorld,
-        CollisionFilter terrainFilter,
+        CollisionFilter groundFilter,
         float3 position,
         in PlayerFollowObjectGroundConfig config,
         out RaycastHit hit)
@@ -177,7 +200,7 @@ public partial class PlayerFollowObjectGroundContactSystem : SystemBase
         {
             Start = rayStart,
             End = rayEnd,
-            Filter = terrainFilter
+            Filter = groundFilter
         };
 
         return collisionWorld.CastRay(rayInput, out hit);
@@ -211,9 +234,12 @@ public partial class PlayerFollowObjectGroundContactSystem : SystemBase
             return;
         }
 
+        float3 obstacleNormal = math.normalizesafe(castHit.SurfaceNormal, math.up());
+        if (math.dot(obstacleNormal, math.up()) >= WalkableSlopeThreshold)
+            return;
+
         float fraction = math.max(castHit.Fraction - ObstacleSkin, 0f);
         position = startPosition + direction * (distance * fraction);
-        float3 obstacleNormal = math.normalizesafe(castHit.SurfaceNormal, math.up());
         velocity = RemoveNormalComponent(velocity, obstacleNormal);
     }
 
