@@ -33,6 +33,10 @@ public class PlayerFollowObjectAuthoring : MonoBehaviour
     [Tooltip("Minimum horizontal speed (m/s) before yaw updates.")]
     [SerializeField] private float minYawSpeed = 0.5f;
 
+    [Header("Head Steering")]
+    [Tooltip("Degrees per second of Y-axis velocity rotation at full head roll (±90°). 0 = disabled.")]
+    [SerializeField] private float steeringSensitivity = 30f;
+
     public class Baker : Baker<PlayerFollowObjectAuthoring>
     {
         public override void Bake(PlayerFollowObjectAuthoring authoring)
@@ -78,8 +82,19 @@ public class PlayerFollowObjectAuthoring : MonoBehaviour
                 smoothedYaw = 0f,
                 wasGrounded = 0
             });
+
+            AddComponent(entity, new PlayerFollowObjectSteeringConfig
+            {
+                steeringSensitivity = authoring.steeringSensitivity
+            });
         }
     }
+}
+
+/// <summary>Baked head-tilt steering settings for <see cref="PlayerFollowObjectHeadSteeringSystem"/>.</summary>
+public struct PlayerFollowObjectSteeringConfig : IComponentData
+{
+    public float steeringSensitivity;
 }
 
 /// <summary>Tag component that identifies the Player Follow Object entity in the ECS world.</summary>

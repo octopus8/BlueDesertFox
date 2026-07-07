@@ -21,6 +21,13 @@ public partial class CameraDataUpdateSystem : SystemBase
         float3 forward = new float3(0, 0, 1);
         float3 fullForward = new float3(0, 0, 1);
         float bankAngle = 0f;
+        float headBankAngle = 0f;
+
+        if (Camera.main != null)
+        {
+            float rawHeadZ = Camera.main.transform.eulerAngles.z;
+            headBankAngle = rawHeadZ > 180f ? rawHeadZ - 360f : rawHeadZ;
+        }
 
         if (SystemAPI.ManagedAPI.TryGetSingleton<PlayerTransformReference>(out var playerRef) &&
             playerRef != null &&
@@ -42,7 +49,8 @@ public partial class CameraDataUpdateSystem : SystemBase
             position = position,
             forward = forward,
             fullForward = fullForward,
-            bankAngle = bankAngle
+            bankAngle = bankAngle,
+            headBankAngle = headBankAngle
         });
     }
 }
@@ -56,4 +64,6 @@ public struct CameraDataSingleton : IComponentData
     public float3 forward;
     public float3 fullForward;
     public float bankAngle;
+    /// <summary>Head roll angle (world Euler Z) from the HMD camera, normalized to -180..180.</summary>
+    public float headBankAngle;
 }
