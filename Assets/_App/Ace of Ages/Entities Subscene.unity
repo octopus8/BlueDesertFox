@@ -840,7 +840,7 @@ MonoBehaviour:
   springDamping: 50
   groundFriction: 0.1
   groundedDistance: 0.25
-  yawRotationSmoothTime: 0.2
+  yawRotationSmoothTime: 1
   minYawSpeed: 0.5
   steeringSensitivity: 80
 --- !u!136 &935523118
