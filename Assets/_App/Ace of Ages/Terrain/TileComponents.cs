@@ -353,6 +353,9 @@ public class TerrainMaterialReference : IComponentData
 /// </summary>
 public struct StaticObjectSpawnerConfig : IComponentData
 {
+    /// <summary>Random seed offset added to tile grid coordinates for deterministic placement.</summary>
+    public int randomSeed;
+
     /// <summary>Minimum number of Objects to spawn per tile.</summary>
     public int minObjectsPerTile;
     

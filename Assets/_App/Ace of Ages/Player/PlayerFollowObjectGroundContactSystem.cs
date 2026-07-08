@@ -27,11 +27,12 @@ public struct PlayerFollowObjectGroundConfig : IComponentData
 }
 
 /// <summary>
-/// Runtime velocity for the player follow object when driven by ground contact.
+/// Runtime terrain-relative velocity for the player follow object when driven by ground contact.
+/// World velocity is <c>terrainRelativeVelocity - scrollVelocity</c> (see <see cref="TerrainScrollVelocityMath"/>).
 /// </summary>
 public struct PlayerFollowObjectMotionState : IComponentData
 {
-    public float3 velocity;
+    public float3 terrainRelativeVelocity;
     public float smoothedYaw;
     public byte wasGrounded;
 }
@@ -39,14 +40,20 @@ public struct PlayerFollowObjectMotionState : IComponentData
 /// <summary>
 /// Drives the Player Follow Object entity along terrain and rideable surfaces using Unity Physics raycasts
 /// with a normal-axis spring-damper, and blocks obstacles via capsule casts.
+/// Integrates in terrain-relative velocity space so scroll motion and ramp slide do not compete.
 /// </summary>
-[UpdateInGroup(typeof(FixedStepSimulationSystemGroup))]
+[UpdateInGroup(typeof(SimulationSystemGroup))]
+[UpdateAfter(typeof(ScrollTerrainSystem))]
+[UpdateBefore(typeof(TileScrollPositionSystem))]
 public partial class PlayerFollowObjectGroundContactSystem : SystemBase
 {
     private const float ObstacleSkin = 0.001f;
     private const float MinCastDistance = 1e-4f;
     private const float GroundHitDistanceMargin = 0.5f;
     private const float WalkableSlopeThreshold = 0.5f;
+    private const float FlatGroundNormalThreshold = 0.95f;
+    private const float ScrollBaselineLerpSpeed = 12f;
+    private const float ScrollActiveSpeedSq = 0.01f;
 
     protected override void OnCreate()
     {
@@ -54,12 +61,15 @@ public partial class PlayerFollowObjectGroundContactSystem : SystemBase
         RequireForUpdate<PlayerFollowObjectGroundConfig>();
         RequireForUpdate<PlayerFollowObjectMotionState>();
         RequireForUpdate<TerrainTileConfig>();
+        RequireForUpdate<TerrainScrollVelocity>();
     }
 
     protected override void OnUpdate()
     {
         float dt = SystemAPI.Time.DeltaTime;
         float3 gravity = (float3)Physics.gravity;
+        float3 scrollVelocity = SystemAPI.GetSingleton<TerrainScrollVelocity>().WorldVelocity;
+        bool scrollActive = math.lengthsq(scrollVelocity) > ScrollActiveSpeedSq;
 
         bool hasPhysicsWorld = SystemAPI.TryGetSingleton<TerrainTileConfig>(out TerrainTileConfig terrainConfig)
             && terrainConfig.enablePhysicsColliders
@@ -105,7 +115,7 @@ public partial class PlayerFollowObjectGroundContactSystem : SystemBase
             }
 
             float3 position = localTransform.ValueRO.Position;
-            float3 velocity = motionState.ValueRO.velocity;
+            float3 terrainRelativeVelocity = motionState.ValueRO.terrainRelativeVelocity;
             bool wasGrounded = motionState.ValueRO.wasGrounded != 0;
             bool grounded = false;
             float3 normal = math.up();
@@ -124,36 +134,63 @@ public partial class PlayerFollowObjectGroundContactSystem : SystemBase
                 {
                     if (grounded && !wasGrounded)
                     {
-                        float vNormal = math.dot(velocity, normal);
+                        if (scrollActive)
+                            terrainRelativeVelocity = scrollVelocity;
+
+                        float3 touchdownVelocity = TerrainScrollVelocityMath.WorldVelocityFromTerrainRelative(
+                            terrainRelativeVelocity,
+                            scrollVelocity);
+                        float vNormal = math.dot(touchdownVelocity, normal);
                         if (vNormal > 0f)
-                            velocity -= normal * vNormal;
+                        {
+                            touchdownVelocity -= normal * vNormal;
+                            terrainRelativeVelocity = TerrainScrollVelocityMath.TerrainRelativeFromWorld(
+                                touchdownVelocity,
+                                scrollVelocity);
+                        }
                     }
 
-                    velocity += GetTangentComponent(gravity, normal) * dt;
-                    ApplySpringDamper(ref velocity, position, surfaceTarget, normal, config.ValueRO, dt);
+                    terrainRelativeVelocity += GetTangentComponent(gravity, normal) * dt;
+                    ApplySpringDamper(
+                        ref terrainRelativeVelocity,
+                        scrollVelocity,
+                        position,
+                        surfaceTarget,
+                        normal,
+                        config.ValueRO,
+                        dt);
 
                     if (grounded)
-                        ApplyGroundFriction(ref velocity, normal, config.ValueRO.groundFriction, dt);
+                    {
+                        ApplyGroundFriction(ref terrainRelativeVelocity, scrollVelocity, normal, config.ValueRO.groundFriction, dt);
+
+                        if (scrollActive && normal.y >= FlatGroundNormalThreshold)
+                            ApplyScrollBaseline(ref terrainRelativeVelocity, scrollVelocity, dt);
+                    }
                 }
                 else
                 {
-                    velocity += gravity * dt;
+                    terrainRelativeVelocity += gravity * dt;
                 }
             }
             else
             {
-                velocity += gravity * dt;
+                terrainRelativeVelocity += gravity * dt;
             }
 
+            float3 worldVelocity = TerrainScrollVelocityMath.WorldVelocityFromTerrainRelative(
+                terrainRelativeVelocity,
+                scrollVelocity);
             float3 startPosition = position;
-            float3 displacement = velocity * dt;
+            float3 displacement = worldVelocity * dt;
             position = startPosition + displacement;
 
             if (hasPhysicsWorld && math.lengthsq(displacement) > MinCastDistance * MinCastDistance)
             {
                 ResolveObstacleCollision(
                     ref position,
-                    ref velocity,
+                    ref terrainRelativeVelocity,
+                    scrollVelocity,
                     startPosition,
                     displacement,
                     config.ValueRO,
@@ -162,19 +199,29 @@ public partial class PlayerFollowObjectGroundContactSystem : SystemBase
             }
 
             localTransform.ValueRW.Position = position;
-            motionState.ValueRW.velocity = velocity;
+            motionState.ValueRW.terrainRelativeVelocity = terrainRelativeVelocity;
             motionState.ValueRW.wasGrounded = grounded ? (byte)1 : (byte)0;
 
             float smoothedYaw = motionState.ValueRO.smoothedYaw;
             UpdateSmoothedYaw(
                 ref smoothedYaw,
-                velocity,
+                worldVelocity,
                 config.ValueRO.minYawSpeed,
                 config.ValueRO.yawRotationSmoothTime,
                 dt);
             motionState.ValueRW.smoothedYaw = smoothedYaw;
             localTransform.ValueRW.Rotation = quaternion.RotateY(smoothedYaw);
         }
+    }
+
+    private static void ApplyScrollBaseline(ref float3 terrainRelativeVelocity, float3 scrollVelocity, float dt)
+    {
+        float3 target = new float3(scrollVelocity.x, terrainRelativeVelocity.y, scrollVelocity.z);
+        float t = math.saturate(ScrollBaselineLerpSpeed * dt);
+        float3 flat = new float3(terrainRelativeVelocity.x, 0f, terrainRelativeVelocity.z);
+        float3 targetFlat = new float3(scrollVelocity.x, 0f, scrollVelocity.z);
+        float3 lerpedFlat = math.lerp(flat, targetFlat, t);
+        terrainRelativeVelocity = new float3(lerpedFlat.x, target.y, lerpedFlat.z);
     }
 
     private static bool IsValidGroundHit(RaycastHit hit, float3 position, in PlayerFollowObjectGroundConfig config)
@@ -186,7 +233,8 @@ public partial class PlayerFollowObjectGroundContactSystem : SystemBase
     }
 
     private static void ApplySpringDamper(
-        ref float3 velocity,
+        ref float3 terrainRelativeVelocity,
+        float3 scrollVelocity,
         float3 position,
         float3 surfaceTarget,
         float3 normal,
@@ -194,9 +242,13 @@ public partial class PlayerFollowObjectGroundContactSystem : SystemBase
         float dt)
     {
         float error = math.dot(surfaceTarget - position, normal);
-        float vNormal = math.dot(velocity, normal);
+        float3 worldVelocity = TerrainScrollVelocityMath.WorldVelocityFromTerrainRelative(
+            terrainRelativeVelocity,
+            scrollVelocity);
+        float vNormal = math.dot(worldVelocity, normal);
         float3 springAccel = normal * (config.springStiffness * error - config.springDamping * vNormal);
-        velocity += springAccel * dt;
+        worldVelocity += springAccel * dt;
+        terrainRelativeVelocity = TerrainScrollVelocityMath.TerrainRelativeFromWorld(worldVelocity, scrollVelocity);
     }
 
     private static bool TryGetGroundHit(
@@ -221,7 +273,8 @@ public partial class PlayerFollowObjectGroundContactSystem : SystemBase
 
     private static void ResolveObstacleCollision(
         ref float3 position,
-        ref float3 velocity,
+        ref float3 terrainRelativeVelocity,
+        float3 scrollVelocity,
         float3 startPosition,
         float3 displacement,
         in PlayerFollowObjectGroundConfig config,
@@ -253,7 +306,12 @@ public partial class PlayerFollowObjectGroundContactSystem : SystemBase
 
         float fraction = math.max(castHit.Fraction - ObstacleSkin, 0f);
         position = startPosition + direction * (distance * fraction);
-        velocity = RemoveNormalComponent(velocity, obstacleNormal);
+
+        float3 worldVelocity = TerrainScrollVelocityMath.WorldVelocityFromTerrainRelative(
+            terrainRelativeVelocity,
+            scrollVelocity);
+        worldVelocity = RemoveNormalComponent(worldVelocity, obstacleNormal);
+        terrainRelativeVelocity = TerrainScrollVelocityMath.TerrainRelativeFromWorld(worldVelocity, scrollVelocity);
     }
 
     private static void GetCapsuleEndpoints(
@@ -278,24 +336,33 @@ public partial class PlayerFollowObjectGroundContactSystem : SystemBase
         return RemoveNormalComponent(vector, normal);
     }
 
-    private static void ApplyGroundFriction(ref float3 velocity, float3 normal, float groundFriction, float dt)
+    private static void ApplyGroundFriction(
+        ref float3 terrainRelativeVelocity,
+        float3 scrollVelocity,
+        float3 normal,
+        float groundFriction,
+        float dt)
     {
         if (groundFriction <= 0f)
             return;
 
-        float3 tangent = RemoveNormalComponent(velocity, normal);
+        float3 worldVelocity = TerrainScrollVelocityMath.WorldVelocityFromTerrainRelative(
+            terrainRelativeVelocity,
+            scrollVelocity);
+        float3 tangent = RemoveNormalComponent(worldVelocity, normal);
         float damping = math.max(0f, 1f - groundFriction * dt);
-        velocity = normal * math.dot(velocity, normal) + tangent * damping;
+        worldVelocity = normal * math.dot(worldVelocity, normal) + tangent * damping;
+        terrainRelativeVelocity = TerrainScrollVelocityMath.TerrainRelativeFromWorld(worldVelocity, scrollVelocity);
     }
 
     private static void UpdateSmoothedYaw(
         ref float smoothedYaw,
-        float3 velocity,
+        float3 worldVelocity,
         float minYawSpeed,
         float yawRotationSmoothTime,
         float dt)
     {
-        float3 flat = new float3(velocity.x, 0f, velocity.z);
+        float3 flat = new float3(worldVelocity.x, 0f, worldVelocity.z);
         if (math.lengthsq(flat) < minYawSpeed * minYawSpeed)
             return;
 

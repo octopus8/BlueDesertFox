@@ -2,10 +2,11 @@ using Unity.Entities;
 using Unity.Mathematics;
 
 /// <summary>
-/// Rotates the Player Follow Object's horizontal velocity around Y based on HMD head roll.
+/// Rotates the Player Follow Object's terrain-relative horizontal velocity around Y based on HMD head roll.
 /// Runs before ground-contact physics so steering affects the velocity used for integration.
 /// </summary>
-[UpdateInGroup(typeof(FixedStepSimulationSystemGroup))]
+[UpdateInGroup(typeof(SimulationSystemGroup))]
+[UpdateAfter(typeof(ScrollTerrainSystem))]
 [UpdateBefore(typeof(PlayerFollowObjectGroundContactSystem))]
 public partial class PlayerFollowObjectHeadSteeringSystem : SystemBase
 {
@@ -17,11 +18,13 @@ public partial class PlayerFollowObjectHeadSteeringSystem : SystemBase
         RequireForUpdate<PlayerFollowObjectSteeringConfig>();
         RequireForUpdate<PlayerFollowObjectMotionState>();
         RequireForUpdate<CameraDataSingleton>();
+        RequireForUpdate<TerrainScrollVelocity>();
     }
 
     protected override void OnUpdate()
     {
         var cameraData = SystemAPI.GetSingleton<CameraDataSingleton>();
+        float3 scrollVelocity = SystemAPI.GetSingleton<TerrainScrollVelocity>().WorldVelocity;
         float dt = SystemAPI.Time.DeltaTime;
 
         foreach (var (steeringConfig, motionState) in SystemAPI
@@ -32,8 +35,11 @@ public partial class PlayerFollowObjectHeadSteeringSystem : SystemBase
             if (sensitivity <= 0f)
                 continue;
 
-            float3 velocity = motionState.ValueRO.velocity;
-            float3 flat = new float3(velocity.x, 0f, velocity.z);
+            float3 terrainRelativeVelocity = motionState.ValueRO.terrainRelativeVelocity;
+            float3 worldVelocity = TerrainScrollVelocityMath.WorldVelocityFromTerrainRelative(
+                terrainRelativeVelocity,
+                scrollVelocity);
+            float3 flat = new float3(worldVelocity.x, 0f, worldVelocity.z);
             if (math.lengthsq(flat) < MinSteeringSpeed * MinSteeringSpeed)
                 continue;
 
@@ -42,7 +48,10 @@ public partial class PlayerFollowObjectHeadSteeringSystem : SystemBase
             quaternion yawRotation = quaternion.RotateY(math.radians(rotationAmount));
             float3 rotatedFlat = math.rotate(yawRotation, flat);
 
-            motionState.ValueRW.velocity = new float3(rotatedFlat.x, velocity.y, rotatedFlat.z);
+            worldVelocity = new float3(rotatedFlat.x, worldVelocity.y, rotatedFlat.z);
+            motionState.ValueRW.terrainRelativeVelocity = TerrainScrollVelocityMath.TerrainRelativeFromWorld(
+                worldVelocity,
+                scrollVelocity);
         }
     }
 }

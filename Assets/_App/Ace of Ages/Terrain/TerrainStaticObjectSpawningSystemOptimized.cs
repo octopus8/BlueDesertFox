@@ -131,7 +131,7 @@ public partial struct TerrainStaticObjectSpawningSystemOptimized : ISystem
             if (!tile.ValueRO.meshGenerated)
                 continue;
 
-            uint seed = (uint)(tile.ValueRO.gridCoordinate.GetHashCode() + 12345);
+            uint seed = (uint)(tile.ValueRO.gridCoordinate.GetHashCode() + config.randomSeed);
             var random = new Random(seed);
             int targetCount = random.NextInt(config.minObjectsPerTile, config.maxObjectsPerTile + 1);
 
@@ -167,7 +167,7 @@ public partial struct TerrainStaticObjectSpawningSystemOptimized : ISystem
             if (!tile.ValueRO.meshGenerated)
                 continue;
 
-            uint seed = (uint)(tile.ValueRO.gridCoordinate.GetHashCode() + 12345);
+            uint seed = (uint)(tile.ValueRO.gridCoordinate.GetHashCode() + config.randomSeed);
             var spawnPositions = state.EntityManager.GetBuffer<StaticObjectSpawnPosition>(entity, true);
             int targetCount;
             int acceptedCount;
@@ -525,7 +525,7 @@ partial struct CalculateStaticObjectSpawnPositionsJob : IJobEntity
 
         var random = calcProgress.randomState != 0
             ? new Random(calcProgress.randomState)
-            : new Random((uint)(tile.gridCoordinate.GetHashCode() + 12345));
+            : new Random((uint)(tile.gridCoordinate.GetHashCode() + config.randomSeed));
 
         int objectCount = calcProgress.targetCount;
         int maxAttempts = objectCount * 3;

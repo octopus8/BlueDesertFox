@@ -30,7 +30,9 @@ public static class PlayerFollowObjectPoseBridge
 /// Copies the world pose of the Player Follow Object entity into <see cref="PlayerFollowObjectPoseBridge"/>
 /// each frame so main-scene MonoBehaviours can follow subscene entities.
 /// </summary>
-[UpdateInGroup(typeof(TransformSystemGroup), OrderLast = true)]
+[UpdateInGroup(typeof(SimulationSystemGroup))]
+[UpdateAfter(typeof(PlayerFollowObjectGroundContactSystem))]
+[UpdateBefore(typeof(TileScrollPositionSystem))]
 public partial class PlayerFollowObjectSyncSystem : SystemBase
 {
     private EntityQuery _followObjectQuery;

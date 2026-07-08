@@ -78,7 +78,7 @@ public class PlayerFollowObjectAuthoring : MonoBehaviour
 
             AddComponent(entity, new PlayerFollowObjectMotionState
             {
-                velocity = float3.zero,
+                terrainRelativeVelocity = float3.zero,
                 smoothedYaw = 0f,
                 wasGrounded = 0
             });

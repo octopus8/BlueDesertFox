@@ -635,7 +635,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 1122383940670264, guid: 01489deeeb7ca1744877c2e3e590d958, type: 3}
       propertyPath: m_IsActive
-      value: 1
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 4147015843481072, guid: 01489deeeb7ca1744877c2e3e590d958, type: 3}
       propertyPath: m_LocalScale.x
@@ -720,7 +720,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!23 &935523113
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -838,7 +838,7 @@ MonoBehaviour:
   rideablePhysicsLayer: 15
   springStiffness: 100
   springDamping: 50
-  groundFriction: 0.1
+  groundFriction: 0.15
   groundedDistance: 0.25
   yawRotationSmoothTime: 1
   minYawSpeed: 0.5
@@ -6116,7 +6116,7 @@ MonoBehaviour:
   trail3BlendWidth: 60
   trail3Seed: 200
   trail3Frequency: 0.0015
-  trail3Amplitude: 300
+  trail3Amplitude: 200
   renderTerrain: 1
   enablePhysicsColliders: 1
 --- !u!4 &1528308291
@@ -6142,7 +6142,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1528308289}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: ea650e9e97214c68a8aab550673cff51, type: 3}
   m_Name: 
@@ -6184,8 +6184,9 @@ MonoBehaviour:
   lod1Distance: 400
   lod2Distance: 600
   lodHysteresis: 5
-  minObjectsPerTile: 200
-  maxObjectsPerTile: 200
+  randomSeed: 0
+  minObjectsPerTile: 100
+  maxObjectsPerTile: 100
   maxSlopeDegrees: 45
   maxObjectsSpawnedPerFrame: 100
   maxNearObjectsSpawnedPerFrame: 300

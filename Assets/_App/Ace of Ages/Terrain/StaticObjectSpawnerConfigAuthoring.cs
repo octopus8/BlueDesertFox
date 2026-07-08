@@ -27,6 +27,9 @@ public class StaticObjectSpawnerConfigAuthoring : MonoBehaviour
     public float lodHysteresis = 5f;
 
     [Header("Spawn Density")]
+    [Tooltip("Random seed offset for deterministic object placement per tile. Change to get a different layout.")]
+    public int randomSeed = 12345;
+
     [Tooltip("Minimum number of objects per tile")]
     [Range(0, 800)]
     public int minObjectsPerTile = 5;
@@ -84,6 +87,7 @@ public class StaticObjectSpawnerConfigAuthoring : MonoBehaviour
             // Create static object spawner config singleton
             AddComponent(entity, new StaticObjectSpawnerConfig
             {
+                randomSeed = authoring.randomSeed,
                 minObjectsPerTile = authoring.minObjectsPerTile,
                 maxObjectsPerTile = authoring.maxObjectsPerTile,
                 slopeThreshold = slopeThreshold,
