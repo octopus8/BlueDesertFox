@@ -11,9 +11,10 @@ using CapsuleCollider = UnityEngine.CapsuleCollider;
 public class PlayerFollowObjectAuthoring : MonoBehaviour
 {
     [Header("Ground Raycast")]
+    [Tooltip("Height above the player from which the ground raycast starts.")]
     [SerializeField] private float rayHeightAbove = 2f;
+    [Tooltip("Length of the ground raycast below the player.")]
     [SerializeField] private float rayLengthBelow = 50f;
-    [SerializeField] private int fallbackTerrainLayer = 11;
     [Tooltip("Physics layer for ramps and other rideable launch surfaces (not blocking obstacles).")]
     [SerializeField] private int rideablePhysicsLayer = 15;
 
@@ -75,7 +76,6 @@ public class PlayerFollowObjectAuthoring : MonoBehaviour
                 bottomOffset = bottomOffset,
                 rayHeightAbove = authoring.rayHeightAbove,
                 rayLengthBelow = authoring.rayLengthBelow,
-                fallbackTerrainLayer = authoring.fallbackTerrainLayer,
                 rideablePhysicsLayer = authoring.rideablePhysicsLayer,
                 springStiffness = authoring.springStiffness,
                 springDamping = authoring.springDamping,

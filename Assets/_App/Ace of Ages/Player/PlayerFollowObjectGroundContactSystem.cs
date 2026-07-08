@@ -13,7 +13,6 @@ public struct PlayerFollowObjectGroundConfig : IComponentData
     public float bottomOffset;
     public float rayHeightAbove;
     public float rayLengthBelow;
-    public int fallbackTerrainLayer;
     public int rideablePhysicsLayer;
     public float springStiffness;
     public float springDamping;

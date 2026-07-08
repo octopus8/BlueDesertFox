@@ -834,7 +834,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PlayerFollowObjectAuthoring
   rayHeightAbove: 2
   rayLengthBelow: 50
-  fallbackTerrainLayer: 11
   rideablePhysicsLayer: 15
   springStiffness: 30
   springDamping: 15
