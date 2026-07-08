@@ -40,6 +40,7 @@ public struct PlayerFollowObjectMotionState : IComponentData
     public float3 terrainRelativeVelocity;
     public float smoothedYaw;
     public byte wasGrounded;
+    public byte wasInSurfaceContact;
     public float airborneTimeRemaining;
     public float3 previousGroundNormal;
 }
@@ -130,6 +131,7 @@ public partial class PlayerFollowObjectGroundContactSystem : SystemBase
                 previousGroundNormal = math.up();
 
             bool grounded = false;
+            bool inSurfaceContact = false;
             float3 normal = math.up();
             bool forceAirborne = airborneTimeRemaining > 0f;
 
@@ -179,6 +181,8 @@ public partial class PlayerFollowObjectGroundContactSystem : SystemBase
                 }
                 else if (contactCandidate)
                 {
+                    inSurfaceContact = true;
+
                     if (grounded && !wasGrounded)
                     {
                         if (scrollActive)
@@ -250,6 +254,7 @@ public partial class PlayerFollowObjectGroundContactSystem : SystemBase
             localTransform.ValueRW.Position = position;
             motionState.ValueRW.terrainRelativeVelocity = terrainRelativeVelocity;
             motionState.ValueRW.wasGrounded = grounded ? (byte)1 : (byte)0;
+            motionState.ValueRW.wasInSurfaceContact = inSurfaceContact ? (byte)1 : (byte)0;
             motionState.ValueRW.airborneTimeRemaining = airborneTimeRemaining;
             motionState.ValueRW.previousGroundNormal = previousGroundNormal;
 

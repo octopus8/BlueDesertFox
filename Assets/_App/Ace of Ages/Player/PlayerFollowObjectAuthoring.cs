@@ -98,6 +98,7 @@ public class PlayerFollowObjectAuthoring : MonoBehaviour
                 terrainRelativeVelocity = float3.zero,
                 smoothedYaw = 0f,
                 wasGrounded = 0,
+                wasInSurfaceContact = 0,
                 airborneTimeRemaining = 0f,
                 previousGroundNormal = math.up()
             });

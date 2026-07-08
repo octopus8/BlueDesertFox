@@ -6190,8 +6190,8 @@ MonoBehaviour:
   lod2Distance: 600
   lodHysteresis: 5
   randomSeed: 0
-  minObjectsPerTile: 100
-  maxObjectsPerTile: 100
+  minObjectsPerTile: 300
+  maxObjectsPerTile: 300
   maxSlopeDegrees: 45
   maxObjectsSpawnedPerFrame: 100
   maxNearObjectsSpawnedPerFrame: 300

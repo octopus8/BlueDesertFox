@@ -31,6 +31,9 @@ public partial class PlayerFollowObjectHeadSteeringSystem : SystemBase
                      .Query<RefRO<PlayerFollowObjectSteeringConfig>, RefRW<PlayerFollowObjectMotionState>>()
                      .WithAll<PlayerFollowObjectTag>())
         {
+            if (motionState.ValueRO.wasInSurfaceContact == 0)
+                continue;
+
             float sensitivity = steeringConfig.ValueRO.steeringSensitivity;
             if (sensitivity <= 0f)
                 continue;
