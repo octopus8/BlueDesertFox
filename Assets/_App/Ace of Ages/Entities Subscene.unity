@@ -838,9 +838,9 @@ MonoBehaviour:
   rideablePhysicsLayer: 15
   springStiffness: 30
   springDamping: 15
-  groundFriction: 0.1
-  groundedDistance: 0.25
-  approachingSurfaceMaxDistance: 1
+  groundFriction: 0
+  groundedDistance: 1
+  approachingSurfaceMaxDistance: 5
   takeoffSpeed: 2
   airborneGraceTime: 0.2
   minCrestSpeed: 3
@@ -6164,7 +6164,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1528308289}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: f17144813f71f9c4eab8e31b81e2c2db, type: 3}
   m_Name: 
