@@ -836,10 +836,15 @@ MonoBehaviour:
   rayLengthBelow: 50
   fallbackTerrainLayer: 11
   rideablePhysicsLayer: 15
-  springStiffness: 100
-  springDamping: 50
-  groundFriction: 0.15
+  springStiffness: 30
+  springDamping: 15
+  groundFriction: 0.1
   groundedDistance: 0.25
+  approachingSurfaceMaxDistance: 1
+  takeoffSpeed: 2
+  airborneGraceTime: 0.2
+  minCrestSpeed: 3
+  crestNormalDotThreshold: 0.92
   yawRotationSmoothTime: 1
   minYawSpeed: 0.5
   steeringSensitivity: 80
@@ -6082,7 +6087,7 @@ MonoBehaviour:
   tileSize: 256
   viewDistance: 850
   verticesPerSide: 32
-  slopeAngleDegrees: -20
+  slopeAngleDegrees: -15
   noiseFrequency: 0.005
   noiseAmplitude: 40
   noiseOctaves: 2

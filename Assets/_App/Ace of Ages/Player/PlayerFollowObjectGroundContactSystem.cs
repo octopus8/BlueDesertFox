@@ -19,6 +19,11 @@ public struct PlayerFollowObjectGroundConfig : IComponentData
     public float springDamping;
     public float groundFriction;
     public float groundedDistance;
+    public float approachingSurfaceMaxDistance;
+    public float takeoffSpeed;
+    public float airborneGraceTime;
+    public float minCrestSpeed;
+    public float crestNormalDotThreshold;
     public float yawRotationSmoothTime;
     public float minYawSpeed;
     public float capsuleRadius;
@@ -35,6 +40,8 @@ public struct PlayerFollowObjectMotionState : IComponentData
     public float3 terrainRelativeVelocity;
     public float smoothedYaw;
     public byte wasGrounded;
+    public float airborneTimeRemaining;
+    public float3 previousGroundNormal;
 }
 
 /// <summary>
@@ -117,10 +124,28 @@ public partial class PlayerFollowObjectGroundContactSystem : SystemBase
             float3 position = localTransform.ValueRO.Position;
             float3 terrainRelativeVelocity = motionState.ValueRO.terrainRelativeVelocity;
             bool wasGrounded = motionState.ValueRO.wasGrounded != 0;
+            float airborneTimeRemaining = motionState.ValueRO.airborneTimeRemaining;
+            float3 previousGroundNormal = motionState.ValueRO.previousGroundNormal;
+            if (math.lengthsq(previousGroundNormal) < 0.01f)
+                previousGroundNormal = math.up();
+
             bool grounded = false;
             float3 normal = math.up();
+            bool forceAirborne = airborneTimeRemaining > 0f;
 
-            if (hasPhysicsWorld
+            if (forceAirborne)
+            {
+                airborneTimeRemaining = math.max(0f, airborneTimeRemaining - dt);
+                terrainRelativeVelocity += gravity * dt;
+
+                if (hasPhysicsWorld
+                    && TryGetGroundHit(collisionWorld, groundFilter, position, config.ValueRO, out RaycastHit airborneHit)
+                    && IsValidGroundHit(airborneHit, position, config.ValueRO))
+                {
+                    previousGroundNormal = math.normalizesafe(airborneHit.SurfaceNormal, math.up());
+                }
+            }
+            else if (hasPhysicsWorld
                 && TryGetGroundHit(collisionWorld, groundFilter, position, config.ValueRO, out RaycastHit groundHit)
                 && IsValidGroundHit(groundHit, position, config.ValueRO))
             {
@@ -128,9 +153,31 @@ public partial class PlayerFollowObjectGroundContactSystem : SystemBase
                 float3 surfaceTarget = groundHit.Position + normal * config.ValueRO.bottomOffset;
                 float error = math.dot(surfaceTarget - position, normal);
                 grounded = math.abs(error) < config.ValueRO.groundedDistance;
-                bool approachingSurface = error > 0f && error < 3f;
+                bool approachingSurface = error > 0f && error < config.ValueRO.approachingSurfaceMaxDistance;
+                bool contactCandidate = grounded || approachingSurface;
 
-                if (grounded || approachingSurface)
+                float3 contactWorldVelocity = TerrainScrollVelocityMath.WorldVelocityFromTerrainRelative(
+                    terrainRelativeVelocity,
+                    scrollVelocity);
+                float vNormal = math.dot(contactWorldVelocity, normal);
+                float3 flatVelocity = new float3(contactWorldVelocity.x, 0f, contactWorldVelocity.z);
+                float flatSpeed = math.length(flatVelocity);
+
+                bool takeoffFromSpeed = config.ValueRO.takeoffSpeed > 0f
+                    && contactCandidate
+                    && vNormal > config.ValueRO.takeoffSpeed;
+                bool takeoffFromCrest = wasGrounded
+                    && config.ValueRO.minCrestSpeed > 0f
+                    && flatSpeed >= config.ValueRO.minCrestSpeed
+                    && math.dot(previousGroundNormal, normal) < config.ValueRO.crestNormalDotThreshold;
+
+                if (takeoffFromSpeed || takeoffFromCrest)
+                {
+                    airborneTimeRemaining = config.ValueRO.airborneGraceTime;
+                    terrainRelativeVelocity += gravity * dt;
+                    grounded = false;
+                }
+                else if (contactCandidate)
                 {
                     if (grounded && !wasGrounded)
                     {
@@ -140,10 +187,10 @@ public partial class PlayerFollowObjectGroundContactSystem : SystemBase
                         float3 touchdownVelocity = TerrainScrollVelocityMath.WorldVelocityFromTerrainRelative(
                             terrainRelativeVelocity,
                             scrollVelocity);
-                        float vNormal = math.dot(touchdownVelocity, normal);
-                        if (vNormal > 0f)
+                        float touchdownNormal = math.dot(touchdownVelocity, normal);
+                        if (touchdownNormal > 0f)
                         {
-                            touchdownVelocity -= normal * vNormal;
+                            touchdownVelocity -= normal * touchdownNormal;
                             terrainRelativeVelocity = TerrainScrollVelocityMath.TerrainRelativeFromWorld(
                                 touchdownVelocity,
                                 scrollVelocity);
@@ -172,6 +219,8 @@ public partial class PlayerFollowObjectGroundContactSystem : SystemBase
                 {
                     terrainRelativeVelocity += gravity * dt;
                 }
+
+                previousGroundNormal = normal;
             }
             else
             {
@@ -201,6 +250,8 @@ public partial class PlayerFollowObjectGroundContactSystem : SystemBase
             localTransform.ValueRW.Position = position;
             motionState.ValueRW.terrainRelativeVelocity = terrainRelativeVelocity;
             motionState.ValueRW.wasGrounded = grounded ? (byte)1 : (byte)0;
+            motionState.ValueRW.airborneTimeRemaining = airborneTimeRemaining;
+            motionState.ValueRW.previousGroundNormal = previousGroundNormal;
 
             float smoothedYaw = motionState.ValueRO.smoothedYaw;
             UpdateSmoothedYaw(

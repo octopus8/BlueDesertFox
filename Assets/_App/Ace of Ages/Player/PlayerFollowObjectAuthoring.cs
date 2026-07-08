@@ -26,6 +26,18 @@ public class PlayerFollowObjectAuthoring : MonoBehaviour
     [SerializeField] private float groundFriction = 0.25f;
     [Tooltip("Max distance to terrain surface before considered grounded.")]
     [SerializeField] private float groundedDistance = 0.25f;
+    [Tooltip("Max distance below ideal contact to apply spring forces while approaching ground.")]
+    [SerializeField] private float approachingSurfaceMaxDistance = 1f;
+
+    [Header("Takeoff / Airborne")]
+    [Tooltip("Outward normal speed (m/s) above which ground adhesion is released. 0 = disabled.")]
+    [SerializeField] private float takeoffSpeed = 2f;
+    [Tooltip("Seconds after takeoff before ground contact can re-engage.")]
+    [SerializeField] private float airborneGraceTime = 0.2f;
+    [Tooltip("Min horizontal speed (m/s) for crest detection at convex ridge transitions.")]
+    [SerializeField] private float minCrestSpeed = 3f;
+    [Tooltip("Dot-product threshold between consecutive ground normals to detect a crest (lower = sharper ridge).")]
+    [SerializeField] private float crestNormalDotThreshold = 0.92f;
 
     [Header("Facing")]
     [Tooltip("Seconds to smooth yaw toward movement direction. Higher = less terrain jitter. 0 = instant.")]
@@ -69,6 +81,11 @@ public class PlayerFollowObjectAuthoring : MonoBehaviour
                 springDamping = authoring.springDamping,
                 groundFriction = authoring.groundFriction,
                 groundedDistance = authoring.groundedDistance,
+                approachingSurfaceMaxDistance = authoring.approachingSurfaceMaxDistance,
+                takeoffSpeed = authoring.takeoffSpeed,
+                airborneGraceTime = authoring.airborneGraceTime,
+                minCrestSpeed = authoring.minCrestSpeed,
+                crestNormalDotThreshold = authoring.crestNormalDotThreshold,
                 yawRotationSmoothTime = authoring.yawRotationSmoothTime,
                 minYawSpeed = authoring.minYawSpeed,
                 capsuleRadius = capsuleRadius,
@@ -80,7 +97,9 @@ public class PlayerFollowObjectAuthoring : MonoBehaviour
             {
                 terrainRelativeVelocity = float3.zero,
                 smoothedYaw = 0f,
-                wasGrounded = 0
+                wasGrounded = 0,
+                airborneTimeRemaining = 0f,
+                previousGroundNormal = math.up()
             });
 
             AddComponent(entity, new PlayerFollowObjectSteeringConfig
