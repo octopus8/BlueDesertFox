@@ -6094,7 +6094,7 @@ MonoBehaviour:
   noisePersistence: 0.5
   continentalFrequency: 0.0008
   continentalExponent: 0.1
-  terrainMaterial: {fileID: 2100000, guid: 411dec7a1b8d44c4192cf209c47ed6ae, type: 2}
+  terrainMaterial: {fileID: 2100000, guid: 8072c60390eaa4f4e9c93ab354ee5e8b, type: 2}
   maxCollidersCreatedPerFrame: 1
   maxPhysicsCollidersCreatedPerFrame: 1
   maxColliderDistance: 220

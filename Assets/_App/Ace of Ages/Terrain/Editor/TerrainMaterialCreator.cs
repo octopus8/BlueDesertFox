@@ -27,6 +27,17 @@ public static class TerrainMaterialCreator
         CreateTerrainMaterial();
     }
 
+    /// <summary>
+    /// Creates the <c>Terrain-SlopeBlend.mat</c> asset using the slope-blend shader with default
+    /// snow (flat) and concrete (steep) albedo textures.
+    /// Accessible via <c>Tools → Terrain → Create Slope Blend Material</c>.
+    /// </summary>
+    [MenuItem("Tools/Terrain/Create Slope Blend Material")]
+    public static void CreateSlopeBlendMaterialMenuItem()
+    {
+        CreateSlopeBlendMaterial();
+    }
+
     /// <summary>Checks whether <c>TerrainMaterial</c> exists in <c>Resources</c> and calls <see cref="CreateTerrainMaterial"/> if it is missing. Invoked automatically on editor load via <see cref="EditorApplication.delayCall"/>.</summary>
     private static void CheckAndCreateMaterial()
     {
@@ -77,6 +88,55 @@ public static class TerrainMaterialCreator
         AssetDatabase.Refresh();
         
         EditorGUIUtility.PingObject(terrainMaterial);
+    }
+
+    /// <summary>Creates the slope-blend terrain material at <c>Assets/_App/Ace of Ages/AppResources/Terrain-SlopeBlend.mat</c> if it does not already exist.</summary>
+    private static void CreateSlopeBlendMaterial()
+    {
+        const string assetPath = "Assets/_App/Ace of Ages/AppResources/Terrain-SlopeBlend.mat";
+        var existing = AssetDatabase.LoadAssetAtPath<Material>(assetPath);
+        if (existing != null)
+        {
+            EditorGUIUtility.PingObject(existing);
+            return;
+        }
+
+        Shader slopeShader = Shader.Find("AceOfAges/TerrainSlopeBlend");
+        if (slopeShader == null)
+        {
+            Debug.LogError("[TerrainMaterialCreator] Failed to find 'AceOfAges/TerrainSlopeBlend' shader!");
+            return;
+        }
+
+        string appResourcesPath = "Assets/_App/Ace of Ages/AppResources";
+        if (!AssetDatabase.IsValidFolder(appResourcesPath))
+        {
+            Debug.LogError("[TerrainMaterialCreator] AppResources folder not found at " + appResourcesPath);
+            return;
+        }
+
+        var material = new Material(slopeShader);
+        material.name = "Terrain-SlopeBlend";
+
+        var flatTexture = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/_App/Ace of Ages/AppResources/snow00.png");
+        var steepTexture = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/_App/Ace of Ages/AppResources/Concrete 0196.jpg");
+        if (flatTexture != null)
+            material.SetTexture("_FlatMap", flatTexture);
+        if (steepTexture != null)
+            material.SetTexture("_SteepMap", steepTexture);
+
+        material.SetFloat("_FlatTiling", 0.05f);
+        material.SetFloat("_SteepTiling", 0.2f);
+        material.SetFloat("_SlopeStart", 0.35f);
+        material.SetFloat("_SlopeEnd", 0.55f);
+        material.SetFloat("_Smoothness", 0.2f);
+        material.SetFloat("_Metallic", 0f);
+
+        AssetDatabase.CreateAsset(material, assetPath);
+        AssetDatabase.SaveAssets();
+        AssetDatabase.Refresh();
+
+        EditorGUIUtility.PingObject(material);
     }
 }
 
