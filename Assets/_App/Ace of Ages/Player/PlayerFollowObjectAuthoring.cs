@@ -1,5 +1,6 @@
 using Unity.Entities;
 using Unity.Mathematics;
+using Sirenix.OdinInspector;
 using UnityEngine;
 using CapsuleCollider = UnityEngine.CapsuleCollider;
 
@@ -16,7 +17,23 @@ public class PlayerFollowObjectAuthoring : MonoBehaviour
     [Tooltip("Length of the ground raycast below the player.")]
     [SerializeField] private float rayLengthBelow = 50f;
     [Tooltip("Physics layer for ramps and other rideable launch surfaces (not blocking obstacles).")]
+    [ValueDropdown(nameof(GetUnityLayerDropdown))]
     [SerializeField] private int rideablePhysicsLayer = 15;
+
+#if UNITY_EDITOR
+    private static ValueDropdownItem<int>[] GetUnityLayerDropdown()
+    {
+        string[] names = UnityEditorInternal.InternalEditorUtility.layers;
+        var items = new ValueDropdownItem<int>[names.Length];
+        for (int i = 0; i < names.Length; i++)
+        {
+            items[i] = new ValueDropdownItem<int>(names[i], LayerMask.NameToLayer(names[i]));
+        }
+        return items;
+    }
+#else
+    private static ValueDropdownItem<int>[] GetUnityLayerDropdown() => null;
+#endif
 
     [Header("Spring-Damper")]
     [SerializeField] private float springStiffness = 400f;
