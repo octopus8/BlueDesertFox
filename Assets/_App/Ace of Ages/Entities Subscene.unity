@@ -832,12 +832,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f8e7d6c5b4a3928170f1e2d3c4b5a697, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerFollowObjectAuthoring
-  rayHeightAbove: 2
+  rayHeightAbove: 3
   rayLengthBelow: 50
   rideablePhysicsLayer: 15
-  springStiffness: 30
-  springDamping: 15
-  groundFriction: 0.1
+  springStiffness: 50
+  springDamping: 50
+  groundFriction: 0.05
   groundedDistance: 1
   approachingSurfaceMaxDistance: 5
   takeoffSpeed: 2
