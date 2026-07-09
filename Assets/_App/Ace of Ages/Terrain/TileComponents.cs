@@ -361,6 +361,9 @@ public struct StaticObjectSpawnerConfig : IComponentData
     
     /// <summary>Maximum number of Objects to spawn per tile.</summary>
     public int maxObjectsPerTile;
+
+    /// <summary>Spawn acceptance multiplier at trail center (0 = none, 1 = same as open terrain). Blend zone interpolates to 1.0.</summary>
+    public float trailSpawnDensityMultiplier;
     
     /// <summary>Pre-calculated slope threshold (cosine of max slope angle) for filtering steep terrain.</summary>
     public float slopeThreshold;

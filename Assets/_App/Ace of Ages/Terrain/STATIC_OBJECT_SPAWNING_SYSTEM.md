@@ -19,7 +19,7 @@ The Static Object Spawning System procedurally places static object entities on 
 - **Scale Variation**: Random scale multipliers for visual variety
 - **Rotation Variation**: Random Y-axis rotation for each tree
 - **Slope Filtering**: Avoid spawning on steep terrain
-- **Trail Exclusion**: Static objects are excluded from the flat trail core only (`width/2`); the blend shoulders allow spawning
+- **Trail Density**: Static objects spawn on trails at reduced density via `trailSpawnDensityMultiplier` (acceptance at trail center; blend shoulders interpolate to full open-terrain density). Set to `0` to exclude the flat trail core entirely.
 - **Frame Budgeting**: Limits object entities spawned **and destroyed** per frame to prevent ECB playback stuttering
 - **Non-Hierarchical**: Uses `StaticObjectTileOwnership` component instead of parent-child hierarchy for better performance
 
@@ -135,7 +135,8 @@ object prefabs
 
 Spawn Density
 ├─ minObjectsPerTile (0-50, default: 5)
-└─ maxObjectsPerTile (0-50, default: 15)
+├─ maxObjectsPerTile (0-50, default: 15)
+└─ trailSpawnDensityMultiplier (0-1, default: 0.25) - acceptance at trail center; blend zone interpolates to 1.0
 
 Tree Variation
 ├─ minTreeScale (0.1-2, default: 0.8)

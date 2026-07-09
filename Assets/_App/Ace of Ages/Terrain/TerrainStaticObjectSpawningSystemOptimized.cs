@@ -528,7 +528,6 @@ partial struct CalculateStaticObjectSpawnPositionsJob : IJobEntity
             : new Random((uint)(tile.gridCoordinate.GetHashCode() + config.randomSeed));
 
         int objectCount = calcProgress.targetCount;
-        int maxAttempts = objectCount * 3;
         int attempts = calcProgress.attempts;
         int acceptedCount = calcProgress.acceptedCount;
         int attemptsThisFrame = 0;
@@ -618,6 +617,11 @@ partial struct CalculateStaticObjectSpawnPositionsJob : IJobEntity
             zStep = lutStep
         };
 
+        int attemptMultiplier = 3;
+        if (tileTrailMask != 0 && config.trailSpawnDensityMultiplier < 1f)
+            attemptMultiplier = 6;
+        int maxAttempts = objectCount * attemptMultiplier;
+
         while (acceptedCount < objectCount && attempts < maxAttempts && attemptsThisFrame < attemptBudgetPerTile)
         {
             attempts++;
@@ -667,25 +671,39 @@ partial struct CalculateStaticObjectSpawnPositionsJob : IJobEntity
             if (normal.y < config.slopeThreshold)
                 continue;
 
-            if (tileTrailMask != 0)
+            if (tileTrailMask != 0 && config.trailSpawnDensityMultiplier < 1f)
             {
                 float noiseX = tileWorldX + randomX;
                 float noiseZ = tileWorldZ + randomZ;
+                float maxInfluence = 0f;
 
-                if ((tileTrailMask & TrailMask.Trail1) != 0 &&
-                    TrailInfluenceBurst.IsInsideTrailExclusionZoneFromLUT(
-                        noiseX, noiseZ, trailConfig.trail1, trail1Lut, trailCenterlineLuts))
-                    continue;
+                if ((tileTrailMask & TrailMask.Trail1) != 0)
+                {
+                    maxInfluence = math.max(maxInfluence,
+                        TrailInfluenceBurst.ComputeTrailInfluenceFromLUT(
+                            noiseX, noiseZ, trailConfig.trail1, trail1Lut, trailCenterlineLuts).influence);
+                }
 
-                if ((tileTrailMask & TrailMask.Trail2) != 0 &&
-                    TrailInfluenceBurst.IsInsideTrailExclusionZoneFromLUT(
-                        noiseX, noiseZ, trailConfig.trail2, trail2Lut, trailCenterlineLuts))
-                    continue;
+                if ((tileTrailMask & TrailMask.Trail2) != 0)
+                {
+                    maxInfluence = math.max(maxInfluence,
+                        TrailInfluenceBurst.ComputeTrailInfluenceFromLUT(
+                            noiseX, noiseZ, trailConfig.trail2, trail2Lut, trailCenterlineLuts).influence);
+                }
 
-                if ((tileTrailMask & TrailMask.Trail3) != 0 &&
-                    TrailInfluenceBurst.IsInsideTrailExclusionZoneFromLUT(
-                        noiseX, noiseZ, trailConfig.trail3, trail3Lut, trailCenterlineLuts))
-                    continue;
+                if ((tileTrailMask & TrailMask.Trail3) != 0)
+                {
+                    maxInfluence = math.max(maxInfluence,
+                        TrailInfluenceBurst.ComputeTrailInfluenceFromLUT(
+                            noiseX, noiseZ, trailConfig.trail3, trail3Lut, trailCenterlineLuts).influence);
+                }
+
+                if (maxInfluence > 0f)
+                {
+                    float acceptChance = math.lerp(1f, config.trailSpawnDensityMultiplier, maxInfluence);
+                    if (random.NextFloat() > acceptChance)
+                        continue;
+                }
             }
 
             float typeRoll = random.NextFloat(0f, 1f);

@@ -38,6 +38,10 @@ public class StaticObjectSpawnerConfigAuthoring : MonoBehaviour
     [Range(0, 800)]
     public int maxObjectsPerTile = 15;
 
+    [Tooltip("Spawn acceptance at trail center (0 = no trail spawns, 1 = same density as open terrain). Blend shoulders interpolate to full density.")]
+    [Range(0f, 1f)]
+    public float trailSpawnDensityMultiplier = 0.25f;
+
     [Header("Spawn Filtering")]
     [Tooltip("Maximum slope angle in degrees (0 = flat, 90 = vertical cliff). Objects won't spawn on steeper slopes.")]
     [Range(0f, 90f)]
@@ -90,6 +94,7 @@ public class StaticObjectSpawnerConfigAuthoring : MonoBehaviour
                 randomSeed = authoring.randomSeed,
                 minObjectsPerTile = authoring.minObjectsPerTile,
                 maxObjectsPerTile = authoring.maxObjectsPerTile,
+                trailSpawnDensityMultiplier = authoring.trailSpawnDensityMultiplier,
                 slopeThreshold = slopeThreshold,
                 maxObjectsSpawnedPerFrame = authoring.maxObjectsSpawnedPerFrame,
                 maxNearObjectsSpawnedPerFrame = authoring.maxNearObjectsSpawnedPerFrame,
@@ -269,6 +274,7 @@ public class StaticObjectSpawnerConfigAuthoring : MonoBehaviour
         // Ensure valid values
         minObjectsPerTile = Mathf.Max(0, minObjectsPerTile);
         maxObjectsPerTile = Mathf.Max(minObjectsPerTile, maxObjectsPerTile);
+        trailSpawnDensityMultiplier = Mathf.Clamp01(trailSpawnDensityMultiplier);
         maxSlopeDegrees = Mathf.Clamp(maxSlopeDegrees, 0f, 90f);
         maxObjectsSpawnedPerFrame = Mathf.Max(1, maxObjectsSpawnedPerFrame);
         maxNearObjectsSpawnedPerFrame = Mathf.Max(1, maxNearObjectsSpawnedPerFrame);
