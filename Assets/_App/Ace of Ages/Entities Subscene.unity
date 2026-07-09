@@ -837,7 +837,7 @@ MonoBehaviour:
   rideablePhysicsLayer: 15
   springStiffness: 30
   springDamping: 15
-  groundFriction: 0
+  groundFriction: 0.1
   groundedDistance: 1
   approachingSurfaceMaxDistance: 5
   takeoffSpeed: 2
@@ -5979,7 +5979,7 @@ Light:
   m_Enabled: 1
   serializedVersion: 12
   m_Type: 1
-  m_Color: {r: 1, g: 1, b: 1, a: 1}
+  m_Color: {r: 0.8301887, g: 0.6304735, b: 0.6719238, a: 1}
   m_Intensity: 1
   m_Range: 10
   m_SpotAngle: 30
@@ -6189,14 +6189,14 @@ MonoBehaviour:
   lod2Distance: 600
   lodHysteresis: 5
   randomSeed: 0
-  minObjectsPerTile: 300
-  maxObjectsPerTile: 300
+  minObjectsPerTile: 250
+  maxObjectsPerTile: 250
   maxSlopeDegrees: 45
   maxObjectsSpawnedPerFrame: 100
   maxNearObjectsSpawnedPerFrame: 300
   maxPositionCalcAttemptsPerFrame: 4000
-  vrFrameSkipScrolling: 2
-  playerVelocityThreshold: 0.5
+  vrFrameSkipScrolling: 1
+  playerVelocityThreshold: 10
 --- !u!1 &1730959682
 GameObject:
   m_ObjectHideFlags: 0
