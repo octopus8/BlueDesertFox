@@ -43,6 +43,14 @@ public class TerrainConfigAuthoring : MonoBehaviour
     [Tooltip("Constant terrain grade along world +Z in degrees. 0 = flat. Positive = uphill as Z increases.")]
     [Range(-60f, 60f)]
     public float slopeAngleDegrees = 0f;
+
+    [Tooltip("Per-tile grade variation in degrees subtracted from slopeAngleDegrees (e.g. -35° with 10 = tiles between -45° and -35°). 0 = uniform grade.")]
+    [Range(0f, 30f)]
+    public float slopeAngleVariation = 0f;
+
+    [Tooltip("Meters of blend zone centered on each tile Z-boundary where adjacent tile grades crossfade. 0 = hard step at seams.")]
+    [Min(0f)]
+    public float slopeVariationBlendDistance = 20f;
     
     [Header("Procedural Noise Settings")]
     [Tooltip("Base frequency of the noise (higher = more variation)")]
@@ -199,6 +207,8 @@ public class TerrainConfigAuthoring : MonoBehaviour
                 viewDistance = authoring.viewDistance,
                 verticesPerSide = authoring.verticesPerSide,
                 slopeAngleDegrees = authoring.slopeAngleDegrees,
+                slopeAngleVariation = authoring.slopeAngleVariation,
+                slopeVariationBlendDistance = authoring.slopeVariationBlendDistance,
                 noiseFrequency = authoring.noiseFrequency,
                 noiseAmplitude = authoring.noiseAmplitude,
                 noiseOctaves = authoring.noiseOctaves,
@@ -400,6 +410,9 @@ public class TerrainConfigAuthoring : MonoBehaviour
         viewDistance = Mathf.Max(tileSize, viewDistance);
         verticesPerSide = Mathf.Max(2, verticesPerSide);
         slopeAngleDegrees = Mathf.Clamp(slopeAngleDegrees, -60f, 60f);
+        slopeAngleVariation = Mathf.Clamp(slopeAngleVariation, 0f, 30f);
+        slopeAngleVariation = Mathf.Min(slopeAngleVariation, slopeAngleDegrees + 60f);
+        slopeVariationBlendDistance = Mathf.Clamp(slopeVariationBlendDistance, 0f, tileSize);
         noiseFrequency = Mathf.Max(0.0001f, noiseFrequency);
         noiseAmplitude = Mathf.Max(0f, noiseAmplitude);
         noiseLacunarity = Mathf.Max(1f, noiseLacunarity);

@@ -19,6 +19,12 @@ public struct TerrainTileConfig : IComponentData
 
     /// <summary>Constant terrain grade along world +Z in degrees. Positive = uphill as Z increases.</summary>
     public float slopeAngleDegrees;
+
+    /// <summary>Per-tile grade variation in degrees subtracted from <see cref="slopeAngleDegrees"/>. 0 = uniform grade.</summary>
+    public float slopeAngleVariation;
+
+    /// <summary>Meters of blend zone centered on each tile Z-boundary where adjacent tile grades crossfade.</summary>
+    public float slopeVariationBlendDistance;
     
     /// <summary>Base frequency of the Perlin noise used for height generation (e.g. 0.01). Higher values = smaller terrain features.</summary>
     public float noiseFrequency;
