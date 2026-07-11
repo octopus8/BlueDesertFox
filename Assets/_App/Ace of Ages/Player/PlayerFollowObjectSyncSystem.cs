@@ -1,7 +1,9 @@
 using Unity.Entities;
 using Unity.Mathematics;
+using Unity.Physics;
 using Unity.Transforms;
 using UnityEngine;
+using RaycastHit = Unity.Physics.RaycastHit;
 
 /// <summary>
 /// Main-thread pose cache for the Player Follow Object entity in a baked subscene.
@@ -11,18 +13,35 @@ public static class PlayerFollowObjectPoseBridge
 {
     public static Vector3 Position { get; private set; }
     public static Quaternion Rotation { get; private set; }
+    public static Vector3 TerrainNormal { get; private set; } = Vector3.up;
+    public static bool HasTiltTerrainNormal { get; private set; }
+    public static float AirborneTimeRemaining { get; private set; }
     public static bool IsValid { get; private set; }
 
-    internal static void SetPose(float3 position, quaternion rotation)
+    internal static void SetPose(
+        float3 position,
+        quaternion rotation,
+        float3 terrainNormal,
+        float3 tiltTerrainNormal,
+        bool hasTiltTerrainNormal,
+        float airborneTimeRemaining)
     {
         Position = (Vector3)position;
         Rotation = (Quaternion)rotation;
+        TerrainNormal = (Vector3)math.normalizesafe(terrainNormal, math.up());
+        HasTiltTerrainNormal = hasTiltTerrainNormal;
+        AirborneTimeRemaining = airborneTimeRemaining;
+
+        if (hasTiltTerrainNormal)
+            TerrainNormal = (Vector3)math.normalizesafe(tiltTerrainNormal, math.up());
+
         IsValid = true;
     }
 
     internal static void Clear()
     {
         IsValid = false;
+        HasTiltTerrainNormal = false;
     }
 }
 
@@ -35,6 +54,9 @@ public static class PlayerFollowObjectPoseBridge
 [UpdateBefore(typeof(TileScrollPositionSystem))]
 public partial class PlayerFollowObjectSyncSystem : SystemBase
 {
+    private const float MinWalkableNormalY = 0.01f;
+    private const float MaxTiltDistance = 8f;
+
     private EntityQuery _followObjectQuery;
     private bool _loggedMultipleWarning;
 
@@ -42,7 +64,9 @@ public partial class PlayerFollowObjectSyncSystem : SystemBase
     {
         _followObjectQuery = GetEntityQuery(
             ComponentType.ReadOnly<PlayerFollowObjectTag>(),
-            ComponentType.ReadOnly<LocalTransform>());
+            ComponentType.ReadOnly<LocalTransform>(),
+            ComponentType.ReadOnly<PlayerFollowObjectMotionState>(),
+            ComponentType.ReadOnly<PlayerFollowObjectGroundConfig>());
 
         RequireForUpdate(_followObjectQuery);
     }
@@ -63,7 +87,72 @@ public partial class PlayerFollowObjectSyncSystem : SystemBase
         }
 
         using var entities = _followObjectQuery.ToEntityArray(Unity.Collections.Allocator.Temp);
-        var localTransform = EntityManager.GetComponentData<LocalTransform>(entities[0]);
-        PlayerFollowObjectPoseBridge.SetPose(localTransform.Position, localTransform.Rotation);
+        Entity followEntity = entities[0];
+        var localTransform = EntityManager.GetComponentData<LocalTransform>(followEntity);
+        var motionState = EntityManager.GetComponentData<PlayerFollowObjectMotionState>(followEntity);
+        var groundConfig = EntityManager.GetComponentData<PlayerFollowObjectGroundConfig>(followEntity);
+
+        bool hasTiltNormal = TryGetTiltTerrainNormal(
+            localTransform.Position,
+            groundConfig,
+            out float3 tiltNormal);
+
+        PlayerFollowObjectPoseBridge.SetPose(
+            localTransform.Position,
+            localTransform.Rotation,
+            motionState.previousGroundNormal,
+            tiltNormal,
+            hasTiltNormal,
+            motionState.airborneTimeRemaining);
+    }
+
+    private bool TryGetTiltTerrainNormal(
+        float3 position,
+        in PlayerFollowObjectGroundConfig groundConfig,
+        out float3 terrainNormal)
+    {
+        terrainNormal = math.up();
+
+        if (!SystemAPI.TryGetSingleton<TerrainTileConfig>(out TerrainTileConfig terrainConfig)
+            || !terrainConfig.enablePhysicsColliders
+            || !SystemAPI.HasSingleton<PhysicsWorldSingleton>())
+        {
+            return false;
+        }
+
+        Dependency.Complete();
+        var collisionWorld = SystemAPI.GetSingleton<PhysicsWorldSingleton>().PhysicsWorld.CollisionWorld;
+
+        int terrainLayer = terrainConfig.terrainPhysicsLayer;
+        int rideableLayer = groundConfig.rideablePhysicsLayer;
+        if (rideableLayer < 0 || rideableLayer > 30)
+            rideableLayer = 15;
+
+        uint groundLayerMask = (1u << terrainLayer) | (1u << rideableLayer);
+        var groundFilter = new CollisionFilter
+        {
+            BelongsTo = ~0u,
+            CollidesWith = groundLayerMask,
+            GroupIndex = 0
+        };
+
+        float3 rayStart = position + math.up() * groundConfig.rayHeightAbove;
+        float3 rayEnd = position - math.up() * groundConfig.rayLengthBelow;
+        var rayInput = new RaycastInput
+        {
+            Start = rayStart,
+            End = rayEnd,
+            Filter = groundFilter
+        };
+
+        if (!collisionWorld.CastRay(rayInput, out RaycastHit hit))
+            return false;
+
+        terrainNormal = math.normalizesafe(hit.SurfaceNormal, math.up());
+        if (terrainNormal.y < MinWalkableNormalY)
+            return false;
+
+        float heightAboveSurface = math.dot(position - hit.Position, terrainNormal);
+        return heightAboveSurface <= MaxTiltDistance;
     }
 }
