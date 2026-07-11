@@ -836,7 +836,7 @@ MonoBehaviour:
   rayLengthBelow: 50
   rideablePhysicsLayer: 15
   springStiffness: 300
-  springDamping: 50
+  springDamping: 30
   groundFriction: 0.2
   groundedDistance: 1
   approachingSurfaceMaxDistance: 2

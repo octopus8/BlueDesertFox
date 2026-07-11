@@ -35,12 +35,26 @@ public class PlayerHoverboardVisual : MonoBehaviour
     [Tooltip("Maximum board Y rotation from head roll (degrees).")]
     [SerializeField] private float maxHeadYaw = 90f;
 
+    [Header("Head Roll Z")]
+    [Tooltip("Hoverboard mesh that receives head-roll banking (e.g. SM_Veh_Hoverboard_01).")]
+    [SerializeField] private Transform boardVisual;
+
+    [Tooltip("Board Z rotation = HMD roll × this multiplier.")]
+    [SerializeField] private float headRollMultiplier = 1f;
+
+    [Tooltip("Maximum board Z rotation from head roll (degrees).")]
+    [SerializeField] private float maxHeadRoll = 45f;
+
     private Quaternion _smoothedLocalRotation = Quaternion.identity;
+    private Quaternion _smoothedBoardLocalRotation = Quaternion.identity;
 
     private void Awake()
     {
         if (hipsMount == null)
             hipsMount = transform;
+
+        if (boardVisual == null && hipsMount != null && hipsMount.childCount == 1)
+            boardVisual = hipsMount.GetChild(0);
     }
 
     private void LateUpdate()
@@ -86,6 +100,24 @@ public class PlayerHoverboardVisual : MonoBehaviour
         }
 
         hipsMount.localRotation = _smoothedLocalRotation;
+
+        if (boardVisual != null)
+        {
+            float boardRoll = Mathf.Clamp(headBank * headRollMultiplier, -maxHeadRoll, maxHeadRoll);
+            Quaternion targetBoardLocal = Quaternion.Euler(0f, 0f, boardRoll);
+
+            if (tiltSmoothTime <= 0f)
+            {
+                _smoothedBoardLocalRotation = targetBoardLocal;
+            }
+            else
+            {
+                float t = Mathf.Clamp01(Time.deltaTime / tiltSmoothTime);
+                _smoothedBoardLocalRotation = Quaternion.Slerp(_smoothedBoardLocalRotation, targetBoardLocal, t);
+            }
+
+            boardVisual.localRotation = _smoothedBoardLocalRotation;
+        }
     }
 
     private bool TryGetTerrainNormal(Vector3 position, out Vector3 terrainNormal)
