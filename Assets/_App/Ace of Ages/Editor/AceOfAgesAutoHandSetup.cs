@@ -1,5 +1,6 @@
 using System.Linq;
 using Autohand;
+using Autohand.Demo;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -16,10 +17,15 @@ public static class AceOfAgesAutoHandSetup
     const string RobotHandLeftPath = "Assets/AutoHand/Examples/Scenes/OpenXR/Prefabs/RobotHand (OpenXR)(L).prefab";
     const string RobotHandRightPath = "Assets/AutoHand/Examples/Scenes/OpenXR/Prefabs/RobotHand (OpenXR)(R).prefab";
     const string AutoHandPlayerPath = "Assets/AutoHand/Examples/Prefabs/Attachments/Auto Hand Player.prefab";
+    const string LeftHandTrackingPath = "Assets/Samples/XR Hands/1.7.1/HandVisualizer/Prefabs/Left Hand Tracking.prefab";
+    const string RightHandTrackingPath = "Assets/Samples/XR Hands/1.7.1/HandVisualizer/Prefabs/Right Hand Tracking.prefab";
 
     const string XrRigName = "XR Origin Hands (XR Rig)";
+    const string HandTrackingParentName = "Hand Tracking";
     const string LeftHandName = "RobotHand (L)";
     const string RightHandName = "RobotHand (R)";
+    const string LeftHandTrackingName = "Left Hand Tracking";
+    const string RightHandTrackingName = "Right Hand Tracking";
 
     [MenuItem("Tools/Ace of Ages/Integrate AutoHand Hands")]
     public static void IntegrateFromMenu()
@@ -89,6 +95,8 @@ public static class AceOfAgesAutoHandSetup
 
         WireHand(leftHand, leftOffset, isLeft: true);
         WireHand(rightHand, rightOffset, isLeft: false);
+
+        WireHandTracking(xrOrigin.transform, leftHand, rightHand);
 
         var autoHandPlayer = GetOrCreateAutoHandPlayer(xrOrigin.transform, leftHand, rightHand,
             mainCamera, cameraOffset);
@@ -187,6 +195,83 @@ public static class AceOfAgesAutoHandSetup
         Undo.RegisterCreatedObjectUndo(instance, "Add AutoHand RobotHand");
         instance.name = instanceName;
         return instance;
+    }
+
+    static void WireHandTracking(Transform xrOrigin, GameObject leftHand, GameObject rightHand)
+    {
+        var handTrackingParent = GetOrCreateChild(xrOrigin, HandTrackingParentName);
+        WireHandTrackingSide(handTrackingParent, leftHand, LeftHandTrackingPath, LeftHandTrackingName);
+        WireHandTrackingSide(handTrackingParent, rightHand, RightHandTrackingPath, RightHandTrackingName);
+    }
+
+    static void WireHandTrackingSide(Transform parent, GameObject robotHand, string prefabPath, string instanceName)
+    {
+        if (robotHand == null)
+            return;
+
+        var hand = robotHand.GetComponentInChildren<Hand>(true);
+        if (hand == null)
+        {
+            Debug.LogError($"[AceOfAgesAutoHandSetup] No Hand on {robotHand.name} for hand tracking.");
+            return;
+        }
+
+        var trackingObject = GetOrCreatePrefabInstance(parent, prefabPath, instanceName);
+        trackingObject.SetActive(false);
+
+        var handTracking = trackingObject.GetComponent<OpenXRAutoHandTracking>();
+        if (handTracking == null)
+        {
+            Debug.LogError($"[AceOfAgesAutoHandSetup] {instanceName} is missing OpenXRAutoHandTracking.");
+            trackingObject.SetActive(true);
+            return;
+        }
+
+        handTracking.hand = hand;
+        handTracking.controllerLink = robotHand.GetComponentInChildren<OpenXRHandControllerLink>(true);
+        HideHandTrackingVisuals(trackingObject);
+        trackingObject.SetActive(true);
+        EditorUtility.SetDirty(trackingObject);
+    }
+
+    static GameObject GetOrCreatePrefabInstance(Transform parent, string prefabPath, string instanceName)
+    {
+        var existing = parent.Cast<Transform>().FirstOrDefault(t => t.name == instanceName)?.gameObject;
+        if (existing != null)
+            return existing;
+
+        var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(prefabPath);
+        if (prefab == null)
+        {
+            Debug.LogError($"[AceOfAgesAutoHandSetup] Missing prefab: {prefabPath}");
+            return null;
+        }
+
+        var instance = (GameObject)PrefabUtility.InstantiatePrefab(prefab, parent);
+        Undo.RegisterCreatedObjectUndo(instance, "Add XR Hand Tracking");
+        instance.name = instanceName;
+        return instance;
+    }
+
+    static void HideHandTrackingVisuals(GameObject trackingObject)
+    {
+        foreach (Transform child in trackingObject.transform)
+        {
+            if (child.name.Contains("Visual"))
+                child.gameObject.SetActive(false);
+        }
+    }
+
+    static Transform GetOrCreateChild(Transform parent, string name)
+    {
+        var existing = parent.Find(name);
+        if (existing != null)
+            return existing;
+
+        var go = new GameObject(name);
+        Undo.RegisterCreatedObjectUndo(go, "Create Hand Tracking parent");
+        go.transform.SetParent(parent, false);
+        return go.transform;
     }
 
     static void WireHand(GameObject handObject, Transform followTarget, bool isLeft)

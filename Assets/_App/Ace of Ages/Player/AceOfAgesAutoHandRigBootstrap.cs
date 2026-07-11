@@ -1,24 +1,32 @@
 using Autohand;
+using Autohand.Demo;
 using UnityEngine;
 
 /// <summary>
-/// Wires AutoHand RobotHands to the XRI Hands rig at runtime. Follow-offset transforms are created
-/// under the tracked controllers; physics hands chase those offsets while the ECS system moves the rig root.
+/// Wires AutoHand RobotHands to the XRI Hands rig at runtime. Controller follow offsets are used as a
+/// fallback; <see cref="OpenXRAutoHandTracking"/> drives wrist/finger poses when XR hand tracking is active.
 /// </summary>
 [DefaultExecutionOrder(-50)]
 [DisallowMultipleComponent]
 public class AceOfAgesAutoHandRigBootstrap : MonoBehaviour
 {
     const string XrRigName = "XR Origin Hands (XR Rig)";
+    const string HandTrackingParentName = "Hand Tracking";
     const string LeftHandInstanceName = "RobotHand (L)";
     const string RightHandInstanceName = "RobotHand (R)";
+    const string LeftHandTrackingInstanceName = "Left Hand Tracking";
+    const string RightHandTrackingInstanceName = "Right Hand Tracking";
     const string AutoHandPlayerInstanceName = "Auto Hand Player";
 
     [SerializeField] private GameObject robotHandLeftPrefab;
     [SerializeField] private GameObject robotHandRightPrefab;
     [SerializeField] private GameObject autoHandPlayerPrefab;
+    [SerializeField] private GameObject leftHandTrackingPrefab;
+    [SerializeField] private GameObject rightHandTrackingPrefab;
 
     [SerializeField] private float handMaxFollowDistance = 1.5f;
+    [Tooltip("Hide the XR Hands sample skinned mesh so only RobotHand visuals are shown.")]
+    [SerializeField] private bool hideHandTrackingVisuals = true;
 
     private bool _initialized;
 
@@ -58,10 +66,92 @@ public class AceOfAgesAutoHandRigBootstrap : MonoBehaviour
         WireHand(leftHand, leftOffset, isLeft: true);
         WireHand(rightHand, rightOffset, isLeft: false);
 
+        WireHandTracking(xrOrigin.transform, leftHand, rightHand);
+
         GetOrCreateAutoHandPlayer(xrOrigin.transform, autoHandPlayerPrefab);
         ConfigureAutoHandPlayer(xrOrigin.transform, leftHand, rightHand, mainCamera, cameraOffset);
 
         _initialized = true;
+    }
+
+    void WireHandTracking(Transform xrOrigin, GameObject leftHand, GameObject rightHand)
+    {
+        if (leftHandTrackingPrefab == null || rightHandTrackingPrefab == null)
+        {
+            Debug.LogWarning("[AceOfAgesAutoHandRigBootstrap] Hand tracking prefabs are not assigned. " +
+                "Controllers will work, but XR hand tracking will not drive AutoHand.", this);
+            return;
+        }
+
+        var handTrackingParent = GetOrCreateChild(xrOrigin, HandTrackingParentName);
+
+        WireHandTrackingSide(handTrackingParent, leftHand, leftHandTrackingPrefab, LeftHandTrackingInstanceName);
+        WireHandTrackingSide(handTrackingParent, rightHand, rightHandTrackingPrefab, RightHandTrackingInstanceName);
+    }
+
+    void WireHandTrackingSide(Transform parent, GameObject robotHand, GameObject trackingPrefab, string instanceName)
+    {
+        if (robotHand == null || trackingPrefab == null)
+            return;
+
+        var hand = robotHand.GetComponentInChildren<Hand>(true);
+        if (hand == null)
+        {
+            Debug.LogError($"[AceOfAgesAutoHandRigBootstrap] No Hand on {robotHand.name} for hand tracking.", robotHand);
+            return;
+        }
+
+        var trackingObject = GetOrCreateTrackingObject(parent, trackingPrefab, instanceName);
+        trackingObject.SetActive(false);
+
+        var handTracking = trackingObject.GetComponent<OpenXRAutoHandTracking>();
+        if (handTracking == null)
+        {
+            Debug.LogError($"[AceOfAgesAutoHandRigBootstrap] {instanceName} is missing OpenXRAutoHandTracking.", trackingObject);
+            trackingObject.SetActive(true);
+            return;
+        }
+
+        handTracking.hand = hand;
+        handTracking.controllerLink = robotHand.GetComponentInChildren<OpenXRHandControllerLink>(true);
+
+        if (hideHandTrackingVisuals)
+            HideHandTrackingVisuals(trackingObject);
+
+        trackingObject.SetActive(true);
+    }
+
+    static GameObject GetOrCreateTrackingObject(Transform parent, GameObject prefab, string instanceName)
+    {
+        foreach (Transform child in parent)
+        {
+            if (child.name == instanceName)
+                return child.gameObject;
+        }
+
+        var instance = Instantiate(prefab, parent);
+        instance.name = instanceName;
+        return instance;
+    }
+
+    static void HideHandTrackingVisuals(GameObject trackingObject)
+    {
+        foreach (Transform child in trackingObject.transform)
+        {
+            if (child.name.Contains("Visual"))
+                child.gameObject.SetActive(false);
+        }
+    }
+
+    static Transform GetOrCreateChild(Transform parent, string name)
+    {
+        var existing = parent.Find(name);
+        if (existing != null)
+            return existing;
+
+        var go = new GameObject(name);
+        go.transform.SetParent(parent, false);
+        return go.transform;
     }
 
     static GameObject FindXrOrigin()
