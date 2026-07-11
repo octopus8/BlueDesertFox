@@ -28,6 +28,13 @@ public class PlayerHoverboardVisual : MonoBehaviour
     [Tooltip("Physics layers treated as terrain for tilt raycasts.")]
     [SerializeField] private LayerMask terrainLayers = 1 << 11;
 
+    [Header("Head Roll Yaw")]
+    [Tooltip("Board Y rotation = HMD roll × this multiplier.")]
+    [SerializeField] private float headYawMultiplier = 2f;
+
+    [Tooltip("Maximum board Y rotation from head roll (degrees).")]
+    [SerializeField] private float maxHeadYaw = 90f;
+
     private Quaternion _smoothedLocalRotation = Quaternion.identity;
 
     private void Awake()
@@ -63,6 +70,10 @@ public class PlayerHoverboardVisual : MonoBehaviour
         Quaternion targetLocal = useTerrainNormal
             ? ComputeTerrainAlignedLocalRotation(followRotation, terrainNormal)
             : Quaternion.identity;
+
+        float headBank = GetHeadBankAngle();
+        float boardYaw = Mathf.Clamp(-headBank * headYawMultiplier, -maxHeadYaw, maxHeadYaw);
+        targetLocal *= Quaternion.Euler(0f, boardYaw, 0f);
 
         if (tiltSmoothTime <= 0f)
         {
@@ -106,5 +117,14 @@ public class PlayerHoverboardVisual : MonoBehaviour
         forward.Normalize();
         Quaternion targetWorld = Quaternion.LookRotation(forward, up);
         return Quaternion.Inverse(parentRotation) * targetWorld;
+    }
+
+    private static float GetHeadBankAngle()
+    {
+        if (Camera.main == null)
+            return 0f;
+
+        float z = Camera.main.transform.eulerAngles.z;
+        return z > 180f ? z - 360f : z;
     }
 }
