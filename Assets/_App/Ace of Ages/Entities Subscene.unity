@@ -324,7 +324,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::TransformFollowerAuthoring
   targetMode: 0
-  targetName: Right Controller Stabilized Attach
+  targetName: RobotHand (R)
   targetTag: 
   targetGameObject: {fileID: 0}
   offset: {x: 0, y: 0, z: 0}
@@ -6080,7 +6080,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 24d6c27b68ff405d9338bf5e0989d54e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::TerrainConfigAuthoring
-  playerSearchMode: 1
+  playerSearchMode: 3
   playerName: Right Controller Stabilized Attach
   playerTag: Player
   tileSize: 256
