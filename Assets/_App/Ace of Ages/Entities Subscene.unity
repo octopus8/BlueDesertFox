@@ -6085,7 +6085,7 @@ MonoBehaviour:
   playerTag: Player
   tileSize: 256
   viewDistance: 850
-  verticesPerSide: 32
+  verticesPerSide: 42
   slopeAngleDegrees: -10
   slopeAngleVariation: 30
   slopeVariationBlendDistance: 128
@@ -6165,7 +6165,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1528308289}
-  m_Enabled: 0
+  m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: f17144813f71f9c4eab8e31b81e2c2db, type: 3}
   m_Name: 
@@ -6191,9 +6191,9 @@ MonoBehaviour:
   lod2Distance: 600
   lodHysteresis: 5
   randomSeed: 0
-  minObjectsPerTile: 250
-  maxObjectsPerTile: 250
-  trailSpawnDensityMultiplier: 0.25
+  minObjectsPerTile: 200
+  maxObjectsPerTile: 200
+  trailSpawnDensityMultiplier: 0.2
   maxSlopeDegrees: 45
   maxObjectsSpawnedPerFrame: 100
   maxNearObjectsSpawnedPerFrame: 300
@@ -6592,13 +6592,13 @@ GameObject:
 SceneRoots:
   m_ObjectHideFlags: 0
   m_Roots:
-  - {fileID: 3772920275834382919}
-  - {fileID: 2052678063}
-  - {fileID: 1527544359}
-  - {fileID: 1528308291}
   - {fileID: 25680480}
-  - {fileID: 263055123}
+  - {fileID: 3772920275834382919}
   - {fileID: 1371828255}
   - {fileID: 488271556}
+  - {fileID: 2052678063}
   - {fileID: 582652031}
+  - {fileID: 1527544359}
+  - {fileID: 1528308291}
+  - {fileID: 263055123}
   - {fileID: 935523115}

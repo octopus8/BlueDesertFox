@@ -151,6 +151,21 @@ public static class AceOfAgesAutoHandSetup
         SetActiveRecursive(xrOrigin, "Locomotion", false);
         SetActiveRecursive(xrOrigin, "Left Hand", false);
         SetActiveRecursive(xrOrigin, "Right Hand", false);
+        SetActiveRecursive(xrOrigin, "Hand Visualizer", false);
+        DisableHandVisualizerMeshes(xrOrigin);
+    }
+
+    static void DisableHandVisualizerMeshes(Transform xrOrigin)
+    {
+        foreach (var behaviour in xrOrigin.GetComponentsInChildren<MonoBehaviour>(true))
+        {
+            if (behaviour == null || behaviour.GetType().Name != "HandVisualizer")
+                continue;
+
+            var drawMeshesField = behaviour.GetType().GetField("m_DrawMeshes");
+            drawMeshesField?.SetValue(behaviour, false);
+            behaviour.enabled = false;
+        }
     }
 
     static void SetActiveRecursive(Transform root, string objectName, bool active)
@@ -260,6 +275,9 @@ public static class AceOfAgesAutoHandSetup
             if (child.name.Contains("Visual"))
                 child.gameObject.SetActive(false);
         }
+
+        foreach (var renderer in trackingObject.GetComponentsInChildren<SkinnedMeshRenderer>(true))
+            renderer.enabled = false;
     }
 
     static Transform GetOrCreateChild(Transform parent, string name)
