@@ -702,7 +702,7 @@ MonoBehaviour:
   tiltSmoothTime: 0.12
   rayHeightAbove: 50
   rayLengthBelow: 50
-  maxTiltDistance: 8
+  maxTiltDistance: 2
   terrainLayers:
     serializedVersion: 2
     m_Bits: 2048
@@ -731,7 +731,7 @@ Transform:
   m_GameObject: {fileID: 890010004}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0.1, z: 0}
+  m_LocalPosition: {x: 0, y: 0.3, z: -0.4}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
