@@ -977,9 +977,9 @@ MonoBehaviour:
   rideablePhysicsLayer: 15
   springStiffness: 300
   springDamping: 30
-  groundFriction: 0.2
+  groundFriction: 0.15
   groundedDistance: 1
-  approachingSurfaceMaxDistance: 2
+  approachingSurfaceMaxDistance: 1
   takeoffSpeed: 2
   airborneGraceTime: 0.2
   minCrestSpeed: 3
