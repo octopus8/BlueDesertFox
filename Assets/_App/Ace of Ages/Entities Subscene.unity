@@ -745,7 +745,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!64 &869879048
 MeshCollider:
   m_ObjectHideFlags: 0
@@ -978,7 +978,7 @@ MonoBehaviour:
   springStiffness: 300
   springDamping: 30
   groundFriction: 0.2
-  groundedDistance: 0.1
+  groundedDistance: 1
   approachingSurfaceMaxDistance: 2
   takeoffSpeed: 2
   airborneGraceTime: 0.2
@@ -6226,8 +6226,8 @@ MonoBehaviour:
   tileSize: 256
   viewDistance: 700
   verticesPerSide: 48
-  slopeAngleDegrees: -10
-  slopeAngleVariation: 30
+  slopeAngleDegrees: -15
+  slopeAngleVariation: 10
   slopeVariationBlendDistance: 128
   noiseFrequency: 0.005
   noiseAmplitude: 40
