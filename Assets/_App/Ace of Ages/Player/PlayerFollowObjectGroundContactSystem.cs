@@ -61,6 +61,7 @@ public partial class PlayerFollowObjectGroundContactSystem : SystemBase
     private const float FlatGroundNormalThreshold = 0.95f;
     private const float ScrollBaselineLerpSpeed = 12f;
     private const float ScrollActiveSpeedSq = 0.01f;
+    private const float MinSlideSpeed = 0.01f;
 
     protected override void OnCreate()
     {
@@ -95,6 +96,7 @@ public partial class PlayerFollowObjectGroundContactSystem : SystemBase
                      .WithAll<PlayerFollowObjectTag>())
         {
             CollisionFilter groundFilter = default;
+            CollisionFilter terrainSweepFilter = default;
             CollisionFilter obstacleFilter = default;
 
             if (hasPhysicsWorld)
@@ -111,6 +113,12 @@ public partial class PlayerFollowObjectGroundContactSystem : SystemBase
                 {
                     BelongsTo = ~0u,
                     CollidesWith = groundLayerMask,
+                    GroupIndex = 0
+                };
+                terrainSweepFilter = new CollisionFilter
+                {
+                    BelongsTo = ~0u,
+                    CollidesWith = terrainLayerMask,
                     GroupIndex = 0
                 };
                 obstacleFilter = new CollisionFilter
@@ -151,8 +159,15 @@ public partial class PlayerFollowObjectGroundContactSystem : SystemBase
                 && IsValidGroundHit(groundHit, position, config.ValueRO))
             {
                 normal = math.normalizesafe(groundHit.SurfaceNormal, math.up());
-                float3 surfaceTarget = groundHit.Position + normal * config.ValueRO.bottomOffset;
-                float error = math.dot(surfaceTarget - position, normal);
+                float3 contactNormal = normal;
+                if (normal.y >= WalkableSlopeThreshold
+                    && previousGroundNormal.y < WalkableSlopeThreshold)
+                {
+                    contactNormal = previousGroundNormal;
+                }
+
+                float3 surfaceTarget = groundHit.Position + contactNormal * config.ValueRO.bottomOffset;
+                float error = math.dot(surfaceTarget - position, contactNormal);
                 grounded = math.abs(error) < config.ValueRO.groundedDistance;
                 bool approachingSurface = error > 0f && error < config.ValueRO.approachingSurfaceMaxDistance;
                 bool contactCandidate = grounded || approachingSurface;
@@ -160,7 +175,7 @@ public partial class PlayerFollowObjectGroundContactSystem : SystemBase
                 float3 contactWorldVelocity = TerrainScrollVelocityMath.WorldVelocityFromTerrainRelative(
                     terrainRelativeVelocity,
                     scrollVelocity);
-                float vNormal = math.dot(contactWorldVelocity, normal);
+                float vNormal = math.dot(contactWorldVelocity, contactNormal);
                 float3 flatVelocity = new float3(contactWorldVelocity.x, 0f, contactWorldVelocity.z);
                 float flatSpeed = math.length(flatVelocity);
 
@@ -190,31 +205,31 @@ public partial class PlayerFollowObjectGroundContactSystem : SystemBase
                         float3 touchdownVelocity = TerrainScrollVelocityMath.WorldVelocityFromTerrainRelative(
                             terrainRelativeVelocity,
                             scrollVelocity);
-                        float touchdownNormal = math.dot(touchdownVelocity, normal);
+                        float touchdownNormal = math.dot(touchdownVelocity, contactNormal);
                         if (touchdownNormal > 0f)
                         {
-                            touchdownVelocity -= normal * touchdownNormal;
+                            touchdownVelocity -= contactNormal * touchdownNormal;
                             terrainRelativeVelocity = TerrainScrollVelocityMath.TerrainRelativeFromWorld(
                                 touchdownVelocity,
                                 scrollVelocity);
                         }
                     }
 
-                    terrainRelativeVelocity += GetTangentComponent(gravity, normal) * dt;
+                    terrainRelativeVelocity += GetTangentComponent(gravity, contactNormal) * dt;
                     ApplySpringDamper(
                         ref terrainRelativeVelocity,
                         scrollVelocity,
                         position,
                         surfaceTarget,
-                        normal,
+                        contactNormal,
                         config.ValueRO,
                         dt);
 
                     if (grounded)
                     {
-                        ApplyGroundFriction(ref terrainRelativeVelocity, scrollVelocity, normal, config.ValueRO.groundFriction, dt);
+                        ApplyGroundFriction(ref terrainRelativeVelocity, scrollVelocity, contactNormal, config.ValueRO.groundFriction, dt);
 
-                        if (scrollActive && normal.y >= FlatGroundNormalThreshold)
+                        if (scrollActive && contactNormal.y >= FlatGroundNormalThreshold)
                             ApplyScrollBaseline(ref terrainRelativeVelocity, scrollVelocity, dt);
                     }
                 }
@@ -238,19 +253,21 @@ public partial class PlayerFollowObjectGroundContactSystem : SystemBase
             float3 goalPosition = startPosition + displacement;
             position = goalPosition;
 
-            bool resolvedSteepTerrainCollision = false;
-
             if (hasPhysicsWorld && math.lengthsq(displacement) > MinCastDistance * MinCastDistance)
             {
-                resolvedSteepTerrainCollision = ResolveTerrainCollision(
-                    ref position,
-                    ref terrainRelativeVelocity,
-                    scrollVelocity,
-                    startPosition,
-                    displacement,
-                    config.ValueRO,
-                    collisionWorld,
-                    groundFilter);
+                if (ResolveTerrainCollision(
+                        ref position,
+                        ref terrainRelativeVelocity,
+                        scrollVelocity,
+                        startPosition,
+                        displacement,
+                        config.ValueRO,
+                        collisionWorld,
+                        terrainSweepFilter,
+                        out float3 steepNormal))
+                {
+                    previousGroundNormal = steepNormal;
+                }
 
                 float3 traveledDisplacement = position - startPosition;
                 if (math.lengthsq(traveledDisplacement) > MinCastDistance * MinCastDistance)
@@ -267,7 +284,7 @@ public partial class PlayerFollowObjectGroundContactSystem : SystemBase
                 }
             }
 
-            if (hasPhysicsWorld && (resolvedSteepTerrainCollision || !grounded))
+            if (hasPhysicsWorld && !grounded)
             {
                 SnapToTerrainSurface(
                     ref position,
@@ -360,8 +377,10 @@ public partial class PlayerFollowObjectGroundContactSystem : SystemBase
         float3 displacement,
         in PlayerFollowObjectGroundConfig config,
         CollisionWorld collisionWorld,
-        CollisionFilter terrainFilter)
+        CollisionFilter terrainFilter,
+        out float3 steepNormal)
     {
+        steepNormal = math.up();
         float distance = math.length(displacement);
         if (distance < MinCastDistance)
             return false;
@@ -388,15 +407,53 @@ public partial class PlayerFollowObjectGroundContactSystem : SystemBase
         if (math.dot(direction, terrainNormal) >= -ObstacleSkin)
             return false;
 
-        float fraction = math.max(castHit.Fraction - ObstacleSkin, 0f);
-        position = startPosition + direction * (distance * fraction);
+        steepNormal = terrainNormal;
+
+        float3 slideDisplacement = ComputeSteepWallSlideDisplacement(displacement, terrainNormal, direction);
+        position = startPosition + slideDisplacement;
 
         float3 worldVelocity = TerrainScrollVelocityMath.WorldVelocityFromTerrainRelative(
             terrainRelativeVelocity,
             scrollVelocity);
-        worldVelocity = RemoveNormalComponent(worldVelocity, terrainNormal);
+        float inboundSpeed = math.length(worldVelocity);
+        float vNormal = math.dot(worldVelocity, terrainNormal);
+
+        if (vNormal < 0f)
+            worldVelocity -= terrainNormal * vNormal;
+
+        float minTangentSpeedSq = inboundSpeed * inboundSpeed * 0.01f;
+        if (math.lengthsq(worldVelocity) < minTangentSpeedSq && inboundSpeed > MinSlideSpeed)
+        {
+            float3 slideDir = math.normalizesafe(
+                RemoveNormalComponent(displacement, terrainNormal),
+                GetTangentComponent(math.up(), terrainNormal));
+            worldVelocity = slideDir * inboundSpeed;
+        }
+
         terrainRelativeVelocity = TerrainScrollVelocityMath.TerrainRelativeFromWorld(worldVelocity, scrollVelocity);
         return true;
+    }
+
+    private static float3 ComputeSteepWallSlideDisplacement(
+        float3 displacement,
+        float3 terrainNormal,
+        float3 direction)
+    {
+        float slideDistance = math.length(displacement);
+        float3 slideDisplacement = RemoveNormalComponent(displacement, terrainNormal);
+        float minTangentDistSq = slideDistance * slideDistance * 0.01f;
+
+        if (math.lengthsq(slideDisplacement) < minTangentDistSq)
+        {
+            float3 uphillTangent = GetTangentComponent(math.up(), terrainNormal);
+            slideDisplacement = math.normalizesafe(uphillTangent, direction) * slideDistance;
+        }
+        else
+        {
+            slideDisplacement = math.normalizesafe(slideDisplacement, direction) * slideDistance;
+        }
+
+        return slideDisplacement;
     }
 
     private static void SnapToTerrainSurface(
