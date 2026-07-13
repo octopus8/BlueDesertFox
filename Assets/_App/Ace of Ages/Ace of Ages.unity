@@ -215,6 +215,8 @@ MonoBehaviour:
   entitiesSubScene: {fileID: 702503745}
   entitiesSubSceneTargetName: Player Follow Object
   positionOffset: {x: 0, y: 0, z: 0}
+  alignTrackedCameraXZToTarget: 1
+  trackedCamera: {fileID: 880413747}
   followRotation: 1
   followDirection: 0
   rotationSmoothTime: 0

@@ -37,6 +37,13 @@ public class TransformFollowTarget : MonoBehaviour
 
     [SerializeField] private Vector3 positionOffset = Vector3.zero;
 
+    [Header("Camera Anchoring")]
+    [Tooltip("When enabled, keeps the tracked camera's X/Z aligned over the target by offsetting the follower root.")]
+    [SerializeField] private bool alignTrackedCameraXZToTarget;
+
+    [Tooltip("Optional camera transform to anchor over the target. If empty, a camera under the follower is auto-resolved.")]
+    [SerializeField] private Transform trackedCamera;
+
     [Tooltip("Match the target object's rotation.")]
     [SerializeField] private bool followRotation;
 
@@ -51,6 +58,7 @@ public class TransformFollowTarget : MonoBehaviour
 
     private bool _snapOnNextUpdate = true;
     private bool _loggedWaitingForSubScene;
+    private bool _loggedMissingTrackedCamera;
     private Vector3 _previousTargetPosition;
     private bool _hasPreviousTargetPosition;
 
@@ -58,6 +66,7 @@ public class TransformFollowTarget : MonoBehaviour
     {
         _snapOnNextUpdate = true;
         _loggedWaitingForSubScene = false;
+        _loggedMissingTrackedCamera = false;
         _hasPreviousTargetPosition = false;
     }
 
@@ -80,11 +89,51 @@ public class TransformFollowTarget : MonoBehaviour
         _hasPreviousTargetPosition = true;
 
         targetPosition += positionOffset;
+
+        if (alignTrackedCameraXZToTarget && TryGetTrackedCameraOffset(out Vector3 cameraOffsetFromFollower))
+        {
+            // Keep the camera centered over the target in XZ while preserving existing Y behavior.
+            targetPosition.x -= cameraOffsetFromFollower.x;
+            targetPosition.z -= cameraOffsetFromFollower.z;
+        }
+
         follower.position = targetPosition;
 
         ApplyFollowerRotation(targetRotation, targetVelocity, _snapOnNextUpdate);
 
         _snapOnNextUpdate = false;
+    }
+
+    private bool TryGetTrackedCameraOffset(out Vector3 offset)
+    {
+        offset = Vector3.zero;
+        if (follower == null)
+            return false;
+
+        if (trackedCamera == null)
+        {
+            var followerCamera = follower.GetComponentInChildren<Camera>(true);
+            if (followerCamera != null)
+                trackedCamera = followerCamera.transform;
+        }
+
+        if (trackedCamera == null && Camera.main != null && Camera.main.transform.IsChildOf(follower))
+            trackedCamera = Camera.main.transform;
+
+        if (trackedCamera == null)
+        {
+            if (!_loggedMissingTrackedCamera)
+            {
+                Debug.LogWarning("[TransformFollowTarget] Camera anchoring is enabled, but no tracked camera was found under follower.", this);
+                _loggedMissingTrackedCamera = true;
+            }
+
+            return false;
+        }
+
+        _loggedMissingTrackedCamera = false;
+        offset = trackedCamera.position - follower.position;
+        return true;
     }
 
     private void ApplyFollowerRotation(Quaternion targetRotation, Vector3 targetVelocity, bool snapOnEnable)
