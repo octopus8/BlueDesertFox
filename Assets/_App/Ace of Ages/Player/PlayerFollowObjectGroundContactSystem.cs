@@ -235,11 +235,14 @@ public partial class PlayerFollowObjectGroundContactSystem : SystemBase
                 scrollVelocity);
             float3 startPosition = position;
             float3 displacement = worldVelocity * dt;
-            position = startPosition + displacement;
+            float3 goalPosition = startPosition + displacement;
+            position = goalPosition;
+
+            bool resolvedSteepTerrainCollision = false;
 
             if (hasPhysicsWorld && math.lengthsq(displacement) > MinCastDistance * MinCastDistance)
             {
-                ResolveObstacleCollision(
+                resolvedSteepTerrainCollision = ResolveTerrainCollision(
                     ref position,
                     ref terrainRelativeVelocity,
                     scrollVelocity,
@@ -247,7 +250,30 @@ public partial class PlayerFollowObjectGroundContactSystem : SystemBase
                     displacement,
                     config.ValueRO,
                     collisionWorld,
-                    obstacleFilter);
+                    groundFilter);
+
+                float3 traveledDisplacement = position - startPosition;
+                if (math.lengthsq(traveledDisplacement) > MinCastDistance * MinCastDistance)
+                {
+                    ResolveObstacleCollision(
+                        ref position,
+                        ref terrainRelativeVelocity,
+                        scrollVelocity,
+                        startPosition,
+                        traveledDisplacement,
+                        config.ValueRO,
+                        collisionWorld,
+                        obstacleFilter);
+                }
+            }
+
+            if (hasPhysicsWorld && (resolvedSteepTerrainCollision || !grounded))
+            {
+                SnapToTerrainSurface(
+                    ref position,
+                    collisionWorld,
+                    groundFilter,
+                    config.ValueRO);
             }
 
             localTransform.ValueRW.Position = position;
@@ -324,6 +350,73 @@ public partial class PlayerFollowObjectGroundContactSystem : SystemBase
         };
 
         return collisionWorld.CastRay(rayInput, out hit);
+    }
+
+    private static bool ResolveTerrainCollision(
+        ref float3 position,
+        ref float3 terrainRelativeVelocity,
+        float3 scrollVelocity,
+        float3 startPosition,
+        float3 displacement,
+        in PlayerFollowObjectGroundConfig config,
+        CollisionWorld collisionWorld,
+        CollisionFilter terrainFilter)
+    {
+        float distance = math.length(displacement);
+        if (distance < MinCastDistance)
+            return false;
+
+        float3 direction = displacement / distance;
+        GetCapsuleEndpoints(startPosition, config, out float3 point1, out float3 point2);
+
+        if (!collisionWorld.CapsuleCast(
+                point1,
+                point2,
+                config.capsuleRadius,
+                direction,
+                distance,
+                out ColliderCastHit castHit,
+                terrainFilter))
+        {
+            return false;
+        }
+
+        float3 terrainNormal = math.normalizesafe(castHit.SurfaceNormal, math.up());
+        if (terrainNormal.y >= WalkableSlopeThreshold)
+            return false;
+
+        if (math.dot(direction, terrainNormal) >= -ObstacleSkin)
+            return false;
+
+        float fraction = math.max(castHit.Fraction - ObstacleSkin, 0f);
+        position = startPosition + direction * (distance * fraction);
+
+        float3 worldVelocity = TerrainScrollVelocityMath.WorldVelocityFromTerrainRelative(
+            terrainRelativeVelocity,
+            scrollVelocity);
+        worldVelocity = RemoveNormalComponent(worldVelocity, terrainNormal);
+        terrainRelativeVelocity = TerrainScrollVelocityMath.TerrainRelativeFromWorld(worldVelocity, scrollVelocity);
+        return true;
+    }
+
+    private static void SnapToTerrainSurface(
+        ref float3 position,
+        CollisionWorld collisionWorld,
+        CollisionFilter groundFilter,
+        in PlayerFollowObjectGroundConfig config)
+    {
+        if (!TryGetGroundHit(collisionWorld, groundFilter, position, config, out RaycastHit hit)
+            || !IsValidGroundHit(hit, position, config))
+        {
+            return;
+        }
+
+        float3 normal = math.normalizesafe(hit.SurfaceNormal, math.up());
+        float3 surfaceTarget = hit.Position + normal * config.bottomOffset;
+        float error = math.dot(surfaceTarget - position, normal);
+
+        if (math.abs(error) <= config.groundedDistance)
+            position += normal * error;
     }
 
     private static void ResolveObstacleCollision(

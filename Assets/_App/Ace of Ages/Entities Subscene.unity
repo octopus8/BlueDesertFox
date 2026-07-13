@@ -927,7 +927,7 @@ Transform:
   m_GameObject: {fileID: 935523111}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalPosition: {x: 0, y: 7.7, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -978,15 +978,15 @@ MonoBehaviour:
   springStiffness: 300
   springDamping: 30
   groundFriction: 0.15
-  groundedDistance: 1
+  groundedDistance: 0.3
   approachingSurfaceMaxDistance: 1
-  takeoffSpeed: 2
+  takeoffSpeed: 4.5
   airborneGraceTime: 0.2
   minCrestSpeed: 3
-  crestNormalDotThreshold: 0.92
+  crestNormalDotThreshold: 0.85
   yawRotationSmoothTime: 1
   minYawSpeed: 0.5
-  steeringSensitivity: 80
+  steeringSensitivity: 38
 --- !u!136 &935523118
 CapsuleCollider:
   m_ObjectHideFlags: 0
