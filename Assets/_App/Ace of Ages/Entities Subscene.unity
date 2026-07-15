@@ -6331,8 +6331,8 @@ MonoBehaviour:
   lod2Distance: 600
   lodHysteresis: 5
   randomSeed: 0
-  minObjectsPerTile: 175
-  maxObjectsPerTile: 175
+  minObjectsPerTile: 150
+  maxObjectsPerTile: 150
   trailSpawnDensityMultiplier: 0.2
   maxSlopeDegrees: 45
   maxObjectsSpawnedPerFrame: 100
