@@ -157,6 +157,7 @@ Transform:
   - {fileID: 241762669}
   - {fileID: 1155157825}
   - {fileID: 890010002}
+  - {fileID: 381589383}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &132629396
@@ -494,6 +495,11 @@ CanvasRenderer:
 RectTransform:
   m_CorrespondingSourceObject: {fileID: 781630661673262082, guid: c24a7635b5761984d81cf6c4aac26e0d, type: 3}
   m_PrefabInstance: {fileID: 4015128327238675554}
+  m_PrefabAsset: {fileID: 0}
+--- !u!4 &381589383 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: 7845129034567812302, guid: f1b8c3d4e5a6472890bc1d2e3f4a5b6c, type: 3}
+  m_PrefabInstance: {fileID: 918273645}
   m_PrefabAsset: {fileID: 0}
 --- !u!1 &702503744
 GameObject:
@@ -1236,7 +1242,7 @@ PrefabInstance:
   serializedVersion: 2
   m_Modification:
     serializedVersion: 3
-    m_TransformParent: {fileID: 0}
+    m_TransformParent: {fileID: 132629395}
     m_Modifications:
     - target: {fileID: 7845129034567812301, guid: f1b8c3d4e5a6472890bc1d2e3f4a5b6c, type: 3}
       propertyPath: m_Name
@@ -1260,15 +1266,15 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 7845129034567812302, guid: f1b8c3d4e5a6472890bc1d2e3f4a5b6c, type: 3}
       propertyPath: m_LocalRotation.x
-      value: 0
+      value: -0
       objectReference: {fileID: 0}
     - target: {fileID: 7845129034567812302, guid: f1b8c3d4e5a6472890bc1d2e3f4a5b6c, type: 3}
       propertyPath: m_LocalRotation.y
-      value: 0
+      value: -0
       objectReference: {fileID: 0}
     - target: {fileID: 7845129034567812302, guid: f1b8c3d4e5a6472890bc1d2e3f4a5b6c, type: 3}
       propertyPath: m_LocalRotation.z
-      value: 0
+      value: -0
       objectReference: {fileID: 0}
     - target: {fileID: 7845129034567812302, guid: f1b8c3d4e5a6472890bc1d2e3f4a5b6c, type: 3}
       propertyPath: m_LocalEulerAnglesHint.x
@@ -1283,8 +1289,12 @@ PrefabInstance:
       value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 7845129034567812303, guid: f1b8c3d4e5a6472890bc1d2e3f4a5b6c, type: 3}
+      propertyPath: boxSize.x
+      value: 10
+      objectReference: {fileID: 0}
+    - target: {fileID: 7845129034567812303, guid: f1b8c3d4e5a6472890bc1d2e3f4a5b6c, type: 3}
       propertyPath: startSize
-      value: 1
+      value: 0.1
       objectReference: {fileID: 0}
     - target: {fileID: 7845129034567812303, guid: f1b8c3d4e5a6472890bc1d2e3f4a5b6c, type: 3}
       propertyPath: leadSeconds
@@ -1305,7 +1315,7 @@ PrefabInstance:
     - target: {fileID: 7845129034567812303, guid: f1b8c3d4e5a6472890bc1d2e3f4a5b6c, type: 3}
       propertyPath: snowMaterial
       value: 
-      objectReference: {fileID: 2100000, guid: 67f315b236919ae4ebdf92d894e5a595, type: 2}
+      objectReference: {fileID: 2100000, guid: c4e8b1a92f6d47a0b3e5d7c91a02f846, type: 2}
     - target: {fileID: 7845129034567812303, guid: f1b8c3d4e5a6472890bc1d2e3f4a5b6c, type: 3}
       propertyPath: maxLeadDistance
       value: 30
@@ -4862,4 +4872,3 @@ SceneRoots:
   - {fileID: 1279682836}
   - {fileID: 132629395}
   - {fileID: 702503746}
-  - {fileID: 918273645}
