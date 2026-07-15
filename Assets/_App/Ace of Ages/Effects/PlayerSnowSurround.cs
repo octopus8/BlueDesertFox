@@ -28,10 +28,18 @@ public class PlayerSnowSurround : MonoBehaviour
     [SerializeField] private float startSize = 0.04f;
     [SerializeField] private float startLifetime = 4.5f;
 
+    [Header("Speed Lead")]
+    [Tooltip("Emitter shifts ahead by Player Follow Object terrain-relative velocity * leadSeconds.")]
+    [SerializeField] private float leadSeconds = 0.75f;
+    [Tooltip("Maximum emitter lead distance in meters.")]
+    [SerializeField] private float maxLeadDistance = 12f;
+
     private ParticleSystem _particles;
     private ParticleSystem.Particle[] _particleBuffer;
     private EntityQuery _scrollOffsetQuery;
+    private EntityQuery _followObjectMotionQuery;
     private bool _hasScrollOffsetQuery;
+    private bool _hasFollowObjectMotionQuery;
     private bool _hasPreviousScrollOffset;
     private float3 _previousScrollOffset;
     private bool _loggedMissingCamera;
@@ -43,7 +51,7 @@ public class PlayerSnowSurround : MonoBehaviour
             _particles = gameObject.AddComponent<ParticleSystem>();
 
         ConfigureParticleSystem();
-        TryCreateScrollOffsetQuery();
+        TryCreateScrollQueries();
     }
 
     private void OnEnable()
@@ -59,14 +67,16 @@ public class PlayerSnowSurround : MonoBehaviour
 
     private void OnDestroy()
     {
-        if (!_hasScrollOffsetQuery)
-            return;
-
         var world = World.DefaultGameObjectInjectionWorld;
-        if (world != null && world.IsCreated && _scrollOffsetQuery != default)
+        bool worldOk = world != null && world.IsCreated;
+
+        if (_hasScrollOffsetQuery && worldOk && _scrollOffsetQuery != default)
             _scrollOffsetQuery.Dispose();
+        if (_hasFollowObjectMotionQuery && worldOk && _followObjectMotionQuery != default)
+            _followObjectMotionQuery.Dispose();
 
         _hasScrollOffsetQuery = false;
+        _hasFollowObjectMotionQuery = false;
     }
 
     private void LateUpdate()
@@ -74,8 +84,10 @@ public class PlayerSnowSurround : MonoBehaviour
         Transform target = ResolveFollowTarget();
         if (target != null)
         {
-            // Keep the emission volume around the view; particles themselves live in world/terrain space.
-            transform.SetPositionAndRotation(target.position, Quaternion.identity);
+            // Emission volume stays near the view, shifted ahead along travel at higher speeds.
+            // Particles themselves live in world/terrain space.
+            Vector3 emitterPosition = target.position + GetSpeedLeadOffset();
+            transform.SetPositionAndRotation(emitterPosition, Quaternion.identity);
         }
 
         ApplyTerrainScrollToParticles();
@@ -102,14 +114,25 @@ public class PlayerSnowSurround : MonoBehaviour
         return null;
     }
 
-    private void TryCreateScrollOffsetQuery()
+    private void TryCreateScrollQueries()
     {
         var world = World.DefaultGameObjectInjectionWorld;
         if (world == null || !world.IsCreated)
             return;
 
-        _scrollOffsetQuery = world.EntityManager.CreateEntityQuery(ComponentType.ReadOnly<ScrollOffset>());
-        _hasScrollOffsetQuery = true;
+        if (!_hasScrollOffsetQuery)
+        {
+            _scrollOffsetQuery = world.EntityManager.CreateEntityQuery(ComponentType.ReadOnly<ScrollOffset>());
+            _hasScrollOffsetQuery = true;
+        }
+
+        if (!_hasFollowObjectMotionQuery)
+        {
+            _followObjectMotionQuery = world.EntityManager.CreateEntityQuery(
+                ComponentType.ReadOnly<PlayerFollowObjectTag>(),
+                ComponentType.ReadOnly<PlayerFollowObjectMotionState>());
+            _hasFollowObjectMotionQuery = true;
+        }
     }
 
     private bool TryGetScrollOffset(out float3 accumulatedOffset)
@@ -118,7 +141,7 @@ public class PlayerSnowSurround : MonoBehaviour
 
         if (!_hasScrollOffsetQuery || _scrollOffsetQuery == default)
         {
-            TryCreateScrollOffsetQuery();
+            TryCreateScrollQueries();
             if (!_hasScrollOffsetQuery)
                 return false;
         }
@@ -129,6 +152,52 @@ public class PlayerSnowSurround : MonoBehaviour
 
         accumulatedOffset = _scrollOffsetQuery.GetSingleton<ScrollOffset>().accumulatedOffset;
         return true;
+    }
+
+    private bool TryGetFollowObjectTravelVelocity(out float3 terrainRelativeVelocity)
+    {
+        terrainRelativeVelocity = float3.zero;
+
+        if (!_hasFollowObjectMotionQuery || _followObjectMotionQuery == default)
+        {
+            TryCreateScrollQueries();
+            if (!_hasFollowObjectMotionQuery)
+                return false;
+        }
+
+        var world = World.DefaultGameObjectInjectionWorld;
+        if (world == null || !world.IsCreated || _followObjectMotionQuery.IsEmptyIgnoreFilter)
+            return false;
+
+        terrainRelativeVelocity = _followObjectMotionQuery
+            .GetSingleton<PlayerFollowObjectMotionState>()
+            .terrainRelativeVelocity;
+        return true;
+    }
+
+    /// <summary>
+    /// Offsets the emitter ahead along the Player Follow Object's terrain-relative travel
+    /// velocity so flakes seed in the flight path through the environment.
+    /// </summary>
+    private Vector3 GetSpeedLeadOffset()
+    {
+        if (leadSeconds <= 0f || maxLeadDistance <= 0f)
+            return Vector3.zero;
+
+        if (!TryGetFollowObjectTravelVelocity(out float3 travelVelocity))
+            return Vector3.zero;
+
+        float3 lead = travelVelocity * leadSeconds;
+        float leadSq = math.lengthsq(lead);
+        if (leadSq < 1e-8f)
+            return Vector3.zero;
+
+        float maxLead = maxLeadDistance;
+        float maxLeadSq = maxLead * maxLead;
+        if (leadSq > maxLeadSq)
+            lead *= maxLead / math.sqrt(leadSq);
+
+        return new Vector3(lead.x, lead.y, lead.z);
     }
 
     /// <summary>
@@ -260,6 +329,8 @@ public class PlayerSnowSurround : MonoBehaviour
         driftSpeed = Mathf.Max(0f, driftSpeed);
         startSize = Mathf.Max(0.001f, startSize);
         startLifetime = Mathf.Max(0.1f, startLifetime);
+        leadSeconds = Mathf.Max(0f, leadSeconds);
+        maxLeadDistance = Mathf.Max(0f, maxLeadDistance);
         boxSize = new Vector3(
             Mathf.Max(0.1f, boxSize.x),
             Mathf.Max(0.1f, boxSize.y),
