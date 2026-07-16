@@ -6117,7 +6117,7 @@ Light:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1527544356}
   m_Enabled: 1
-  serializedVersion: 12
+  serializedVersion: 13
   m_Type: 1
   m_Color: {r: 0.8301887, g: 0.6304735, b: 0.6719238, a: 1}
   m_Intensity: 1
@@ -6169,7 +6169,7 @@ Light:
   m_UseBoundingSphereOverride: 0
   m_UseViewFrustumForShadowCasterCull: 1
   m_ForceVisible: 0
-  m_ShadowRadius: 0
+  m_ShapeRadius: 0
   m_ShadowAngle: 0
   m_LightUnit: 1
   m_LuxAtDistance: 1
@@ -6314,18 +6314,33 @@ MonoBehaviour:
   - lodSet: {fileID: 11400000, guid: 4101bf1351cde7442a780cfaa191badb, type: 2}
     spawnWeight: 1
     maxScaleDelta: 0.5
+    minSlopeDegrees: 0
+    maxSlopeDegrees: 45
   - lodSet: {fileID: 11400000, guid: b77b000478ae3ac48b61b9af41161eba, type: 2}
     spawnWeight: 0.1
     maxScaleDelta: 0.5
+    minSlopeDegrees: 0
+    maxSlopeDegrees: 45
   - lodSet: {fileID: 11400000, guid: e7de8a9f2d9ca814682cdfb9073cd20e, type: 2}
     spawnWeight: 0.1
     maxScaleDelta: 0.5
+    minSlopeDegrees: 0
+    maxSlopeDegrees: 45
   - lodSet: {fileID: 11400000, guid: d47c3ee472c3bb2498b37658e653adbf, type: 2}
     spawnWeight: 0.1
     maxScaleDelta: 0.5
+    minSlopeDegrees: 0
+    maxSlopeDegrees: 45
   - lodSet: {fileID: 11400000, guid: d4d8140911406aa4084f758af61cd1bf, type: 2}
     spawnWeight: 0.01
     maxScaleDelta: 0
+    minSlopeDegrees: 0
+    maxSlopeDegrees: 45
+  - lodSet: {fileID: 11400000, guid: edc16788d2b932f448223bf869de3aeb, type: 2}
+    spawnWeight: 0.2
+    maxScaleDelta: 0.5
+    minSlopeDegrees: 0
+    maxSlopeDegrees: 90
   lod0Distance: 200
   lod1Distance: 400
   lod2Distance: 600
@@ -6334,7 +6349,6 @@ MonoBehaviour:
   minObjectsPerTile: 150
   maxObjectsPerTile: 150
   trailSpawnDensityMultiplier: 0.2
-  maxSlopeDegrees: 45
   maxObjectsSpawnedPerFrame: 100
   maxNearObjectsSpawnedPerFrame: 300
   maxPositionCalcAttemptsPerFrame: 4000

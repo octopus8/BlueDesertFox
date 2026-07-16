@@ -1,0 +1,19 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 86bf5fcb4230ff84a8dab3ac93ce3773, type: 3}
+  m_Name: StaticObjectLODSetRockLowPoly00-TallFlat
+  m_EditorClassIdentifier: Assembly-CSharp::StaticObjectLODSet
+  name: RockLowPoly00
+  lod0: {fileID: 1628725149435188, guid: 166c9ccb33bc7414abeeaaf05d64d10d, type: 3}
+  lod1: {fileID: 1628725149435188, guid: fe5fa48ab65a25b478206e6ef43ab8fb, type: 3}
+  lod2: {fileID: 7576544295198489702, guid: dd0cdd57aa0031b4fb8efbc29eb723d7, type: 3}
+  lod2IsBillboard: 1
