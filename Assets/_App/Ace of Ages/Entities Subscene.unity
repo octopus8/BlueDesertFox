@@ -6337,7 +6337,7 @@ MonoBehaviour:
     minSlopeDegrees: 0
     maxSlopeDegrees: 45
   - lodSet: {fileID: 11400000, guid: edc16788d2b932f448223bf869de3aeb, type: 2}
-    spawnWeight: 0.2
+    spawnWeight: 0.1
     maxScaleDelta: 0.5
     minSlopeDegrees: 0
     maxSlopeDegrees: 90
