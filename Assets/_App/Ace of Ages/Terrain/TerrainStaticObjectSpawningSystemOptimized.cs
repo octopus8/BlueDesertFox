@@ -252,6 +252,17 @@ public partial struct TerrainStaticObjectSpawningSystemOptimized : ISystem
         for (int i = 0; i < treeTypeCount; i++)
             objectTypeScales[i] = i < typeScaleBuffer.Length ? typeScaleBuffer[i] : defaultTypeScale;
 
+        var typeSlopeBuffer = state.EntityManager.GetBuffer<StaticObjectTypeSlopeElement>(configEntity, true);
+        var objectTypeSlopes = new NativeArray<StaticObjectTypeSlopeElement>(treeTypeCount, Allocator.TempJob);
+        // Default matches prior global maxSlopeDegrees=45 (cos 45° ≈ 0.707), minSlope=0 (cos 0° = 1)
+        var defaultTypeSlope = new StaticObjectTypeSlopeElement
+        {
+            minSlopeThreshold = 0.70710678f,
+            maxSlopeThreshold = 1f
+        };
+        for (int i = 0; i < treeTypeCount; i++)
+            objectTypeSlopes[i] = i < typeSlopeBuffer.Length ? typeSlopeBuffer[i] : defaultTypeSlope;
+
         TrailConfig trailConfig = default;
         bool hasTrailConfig = SystemAPI.HasSingleton<TrailConfig>();
         if (hasTrailConfig)
@@ -280,6 +291,7 @@ public partial struct TerrainStaticObjectSpawningSystemOptimized : ISystem
                     treeTypeCount = treeTypeCount,
                     objectPrefabRotations = objectPrefabRotations,
                     objectTypeScales = objectTypeScales,
+                    objectTypeSlopes = objectTypeSlopes,
                     objectTypeWeightPrefixSum = objectTypeWeightPrefixSum,
                     trailConfig = trailConfig,
                     hasTrailConfig = hasTrailConfig,
@@ -471,6 +483,7 @@ public partial struct TerrainStaticObjectSpawningSystemOptimized : ISystem
         hierarchicalPrefabs.Dispose(state.Dependency);
         objectPrefabRotations.Dispose(state.Dependency);
         objectTypeScales.Dispose(state.Dependency);
+        objectTypeSlopes.Dispose(state.Dependency);
         objectTypeWeightPrefixSum.Dispose(state.Dependency);
         billboardTypes.Dispose(state.Dependency);
         lodMeshInfos.Dispose(state.Dependency);
@@ -495,6 +508,7 @@ partial struct CalculateStaticObjectSpawnPositionsJob : IJobEntity
     [ReadOnly] public int treeTypeCount;
     [ReadOnly] public NativeArray<quaternion> objectPrefabRotations;
     [ReadOnly] public NativeArray<StaticObjectTypeScaleElement> objectTypeScales;
+    [ReadOnly] public NativeArray<StaticObjectTypeSlopeElement> objectTypeSlopes;
     [ReadOnly] public NativeArray<float> objectTypeWeightPrefixSum;
     [ReadOnly] public TrailConfig trailConfig;
     [ReadOnly] public bool hasTrailConfig;
@@ -668,9 +682,6 @@ partial struct CalculateStaticObjectSpawnPositionsJob : IJobEntity
 
             float3 worldPosition = tileTransform.Position + localPosition;
 
-            if (normal.y < config.slopeThreshold)
-                continue;
-
             if (tileTrailMask != 0 && config.trailSpawnDensityMultiplier < 1f)
             {
                 float noiseX = tileWorldX + randomX;
@@ -716,6 +727,10 @@ partial struct CalculateStaticObjectSpawnPositionsJob : IJobEntity
                     break;
                 }
             }
+
+            var slope = objectTypeSlopes[objectTypeIndex];
+            if (normal.y < slope.minSlopeThreshold || normal.y > slope.maxSlopeThreshold)
+                continue;
 
             int prefabIndexLOD0 = objectTypeIndex * 3;
             quaternion prefabRotation = objectPrefabRotations[prefabIndexLOD0];

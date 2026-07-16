@@ -42,11 +42,6 @@ public class StaticObjectSpawnerConfigAuthoring : MonoBehaviour
     [Range(0f, 1f)]
     public float trailSpawnDensityMultiplier = 0.25f;
 
-    [Header("Spawn Filtering")]
-    [Tooltip("Maximum slope angle in degrees (0 = flat, 90 = vertical cliff). Objects won't spawn on steeper slopes.")]
-    [Range(0f, 90f)]
-    public float maxSlopeDegrees = 45f;
-
     [Header("Performance")]
     [Tooltip("Maximum number of object entities to spawn or destroy per frame (prevents ECB playback stuttering)")]
     [Range(1, 100)]
@@ -84,10 +79,6 @@ public class StaticObjectSpawnerConfigAuthoring : MonoBehaviour
 
             Entity entity = GetEntity(TransformUsageFlags.None);
 
-            // Pre-calculate slope threshold (cosine of max slope angle)
-            // This avoids expensive acos() calls at runtime
-            float slopeThreshold = math.cos(math.radians(authoring.maxSlopeDegrees));
-
             // Create static object spawner config singleton
             AddComponent(entity, new StaticObjectSpawnerConfig
             {
@@ -95,7 +86,6 @@ public class StaticObjectSpawnerConfigAuthoring : MonoBehaviour
                 minObjectsPerTile = authoring.minObjectsPerTile,
                 maxObjectsPerTile = authoring.maxObjectsPerTile,
                 trailSpawnDensityMultiplier = authoring.trailSpawnDensityMultiplier,
-                slopeThreshold = slopeThreshold,
                 maxObjectsSpawnedPerFrame = authoring.maxObjectsSpawnedPerFrame,
                 maxNearObjectsSpawnedPerFrame = authoring.maxNearObjectsSpawnedPerFrame,
                 maxPositionCalcAttemptsPerFrame = authoring.maxPositionCalcAttemptsPerFrame
@@ -129,6 +119,9 @@ public class StaticObjectSpawnerConfigAuthoring : MonoBehaviour
 
             // Add buffer for per-object-type scale config
             var typeScaleBuffer = AddBuffer<StaticObjectTypeScaleElement>(entity);
+
+            // Add buffer for per-object-type slope thresholds
+            var typeSlopeBuffer = AddBuffer<StaticObjectTypeSlopeElement>(entity);
 
             int objectTypeCount = authoring.objectLODSets.Length;
             int validObjectTypes = 0;
@@ -214,6 +207,22 @@ public class StaticObjectSpawnerConfigAuthoring : MonoBehaviour
                     lod2ScaleMultiplier = lod2Scale / baseScale
                 });
 
+                float minSlopeDegrees = math.clamp(entry.minSlopeDegrees, 0f, 90f);
+                float maxSlopeDegrees = math.clamp(entry.maxSlopeDegrees, 0f, 90f);
+                // Existing serialized entries get 0 for newly added fields; restore prior global default.
+                if (maxSlopeDegrees <= 0f && minSlopeDegrees <= 0f)
+                    maxSlopeDegrees = 45f;
+                if (minSlopeDegrees > maxSlopeDegrees)
+                    minSlopeDegrees = maxSlopeDegrees;
+
+                // Cosine thresholds: steeper → smaller normal.y. Accept when
+                // cos(maxDegrees) <= normal.y <= cos(minDegrees).
+                typeSlopeBuffer.Add(new StaticObjectTypeSlopeElement
+                {
+                    minSlopeThreshold = math.cos(math.radians(maxSlopeDegrees)),
+                    maxSlopeThreshold = math.cos(math.radians(minSlopeDegrees))
+                });
+
                 for (int lodLevel = 0; lodLevel < 3; lodLevel++)
                 {
                     GameObject lodPrefab = lodPrefabs[lodLevel];
@@ -275,7 +284,6 @@ public class StaticObjectSpawnerConfigAuthoring : MonoBehaviour
         minObjectsPerTile = Mathf.Max(0, minObjectsPerTile);
         maxObjectsPerTile = Mathf.Max(minObjectsPerTile, maxObjectsPerTile);
         trailSpawnDensityMultiplier = Mathf.Clamp01(trailSpawnDensityMultiplier);
-        maxSlopeDegrees = Mathf.Clamp(maxSlopeDegrees, 0f, 90f);
         maxObjectsSpawnedPerFrame = Mathf.Max(1, maxObjectsSpawnedPerFrame);
         maxNearObjectsSpawnedPerFrame = Mathf.Max(1, maxNearObjectsSpawnedPerFrame);
         maxPositionCalcAttemptsPerFrame = Mathf.Max(500, maxPositionCalcAttemptsPerFrame);
@@ -298,6 +306,13 @@ public class StaticObjectSpawnerConfigAuthoring : MonoBehaviour
 
             entry.spawnWeight = Mathf.Max(0f, entry.spawnWeight);
             entry.maxScaleDelta = Mathf.Max(0f, entry.maxScaleDelta);
+            entry.minSlopeDegrees = Mathf.Clamp(entry.minSlopeDegrees, 0f, 90f);
+            entry.maxSlopeDegrees = Mathf.Clamp(entry.maxSlopeDegrees, 0f, 90f);
+            // Existing serialized entries get 0 for newly added fields; restore prior global default.
+            if (entry.maxSlopeDegrees <= 0f && entry.minSlopeDegrees <= 0f)
+                entry.maxSlopeDegrees = 45f;
+            if (entry.minSlopeDegrees > entry.maxSlopeDegrees)
+                entry.minSlopeDegrees = entry.maxSlopeDegrees;
             objectLODSets[i] = entry;
             totalTypeSpawnWeight += entry.spawnWeight;
         }

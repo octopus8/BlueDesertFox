@@ -192,7 +192,7 @@ public static class TextureArrayBuilder
     }
     
     /// <summary>
-    /// Fast hash function for texture array caching (GetInstanceID-based).
+    /// Fast hash function for texture array caching (GetEntityId-based).
     /// PERFORMANCE: <0.01ms for 32 textures.
     /// Used by TextureBlender to cache Texture2DArray conversions.
     /// </summary>
@@ -203,14 +203,14 @@ public static class TextureArrayBuilder
         if (textures == null || textures.Length == 0)
             return 0;
         
-        // Use simple XOR-based hash combining texture instance IDs
+        // Use simple XOR-based hash combining texture entity IDs
         int hash = textures.Length;
         for (int i = 0; i < textures.Length; i++)
         {
             if (textures[i] != null)
             {
                 // Combine using prime multiplication and XOR
-                hash = hash * 31 + textures[i].GetInstanceID();
+                hash = hash * 31 + textures[i].GetEntityId().GetHashCode();
             }
         }
         

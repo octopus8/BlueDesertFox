@@ -29,54 +29,43 @@ public partial class TransformFollowerSystem : SystemBase
     protected override void OnUpdate()
     {
         float deltaTime = SystemAPI.Time.DeltaTime;
-        
-        // This must run on the main thread because we're accessing managed Transform references
-        Entities
-            .WithAll<TransformReference>()
-            .WithoutBurst() // Cannot use Burst because we're accessing managed references
-            .ForEach((
-                Entity entity,
-                ref LocalTransform localTransform,
-                in TransformFollowerSettings settings,
-                in TransformReference transformRef) =>
+
+        // Must run on the main thread because we're accessing managed Transform references.
+        // Entities.ForEach was removed in Entities 6.x — use SystemAPI.Query instead.
+        foreach (var (localTransform, settings, transformRef) in
+                 SystemAPI.Query<RefRW<LocalTransform>, RefRO<TransformFollowerSettings>, TransformReference>())
+        {
+            if (transformRef.target == null)
             {
-                // Check if the target Transform is valid
-                if (transformRef.target == null)
+                continue;
+            }
+
+            float3 targetPosition = (float3)transformRef.target.position + settings.ValueRO.offset;
+
+            if (settings.ValueRO.smoothTime > 0)
+            {
+                float smoothFactor = math.saturate(deltaTime / settings.ValueRO.smoothTime);
+                localTransform.ValueRW.Position = math.lerp(localTransform.ValueRO.Position, targetPosition, smoothFactor);
+            }
+            else
+            {
+                localTransform.ValueRW.Position = targetPosition;
+            }
+
+            if (settings.ValueRO.followRotation)
+            {
+                quaternion targetRotation = transformRef.target.rotation;
+
+                if (settings.ValueRO.smoothTime > 0)
                 {
-                    return;
-                }
-                
-                // Calculate target position with offset
-                float3 targetPosition = (float3)transformRef.target.position + settings.offset;
-                
-                // Apply smoothing if needed
-                if (settings.smoothTime > 0)
-                {
-                    float smoothFactor = math.saturate(deltaTime / settings.smoothTime);
-                    localTransform.Position = math.lerp(localTransform.Position, targetPosition, smoothFactor);
+                    float smoothFactor = math.saturate(deltaTime / settings.ValueRO.smoothTime);
+                    localTransform.ValueRW.Rotation = math.slerp(localTransform.ValueRO.Rotation, targetRotation, smoothFactor);
                 }
                 else
                 {
-                    localTransform.Position = targetPosition;
+                    localTransform.ValueRW.Rotation = targetRotation;
                 }
-                
-                // Follow rotation if enabled
-                if (settings.followRotation)
-                {
-                    quaternion targetRotation = transformRef.target.rotation;
-                    
-                    if (settings.smoothTime > 0)
-                    {
-                        float smoothFactor = math.saturate(deltaTime / settings.smoothTime);
-                        localTransform.Rotation = math.slerp(localTransform.Rotation, targetRotation, smoothFactor);
-                    }
-                    else
-                    {
-                        localTransform.Rotation = targetRotation;
-                    }
-                }
-            })
-            .Run(); // Must use .Run() instead of .Schedule() because we're accessing managed references
+            }
+        }
     }
 }
-

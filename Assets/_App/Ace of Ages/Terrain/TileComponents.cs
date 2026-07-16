@@ -371,9 +371,6 @@ public struct StaticObjectSpawnerConfig : IComponentData
     /// <summary>Spawn acceptance multiplier at trail center (0 = none, 1 = same as open terrain). Blend zone interpolates to 1.0.</summary>
     public float trailSpawnDensityMultiplier;
     
-    /// <summary>Pre-calculated slope threshold (cosine of max slope angle) for filtering steep terrain.</summary>
-    public float slopeThreshold;
-    
     /// <summary>Maximum number of Objects to spawn per frame (performance budgeting).</summary>
     public int maxObjectsSpawnedPerFrame;
 
@@ -638,6 +635,20 @@ public struct StaticObjectBillboardTypeElement : IBufferElementData
 {
     /// <summary>When true, LOD2 for this object type rotates to face the camera each frame.</summary>
     public bool isBillboard;
+}
+
+/// <summary>
+/// Per-object-type slope filter thresholds baked from entry min/max slope degrees.
+/// Indexed by objectTypeIndex. Cosine of angle from vertical (flat ≈ 1, cliff ≈ 0).
+/// Accept spawn when minSlopeThreshold &lt;= normal.y &lt;= maxSlopeThreshold.
+/// </summary>
+public struct StaticObjectTypeSlopeElement : IBufferElementData
+{
+    /// <summary>Cosine of maxSlopeDegrees — reject steeper slopes (normal.y below this).</summary>
+    public float minSlopeThreshold;
+
+    /// <summary>Cosine of minSlopeDegrees — reject flatter slopes (normal.y above this).</summary>
+    public float maxSlopeThreshold;
 }
 
 /// <summary>
