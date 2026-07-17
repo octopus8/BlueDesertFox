@@ -6313,7 +6313,7 @@ MonoBehaviour:
   objectLODSets:
   - lodSet: {fileID: 11400000, guid: b77b000478ae3ac48b61b9af41161eba, type: 2}
     spawnWeight: 1
-    maxScaleDelta: 0.5
+    maxScaleDelta: 0
     minSlopeDegrees: 0
     maxSlopeDegrees: 45
   lod0Distance: 200
