@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: bb2abe3e692524a408bb152a7bb75c38
+timeCreated: 1545087914
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 100100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 115950
+  packageName: POLYGON - Sci-Fi City Pack - Art by Synty
+  packageVersion: 1.3.2
+  assetPath: Assets/PolygonSciFiCity/Prefabs/Characters/SM_Chr_Rich_Male_01.prefab
+  uploadId: 939484

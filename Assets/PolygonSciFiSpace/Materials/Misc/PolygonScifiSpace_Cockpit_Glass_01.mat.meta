@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: adfd12dd0d72f9441b73456a0a7f14e3
+timeCreated: 1547511734
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 138857
+  packageName: POLYGON - Sci-Fi Space Pack - Art by Synty
+  packageVersion: 1.14.0
+  assetPath: Assets/PolygonSciFiSpace/Materials/Misc/PolygonScifiSpace_Cockpit_Glass_01.mat
+  uploadId: 915402

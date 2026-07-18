@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 8c0cb5594a4f7a14a8be19c336b86d56
+timeCreated: 1524015804
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 100100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 115950
+  packageName: POLYGON - Sci-Fi City Pack - Art by Synty
+  packageVersion: 1.3.2
+  assetPath: Assets/PolygonSciFiCity/Prefabs/FX/FX_RingLight_01.prefab
+  uploadId: 939484

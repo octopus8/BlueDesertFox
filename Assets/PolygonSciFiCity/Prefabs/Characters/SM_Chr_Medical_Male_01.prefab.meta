@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: bec4b58888fa91b458497b792974f9cc
+timeCreated: 1545087914
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 100100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 115950
+  packageName: POLYGON - Sci-Fi City Pack - Art by Synty
+  packageVersion: 1.3.2
+  assetPath: Assets/PolygonSciFiCity/Prefabs/Characters/SM_Chr_Medical_Male_01.prefab
+  uploadId: 939484

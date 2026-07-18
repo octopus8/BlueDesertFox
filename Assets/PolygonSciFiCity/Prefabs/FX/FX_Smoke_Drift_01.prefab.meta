@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 43b3d6b377a9ddd4db51d7512f94b931
+timeCreated: 1517371838
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 100100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 115950
+  packageName: POLYGON - Sci-Fi City Pack - Art by Synty
+  packageVersion: 1.3.2
+  assetPath: Assets/PolygonSciFiCity/Prefabs/FX/FX_Smoke_Drift_01.prefab
+  uploadId: 939484

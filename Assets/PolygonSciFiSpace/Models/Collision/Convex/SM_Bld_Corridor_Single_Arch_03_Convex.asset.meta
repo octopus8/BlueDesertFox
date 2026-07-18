@@ -3,14 +3,14 @@ guid: 53edd1e2670da8b4cb56f94c12d3ea54
 timeCreated: 1585527193
 licenseType: Store
 NativeFormatImporter:
-  mainObjectFileID: 11400000
+  mainObjectFileID: 43649280073605440
   userData: 
   assetBundleName: 
   assetBundleVariant: 
 AssetOrigin:
   serializedVersion: 1
   productId: 138857
-  packageName: POLYGON Sci-Fi Space - Low Poly 3D Art by Synty
-  packageVersion: 1.13.1
+  packageName: POLYGON - Sci-Fi Space Pack - Art by Synty
+  packageVersion: 1.14.0
   assetPath: Assets/PolygonSciFiSpace/Models/Collision/Convex/SM_Bld_Corridor_Single_Arch_03_Convex.asset
-  uploadId: 737404
+  uploadId: 915402

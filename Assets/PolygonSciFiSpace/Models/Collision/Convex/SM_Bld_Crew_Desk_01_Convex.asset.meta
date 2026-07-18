@@ -3,14 +3,14 @@ guid: 0ec390aaeea71784a9fa5f1dfc5625fa
 timeCreated: 1585527181
 licenseType: Store
 NativeFormatImporter:
-  mainObjectFileID: 11400000
+  mainObjectFileID: 43225958865328672
   userData: 
   assetBundleName: 
   assetBundleVariant: 
 AssetOrigin:
   serializedVersion: 1
   productId: 138857
-  packageName: POLYGON Sci-Fi Space - Low Poly 3D Art by Synty
-  packageVersion: 1.13.1
+  packageName: POLYGON - Sci-Fi Space Pack - Art by Synty
+  packageVersion: 1.14.0
   assetPath: Assets/PolygonSciFiSpace/Models/Collision/Convex/SM_Bld_Crew_Desk_01_Convex.asset
-  uploadId: 737404
+  uploadId: 915402

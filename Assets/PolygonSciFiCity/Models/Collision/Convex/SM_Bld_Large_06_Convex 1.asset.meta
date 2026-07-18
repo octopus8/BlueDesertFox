@@ -1,0 +1,17 @@
+fileFormatVersion: 2
+guid: 73a89266846659d46ad04a88532a87b7
+timeCreated: 1580693740
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 43323511251234522
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 115950
+  packageName: POLYGON - Sci-Fi City Pack - Art by Synty
+  packageVersion: 1.3.2
+  assetPath: Assets/PolygonSciFiCity/Models/Collision/Convex/SM_Bld_Large_06_Convex
+    1.asset
+  uploadId: 939484

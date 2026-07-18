@@ -3,14 +3,14 @@ guid: 20bfffb690b3b1d4cbbdd615efdd6aba
 timeCreated: 1580695762
 licenseType: Store
 NativeFormatImporter:
-  mainObjectFileID: 11400000
+  mainObjectFileID: 43098408497862910
   userData: 
   assetBundleName: 
   assetBundleVariant: 
 AssetOrigin:
   serializedVersion: 1
   productId: 115950
-  packageName: POLYGON Sci-Fi City - Low Poly 3D Art by Synty
-  packageVersion: 1.2.4
+  packageName: POLYGON - Sci-Fi City Pack - Art by Synty
+  packageVersion: 1.3.2
   assetPath: Assets/PolygonSciFiCity/Models/ConvexCollision/SM_Veh_Garbage_01_Hover_Convex.asset
-  uploadId: 756032
+  uploadId: 939484

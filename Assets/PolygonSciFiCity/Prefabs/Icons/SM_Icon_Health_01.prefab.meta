@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 4dd83908821d3e0459f241203d88a411
+timeCreated: 1523512394
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 100100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 115950
+  packageName: POLYGON - Sci-Fi City Pack - Art by Synty
+  packageVersion: 1.3.2
+  assetPath: Assets/PolygonSciFiCity/Prefabs/Icons/SM_Icon_Health_01.prefab
+  uploadId: 939484

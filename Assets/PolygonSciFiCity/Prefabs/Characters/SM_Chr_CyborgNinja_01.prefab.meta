@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 377edf6502e8d6e4eaab2bf56a519f06
+timeCreated: 1545087915
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 100100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 115950
+  packageName: POLYGON - Sci-Fi City Pack - Art by Synty
+  packageVersion: 1.3.2
+  assetPath: Assets/PolygonSciFiCity/Prefabs/Characters/SM_Chr_CyborgNinja_01.prefab
+  uploadId: 939484

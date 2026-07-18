@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 83933a282b8d01343b051eb44f46615a
+timeCreated: 1545087913
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 100100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 115950
+  packageName: POLYGON - Sci-Fi City Pack - Art by Synty
+  packageVersion: 1.3.2
+  assetPath: Assets/PolygonSciFiCity/Prefabs/Characters/SM_Chr_Augmented_Male_01.prefab
+  uploadId: 939484

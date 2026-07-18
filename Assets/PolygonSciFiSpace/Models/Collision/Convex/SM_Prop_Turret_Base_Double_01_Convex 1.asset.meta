@@ -3,15 +3,15 @@ guid: 1d6bf23d2e366d24c91e6e3fae4d03d8
 timeCreated: 1585529149
 licenseType: Store
 NativeFormatImporter:
-  mainObjectFileID: 11400000
+  mainObjectFileID: 43386938622404966
   userData: 
   assetBundleName: 
   assetBundleVariant: 
 AssetOrigin:
   serializedVersion: 1
   productId: 138857
-  packageName: POLYGON Sci-Fi Space - Low Poly 3D Art by Synty
-  packageVersion: 1.13.1
+  packageName: POLYGON - Sci-Fi Space Pack - Art by Synty
+  packageVersion: 1.14.0
   assetPath: Assets/PolygonSciFiSpace/Models/Collision/Convex/SM_Prop_Turret_Base_Double_01_Convex
     1.asset
-  uploadId: 737404
+  uploadId: 915402

@@ -10,8 +10,8 @@ ScriptedImporter:
   script: {fileID: 11500000, guid: 625f186215c104763be7675aa2d941aa, type: 3}
 AssetOrigin:
   serializedVersion: 1
-  productId: 85664
-  packageName: POLYGON - Vikings Pack - Art by Synty
-  packageVersion: 1.5.0
+  productId: 112212
+  packageName: POLYGON - Western Pack - Art by Synty
+  packageVersion: 1.2.1
   assetPath: Assets/Synty/PolygonGeneric/Shaders/Generic_Basic_Bloody.shadergraph
-  uploadId: 883992
+  uploadId: 924224

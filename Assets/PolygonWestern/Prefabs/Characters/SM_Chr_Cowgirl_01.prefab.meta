@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 146dd432d35d49045b9d2eea7ba30f8f
+timeCreated: 1519177872
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 100100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 112212
+  packageName: POLYGON - Western Pack - Art by Synty
+  packageVersion: 1.2.1
+  assetPath: Assets/PolygonWestern/Prefabs/Characters/SM_Chr_Cowgirl_01.prefab
+  uploadId: 924224

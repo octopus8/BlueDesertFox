@@ -3,15 +3,15 @@ guid: f2e443b86027b26478f42f163e9db27d
 timeCreated: 1580094360
 licenseType: Store
 NativeFormatImporter:
-  mainObjectFileID: 11400000
+  mainObjectFileID: 43069707893192210
   userData: 
   assetBundleName: 
   assetBundleVariant: 
 AssetOrigin:
   serializedVersion: 1
   productId: 112212
-  packageName: POLYGON Western - Low Poly 3D Art by Synty
-  packageVersion: 1.1.3
+  packageName: POLYGON - Western Pack - Art by Synty
+  packageVersion: 1.2.1
   assetPath: Assets/PolygonWestern/Models/CollisionConvex/SM_Veh_Train_Freight_01_Convex
     1.asset
-  uploadId: 751513
+  uploadId: 924224

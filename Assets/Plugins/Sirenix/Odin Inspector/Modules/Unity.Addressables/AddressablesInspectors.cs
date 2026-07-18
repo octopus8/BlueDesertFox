@@ -986,7 +986,7 @@ namespace Sirenix.OdinInspector.Modules.Addressables.Editor
                     searchFilter += $"t:{filterType.Name} ";
                 }
 
-                IEnumerator enumerator = EnumerateAllAssets(searchFilter, false, AssetDatabaseSearchArea.InAssetsOnly);
+                IEnumerator<AssetDatabaseAssetInfo> enumerator = AssetDatabase_Internals.EnumerateAllAssets(searchFilter, false, AssetDatabaseSearchArea.InAssetsOnly);
 
                 if (enumerator != null && enumerator.MoveNext())
                 {
@@ -1008,26 +1008,26 @@ namespace Sirenix.OdinInspector.Modules.Addressables.Editor
 
                     do
                     {
-                        EnumeratedAssetInfo current;
+                        AssetDatabaseAssetInfo current = enumerator.Current;
 
-                        if (!TryGetEnumeratedAssetInfo(enumerator.Current, out current) || addedGuids.Contains(current.guid) || !current.isMainRepresentation)
+                        if (!current.IsValid)
                         {
                             continue;
                         }
-
-                        AddressableAssetEntry entry = OdinAddressableUtility.CreateFakeAddressableAssetEntry(current.guid);
+                        
+                        AddressableAssetEntry entry = OdinAddressableUtility.CreateFakeAddressableAssetEntry(current.Guid);
 
                         if (listMode == SelectorListMode.Flat)
                         {
-                            var item = new OdinMenuItem(tree, current.name, entry) {Icon = current.icon};
+                            var item = new OdinMenuItem(tree, current.Name, entry) {Icon = current.Icon};
 
                             nonAddressablesItem.ChildMenuItems.Add(item);
                         }
                         else
                         {
-                            string path = current.assetPath;
+                            string path = current.AssetPath;
 
-                            if (!current.isFolder)
+                            if (!current.IsFolder)
                             {
                                 int extensionEndingIndex = GetExtensionsEndingIndex(path);
 
@@ -1039,7 +1039,7 @@ namespace Sirenix.OdinInspector.Modules.Addressables.Editor
 
                             path = RemoveBaseDirectoryFromAssetPath(path);
 
-                            tree.Add($"{NON_ADDRESSABLES_ITEM_NAME}/{path}", entry, current.icon);
+                            tree.Add($"{NON_ADDRESSABLES_ITEM_NAME}/{path}", entry, current.Icon);
                         }
                     } while (enumerator.MoveNext());
 
@@ -1073,60 +1073,6 @@ namespace Sirenix.OdinInspector.Modules.Addressables.Editor
             tree.MenuItems.Insert(0, noneItem);
         }
 
-        private static IEnumerator EnumerateAllAssets(string filter, bool includeHidden, AssetDatabaseSearchArea searchArea)
-        {
-            MethodInfo method = typeof(AssetDatabase_Internals).GetMethod(
-                "EnumerateAllAssets",
-                BindingFlags.Static | BindingFlags.Public,
-                null,
-                new Type[] { typeof(string), typeof(bool), typeof(AssetDatabaseSearchArea) },
-                null);
-
-            return method == null ? null : method.Invoke(null, new object[] { filter, includeHidden, searchArea }) as IEnumerator;
-        }
-
-        private static bool TryGetEnumeratedAssetInfo(object value, out EnumeratedAssetInfo info)
-        {
-            info = default;
-
-            if (value == null)
-            {
-                return false;
-            }
-
-            info.guid = GetReflectedValue<string>(value, "guid");
-
-            if (string.IsNullOrEmpty(info.guid))
-            {
-                return false;
-            }
-
-            info.assetPath = GetReflectedValue<string>(value, "assetPath");
-
-            if (string.IsNullOrEmpty(info.assetPath))
-            {
-                info.assetPath = AssetDatabase.GUIDToAssetPath(info.guid);
-            }
-
-            if (string.IsNullOrEmpty(info.assetPath))
-            {
-                return false;
-            }
-
-            info.name = GetReflectedValue<string>(value, "name");
-
-            if (string.IsNullOrEmpty(info.name))
-            {
-                info.name = Path.GetFileNameWithoutExtension(info.assetPath);
-            }
-
-            info.icon = GetReflectedValue<Texture>(value, "icon");
-            info.isFolder = GetReflectedValue<bool>(value, "isFolder", false);
-            info.isMainRepresentation = GetReflectedValue<bool>(value, "isMainRepresentation", true);
-
-            return true;
-        }
-
         private static T GetReflectedValue<T>(object target, string memberName, T defaultValue = default)
         {
             Type type = target.GetType();
@@ -1155,16 +1101,6 @@ namespace Sirenix.OdinInspector.Modules.Addressables.Editor
             }
 
             return defaultValue;
-        }
-
-        private struct EnumeratedAssetInfo
-        {
-            public string guid;
-            public string assetPath;
-            public string name;
-            public Texture icon;
-            public bool isFolder;
-            public bool isMainRepresentation;
         }
 
         private static int GetExtensionsEndingIndex(string path)

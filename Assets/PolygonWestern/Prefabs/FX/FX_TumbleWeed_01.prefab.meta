@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 5f6da6ede3f22df48ac228453c9f97d0
+timeCreated: 1519359577
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 100100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 112212
+  packageName: POLYGON - Western Pack - Art by Synty
+  packageVersion: 1.2.1
+  assetPath: Assets/PolygonWestern/Prefabs/FX/FX_TumbleWeed_01.prefab
+  uploadId: 924224

@@ -12868,8 +12868,8 @@ ParticleSystemRenderer:
   m_LightProbeUsage: 0
   m_ReflectionProbeUsage: 0
   m_Materials:
-  - {fileID: 2100000, guid: 9e790bbee27d08e45ab96d553ca371c8, type: 2}
-  - {fileID: 2100000, guid: 125544cbb97615848a5d285350b798fd, type: 2}
+  - {fileID: 2100000, guid: fbf2d3329a324235a7dd935d9d28626c, type: 2}
+  - {fileID: 2100000, guid: bdee85d832bf4133bbc50a77c015c68c, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -12920,7 +12920,7 @@ ParticleSystemRenderer:
   m_LightProbeUsage: 0
   m_ReflectionProbeUsage: 0
   m_Materials:
-  - {fileID: 2100000, guid: 83bf344aa66f8704ab56cddca307d1cd, type: 2}
+  - {fileID: 2100000, guid: 12393f7ce0b94eaa8ecad4ba26666fca, type: 2}
   - {fileID: 0}
   m_StaticBatchInfo:
     firstSubMesh: 0
@@ -12973,7 +12973,7 @@ ParticleSystemRenderer:
   m_ReflectionProbeUsage: 0
   m_Materials:
   - {fileID: 2100000, guid: a024a8c4e754a3d469880ec32ac46bc4, type: 2}
-  - {fileID: 2100000, guid: 918cab7a2574d6c4ba7ae6171240559e, type: 2}
+  - {fileID: 2100000, guid: 7ba3e00f67ca4ae29443d0996f392238, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0

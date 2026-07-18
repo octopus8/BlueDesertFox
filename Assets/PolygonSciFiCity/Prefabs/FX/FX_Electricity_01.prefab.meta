@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 78860b01d5d3f2d4dacaa1fa8a3db2a7
+timeCreated: 1524015909
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 100100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 115950
+  packageName: POLYGON - Sci-Fi City Pack - Art by Synty
+  packageVersion: 1.3.2
+  assetPath: Assets/PolygonSciFiCity/Prefabs/FX/FX_Electricity_01.prefab
+  uploadId: 939484

@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: cdb836c3efae31048a6db442563c8e56
+timeCreated: 1545087911
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 100100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 115950
+  packageName: POLYGON - Sci-Fi City Pack - Art by Synty
+  packageVersion: 1.3.2
+  assetPath: Assets/PolygonSciFiCity/Prefabs/Characters/SM_Chr_Alien_Male_01.prefab
+  uploadId: 939484

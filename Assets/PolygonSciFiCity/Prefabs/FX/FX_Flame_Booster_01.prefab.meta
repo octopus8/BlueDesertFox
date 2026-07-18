@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 2182c624199ecc342958a3a2db71816b
+timeCreated: 1523925995
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 100100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 115950
+  packageName: POLYGON - Sci-Fi City Pack - Art by Synty
+  packageVersion: 1.3.2
+  assetPath: Assets/PolygonSciFiCity/Prefabs/FX/FX_Flame_Booster_01.prefab
+  uploadId: 939484

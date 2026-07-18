@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 79b3bd3c6507e3441a4baac4f1895822
+timeCreated: 1550786015
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 100100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 115950
+  packageName: POLYGON - Sci-Fi City Pack - Art by Synty
+  packageVersion: 1.3.2
+  assetPath: Assets/PolygonSciFiCity/Prefabs/FX/FX_Flame_01.prefab
+  uploadId: 939484

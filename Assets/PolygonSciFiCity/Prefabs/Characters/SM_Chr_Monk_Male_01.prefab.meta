@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: c628443b950f82e4eb23d86d522322d8
+timeCreated: 1545087912
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 100100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 115950
+  packageName: POLYGON - Sci-Fi City Pack - Art by Synty
+  packageVersion: 1.3.2
+  assetPath: Assets/PolygonSciFiCity/Prefabs/Characters/SM_Chr_Monk_Male_01.prefab
+  uploadId: 939484

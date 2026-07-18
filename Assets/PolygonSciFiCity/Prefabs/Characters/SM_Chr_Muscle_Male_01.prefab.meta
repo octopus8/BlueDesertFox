@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 6f87a28164f69b64fa217d5d8472a965
+timeCreated: 1545087912
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 100100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 115950
+  packageName: POLYGON - Sci-Fi City Pack - Art by Synty
+  packageVersion: 1.3.2
+  assetPath: Assets/PolygonSciFiCity/Prefabs/Characters/SM_Chr_Muscle_Male_01.prefab
+  uploadId: 939484

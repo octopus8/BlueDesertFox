@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: cc64b36e14d95f847943e5e606e28cf8
+timeCreated: 1543525056
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 138857
+  packageName: POLYGON - Sci-Fi Space Pack - Art by Synty
+  packageVersion: 1.14.0
+  assetPath: Assets/PolygonSciFiSpace/Materials/Alts/PolygonScifiSpace_04_B.mat
+  uploadId: 915402

@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 5d7e43d21a1a9804195670f9cd3b4f9b
+timeCreated: 1524015737
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 100100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 115950
+  packageName: POLYGON - Sci-Fi City Pack - Art by Synty
+  packageVersion: 1.3.2
+  assetPath: Assets/PolygonSciFiCity/Prefabs/FX/FX_Beacon_01.prefab
+  uploadId: 939484

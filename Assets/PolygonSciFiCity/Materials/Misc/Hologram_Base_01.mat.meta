@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: d4b0b718e30ec8f4f9df23452f604977
+timeCreated: 1522727742
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 115950
+  packageName: POLYGON - Sci-Fi City Pack - Art by Synty
+  packageVersion: 1.3.2
+  assetPath: Assets/PolygonSciFiCity/Materials/Misc/Hologram_Base_01.mat
+  uploadId: 939484

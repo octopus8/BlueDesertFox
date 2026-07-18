@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: d1fd6840783ea9540b1234f0a7d777c1
+timeCreated: 1549333968
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: -1
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 138857
+  packageName: POLYGON - Sci-Fi Space Pack - Art by Synty
+  packageVersion: 1.14.0
+  assetPath: Assets/PolygonSciFiSpace/Materials/FX/FX_MissileCloud_01.mat
+  uploadId: 915402

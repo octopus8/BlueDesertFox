@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 731227d880ca1f648898220455f65b76
+timeCreated: 1523512397
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 100100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 115950
+  packageName: POLYGON - Sci-Fi City Pack - Art by Synty
+  packageVersion: 1.3.2
+  assetPath: Assets/PolygonSciFiCity/Prefabs/Icons/SM_Icon_Spanners_01.prefab
+  uploadId: 939484
