@@ -40,6 +40,9 @@ public class TerrainConfigAuthoring : MonoBehaviour
     [Tooltip("Number of vertices per side of each tile (higher = more detailed)")]
     public int verticesPerSide = 32;
 
+    [Tooltip("Extra Y shift applied after aligning terrain to the player feet at init. Negative lowers the terrain (e.g. -5 = 5m below feet).")]
+    public float initYOffset = 0f;
+
     [Tooltip("Constant terrain grade along world +Z in degrees. 0 = flat. Positive = uphill as Z increases.")]
     [Range(-60f, 60f)]
     public float slopeAngleDegrees = 0f;
@@ -216,6 +219,8 @@ public class TerrainConfigAuthoring : MonoBehaviour
                 noisePersistence = authoring.noisePersistence,
                 continentalFrequency = authoring.continentalFrequency,
                 continentalExponent = authoring.continentalExponent,
+                heightOffset = 0f,
+                initYOffset = authoring.initYOffset,
                 // Physics optimization
                 maxCollidersCreatedPerFrame = authoring.maxCollidersCreatedPerFrame,
                 maxPhysicsCollidersCreatedPerFrame = authoring.maxPhysicsCollidersCreatedPerFrame,
@@ -226,6 +231,11 @@ public class TerrainConfigAuthoring : MonoBehaviour
                 // Debug/Testing
                 renderTerrain = authoring.renderTerrain,
                 enablePhysicsColliders = authoring.enablePhysicsColliders
+            });
+
+            AddComponent(entity, new TerrainHeightAlignState
+            {
+                aligned = 0
             });
             
             // Create scroll velocity singleton (starts inactive)

@@ -47,6 +47,18 @@ public struct TerrainTileConfig : IComponentData
     /// more of the map toward flat plains, while values near 1 produce uniform highlands.
     /// </summary>
     public float continentalExponent;
+
+    /// <summary>
+    /// Vertical shift applied to all sampled terrain heights so the surface under the player
+    /// at init matches their feet. Set once by <see cref="TerrainHeightAlignSystem"/>.
+    /// </summary>
+    public float heightOffset;
+
+    /// <summary>
+    /// Extra Y shift baked from authoring and added on top of player-feet align at init.
+    /// Negative values lower the terrain (e.g. -5 = surface 5m below feet).
+    /// </summary>
+    public float initYOffset;
     
     // Physics optimization parameters
     /// <summary>Maximum number of terrain meshes generated per frame (prevents stalls).</summary>
@@ -72,6 +84,17 @@ public struct TerrainTileConfig : IComponentData
     
     /// <summary>Whether to generate physics colliders for terrain tiles (disable for debugging/performance testing).</summary>
     public bool enablePhysicsColliders;
+}
+
+/// <summary>
+/// Singleton flag set by <see cref="TerrainHeightAlignSystem"/> once the one-shot vertical
+/// height offset has been computed from the player's start position.
+/// Mesh generation and tile spawning wait until <see cref="aligned"/> is non-zero.
+/// </summary>
+public struct TerrainHeightAlignState : IComponentData
+{
+    /// <summary>1 when <see cref="TerrainTileConfig.heightOffset"/> has been initialized; 0 otherwise.</summary>
+    public byte aligned;
 }
 
 /// <summary>

@@ -21,6 +21,7 @@ public partial struct TileSpawningSystem : ISystem
         state.RequireForUpdate<TerrainTileConfig>();
         state.RequireForUpdate<ScrollOffset>();
         state.RequireForUpdate<CameraDataSingleton>();
+        state.RequireForUpdate<TerrainHeightAlignState>();
 
         _activeTiles = new NativeParallelHashMap<int2, Entity>(256, Allocator.Persistent);
         _despawningGridCoords = new NativeHashSet<int2>(64, Allocator.Persistent);
@@ -40,6 +41,9 @@ public partial struct TileSpawningSystem : ISystem
         var config = SystemAPI.GetSingleton<TerrainTileConfig>();
 
         if (!config.renderTerrain && !config.enablePhysicsColliders)
+            return;
+
+        if (SystemAPI.GetSingleton<TerrainHeightAlignState>().aligned == 0)
             return;
 
         bool useBudgetedDespawn = SystemAPI.HasSingleton<StaticObjectSpawnerConfig>();

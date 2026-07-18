@@ -56,6 +56,7 @@ public partial struct TerrainMeshScheduleSystem : ISystem
         state.RequireForUpdate<TerrainTileConfig>();
         state.RequireForUpdate<CameraDataSingleton>();
         state.RequireForUpdate<ScrollOffset>();
+        state.RequireForUpdate<TerrainHeightAlignState>();
 
         _pendingTiles = new NativeQueue<Entity>(Allocator.Persistent);
         _queuedTiles = new NativeHashSet<Entity>(256, Allocator.Persistent);
@@ -129,6 +130,9 @@ public partial struct TerrainMeshScheduleSystem : ISystem
             var config = SystemAPI.GetSingleton<TerrainTileConfig>();
 
             if (!config.renderTerrain)
+                return;
+
+            if (SystemAPI.GetSingleton<TerrainHeightAlignState>().aligned == 0)
                 return;
 
             if (_hasInFlight)
@@ -310,6 +314,7 @@ public partial struct TerrainMeshScheduleSystem : ISystem
                     continentalFrequency = config.continentalFrequency,
                     continentalExponent = config.continentalExponent,
                     vertexOffset = i * totalVertices,
+                    heightOffset = config.heightOffset,
                     trailHeight = trailHeight,
                     trailLutStep = trailLutStep,
                     activeTrailMask = activeTrailMask,
@@ -544,6 +549,7 @@ public struct TileMeshJobData
     public float continentalFrequency;
     public float continentalExponent;
     public int vertexOffset;
+    public float heightOffset;
 
     public float trailHeight;
     public float trailLutStep;
@@ -764,7 +770,7 @@ public static class TerrainMeshNoise
 #endif
 
         if (data.tileTrailMask == 0)
-            return terrainHeight;
+            return terrainHeight + data.heightOffset;
 
 #if UNITY_EDITOR
         TerrainMeshProfiler.Begin(TerrainMeshProfiler.TrailInfluence);
@@ -811,10 +817,144 @@ public static class TerrainMeshNoise
         if (maxInfluence > 0f)
         {
             float slopedTrailHeight = data.trailHeight + SampleGradeHeight(trailSlopeZ, data);
-            return math.lerp(terrainHeight, slopedTrailHeight, maxInfluence);
+            return math.lerp(terrainHeight, slopedTrailHeight, maxInfluence) + data.heightOffset;
         }
 
-        return terrainHeight;
+        return terrainHeight + data.heightOffset;
+    }
+
+    /// <summary>
+    /// Samples terrain height at a world XZ using the same noise/grade/trail rules as mesh
+    /// generation, without applying <see cref="TileMeshJobData.heightOffset"/>.
+    /// Used by <see cref="TerrainHeightAlignSystem"/> to compute the one-shot vertical align.
+    /// </summary>
+    public static float SampleUnalignedHeightAt(
+        float worldX,
+        float worldZ,
+        in TerrainTileConfig config,
+        bool hasTrailConfig,
+        in TrailConfig trailConfig)
+    {
+        float baseSlopeTan = math.tan(math.radians(config.slopeAngleDegrees));
+        float minSlopeTan = math.tan(math.radians(config.slopeAngleDegrees - config.slopeAngleVariation));
+        float maxSlopeTan = baseSlopeTan;
+        float slopeVariationAmplitude = config.slopeAngleVariation > 0f ? 1f : 0f;
+
+        float trailHeight = 0f;
+        float trailLutStep = 1f;
+        TrailInstanceConfig trailInst1 = default;
+        TrailInstanceConfig trailInst2 = default;
+        TrailInstanceConfig trailInst3 = default;
+        byte activeTrailMask = 0;
+
+        if (hasTrailConfig)
+        {
+            trailHeight = trailConfig.height;
+            trailLutStep = trailConfig.lutStepMeters > 0f ? trailConfig.lutStepMeters : 1f;
+            trailInst1 = trailConfig.trail1;
+            trailInst2 = trailConfig.trail2;
+            trailInst3 = trailConfig.trail3;
+            activeTrailMask = TrailInfluenceBurst.GetActiveTrailMask(trailInst1, trailInst2, trailInst3);
+        }
+
+        float tileWorldX = math.floor(worldX / config.tileSize) * config.tileSize;
+        float tileWorldZ = math.floor(worldZ / config.tileSize) * config.tileSize;
+
+        byte tileTrailMask = 0;
+        float maxSearchRange = 0f;
+        int lutLength = 0;
+        NativeArray<float> trailLuts = default;
+
+        if (activeTrailMask != 0)
+        {
+            tileTrailMask = TrailInfluenceBurst.ComputeTileTrailMask(
+                tileWorldX, tileWorldZ, config.tileSize,
+                trailInst1, trailInst2, trailInst3, activeTrailMask);
+
+            if (tileTrailMask != 0)
+            {
+                maxSearchRange = TrailInfluenceBurst.GetMaxSearchRangeAcrossTrails(
+                    trailInst1, trailInst2, trailInst3, activeTrailMask);
+                lutLength = TrailInfluenceBurst.ComputeLutLength(config.tileSize, maxSearchRange, trailLutStep);
+                float lutZOrigin = TrailInfluenceBurst.ComputeLutZOrigin(tileWorldZ, maxSearchRange);
+                trailLuts = new NativeArray<float>(lutLength * 3, Allocator.Temp);
+
+                if ((tileTrailMask & TrailMask.Trail1) != 0)
+                {
+                    TrailInfluenceBurst.BuildTrailCenterlineLUT(
+                        trailLuts, 0, lutZOrigin, trailLutStep, lutLength, trailInst1);
+                }
+
+                if ((tileTrailMask & TrailMask.Trail2) != 0)
+                {
+                    TrailInfluenceBurst.BuildTrailCenterlineLUT(
+                        trailLuts, lutLength, lutZOrigin, trailLutStep, lutLength, trailInst2);
+                }
+
+                if ((tileTrailMask & TrailMask.Trail3) != 0)
+                {
+                    TrailInfluenceBurst.BuildTrailCenterlineLUT(
+                        trailLuts, lutLength * 2, lutZOrigin, trailLutStep, lutLength, trailInst3);
+                }
+            }
+        }
+
+        if (!trailLuts.IsCreated)
+            trailLuts = new NativeArray<float>(0, Allocator.Temp);
+
+        float lutZOriginForData = TrailInfluenceBurst.ComputeLutZOrigin(tileWorldZ, maxSearchRange);
+        var data = new TileMeshJobData
+        {
+            tileWorldPos = new double3(tileWorldX, 0, tileWorldZ),
+            verticesPerSide = config.verticesPerSide,
+            tileSize = config.tileSize,
+            baseSlopeTan = baseSlopeTan,
+            minSlopeTan = minSlopeTan,
+            maxSlopeTan = maxSlopeTan,
+            slopeVariationBlendDistance = config.slopeVariationBlendDistance,
+            slopeVariationAmplitude = slopeVariationAmplitude,
+            noiseFrequency = config.noiseFrequency,
+            noiseAmplitude = config.noiseAmplitude,
+            noiseOctaves = config.noiseOctaves,
+            noiseLacunarity = config.noiseLacunarity,
+            noisePersistence = config.noisePersistence,
+            continentalFrequency = config.continentalFrequency,
+            continentalExponent = config.continentalExponent,
+            vertexOffset = 0,
+            heightOffset = 0f,
+            trailHeight = trailHeight,
+            trailLutStep = trailLutStep,
+            activeTrailMask = activeTrailMask,
+            tileTrailMask = tileTrailMask,
+            trail1 = trailInst1,
+            trail2 = trailInst2,
+            trail3 = trailInst3,
+            trail1Lut = new TrailCenterlineLUT
+            {
+                offset = 0,
+                length = lutLength,
+                zOrigin = lutZOriginForData,
+                zStep = trailLutStep
+            },
+            trail2Lut = new TrailCenterlineLUT
+            {
+                offset = lutLength,
+                length = lutLength,
+                zOrigin = lutZOriginForData,
+                zStep = trailLutStep
+            },
+            trail3Lut = new TrailCenterlineLUT
+            {
+                offset = lutLength * 2,
+                length = lutLength,
+                zOrigin = lutZOriginForData,
+                zStep = trailLutStep
+            }
+        };
+
+        float height = SampleHeight(worldX, worldZ, data, trailLuts);
+        trailLuts.Dispose();
+        return height;
     }
 
     private static float GetTileSlopeTan(int tileZIndex, in TileMeshJobData data)
