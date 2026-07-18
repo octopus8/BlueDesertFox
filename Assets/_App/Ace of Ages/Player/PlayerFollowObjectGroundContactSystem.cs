@@ -1,8 +1,8 @@
+using Unity.Burst;
 using Unity.Entities;
 using Unity.Mathematics;
 using Unity.Physics;
 using Unity.Transforms;
-using UnityEngine;
 using RaycastHit = Unity.Physics.RaycastHit;
 
 /// <summary>
@@ -28,6 +28,7 @@ public struct PlayerFollowObjectGroundConfig : IComponentData
     public float capsuleRadius;
     public float capsuleHalfCylinder;
     public float3 capsuleCenter;
+    public float3 gravity;
 }
 
 /// <summary>
@@ -48,11 +49,13 @@ public struct PlayerFollowObjectMotionState : IComponentData
 /// Drives the Player Follow Object entity along terrain and rideable surfaces using Unity Physics raycasts
 /// with a normal-axis spring-damper, and blocks obstacles via capsule casts.
 /// Integrates in terrain-relative velocity space so scroll motion and ramp slide do not compete.
+/// Burst-compiled to avoid managed GC from SystemBase OnUpdate.
 /// </summary>
+[BurstCompile]
 [UpdateInGroup(typeof(SimulationSystemGroup))]
 [UpdateAfter(typeof(ScrollTerrainSystem))]
 [UpdateBefore(typeof(TileScrollPositionSystem))]
-public partial class PlayerFollowObjectGroundContactSystem : SystemBase
+public partial struct PlayerFollowObjectGroundContactSystem : ISystem
 {
     private const float ObstacleSkin = 0.001f;
     private const float MinCastDistance = 1e-4f;
@@ -62,46 +65,53 @@ public partial class PlayerFollowObjectGroundContactSystem : SystemBase
     private const float ScrollBaselineLerpSpeed = 12f;
     private const float ScrollActiveSpeedSq = 0.01f;
     private const float MinSlideSpeed = 0.01f;
+    private static readonly float3 DefaultGravity = new float3(0f, -9.81f, 0f);
 
-    protected override void OnCreate()
+    [BurstCompile]
+    public void OnCreate(ref SystemState state)
     {
-        RequireForUpdate<PlayerFollowObjectTag>();
-        RequireForUpdate<PlayerFollowObjectGroundConfig>();
-        RequireForUpdate<PlayerFollowObjectMotionState>();
-        RequireForUpdate<TerrainTileConfig>();
-        RequireForUpdate<TerrainScrollVelocity>();
+        state.RequireForUpdate<PlayerFollowObjectTag>();
+        state.RequireForUpdate<PlayerFollowObjectGroundConfig>();
+        state.RequireForUpdate<PlayerFollowObjectMotionState>();
+        state.RequireForUpdate<TerrainTileConfig>();
+        state.RequireForUpdate<TerrainScrollVelocity>();
     }
 
-    protected override void OnUpdate()
+    [BurstCompile]
+    public void OnUpdate(ref SystemState state)
     {
         float dt = SystemAPI.Time.DeltaTime;
-        float3 gravity = (float3)Physics.gravity;
         float3 scrollVelocity = SystemAPI.GetSingleton<TerrainScrollVelocity>().WorldVelocity;
         bool scrollActive = math.lengthsq(scrollVelocity) > ScrollActiveSpeedSq;
 
-        bool hasPhysicsWorld = SystemAPI.TryGetSingleton<TerrainTileConfig>(out TerrainTileConfig terrainConfig)
+        bool hasPhysicsWorld = SystemAPI.TryGetSingleton(out TerrainTileConfig terrainConfig)
             && terrainConfig.enablePhysicsColliders
             && SystemAPI.HasSingleton<PhysicsWorldSingleton>();
 
         CollisionWorld collisionWorld = default;
+        int terrainLayer = 0;
 
         if (hasPhysicsWorld)
         {
-            Dependency.Complete();
+            state.Dependency.Complete();
             collisionWorld = SystemAPI.GetSingleton<PhysicsWorldSingleton>().PhysicsWorld.CollisionWorld;
+            terrainLayer = terrainConfig.terrainPhysicsLayer;
         }
 
         foreach (var (config, motionState, localTransform) in SystemAPI
                      .Query<RefRO<PlayerFollowObjectGroundConfig>, RefRW<PlayerFollowObjectMotionState>, RefRW<LocalTransform>>()
                      .WithAll<PlayerFollowObjectTag>())
         {
+            float3 gravity = config.ValueRO.gravity;
+            if (math.lengthsq(gravity) < 1e-8f)
+                gravity = DefaultGravity;
+
             CollisionFilter groundFilter = default;
             CollisionFilter terrainSweepFilter = default;
             CollisionFilter obstacleFilter = default;
 
             if (hasPhysicsWorld)
             {
-                int terrainLayer = terrainConfig.terrainPhysicsLayer;
                 int rideableLayer = config.ValueRO.rideablePhysicsLayer;
                 if (rideableLayer < 0 || rideableLayer > 30)
                     rideableLayer = 15;
@@ -250,8 +260,7 @@ public partial class PlayerFollowObjectGroundContactSystem : SystemBase
                 scrollVelocity);
             float3 startPosition = position;
             float3 displacement = worldVelocity * dt;
-            float3 goalPosition = startPosition + displacement;
-            position = goalPosition;
+            position = startPosition + displacement;
 
             if (hasPhysicsWorld && math.lengthsq(displacement) > MinCastDistance * MinCastDistance)
             {

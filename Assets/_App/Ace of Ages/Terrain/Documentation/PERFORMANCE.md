@@ -232,7 +232,8 @@ Trail LUT Step Meters: 1.0 on TerrainConfigAuthoring
 Impact: Replaces per-vertex 48-sample snoise search with one LUT build per tile
         (~900 snoise/tile vs ~330k with three trails at 48×48 vertices).
 Tiles outside trail corridors skip LUT build and trail influence entirely.
-Vertex jobs run in parallel (batch size 64) even when maxCollidersCreatedPerFrame = 1.
+Height/mesh/normals jobs run in parallel (batch size 64) even when maxCollidersCreatedPerFrame = 1;
+        halo heights eliminate edge re-sampling in the normals pass.
 ```
 
 ---

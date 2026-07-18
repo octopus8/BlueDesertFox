@@ -48,33 +48,54 @@ public static class PlayerFollowObjectPoseBridge
 /// <summary>
 /// Copies the world pose of the Player Follow Object entity into <see cref="PlayerFollowObjectPoseBridge"/>
 /// each frame so main-scene MonoBehaviours can follow subscene entities.
+/// Remains managed (non-Burst) because it writes to a static GameObject bridge.
 /// </summary>
 [UpdateInGroup(typeof(SimulationSystemGroup))]
 [UpdateAfter(typeof(PlayerFollowObjectGroundContactSystem))]
 [UpdateBefore(typeof(TileScrollPositionSystem))]
-public partial class PlayerFollowObjectSyncSystem : SystemBase
+public partial struct PlayerFollowObjectSyncSystem : ISystem
 {
     private const float MinWalkableNormalY = 0.01f;
     private const float MaxTiltDistance = 8f;
 
-    private EntityQuery _followObjectQuery;
     private bool _loggedMultipleWarning;
 
-    protected override void OnCreate()
+    public void OnCreate(ref SystemState state)
     {
-        _followObjectQuery = GetEntityQuery(
-            ComponentType.ReadOnly<PlayerFollowObjectTag>(),
-            ComponentType.ReadOnly<LocalTransform>(),
-            ComponentType.ReadOnly<PlayerFollowObjectMotionState>(),
-            ComponentType.ReadOnly<PlayerFollowObjectGroundConfig>());
-
-        RequireForUpdate(_followObjectQuery);
+        state.RequireForUpdate<PlayerFollowObjectTag>();
     }
 
-    protected override void OnUpdate()
+    public void OnUpdate(ref SystemState state)
     {
-        int count = _followObjectQuery.CalculateEntityCount();
-        if (count == 0)
+        bool found = false;
+        int count = 0;
+
+        foreach (var (localTransform, motionState, groundConfig) in SystemAPI
+                     .Query<RefRO<LocalTransform>, RefRO<PlayerFollowObjectMotionState>, RefRO<PlayerFollowObjectGroundConfig>>()
+                     .WithAll<PlayerFollowObjectTag>())
+        {
+            count++;
+            if (found)
+                continue;
+
+            found = true;
+
+            bool hasTiltNormal = TryGetTiltTerrainNormal(
+                ref state,
+                localTransform.ValueRO.Position,
+                groundConfig.ValueRO,
+                out float3 tiltNormal);
+
+            PlayerFollowObjectPoseBridge.SetPose(
+                localTransform.ValueRO.Position,
+                localTransform.ValueRO.Rotation,
+                motionState.ValueRO.previousGroundNormal,
+                tiltNormal,
+                hasTiltNormal,
+                motionState.ValueRO.airborneTimeRemaining);
+        }
+
+        if (!found)
         {
             PlayerFollowObjectPoseBridge.Clear();
             return;
@@ -85,42 +106,24 @@ public partial class PlayerFollowObjectSyncSystem : SystemBase
             Debug.LogWarning($"[PlayerFollowObjectSyncSystem] Found {count} entities with {nameof(PlayerFollowObjectTag)}. Using the first one.");
             _loggedMultipleWarning = true;
         }
-
-        using var entities = _followObjectQuery.ToEntityArray(Unity.Collections.Allocator.Temp);
-        Entity followEntity = entities[0];
-        var localTransform = EntityManager.GetComponentData<LocalTransform>(followEntity);
-        var motionState = EntityManager.GetComponentData<PlayerFollowObjectMotionState>(followEntity);
-        var groundConfig = EntityManager.GetComponentData<PlayerFollowObjectGroundConfig>(followEntity);
-
-        bool hasTiltNormal = TryGetTiltTerrainNormal(
-            localTransform.Position,
-            groundConfig,
-            out float3 tiltNormal);
-
-        PlayerFollowObjectPoseBridge.SetPose(
-            localTransform.Position,
-            localTransform.Rotation,
-            motionState.previousGroundNormal,
-            tiltNormal,
-            hasTiltNormal,
-            motionState.airborneTimeRemaining);
     }
 
     private bool TryGetTiltTerrainNormal(
+        ref SystemState state,
         float3 position,
         in PlayerFollowObjectGroundConfig groundConfig,
         out float3 terrainNormal)
     {
         terrainNormal = math.up();
 
-        if (!SystemAPI.TryGetSingleton<TerrainTileConfig>(out TerrainTileConfig terrainConfig)
+        if (!SystemAPI.TryGetSingleton(out TerrainTileConfig terrainConfig)
             || !terrainConfig.enablePhysicsColliders
             || !SystemAPI.HasSingleton<PhysicsWorldSingleton>())
         {
             return false;
         }
 
-        Dependency.Complete();
+        state.Dependency.Complete();
         var collisionWorld = SystemAPI.GetSingleton<PhysicsWorldSingleton>().PhysicsWorld.CollisionWorld;
 
         int terrainLayer = terrainConfig.terrainPhysicsLayer;

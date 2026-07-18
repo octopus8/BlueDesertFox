@@ -107,7 +107,8 @@ public class PlayerFollowObjectAuthoring : MonoBehaviour
                 minYawSpeed = authoring.minYawSpeed,
                 capsuleRadius = capsuleRadius,
                 capsuleHalfCylinder = capsuleHalfCylinder,
-                capsuleCenter = capsuleCenter
+                capsuleCenter = capsuleCenter,
+                gravity = (float3)Physics.gravity
             });
 
             AddComponent(entity, new PlayerFollowObjectMotionState

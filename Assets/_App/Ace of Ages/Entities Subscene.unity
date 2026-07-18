@@ -6224,7 +6224,7 @@ MonoBehaviour:
   playerName: Right Controller Stabilized Attach
   playerTag: Player
   tileSize: 256
-  viewDistance: 700
+  viewDistance: 513
   verticesPerSide: 48
   slopeAngleDegrees: -15
   slopeAngleVariation: 10

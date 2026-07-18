@@ -1,3 +1,4 @@
+using Unity.Burst;
 using Unity.Entities;
 using Unity.Mathematics;
 
@@ -5,23 +6,26 @@ using Unity.Mathematics;
 /// Rotates the Player Follow Object's terrain-relative horizontal velocity around Y based on HMD head roll.
 /// Runs before ground-contact physics so steering affects the velocity used for integration.
 /// </summary>
+[BurstCompile]
 [UpdateInGroup(typeof(SimulationSystemGroup))]
 [UpdateAfter(typeof(ScrollTerrainSystem))]
 [UpdateBefore(typeof(PlayerFollowObjectGroundContactSystem))]
-public partial class PlayerFollowObjectHeadSteeringSystem : SystemBase
+public partial struct PlayerFollowObjectHeadSteeringSystem : ISystem
 {
     private const float MinSteeringSpeed = 0.01f;
 
-    protected override void OnCreate()
+    [BurstCompile]
+    public void OnCreate(ref SystemState state)
     {
-        RequireForUpdate<PlayerFollowObjectTag>();
-        RequireForUpdate<PlayerFollowObjectSteeringConfig>();
-        RequireForUpdate<PlayerFollowObjectMotionState>();
-        RequireForUpdate<CameraDataSingleton>();
-        RequireForUpdate<TerrainScrollVelocity>();
+        state.RequireForUpdate<PlayerFollowObjectTag>();
+        state.RequireForUpdate<PlayerFollowObjectSteeringConfig>();
+        state.RequireForUpdate<PlayerFollowObjectMotionState>();
+        state.RequireForUpdate<CameraDataSingleton>();
+        state.RequireForUpdate<TerrainScrollVelocity>();
     }
 
-    protected override void OnUpdate()
+    [BurstCompile]
+    public void OnUpdate(ref SystemState state)
     {
         var cameraData = SystemAPI.GetSingleton<CameraDataSingleton>();
         float3 scrollVelocity = SystemAPI.GetSingleton<TerrainScrollVelocity>().WorldVelocity;

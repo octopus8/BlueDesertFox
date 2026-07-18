@@ -31,15 +31,20 @@ public partial struct TerrainMeshScheduleSystem : ISystem
     public NativeArray<float3> _inFlightVertices;
     public NativeArray<float3> _inFlightNormals;
     public NativeArray<float2> _inFlightUVs;
-    public NativeArray<int> _inFlightIndices;
+    public NativeArray<float> _inFlightHeights;
     public NativeArray<TileMeshJobData> _inFlightTileData;
     public NativeArray<float> _inFlightTrailLuts;
     public NativeList<Entity> _inFlightEntities;
     public JobHandle _inFlightHandle;
     public bool _hasInFlight;
     public int _verticesPerTile;
-    public int _indicesPerTile;
+    public int _heightsPerTile;
+    public int _heightGridSide;
     public int _inFlightLutLength;
+
+    // Shared triangle topology for a given verticesPerSide (copied into each tile on Complete).
+    public NativeArray<int> _sharedIndexTemplate;
+    private int _sharedIndexVerticesPerSide;
 
 #if UNITY_EDITOR
     private static readonly ProfilerMarker s_ProfilerMarker = new ProfilerMarker("TerrainMesh.Schedule");
@@ -54,6 +59,7 @@ public partial struct TerrainMeshScheduleSystem : ISystem
 
         _pendingTiles = new NativeQueue<Entity>(Allocator.Persistent);
         _queuedTiles = new NativeHashSet<Entity>(256, Allocator.Persistent);
+        _sharedIndexVerticesPerSide = -1;
     }
 
     public void OnDestroy(ref SystemState state)
@@ -66,6 +72,9 @@ public partial struct TerrainMeshScheduleSystem : ISystem
             _inFlightHandle.Complete();
             DisposeInFlightArrays();
         }
+
+        if (_sharedIndexTemplate.IsCreated)
+            _sharedIndexTemplate.Dispose();
     }
 
     internal void DisposeInFlightArrays()
@@ -73,10 +82,42 @@ public partial struct TerrainMeshScheduleSystem : ISystem
         if (_inFlightVertices.IsCreated) _inFlightVertices.Dispose();
         if (_inFlightNormals.IsCreated) _inFlightNormals.Dispose();
         if (_inFlightUVs.IsCreated) _inFlightUVs.Dispose();
-        if (_inFlightIndices.IsCreated) _inFlightIndices.Dispose();
+        if (_inFlightHeights.IsCreated) _inFlightHeights.Dispose();
         if (_inFlightTileData.IsCreated) _inFlightTileData.Dispose();
         if (_inFlightTrailLuts.IsCreated) _inFlightTrailLuts.Dispose();
         if (_inFlightEntities.IsCreated) _inFlightEntities.Dispose();
+    }
+
+    private void EnsureSharedIndexTemplate(int verticesPerSide)
+    {
+        if (_sharedIndexTemplate.IsCreated && _sharedIndexVerticesPerSide == verticesPerSide)
+            return;
+
+        if (_sharedIndexTemplate.IsCreated)
+            _sharedIndexTemplate.Dispose();
+
+        int totalTriangles = (verticesPerSide - 1) * (verticesPerSide - 1) * 2;
+        int totalIndices = totalTriangles * 3;
+        _sharedIndexTemplate = new NativeArray<int>(totalIndices, Allocator.Persistent);
+
+        int write = 0;
+        for (int z = 0; z < verticesPerSide - 1; z++)
+        {
+            for (int x = 0; x < verticesPerSide - 1; x++)
+            {
+                int baseIndex = z * verticesPerSide + x;
+
+                _sharedIndexTemplate[write++] = baseIndex;
+                _sharedIndexTemplate[write++] = baseIndex + verticesPerSide;
+                _sharedIndexTemplate[write++] = baseIndex + 1;
+
+                _sharedIndexTemplate[write++] = baseIndex + 1;
+                _sharedIndexTemplate[write++] = baseIndex + verticesPerSide;
+                _sharedIndexTemplate[write++] = baseIndex + verticesPerSide + 1;
+            }
+        }
+
+        _sharedIndexVerticesPerSide = verticesPerSide;
     }
 
     public void OnUpdate(ref SystemState state)
@@ -178,16 +219,19 @@ public partial struct TerrainMeshScheduleSystem : ISystem
 
             int verticesPerSide = config.verticesPerSide;
             int totalVertices = verticesPerSide * verticesPerSide;
-            int totalTriangles = (verticesPerSide - 1) * (verticesPerSide - 1) * 2;
-            int totalIndices = totalTriangles * 3;
+            int heightGridSide = verticesPerSide + 2;
+            int heightsPerTile = heightGridSide * heightGridSide;
+
+            EnsureSharedIndexTemplate(verticesPerSide);
 
             _verticesPerTile = totalVertices;
-            _indicesPerTile = totalIndices;
+            _heightsPerTile = heightsPerTile;
+            _heightGridSide = heightGridSide;
 
             _inFlightVertices = new NativeArray<float3>(totalVertices * tilesToProcessCount, Allocator.Persistent);
             _inFlightNormals = new NativeArray<float3>(totalVertices * tilesToProcessCount, Allocator.Persistent);
             _inFlightUVs = new NativeArray<float2>(totalVertices * tilesToProcessCount, Allocator.Persistent);
-            _inFlightIndices = new NativeArray<int>(totalIndices * tilesToProcessCount, Allocator.Persistent);
+            _inFlightHeights = new NativeArray<float>(heightsPerTile * tilesToProcessCount, Allocator.Persistent);
             _inFlightTileData = new NativeArray<TileMeshJobData>(tilesToProcessCount, Allocator.Persistent);
 
             float baseSlopeTan = math.tan(math.radians(config.slopeAngleDegrees));
@@ -266,7 +310,6 @@ public partial struct TerrainMeshScheduleSystem : ISystem
                     continentalFrequency = config.continentalFrequency,
                     continentalExponent = config.continentalExponent,
                     vertexOffset = i * totalVertices,
-                    indexOffset = i * totalIndices,
                     trailHeight = trailHeight,
                     trailLutStep = trailLutStep,
                     activeTrailMask = activeTrailMask,
@@ -304,22 +347,34 @@ public partial struct TerrainMeshScheduleSystem : ISystem
                 trailLuts = _inFlightTrailLuts
             };
 
-            var verticesJob = new GenerateTileVerticesJob
+            var heightsJob = new GenerateTileHeightsJob
             {
                 tileData = _inFlightTileData,
                 trailLuts = _inFlightTrailLuts,
+                heightsPerTile = heightsPerTile,
+                heightGridSide = heightGridSide,
+                allHeights = _inFlightHeights
+            };
+
+            var meshJob = new GenerateTileMeshFromHeightsJob
+            {
+                tileData = _inFlightTileData,
+                heightsPerTile = heightsPerTile,
+                heightGridSide = heightGridSide,
                 verticesPerTile = totalVertices,
+                allHeights = _inFlightHeights,
                 allVertices = _inFlightVertices,
                 allUVs = _inFlightUVs
             };
 
-            var normalsJob = new GenerateTileNormalsAndIndicesJob
+            var normalsJob = new GenerateTileNormalsJob
             {
                 tileData = _inFlightTileData,
-                trailLuts = _inFlightTrailLuts,
-                allVertices = _inFlightVertices,
-                allNormals = _inFlightNormals,
-                allIndices = _inFlightIndices
+                heightsPerTile = heightsPerTile,
+                heightGridSide = heightGridSide,
+                verticesPerTile = totalVertices,
+                allHeights = _inFlightHeights,
+                allNormals = _inFlightNormals
             };
 
             JobHandle lutHandle = state.Dependency;
@@ -328,8 +383,10 @@ public partial struct TerrainMeshScheduleSystem : ISystem
                 lutHandle = buildLutsJob.Schedule(tilesToProcessCount, 1, state.Dependency);
             }
 
-            JobHandle vertexHandle = verticesJob.Schedule(totalVertices * tilesToProcessCount, 64, lutHandle);
-            _inFlightHandle = normalsJob.Schedule(tilesToProcessCount, 1, vertexHandle);
+            JobHandle heightsHandle = heightsJob.Schedule(heightsPerTile * tilesToProcessCount, 64, lutHandle);
+            JobHandle meshHandle = meshJob.Schedule(totalVertices * tilesToProcessCount, 64, heightsHandle);
+            JobHandle normalsHandle = normalsJob.Schedule(totalVertices * tilesToProcessCount, 64, heightsHandle);
+            _inFlightHandle = JobHandle.CombineDependencies(meshHandle, normalsHandle);
             _hasInFlight = true;
         }
     }
@@ -390,7 +447,7 @@ public partial struct TerrainMeshCompleteSystem : ISystem
             sched._inFlightHandle.Complete();
 
             int totalVertices = sched._verticesPerTile;
-            int totalIndices = sched._indicesPerTile;
+            int totalIndices = sched._sharedIndexTemplate.Length;
 
 #if UNITY_EDITOR
             using (s_BufferCopyMarker.Auto())
@@ -414,7 +471,6 @@ public partial struct TerrainMeshCompleteSystem : ISystem
                     var indexBuffer = state.EntityManager.GetBuffer<IndexElement>(entity);
 
                     int vertexOffset = i * totalVertices;
-                    int indexOffset = i * totalIndices;
 
                     vertexBuffer.ResizeUninitialized(totalVertices);
                     normalBuffer.ResizeUninitialized(totalVertices);
@@ -427,8 +483,8 @@ public partial struct TerrainMeshCompleteSystem : ISystem
                         normalBuffer.Reinterpret<float3>().AsNativeArray(), 0, totalVertices);
                     NativeArray<float2>.Copy(sched._inFlightUVs, vertexOffset,
                         uvBuffer.Reinterpret<float2>().AsNativeArray(), 0, totalVertices);
-                    NativeArray<int>.Copy(sched._inFlightIndices, indexOffset,
-                        indexBuffer.Reinterpret<int>().AsNativeArray(), 0, totalIndices);
+                    NativeArray<int>.Copy(sched._sharedIndexTemplate,
+                        indexBuffer.Reinterpret<int>().AsNativeArray());
 
                     tile.meshGenerated = true;
                     tile.needsRegeneration = false;
@@ -488,7 +544,6 @@ public struct TileMeshJobData
     public float continentalFrequency;
     public float continentalExponent;
     public int vertexOffset;
-    public int indexOffset;
 
     public float trailHeight;
     public float trailLutStep;
@@ -518,7 +573,7 @@ internal static class TerrainMeshProfiler
 #endif
 
 /// <summary>
-/// Builds per-tile trail centerline LUTs once before vertex generation.
+/// Builds per-tile trail centerline LUTs once before height generation.
 /// </summary>
 [BurstCompile]
 public struct BuildTileTrailLutsJob : IJobParallelFor
@@ -569,13 +624,52 @@ public struct BuildTileTrailLutsJob : IJobParallelFor
 }
 
 /// <summary>
-/// Generates vertex heights and UVs in parallel across all vertices.
+/// Samples terrain heights for an (N+2)×(N+2) grid per tile (1-cell halo for seamless normals).
 /// </summary>
 [BurstCompile]
-public struct GenerateTileVerticesJob : IJobParallelFor
+public struct GenerateTileHeightsJob : IJobParallelFor
 {
     [ReadOnly] public NativeArray<TileMeshJobData> tileData;
     [ReadOnly] public NativeArray<float> trailLuts;
+    public int heightsPerTile;
+    public int heightGridSide;
+
+    [NativeDisableParallelForRestriction] public NativeArray<float> allHeights;
+
+    public void Execute(int globalHeightIndex)
+    {
+        int tileIndex = globalHeightIndex / heightsPerTile;
+        int localHeightIndex = globalHeightIndex - tileIndex * heightsPerTile;
+
+        var data = tileData[tileIndex];
+        int verticesPerSide = data.verticesPerSide;
+        int hx = localHeightIndex % heightGridSide;
+        int hz = localHeightIndex / heightGridSide;
+
+        // Halo coords: mesh (x,z) maps to height (x+1, z+1); hx/hz in [0, N+1] → mesh-space [-1, N]
+        int meshX = hx - 1;
+        int meshZ = hz - 1;
+
+        float stepSize = data.tileSize / (verticesPerSide - 1);
+        double worldX = data.tileWorldPos.x + meshX * stepSize;
+        double worldZ = data.tileWorldPos.z + meshZ * stepSize;
+
+        int heightOffset = tileIndex * heightsPerTile;
+        allHeights[heightOffset + localHeightIndex] = TerrainMeshNoise.SampleHeight(
+            worldX, worldZ, data, trailLuts);
+    }
+}
+
+/// <summary>
+/// Builds mesh vertex positions and UVs from the pre-sampled height halo grid.
+/// </summary>
+[BurstCompile]
+public struct GenerateTileMeshFromHeightsJob : IJobParallelFor
+{
+    [ReadOnly] public NativeArray<TileMeshJobData> tileData;
+    [ReadOnly] public NativeArray<float> allHeights;
+    public int heightsPerTile;
+    public int heightGridSide;
     public int verticesPerTile;
 
     [NativeDisableParallelForRestriction] public NativeArray<float3> allVertices;
@@ -593,17 +687,14 @@ public struct GenerateTileVerticesJob : IJobParallelFor
 
         float stepSize = data.tileSize / (verticesPerSide - 1);
         float halfTileSize = data.tileSize * 0.5f;
-        int flatIndex = data.vertexOffset + localVertexIndex;
-
         float localX = x * stepSize;
         float localZ = z * stepSize;
 
-        double worldX = data.tileWorldPos.x + localX;
-        double worldZ = data.tileWorldPos.z + localZ;
+        int heightOffset = tileIndex * heightsPerTile;
+        int heightIndex = heightOffset + (z + 1) * heightGridSide + (x + 1);
+        float height = allHeights[heightIndex];
 
-        float height = TerrainMeshNoise.SampleHeight(
-            worldX, worldZ, data, trailLuts);
-
+        int flatIndex = data.vertexOffset + localVertexIndex;
         allVertices[flatIndex] = new float3(localX - halfTileSize, height, localZ - halfTileSize);
         allUVs[flatIndex] = new float2(
             (float)x / (verticesPerSide - 1),
@@ -612,86 +703,43 @@ public struct GenerateTileVerticesJob : IJobParallelFor
 }
 
 /// <summary>
-/// Computes normals and triangle indices per tile after all vertices are written.
+/// Computes normals in parallel from the height halo grid (no re-sampling).
 /// </summary>
 [BurstCompile]
-public struct GenerateTileNormalsAndIndicesJob : IJobParallelFor
+public struct GenerateTileNormalsJob : IJobParallelFor
 {
     [ReadOnly] public NativeArray<TileMeshJobData> tileData;
-    [ReadOnly] public NativeArray<float> trailLuts;
+    [ReadOnly] public NativeArray<float> allHeights;
+    public int heightsPerTile;
+    public int heightGridSide;
+    public int verticesPerTile;
 
-    [ReadOnly] public NativeArray<float3> allVertices;
     [NativeDisableParallelForRestriction] public NativeArray<float3> allNormals;
-    [NativeDisableParallelForRestriction] public NativeArray<int> allIndices;
 
-    public void Execute(int tileIndex)
+    public void Execute(int globalVertexIndex)
     {
+        int tileIndex = globalVertexIndex / verticesPerTile;
+        int localVertexIndex = globalVertexIndex - tileIndex * verticesPerTile;
+
         var data = tileData[tileIndex];
-        int vertexOffset = data.vertexOffset;
-        int indexOffset = data.indexOffset;
         int verticesPerSide = data.verticesPerSide;
+        int x = localVertexIndex % verticesPerSide;
+        int z = localVertexIndex / verticesPerSide;
+
         float stepSize = data.tileSize / (verticesPerSide - 1);
-        int lastIndex = verticesPerSide - 1;
+        int heightOffset = tileIndex * heightsPerTile;
 
-        for (int z = 0; z < verticesPerSide; z++)
-        {
-            for (int x = 0; x < verticesPerSide; x++)
-            {
-                int flatIndex = vertexOffset + z * verticesPerSide + x;
+        // Mesh (x,z) → halo (x+1, z+1); neighbors are always in-range.
+        int hx = x + 1;
+        int hz = z + 1;
+        float heightLeft = allHeights[heightOffset + hz * heightGridSide + (hx - 1)];
+        float heightRight = allHeights[heightOffset + hz * heightGridSide + (hx + 1)];
+        float heightDown = allHeights[heightOffset + (hz - 1) * heightGridSide + hx];
+        float heightUp = allHeights[heightOffset + (hz + 1) * heightGridSide + hx];
 
-                float heightLeft;
-                float heightRight;
-                float heightDown;
-                float heightUp;
-
-                bool isEdgeVertex = x == 0 || x == lastIndex || z == 0 || z == lastIndex;
-                if (isEdgeVertex)
-                {
-                    double worldX = data.tileWorldPos.x + x * stepSize;
-                    double worldZ = data.tileWorldPos.z + z * stepSize;
-
-                    heightLeft = TerrainMeshNoise.SampleHeight(worldX - stepSize, worldZ, data, trailLuts);
-                    heightRight = TerrainMeshNoise.SampleHeight(worldX + stepSize, worldZ, data, trailLuts);
-                    heightDown = TerrainMeshNoise.SampleHeight(worldX, worldZ - stepSize, data, trailLuts);
-                    heightUp = TerrainMeshNoise.SampleHeight(worldX, worldZ + stepSize, data, trailLuts);
-                }
-                else
-                {
-                    heightLeft = GetCachedHeight(x - 1, z, verticesPerSide, vertexOffset, allVertices);
-                    heightRight = GetCachedHeight(x + 1, z, verticesPerSide, vertexOffset, allVertices);
-                    heightDown = GetCachedHeight(x, z - 1, verticesPerSide, vertexOffset, allVertices);
-                    heightUp = GetCachedHeight(x, z + 1, verticesPerSide, vertexOffset, allVertices);
-                }
-
-                float3 tangentX = new float3(2.0f * stepSize, heightRight - heightLeft, 0);
-                float3 tangentZ = new float3(0, heightUp - heightDown, 2.0f * stepSize);
-                allNormals[flatIndex] = math.normalize(math.cross(tangentZ, tangentX));
-            }
-        }
-
-        int currentIndexOffset = 0;
-        for (int z = 0; z < verticesPerSide - 1; z++)
-        {
-            for (int x = 0; x < verticesPerSide - 1; x++)
-            {
-                int baseIndex = z * verticesPerSide + x;
-
-                allIndices[indexOffset + currentIndexOffset++] = baseIndex;
-                allIndices[indexOffset + currentIndexOffset++] = baseIndex + verticesPerSide;
-                allIndices[indexOffset + currentIndexOffset++] = baseIndex + 1;
-
-                allIndices[indexOffset + currentIndexOffset++] = baseIndex + 1;
-                allIndices[indexOffset + currentIndexOffset++] = baseIndex + verticesPerSide;
-                allIndices[indexOffset + currentIndexOffset++] = baseIndex + verticesPerSide + 1;
-            }
-        }
-    }
-
-    private static float GetCachedHeight(int x, int z, int verticesPerSide, int vertexOffset, NativeArray<float3> vertices)
-    {
-        x = math.clamp(x, 0, verticesPerSide - 1);
-        z = math.clamp(z, 0, verticesPerSide - 1);
-        return vertices[vertexOffset + z * verticesPerSide + x].y;
+        float3 tangentX = new float3(2.0f * stepSize, heightRight - heightLeft, 0);
+        float3 tangentZ = new float3(0, heightUp - heightDown, 2.0f * stepSize);
+        allNormals[data.vertexOffset + localVertexIndex] = math.normalize(math.cross(tangentZ, tangentX));
     }
 }
 

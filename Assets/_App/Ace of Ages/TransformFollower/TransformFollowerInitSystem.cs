@@ -1,3 +1,4 @@
+using Unity.Collections;
 using Unity.Entities;
 using UnityEngine;
 
@@ -18,14 +19,11 @@ using UnityEngine;
 [UpdateInGroup(typeof(InitializationSystemGroup))]
 public partial class TransformFollowerInitSystem : SystemBase
 {
-    private EntityQuery _uninitializedQuery;
-    
-    /// <summary>Builds the entity query for uninitialized transform-follower entities.</summary>
+    /// <summary>Registers requirements for transform-follower initialization.</summary>
     protected override void OnCreate()
     {
-        _uninitializedQuery = GetEntityQuery(
-            ComponentType.ReadWrite<TransformFollowerTargetSearch>(),
-            ComponentType.ReadOnly<TransformFollowerSettings>());
+        RequireForUpdate<TransformFollowerTargetSearch>();
+        RequireForUpdate<TransformFollowerSettings>();
     }
     
     /// <summary>
@@ -36,26 +34,43 @@ public partial class TransformFollowerInitSystem : SystemBase
     /// </summary>
     protected override void OnUpdate()
     {
-        var entities = _uninitializedQuery.ToEntityArray(Unity.Collections.Allocator.Temp);
-        var searchParams = _uninitializedQuery.ToComponentDataArray<TransformFollowerTargetSearch>(Unity.Collections.Allocator.Temp);
-        
-        for (int i = 0; i < entities.Length; i++)
+        bool needsInit = false;
+        foreach (var search in SystemAPI.Query<RefRO<TransformFollowerTargetSearch>>())
         {
-            var entity = entities[i];
-            var search = searchParams[i];
-            
+            if (!search.ValueRO.initialized)
+            {
+                needsInit = true;
+                break;
+            }
+        }
+
+        if (!needsInit)
+            return;
+
+        var pending = new NativeList<Entity>(8, Allocator.Temp);
+
+        foreach (var (search, entity) in SystemAPI.Query<RefRO<TransformFollowerTargetSearch>>().WithEntityAccess())
+        {
+            if (!search.ValueRO.initialized)
+                pending.Add(entity);
+        }
+
+        for (int i = 0; i < pending.Length; i++)
+        {
+            Entity entity = pending[i];
+            var search = EntityManager.GetComponentData<TransformFollowerTargetSearch>(entity);
             if (search.initialized)
                 continue;
-            
+
             Transform targetTransform = FindTarget(search);
-            
+
             if (targetTransform == null)
             {
                 Debug.LogWarning($"[TransformFollowerInitSystem] Could not find target! " +
                     $"Mode: {search.mode}, Search: '{search.searchString}'");
                 continue;
             }
-            
+
             if (!EntityManager.HasComponent<TransformReference>(entity))
             {
                 EntityManager.AddComponentObject(entity, new TransformReference
@@ -68,13 +83,12 @@ public partial class TransformFollowerInitSystem : SystemBase
                 var transformRef = EntityManager.GetComponentObject<TransformReference>(entity);
                 transformRef.target = targetTransform;
             }
-            
+
             search.initialized = true;
             EntityManager.SetComponentData(entity, search);
         }
-        
-        entities.Dispose();
-        searchParams.Dispose();
+
+        pending.Dispose();
     }
     
     /// <summary>

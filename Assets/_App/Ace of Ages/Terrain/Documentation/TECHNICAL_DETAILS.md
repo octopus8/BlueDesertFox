@@ -95,25 +95,32 @@ float sample = noise.cnoise(new float2(x, z));
 
 ## Normal Calculation
 
+### Mesh Generation Pipeline
+
+1. **`GenerateTileHeightsJob`** — Samples an `(N+2)×(N+2)` height grid per tile (1-cell halo) in parallel (batch 64). All noise/trail work happens here once.
+2. **`GenerateTileMeshFromHeightsJob`** — Builds mesh vertex positions + UVs from the interior `N×N` of the height grid (no re-sampling).
+3. **`GenerateTileNormalsJob`** — Parallel normals over `N×N` verts (batch 64), reading neighbor heights from the halo grid.
+4. **Shared index template** — Quad topology for a given `verticesPerSide` is built once and copied into each tile’s `IndexElement` buffer on Complete.
+
+Mesh and normals jobs both depend on heights and run concurrently via `JobHandle.CombineDependencies`.
+
 ### Height-Gradient Normals Algorithm
 
-Normals are calculated using **central finite differences** on the height field in `GenerateTileNormalsAndIndicesJob`:
+Normals use **central finite differences** on the pre-sampled height halo in `GenerateTileNormalsJob`:
 
 ```csharp
-// For each vertex at grid (x, z):
-float heightLeft  = GetHeight(x - 1, z);
-float heightRight = GetHeight(x + 1, z);
-float heightDown  = GetHeight(x, z - 1);
-float heightUp    = GetHeight(x, z + 1);
+// For each mesh vertex at grid (x, z); halo cell is (x+1, z+1):
+float heightLeft  = heights[hz, hx - 1];
+float heightRight = heights[hz, hx + 1];
+float heightDown  = heights[hz - 1, hx];
+float heightUp    = heights[hz + 1, hx];
 
 float3 tangentX = new float3(2.0f * stepSize, heightRight - heightLeft, 0);
 float3 tangentZ = new float3(0, heightUp - heightDown, 2.0f * stepSize);
 normal = math.normalize(math.cross(tangentZ, tangentX));
 ```
 
-**Interior vertices**: Heights are read from the tile's vertex buffer (fast path).
-
-**Edge vertices**: Heights are sampled from world-space via `TerrainMeshNoise.SampleHeight` at `±stepSize` offsets, crossing tile boundaries. This ensures adjacent tiles compute identical normals at shared boundary positions.
+Halo samples use the same world-space `SampleHeight` positions as before (`±stepSize` past tile edges), so adjacent tiles still get matching seam normals without neighbor-tile lookups or re-sampling during the normals pass.
 
 **Result**: Smooth shading across terrain surface with seamless lighting at tile edges.
 
@@ -121,9 +128,9 @@ normal = math.normalize(math.cross(tangentZ, tangentX));
 
 **Previous problem**: Interior-only height lookups clamped at tile edges, producing asymmetric one-sided derivatives and visible lighting seams at tile boundaries.
 
-**Solution**: Edge vertices sample heights in world space for normal derivatives. Adjacent tiles at the same world position receive matching normals without sharing vertices or neighbor tile lookups.
+**Previous solution**: Edge vertices re-sampled heights in world space during the normals job (~`4 × 4 × (verticesPerSide - 1)` extra `SampleHeight` calls per tile).
 
-**Performance**: ~`4 × 4 × (verticesPerSide - 1)` extra height samples per tile during mesh generation (edge band only).
+**Current solution**: Halo heights are sampled once in `GenerateTileHeightsJob`; normals only read the buffer. Same seam-correct derivatives, no edge re-noise.
 
 ### Normal Validation
 
