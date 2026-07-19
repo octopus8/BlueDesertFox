@@ -977,7 +977,8 @@ public static class TerrainMeshNoise
             return slopeThis;
 
         float lowerBoundary = tileIdx * tileSize;
-        if (tileIdx > 0 && worldZ < lowerBoundary + blendDist * 0.5f)
+        // Blend across tile Z-boundaries for both positive and negative tile indices.
+        if (worldZ < lowerBoundary + blendDist * 0.5f)
         {
             float slopePrev = GetTileSlopeTan(tileIdx - 1, data);
             float t = (worldZ - (lowerBoundary - blendDist * 0.5f)) / blendDist;
@@ -1000,27 +1001,50 @@ public static class TerrainMeshNoise
         if (data.slopeVariationAmplitude <= 0f)
             return worldZ * data.baseSlopeTan;
 
-        if (worldZ <= 0f)
-            return worldZ * GetBlendedSlopeTanAtWorldZ(worldZ, data);
+        if (worldZ == 0f)
+            return 0f;
 
         float tileSize = data.tileSize;
-        int endTile = (int)math.floor(worldZ / tileSize);
         float height = 0f;
 
-        for (int t = 0; t <= endTile; t++)
+        if (worldZ > 0f)
         {
-            float segStart = t * tileSize;
-            float segEnd = t == endTile ? worldZ : (t + 1) * tileSize;
-            if (segEnd <= segStart)
-                continue;
-
-            const int steps = 4;
-            float dz = (segEnd - segStart) / steps;
-            for (int i = 0; i < steps; i++)
+            int endTile = (int)math.floor(worldZ / tileSize);
+            for (int t = 0; t <= endTile; t++)
             {
-                float midZ = segStart + (i + 0.5f) * dz;
-                height += GetBlendedSlopeTanAtWorldZ(midZ, data) * dz;
+                float segStart = t * tileSize;
+                float segEnd = t == endTile ? worldZ : (t + 1) * tileSize;
+                height += IntegrateGradeSegment(segStart, segEnd, data);
             }
+        }
+        else
+        {
+            // Path-integrate from worldZ up to 0 so height is continuous across negative-Z
+            // tile boundaries (the old Z * localSlope shortcut jumped by |Z| * Δtan).
+            int startTile = (int)math.floor(worldZ / tileSize);
+            for (int t = startTile; t <= -1; t++)
+            {
+                float segStart = t == startTile ? worldZ : t * tileSize;
+                float segEnd = (t + 1) * tileSize;
+                height += IntegrateGradeSegment(segStart, segEnd, data);
+            }
+        }
+
+        return height;
+    }
+
+    private static float IntegrateGradeSegment(float segStart, float segEnd, in TileMeshJobData data)
+    {
+        if (segEnd <= segStart)
+            return 0f;
+
+        const int steps = 4;
+        float dz = (segEnd - segStart) / steps;
+        float height = 0f;
+        for (int i = 0; i < steps; i++)
+        {
+            float midZ = segStart + (i + 0.5f) * dz;
+            height += GetBlendedSlopeTanAtWorldZ(midZ, data) * dz;
         }
 
         return height;

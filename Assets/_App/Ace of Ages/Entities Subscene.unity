@@ -927,7 +927,7 @@ Transform:
   m_GameObject: {fileID: 935523111}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 1000, z: -1000}
+  m_LocalPosition: {x: 0, y: 1000, z: -3000}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -6227,7 +6227,7 @@ MonoBehaviour:
   viewDistance: 513
   verticesPerSide: 48
   initYOffset: -5
-  slopeAngleDegrees: -15
+  slopeAngleDegrees: 15
   slopeAngleVariation: 10
   slopeVariationBlendDistance: 128
   noiseFrequency: 0.005
@@ -6306,7 +6306,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1528308289}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: f17144813f71f9c4eab8e31b81e2c2db, type: 3}
   m_Name: 
