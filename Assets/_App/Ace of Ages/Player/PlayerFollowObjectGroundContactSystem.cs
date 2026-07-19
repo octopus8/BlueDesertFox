@@ -47,7 +47,7 @@ public struct PlayerFollowObjectMotionState : IComponentData
 
 /// <summary>
 /// Drives the Player Follow Object entity along terrain and rideable surfaces using Unity Physics raycasts
-/// with a normal-axis spring-damper, and blocks obstacles via capsule casts.
+/// with a normal-axis spring-damper. Capsule casts block steep Terrain/Rideable walls and other obstacles.
 /// Integrates in terrain-relative velocity space so scroll motion and ramp slide do not compete.
 /// Burst-compiled to avoid managed GC from SystemBase OnUpdate.
 /// </summary>
@@ -125,10 +125,11 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
                     CollidesWith = groundLayerMask,
                     GroupIndex = 0
                 };
+                // Steep Terrain and Rideable (e.g. halfpipe) walls — walkable hits are ignored in ResolveTerrainCollision.
                 terrainSweepFilter = new CollisionFilter
                 {
                     BelongsTo = ~0u,
-                    CollidesWith = terrainLayerMask,
+                    CollidesWith = groundLayerMask,
                     GroupIndex = 0
                 };
                 obstacleFilter = new CollisionFilter

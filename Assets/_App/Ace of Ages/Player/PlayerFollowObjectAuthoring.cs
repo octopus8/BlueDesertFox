@@ -16,7 +16,7 @@ public class PlayerFollowObjectAuthoring : MonoBehaviour
     [SerializeField] private float rayHeightAbove = 2f;
     [Tooltip("Length of the ground raycast below the player.")]
     [SerializeField] private float rayLengthBelow = 50f;
-    [Tooltip("Physics layer for ramps and other rideable launch surfaces (not blocking obstacles).")]
+    [Tooltip("Physics layer for ramps/halfpipes. Used for ground contact and steep-wall capsule sweeps during movement.")]
     [ValueDropdown(nameof(GetUnityLayerDropdown))]
     [SerializeField] private int rideablePhysicsLayer = 15;
 

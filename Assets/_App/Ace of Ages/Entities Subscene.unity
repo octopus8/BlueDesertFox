@@ -927,7 +927,7 @@ Transform:
   m_GameObject: {fileID: 935523111}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 1500, z: -3200}
+  m_LocalPosition: {x: 0, y: 1500, z: -2900}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -6244,23 +6244,23 @@ MonoBehaviour:
   maxColliderCacheMemoryMB: 53
   terrainPhysicsLayer: 11
   terrainPhysicsMaterial: {fileID: 13400000, guid: 6ca36172f3540ad4b8bb526b8c406034, type: 2}
-  trailHeight: -20
+  trailHeight: 0
   trailLutStepMeters: 1
-  trail1Enabled: 1
+  trail1Enabled: 0
   trail1Width: 20
   trail1BlendWidth: 40
   trail1Seed: 0
   trail1Frequency: 0.001
   trail1Amplitude: 200
-  trail2Enabled: 1
+  trail2Enabled: 0
   trail2Width: 20
   trail2BlendWidth: 40
   trail2Seed: 100
   trail2Frequency: 0.001
   trail2Amplitude: 150
   trail3Enabled: 1
-  trail3Width: 30
-  trail3BlendWidth: 60
+  trail3Width: 60
+  trail3BlendWidth: 0
   trail3Seed: 200
   trail3Frequency: 0.0015
   trail3Amplitude: 200
