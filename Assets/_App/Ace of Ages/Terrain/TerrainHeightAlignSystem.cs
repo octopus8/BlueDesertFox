@@ -60,13 +60,17 @@ public partial struct TerrainHeightAlignSystem : ISystem
         TrailConfig trailConfig = hasTrailConfig
             ? SystemAPI.GetSingleton<TrailConfig>()
             : default;
+        TrailPathConfig trailPath = SystemAPI.HasSingleton<TrailPathConfig>()
+            ? SystemAPI.GetSingleton<TrailPathConfig>()
+            : new TrailPathConfig { straightLength = 80f, weaveFadeLength = 30f, snapStartToPlayer = 1 };
 
         float unalignedHeight = TerrainMeshNoise.SampleUnalignedHeightAt(
             anchorPosition.x,
             anchorPosition.z,
             config,
             hasTrailConfig,
-            trailConfig);
+            trailConfig,
+            trailPath);
 
         float feetY = anchorPosition.y - bottomOffset;
         config.heightOffset = feetY - unalignedHeight + config.initYOffset;

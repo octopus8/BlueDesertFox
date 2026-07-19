@@ -6246,6 +6246,12 @@ MonoBehaviour:
   terrainPhysicsMaterial: {fileID: 13400000, guid: 6ca36172f3540ad4b8bb526b8c406034, type: 2}
   trailHeight: 0
   trailLutStepMeters: 1
+  trailStartX: 0
+  trailStartZ: -2900
+  trailStraightLength: 80
+  trailWeaveFadeLength: 30
+  trailSnapStartToPlayer: 1
+  trailPathSettingsInitialized: 1
   trail1Enabled: 0
   trail1Width: 20
   trail1BlendWidth: 40

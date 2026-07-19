@@ -98,8 +98,10 @@ public struct TerrainHeightAlignState : IComponentData
 }
 
 /// <summary>
-/// Per-trail settings. Height is shared across all trails and lives on <see cref="TrailConfig"/>.
-/// The centerline of each trail is defined by centerX(Z) = amplitude * snoise(Z * frequency + seed, 0),
+/// Per-trail settings. Height is shared across all trails on <see cref="TrailConfig"/>.
+/// Path origin / straight-run live on <see cref="TrailPathConfig"/>.
+/// After the shared straight run, each trail weaves via
+/// centerX(Z) = startX + amplitude * fade(Z) * (snoise(Z) - snoise(edgeZ)),
 /// guaranteeing the path always advances in the +Z direction (cannot turn past 90°).
 /// Trail cross-section is level (ski-trail style): grade uses world +Z at the nearest centerline sample.
 /// </summary>
@@ -128,8 +130,7 @@ public struct TrailInstanceConfig
 /// Singleton configuration for up to three procedural winding trails carved flat into the terrain.
 /// All trails share a single Y height value; each trail has its own shape parameters via
 /// <see cref="TrailInstanceConfig"/>. Where trails overlap the maximum carve influence wins.
-/// Cross-section stays level perpendicular to the winding centerline; downhill grade follows
-/// <see cref="TerrainTileConfig.slopeAngleDegrees"/> at the nearest centerline world Z.
+/// Shared start / straight-run path settings live on <see cref="TrailPathConfig"/>.
 /// </summary>
 public struct TrailConfig : IComponentData
 {
@@ -145,6 +146,40 @@ public struct TrailConfig : IComponentData
     public TrailInstanceConfig trail1;
     public TrailInstanceConfig trail2;
     public TrailInstanceConfig trail3;
+}
+
+/// <summary>
+/// Shared trail path origin and straight-run settings (separate from <see cref="TrailConfig"/>
+/// so existing baked trail instance layouts stay stable).
+/// </summary>
+public struct TrailPathConfig : IComponentData
+{
+    /// <summary>Shared world X where all trails meet at the start.</summary>
+    public float startX;
+
+    /// <summary>World Z where the shared straight run is centered.</summary>
+    public float startZ;
+
+    /// <summary>
+    /// Distance in meters from <see cref="startZ"/> (both +Z and −Z) where all trails stay
+    /// locked to <see cref="startX"/> before weaving begins.
+    /// </summary>
+    public float straightLength;
+
+    /// <summary>
+    /// Distance in meters over which weave amplitude fades in after the straight run.
+    /// Zero applies full amplitude immediately (still continuous because fade starts at 0).
+    /// </summary>
+    public float weaveFadeLength;
+
+    /// <summary>
+    /// 0 = start XZ not yet snapped to the player; 1 = aligned.
+    /// When <see cref="snapStartToPlayer"/> is set, a startup system writes player content XZ here.
+    /// </summary>
+    public byte startAligned;
+
+    /// <summary>1 = snap <see cref="startX"/>/<see cref="startZ"/> to the player once at startup.</summary>
+    public byte snapStartToPlayer;
 }
 
 /// <summary>

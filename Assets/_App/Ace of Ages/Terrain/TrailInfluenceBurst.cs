@@ -44,12 +44,78 @@ public static class TrailInfluenceBurst
     }
 
     /// <summary>
+    /// Applies defaults for path settings that were left at 0 by Unity serialization on existing scenes.
+    /// </summary>
+    public static TrailPathConfig NormalizeTrailPathSettings(TrailPathConfig path)
+    {
+        // 0 means "never serialized / uninitialized" for existing scenes — use the designed default.
+        if (path.straightLength <= 0f)
+            path.straightLength = 80f;
+        if (path.weaveFadeLength < 0f)
+            path.weaveFadeLength = 0f;
+        return path;
+    }
+
+    /// <summary>
     /// Radius of the fully-flat trail core used for static object spawn exclusion.
     /// The blend zone outside this radius allows spawning.
     /// </summary>
     public static float GetTrailFlatCoreRadius(in TrailInstanceConfig trail)
     {
         return trail.width * 0.5f;
+    }
+
+    /// <summary>
+    /// Distance from startZ at which the shared straight run ends and weave begins
+    /// (applies in both +Z and −Z).
+    /// </summary>
+    public static float GetStraightRunHalfLength(float straightLength)
+    {
+        return math.max(0f, straightLength);
+    }
+
+    /// <summary>
+    /// Samples trail centerline X at world Z. All trails share startX for
+    /// <paramref name="straightLength"/> meters on either side of <paramref name="startZ"/>,
+    /// then fade into per-trail noise weave beyond that. Weave is relative to the noise at the
+    /// straight-run edge so the path leaves startX continuously.
+    /// </summary>
+    public static float SampleCenterlineX(
+        float worldZ,
+        in TrailInstanceConfig trail,
+        float startX,
+        float startZ,
+        float straightLength,
+        float weaveFadeLength)
+    {
+        // Distance along Z from the shared fork. Straight run is symmetric in +Z/-Z.
+        float along = math.abs(worldZ - startZ);
+        float straight = math.max(straightLength, 0f);
+
+        // Fully locked to the shared start X through the straight section.
+        if (along <= straight)
+            return startX;
+
+        // Fade weave in after the straight section (0 at the edge → 1 after fadeLength).
+        float fadeLength = math.max(weaveFadeLength, 0f);
+        float fade = fadeLength > 0f
+            ? math.smoothstep(0f, 1f, (along - straight) / fadeLength)
+            : 1f;
+
+        // Noise delta vs the straight-run edge keeps X continuous at the fork.
+        float edgeZ = worldZ >= startZ ? startZ + straight : startZ - straight;
+        float noiseAtZ = noise.snoise(new float2(worldZ * trail.frequency + trail.seed, 0f));
+        float noiseAtEdge = noise.snoise(new float2(edgeZ * trail.frequency + trail.seed, 0f));
+        return startX + trail.amplitude * (noiseAtZ - noiseAtEdge) * fade;
+    }
+
+    /// <summary>
+    /// Samples trail centerline X at world Z using shared path fields from <see cref="TrailPathConfig"/>.
+    /// </summary>
+    public static float SampleCenterlineX(float worldZ, in TrailInstanceConfig trail, in TrailPathConfig path)
+    {
+        return SampleCenterlineX(
+            worldZ, trail, path.startX, path.startZ, path.straightLength, path.weaveFadeLength);
     }
 
     public static byte GetActiveTrailMask(in TrailInstanceConfig trail1, in TrailInstanceConfig trail2, in TrailInstanceConfig trail3)
@@ -92,20 +158,19 @@ public static class TrailInfluenceBurst
         float tileWorldX,
         float tileWorldZ,
         float tileSize,
-        in TrailInstanceConfig trail1,
-        in TrailInstanceConfig trail2,
-        in TrailInstanceConfig trail3,
+        in TrailConfig config,
+        in TrailPathConfig path,
         byte activeMask)
     {
         byte mask = 0;
         if ((activeMask & TrailMask.Trail1) != 0 &&
-            TileIntersectsTrailCorridor(tileWorldX, tileWorldZ, tileSize, trail1))
+            TileIntersectsTrailCorridor(tileWorldX, tileWorldZ, tileSize, config.trail1, path))
             mask |= TrailMask.Trail1;
         if ((activeMask & TrailMask.Trail2) != 0 &&
-            TileIntersectsTrailCorridor(tileWorldX, tileWorldZ, tileSize, trail2))
+            TileIntersectsTrailCorridor(tileWorldX, tileWorldZ, tileSize, config.trail2, path))
             mask |= TrailMask.Trail2;
         if ((activeMask & TrailMask.Trail3) != 0 &&
-            TileIntersectsTrailCorridor(tileWorldX, tileWorldZ, tileSize, trail3))
+            TileIntersectsTrailCorridor(tileWorldX, tileWorldZ, tileSize, config.trail3, path))
             mask |= TrailMask.Trail3;
         return mask;
     }
@@ -114,7 +179,8 @@ public static class TrailInfluenceBurst
         float tileWorldX,
         float tileWorldZ,
         float tileSize,
-        in TrailInstanceConfig trail)
+        in TrailInstanceConfig trail,
+        in TrailPathConfig path)
     {
         if (!trail.enabled)
             return false;
@@ -127,11 +193,11 @@ public static class TrailInfluenceBurst
         float z1 = tileWorldZ + tileSize * 0.5f;
         float z2 = tileWorldZ + tileSize;
 
-        if (CorridorOverlapsTileX(tileXMin, tileXMax, z0, trail, searchRange))
+        if (CorridorOverlapsTileX(tileXMin, tileXMax, z0, trail, path, searchRange))
             return true;
-        if (CorridorOverlapsTileX(tileXMin, tileXMax, z1, trail, searchRange))
+        if (CorridorOverlapsTileX(tileXMin, tileXMax, z1, trail, path, searchRange))
             return true;
-        if (CorridorOverlapsTileX(tileXMin, tileXMax, z2, trail, searchRange))
+        if (CorridorOverlapsTileX(tileXMin, tileXMax, z2, trail, path, searchRange))
             return true;
 
         return false;
@@ -142,11 +208,14 @@ public static class TrailInfluenceBurst
         float tileXMax,
         float worldZ,
         in TrailInstanceConfig trail,
+        in TrailPathConfig path,
         float searchRange)
     {
-        float centerX = trail.amplitude * noise.snoise(new float2(worldZ * trail.frequency + trail.seed, 0f));
-        float corridorMin = centerX - searchRange - trail.amplitude;
-        float corridorMax = centerX + searchRange + trail.amplitude;
+        float centerX = SampleCenterlineX(worldZ, trail, path);
+        float along = math.abs(worldZ - path.startZ);
+        float amplitudePad = along <= math.max(0f, path.straightLength) ? 0f : trail.amplitude;
+        float corridorMin = centerX - searchRange - amplitudePad;
+        float corridorMax = centerX + searchRange + amplitudePad;
         return tileXMax >= corridorMin && tileXMin <= corridorMax;
     }
 
@@ -156,12 +225,13 @@ public static class TrailInfluenceBurst
         float zOrigin,
         float zStep,
         int length,
-        in TrailInstanceConfig trail)
+        in TrailInstanceConfig trail,
+        in TrailPathConfig path)
     {
         for (int i = 0; i < length; i++)
         {
             float sz = zOrigin + i * zStep;
-            centerlineX[offset + i] = trail.amplitude * noise.snoise(new float2(sz * trail.frequency + trail.seed, 0f));
+            centerlineX[offset + i] = SampleCenterlineX(sz, trail, path);
         }
     }
 
@@ -289,7 +359,12 @@ public static class TrailInfluenceBurst
     /// <summary>
     /// On-demand minimum distance for sparse checks (e.g. static object spawn exclusion).
     /// </summary>
-    public static float ComputeMinDistanceToTrail(float fX, float fZ, in TrailInstanceConfig trail, float lutStep)
+    public static float ComputeMinDistanceToTrail(
+        float fX,
+        float fZ,
+        in TrailInstanceConfig trail,
+        in TrailPathConfig path,
+        float lutStep)
     {
         if (!trail.enabled)
             return float.MaxValue;
@@ -304,7 +379,7 @@ public static class TrailInfluenceBurst
         for (int i = 0; i < count; i++)
         {
             float sz = zStart + i * step;
-            float scx = trail.amplitude * noise.snoise(new float2(sz * trail.frequency + trail.seed, 0f));
+            float scx = SampleCenterlineX(sz, trail, path);
             float dx = fX - scx;
             float dz = fZ - sz;
             float d2 = dx * dx + dz * dz;
@@ -318,12 +393,17 @@ public static class TrailInfluenceBurst
     /// <summary>
     /// On-demand flat-core exclusion check (spawn exclusion = flat core only; blend zone allows objects).
     /// </summary>
-    public static bool IsInsideTrailExclusionZone(float fX, float fZ, in TrailInstanceConfig trail, float lutStep)
+    public static bool IsInsideTrailExclusionZone(
+        float fX,
+        float fZ,
+        in TrailInstanceConfig trail,
+        in TrailPathConfig path,
+        float lutStep)
     {
         if (!trail.enabled)
             return false;
 
         float exclusionRadius = GetTrailFlatCoreRadius(trail);
-        return ComputeMinDistanceToTrail(fX, fZ, trail, lutStep) < exclusionRadius;
+        return ComputeMinDistanceToTrail(fX, fZ, trail, path, lutStep) < exclusionRadius;
     }
 }

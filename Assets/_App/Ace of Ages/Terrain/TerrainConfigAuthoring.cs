@@ -116,6 +116,26 @@ public class TerrainConfigAuthoring : MonoBehaviour
     [Min(0.25f)]
     public float trailLutStepMeters = 1f;
 
+    [Tooltip("Shared world X where all trails meet at the start")]
+    public float trailStartX = 0f;
+
+    [Tooltip("World Z where the shared straight run begins")]
+    public float trailStartZ = 0f;
+
+    [Tooltip("Meters from Start Z (both +Z and -Z) where all trails stay locked to Start X before weaving")]
+    [Min(0f)]
+    public float trailStraightLength = 80f;
+
+    [Tooltip("Meters over which weave amplitude fades in after the straight run (0 = immediate full weave)")]
+    [Min(0f)]
+    public float trailWeaveFadeLength = 30f;
+
+    [Tooltip("If enabled, Start X/Z are overwritten once at play start from the player (or Player Follow Object) position")]
+    public bool trailSnapStartToPlayer = true;
+
+    [SerializeField, HideInInspector]
+    bool trailPathSettingsInitialized;
+
     [Header("Trail 1")]
     [Tooltip("Enable a flat winding trail carved into the terrain")]
     public bool trail1Enabled = false;
@@ -297,11 +317,11 @@ public class TerrainConfigAuthoring : MonoBehaviour
                 material = authoring.terrainMaterial
             });
 
-            // Bake trail configuration singleton
+            // Bake trail configuration singleton (instance shape + shared height)
             AddComponent(entity, new TrailConfig
             {
                 height = authoring.trailHeight,
-                lutStepMeters = authoring.trailLutStepMeters,
+                lutStepMeters = authoring.trailLutStepMeters > 0f ? authoring.trailLutStepMeters : 1f,
                 trail1 = new TrailInstanceConfig
                 {
                     enabled   = authoring.trail1Enabled,
@@ -329,6 +349,18 @@ public class TerrainConfigAuthoring : MonoBehaviour
                     frequency = authoring.trail3Frequency,
                     amplitude = authoring.trail3Amplitude
                 }
+            });
+
+            // Separate path component keeps TrailConfig layout stable for existing bakes.
+            float straightLength = authoring.trailStraightLength > 0f ? authoring.trailStraightLength : 80f;
+            AddComponent(entity, new TrailPathConfig
+            {
+                startX = authoring.trailStartX,
+                startZ = authoring.trailStartZ,
+                straightLength = straightLength,
+                weaveFadeLength = math.max(0f, authoring.trailWeaveFadeLength),
+                startAligned = 0,
+                snapStartToPlayer = authoring.trailSnapStartToPlayer ? (byte)1 : (byte)0
             });
         }
     }
@@ -383,6 +415,64 @@ public class TerrainConfigAuthoring : MonoBehaviour
         
         Vector3 size = new Vector3(tileSize, 0, tileSize);
         Gizmos.DrawWireCube(tileCorner + size * 0.5f, size);
+
+        DrawTrailPathGizmos();
+    }
+
+    /// <summary>
+    /// Draws the shared straight run (yellow) and weave preview (cyan) for enabled trails.
+    /// </summary>
+    private void DrawTrailPathGizmos()
+    {
+        float straight = trailStraightLength > 0f ? trailStraightLength : 80f;
+        float fade = Mathf.Max(0f, trailWeaveFadeLength);
+        float y = trailHeight + 1f;
+
+        // Straight segment through start (both +Z and -Z).
+        Gizmos.color = Color.yellow;
+        Vector3 straightA = new Vector3(trailStartX, y, trailStartZ - straight);
+        Vector3 straightB = new Vector3(trailStartX, y, trailStartZ + straight);
+        Gizmos.DrawLine(straightA, straightB);
+        Gizmos.DrawWireSphere(new Vector3(trailStartX, y, trailStartZ), 2f);
+
+        void DrawWeave(bool enabled, float seed, float frequency, float amplitude, Color color)
+        {
+            if (!enabled || amplitude <= 0f)
+                return;
+
+            Gizmos.color = color;
+            const float step = 5f;
+            float zMin = trailStartZ - straight - fade - 200f;
+            float zMax = trailStartZ + straight + fade + 200f;
+            Vector3 prev = Vector3.zero;
+            bool hasPrev = false;
+            for (float z = zMin; z <= zMax; z += step)
+            {
+                float along = Mathf.Abs(z - trailStartZ);
+                float x = trailStartX;
+                if (along > straight)
+                {
+                    float weaveWeight = 1f;
+                    if (fade > 0f)
+                        weaveWeight = Mathf.SmoothStep(0f, 1f, (along - straight) / fade);
+                    float edgeZ = trailStartZ + Mathf.Sign(z - trailStartZ) * straight;
+                    float nZ = Mathf.PerlinNoise(z * frequency + seed, 0f) * 2f - 1f;
+                    float nEdge = Mathf.PerlinNoise(edgeZ * frequency + seed, 0f) * 2f - 1f;
+                    // Preview only — runtime uses snoise; shape is representative.
+                    x = trailStartX + amplitude * (nZ - nEdge) * weaveWeight;
+                }
+
+                Vector3 p = new Vector3(x, y, z);
+                if (hasPrev)
+                    Gizmos.DrawLine(prev, p);
+                prev = p;
+                hasPrev = true;
+            }
+        }
+
+        DrawWeave(trail1Enabled, trail1Seed, trail1Frequency, trail1Amplitude, new Color(1f, 0.4f, 0.2f));
+        DrawWeave(trail2Enabled, trail2Seed, trail2Frequency, trail2Amplitude, new Color(0.2f, 0.8f, 1f));
+        DrawWeave(trail3Enabled, trail3Seed, trail3Frequency, trail3Amplitude, new Color(0.4f, 1f, 0.4f));
     }
     
     /// <summary>Attempts to locate the player <see cref="Transform"/> at edit time for gizmo visualization using the configured <see cref="playerSearchMode"/>.</summary>
@@ -415,6 +505,16 @@ public class TerrainConfigAuthoring : MonoBehaviour
     /// <summary>Clamps all inspector-configured values to valid ranges (e.g. minimum tile size, positive octave count) when values change in the Inspector.</summary>
     private void OnValidate()
     {
+        // Existing scenes deserialize newly added fields as 0; apply intended defaults once.
+        if (!trailPathSettingsInitialized)
+        {
+            if (trailStraightLength <= 0f)
+                trailStraightLength = 80f;
+            if (trailWeaveFadeLength <= 0f)
+                trailWeaveFadeLength = 30f;
+            trailPathSettingsInitialized = true;
+        }
+
         // Ensure valid values
         tileSize = Mathf.Max(1f, tileSize);
         viewDistance = Mathf.Max(tileSize, viewDistance);
@@ -429,6 +529,8 @@ public class TerrainConfigAuthoring : MonoBehaviour
         continentalFrequency = Mathf.Max(0f, continentalFrequency);
         continentalExponent = Mathf.Max(0.1f, continentalExponent);
         trailLutStepMeters = Mathf.Max(0.25f, trailLutStepMeters);
+        trailStraightLength = Mathf.Max(0f, trailStraightLength);
+        trailWeaveFadeLength = Mathf.Max(0f, trailWeaveFadeLength);
         trail1Width     = Mathf.Max(0f, trail1Width);
         trail1BlendWidth= Mathf.Max(0f, trail1BlendWidth);
         trail1Frequency = Mathf.Max(0f, trail1Frequency);

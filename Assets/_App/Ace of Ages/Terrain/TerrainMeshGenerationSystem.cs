@@ -243,26 +243,34 @@ public partial struct TerrainMeshScheduleSystem : ISystem
             float maxSlopeTan = baseSlopeTan;
             float slopeVariationAmplitude = config.slopeAngleVariation > 0f ? 1f : 0f;
 
-            float trailHeight = 0f;
-            float trailLutStep = 1f;
-            TrailInstanceConfig trailInst1 = default;
-            TrailInstanceConfig trailInst2 = default;
-            TrailInstanceConfig trailInst3 = default;
+            TrailConfig trailConfig = default;
+            TrailPathConfig trailPath = new TrailPathConfig
+            {
+                startX = 0f,
+                startZ = 0f,
+                straightLength = 80f,
+                weaveFadeLength = 30f,
+                startAligned = 0,
+                snapStartToPlayer = 1
+            };
             byte activeTrailMask = 0;
 
             if (SystemAPI.HasSingleton<TrailConfig>())
             {
-                var trail = SystemAPI.GetSingleton<TrailConfig>();
-                trailHeight = trail.height;
-                trailLutStep = trail.lutStepMeters > 0f ? trail.lutStepMeters : 1f;
-                trailInst1 = trail.trail1;
-                trailInst2 = trail.trail2;
-                trailInst3 = trail.trail3;
-                activeTrailMask = TrailInfluenceBurst.GetActiveTrailMask(trailInst1, trailInst2, trailInst3);
+                trailConfig = SystemAPI.GetSingleton<TrailConfig>();
+                if (trailConfig.lutStepMeters <= 0f)
+                    trailConfig.lutStepMeters = 1f;
+                activeTrailMask = TrailInfluenceBurst.GetActiveTrailMask(
+                    trailConfig.trail1, trailConfig.trail2, trailConfig.trail3);
             }
 
+            if (SystemAPI.HasSingleton<TrailPathConfig>())
+                trailPath = TrailInfluenceBurst.NormalizeTrailPathSettings(
+                    SystemAPI.GetSingleton<TrailPathConfig>());
+
+            float trailLutStep = trailConfig.lutStepMeters > 0f ? trailConfig.lutStepMeters : 1f;
             float maxSearchRange = TrailInfluenceBurst.GetMaxSearchRangeAcrossTrails(
-                trailInst1, trailInst2, trailInst3, activeTrailMask);
+                trailConfig.trail1, trailConfig.trail2, trailConfig.trail3, activeTrailMask);
             _inFlightLutLength = activeTrailMask != 0
                 ? TrailInfluenceBurst.ComputeLutLength(config.tileSize, maxSearchRange, trailLutStep)
                 : 0;
@@ -289,8 +297,7 @@ public partial struct TerrainMeshScheduleSystem : ISystem
 
                 byte tileTrailMask = activeTrailMask != 0
                     ? TrailInfluenceBurst.ComputeTileTrailMask(
-                        tileWorldX, tileWorldZ, config.tileSize,
-                        trailInst1, trailInst2, trailInst3, activeTrailMask)
+                        tileWorldX, tileWorldZ, config.tileSize, trailConfig, trailPath, activeTrailMask)
                     : (byte)0;
 
                 float lutZOrigin = TrailInfluenceBurst.ComputeLutZOrigin(tileWorldZ, maxSearchRange);
@@ -315,13 +322,10 @@ public partial struct TerrainMeshScheduleSystem : ISystem
                     continentalExponent = config.continentalExponent,
                     vertexOffset = i * totalVertices,
                     heightOffset = config.heightOffset,
-                    trailHeight = trailHeight,
-                    trailLutStep = trailLutStep,
+                    trailConfig = trailConfig,
+                    trailPath = trailPath,
                     activeTrailMask = activeTrailMask,
                     tileTrailMask = tileTrailMask,
-                    trail1 = trailInst1,
-                    trail2 = trailInst2,
-                    trail3 = trailInst3,
                     trail1Lut = new TrailCenterlineLUT
                     {
                         offset = baseLutOffset,
@@ -346,7 +350,7 @@ public partial struct TerrainMeshScheduleSystem : ISystem
                 };
             }
 
-            var buildLutsJob = new BuildTileTrailLutsJob
+            var buildLutsJob = new BuildTileTrailCenterlineLutsJob
             {
                 tileData = _inFlightTileData,
                 trailLuts = _inFlightTrailLuts
@@ -551,13 +555,12 @@ public struct TileMeshJobData
     public int vertexOffset;
     public float heightOffset;
 
-    public float trailHeight;
-    public float trailLutStep;
+    /// <summary>Trail instance shape + shared height.</summary>
+    public TrailConfig trailConfig;
+    /// <summary>Shared start / straight-run path.</summary>
+    public TrailPathConfig trailPath;
     public byte activeTrailMask;
     public byte tileTrailMask;
-    public TrailInstanceConfig trail1;
-    public TrailInstanceConfig trail2;
-    public TrailInstanceConfig trail3;
     public TrailCenterlineLUT trail1Lut;
     public TrailCenterlineLUT trail2Lut;
     public TrailCenterlineLUT trail3Lut;
@@ -582,7 +585,7 @@ internal static class TerrainMeshProfiler
 /// Builds per-tile trail centerline LUTs once before height generation.
 /// </summary>
 [BurstCompile]
-public struct BuildTileTrailLutsJob : IJobParallelFor
+public struct BuildTileTrailCenterlineLutsJob : IJobParallelFor
 {
     [ReadOnly] public NativeArray<TileMeshJobData> tileData;
     [NativeDisableParallelForRestriction] public NativeArray<float> trailLuts;
@@ -602,25 +605,28 @@ public struct BuildTileTrailLutsJob : IJobParallelFor
             return;
         }
 
+        var trailConfig = data.trailConfig;
+        var trailPath = data.trailPath;
+
         if ((data.tileTrailMask & TrailMask.Trail1) != 0)
         {
             TrailInfluenceBurst.BuildTrailCenterlineLUT(
                 trailLuts, data.trail1Lut.offset, data.trail1Lut.zOrigin, data.trail1Lut.zStep,
-                data.trail1Lut.length, data.trail1);
+                data.trail1Lut.length, trailConfig.trail1, trailPath);
         }
 
         if ((data.tileTrailMask & TrailMask.Trail2) != 0)
         {
             TrailInfluenceBurst.BuildTrailCenterlineLUT(
                 trailLuts, data.trail2Lut.offset, data.trail2Lut.zOrigin, data.trail2Lut.zStep,
-                data.trail2Lut.length, data.trail2);
+                data.trail2Lut.length, trailConfig.trail2, trailPath);
         }
 
         if ((data.tileTrailMask & TrailMask.Trail3) != 0)
         {
             TrailInfluenceBurst.BuildTrailCenterlineLUT(
                 trailLuts, data.trail3Lut.offset, data.trail3Lut.zOrigin, data.trail3Lut.zStep,
-                data.trail3Lut.length, data.trail3);
+                data.trail3Lut.length, trailConfig.trail3, trailPath);
         }
 
 #if UNITY_EDITOR
@@ -781,7 +787,7 @@ public static class TerrainMeshNoise
         if ((data.tileTrailMask & TrailMask.Trail1) != 0)
         {
             var result = TrailInfluenceBurst.ComputeTrailInfluenceFromLUT(
-                (float)worldX, (float)worldZ, data.trail1, data.trail1Lut, trailLuts);
+                (float)worldX, (float)worldZ, data.trailConfig.trail1, data.trail1Lut, trailLuts);
             if (result.influence > maxInfluence)
             {
                 maxInfluence = result.influence;
@@ -792,7 +798,7 @@ public static class TerrainMeshNoise
         if ((data.tileTrailMask & TrailMask.Trail2) != 0)
         {
             var result = TrailInfluenceBurst.ComputeTrailInfluenceFromLUT(
-                (float)worldX, (float)worldZ, data.trail2, data.trail2Lut, trailLuts);
+                (float)worldX, (float)worldZ, data.trailConfig.trail2, data.trail2Lut, trailLuts);
             if (result.influence > maxInfluence)
             {
                 maxInfluence = result.influence;
@@ -803,7 +809,7 @@ public static class TerrainMeshNoise
         if ((data.tileTrailMask & TrailMask.Trail3) != 0)
         {
             var result = TrailInfluenceBurst.ComputeTrailInfluenceFromLUT(
-                (float)worldX, (float)worldZ, data.trail3, data.trail3Lut, trailLuts);
+                (float)worldX, (float)worldZ, data.trailConfig.trail3, data.trail3Lut, trailLuts);
             if (result.influence > maxInfluence)
             {
                 maxInfluence = result.influence;
@@ -816,7 +822,7 @@ public static class TerrainMeshNoise
 
         if (maxInfluence > 0f)
         {
-            float slopedTrailHeight = data.trailHeight + SampleGradeHeight(trailSlopeZ, data);
+            float slopedTrailHeight = data.trailConfig.height + SampleGradeHeight(trailSlopeZ, data);
             return math.lerp(terrainHeight, slopedTrailHeight, maxInfluence) + data.heightOffset;
         }
 
@@ -833,15 +839,17 @@ public static class TerrainMeshNoise
         float worldZ,
         in TerrainTileConfig config,
         bool hasTrailConfig,
-        in TrailConfig trailConfig)
+        in TrailConfig trailConfig,
+        in TrailPathConfig trailPath)
     {
         float baseSlopeTan = math.tan(math.radians(config.slopeAngleDegrees));
         float minSlopeTan = math.tan(math.radians(config.slopeAngleDegrees - config.slopeAngleVariation));
         float maxSlopeTan = baseSlopeTan;
         float slopeVariationAmplitude = config.slopeAngleVariation > 0f ? 1f : 0f;
 
-        float trailHeight = 0f;
         float trailLutStep = 1f;
+        TrailConfig normalizedTrail = trailConfig;
+        TrailPathConfig normalizedPath = TrailInfluenceBurst.NormalizeTrailPathSettings(trailPath);
         TrailInstanceConfig trailInst1 = default;
         TrailInstanceConfig trailInst2 = default;
         TrailInstanceConfig trailInst3 = default;
@@ -849,11 +857,12 @@ public static class TerrainMeshNoise
 
         if (hasTrailConfig)
         {
-            trailHeight = trailConfig.height;
-            trailLutStep = trailConfig.lutStepMeters > 0f ? trailConfig.lutStepMeters : 1f;
-            trailInst1 = trailConfig.trail1;
-            trailInst2 = trailConfig.trail2;
-            trailInst3 = trailConfig.trail3;
+            if (normalizedTrail.lutStepMeters <= 0f)
+                normalizedTrail.lutStepMeters = 1f;
+            trailLutStep = normalizedTrail.lutStepMeters;
+            trailInst1 = normalizedTrail.trail1;
+            trailInst2 = normalizedTrail.trail2;
+            trailInst3 = normalizedTrail.trail3;
             activeTrailMask = TrailInfluenceBurst.GetActiveTrailMask(trailInst1, trailInst2, trailInst3);
         }
 
@@ -868,8 +877,7 @@ public static class TerrainMeshNoise
         if (activeTrailMask != 0)
         {
             tileTrailMask = TrailInfluenceBurst.ComputeTileTrailMask(
-                tileWorldX, tileWorldZ, config.tileSize,
-                trailInst1, trailInst2, trailInst3, activeTrailMask);
+                tileWorldX, tileWorldZ, config.tileSize, normalizedTrail, normalizedPath, activeTrailMask);
 
             if (tileTrailMask != 0)
             {
@@ -882,19 +890,19 @@ public static class TerrainMeshNoise
                 if ((tileTrailMask & TrailMask.Trail1) != 0)
                 {
                     TrailInfluenceBurst.BuildTrailCenterlineLUT(
-                        trailLuts, 0, lutZOrigin, trailLutStep, lutLength, trailInst1);
+                        trailLuts, 0, lutZOrigin, trailLutStep, lutLength, trailInst1, normalizedPath);
                 }
 
                 if ((tileTrailMask & TrailMask.Trail2) != 0)
                 {
                     TrailInfluenceBurst.BuildTrailCenterlineLUT(
-                        trailLuts, lutLength, lutZOrigin, trailLutStep, lutLength, trailInst2);
+                        trailLuts, lutLength, lutZOrigin, trailLutStep, lutLength, trailInst2, normalizedPath);
                 }
 
                 if ((tileTrailMask & TrailMask.Trail3) != 0)
                 {
                     TrailInfluenceBurst.BuildTrailCenterlineLUT(
-                        trailLuts, lutLength * 2, lutZOrigin, trailLutStep, lutLength, trailInst3);
+                        trailLuts, lutLength * 2, lutZOrigin, trailLutStep, lutLength, trailInst3, normalizedPath);
                 }
             }
         }
@@ -922,13 +930,10 @@ public static class TerrainMeshNoise
             continentalExponent = config.continentalExponent,
             vertexOffset = 0,
             heightOffset = 0f,
-            trailHeight = trailHeight,
-            trailLutStep = trailLutStep,
+            trailConfig = normalizedTrail,
+            trailPath = normalizedPath,
             activeTrailMask = activeTrailMask,
             tileTrailMask = tileTrailMask,
-            trail1 = trailInst1,
-            trail2 = trailInst2,
-            trail3 = trailInst3,
             trail1Lut = new TrailCenterlineLUT
             {
                 offset = 0,
