@@ -6265,11 +6265,11 @@ MonoBehaviour:
   trail2Frequency: 0.001
   trail2Amplitude: 150
   trail3Enabled: 1
-  trail3Width: 60
+  trail3Width: 100
   trail3BlendWidth: 0
   trail3Seed: 200
   trail3Frequency: 0.0015
-  trail3Amplitude: 200
+  trail3Amplitude: 100
   renderTerrain: 1
   enablePhysicsColliders: 1
 --- !u!4 &1528308291
@@ -6312,7 +6312,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1528308289}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: f17144813f71f9c4eab8e31b81e2c2db, type: 3}
   m_Name: 
