@@ -6244,7 +6244,7 @@ MonoBehaviour:
   maxColliderCacheMemoryMB: 53
   terrainPhysicsLayer: 11
   terrainPhysicsMaterial: {fileID: 13400000, guid: 6ca36172f3540ad4b8bb526b8c406034, type: 2}
-  trailHeight: 0
+  trailHeight: -25
   trailLutStepMeters: 0.25
   trailStartX: 0
   trailStartZ: -2900
@@ -6265,8 +6265,8 @@ MonoBehaviour:
   trail2Frequency: 0.001
   trail2Amplitude: 150
   trail3Enabled: 1
-  trail3Width: 100
-  trail3BlendWidth: 0
+  trail3Width: 45
+  trail3BlendWidth: 35
   trail3Seed: 200
   trail3Frequency: 0.0015
   trail3Amplitude: 100
