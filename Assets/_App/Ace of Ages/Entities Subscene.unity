@@ -6252,24 +6252,24 @@ MonoBehaviour:
   trailWeaveFadeLength: 30
   trailSnapStartToPlayer: 1
   trailPathSettingsInitialized: 1
-  trail1Enabled: 0
-  trail1Width: 20
-  trail1BlendWidth: 40
+  trail1Enabled: 1
+  trail1Width: 45
+  trail1BlendWidth: 0
   trail1Seed: 0
-  trail1Frequency: 0.001
-  trail1Amplitude: 200
-  trail2Enabled: 0
-  trail2Width: 20
-  trail2BlendWidth: 40
+  trail1Frequency: 0.0015
+  trail1Amplitude: 250
+  trail2Enabled: 1
+  trail2Width: 45
+  trail2BlendWidth: 0
   trail2Seed: 100
-  trail2Frequency: 0.001
-  trail2Amplitude: 150
+  trail2Frequency: 0.0015
+  trail2Amplitude: 200
   trail3Enabled: 1
   trail3Width: 45
   trail3BlendWidth: 35
   trail3Seed: 200
   trail3Frequency: 0.0015
-  trail3Amplitude: 100
+  trail3Amplitude: 150
   renderTerrain: 1
   enablePhysicsColliders: 1
 --- !u!4 &1528308291

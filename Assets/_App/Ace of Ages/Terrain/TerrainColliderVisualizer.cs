@@ -9,24 +9,26 @@ using UnityEngine.Rendering;
 using Material = UnityEngine.Material;
 
 /// <summary>
-/// Visualizes terrain physics colliders as solid colored triangle meshes during gameplay (VR compatible).
-/// Draws the actual mesh geometry of each collider using pooled MeshRenderer components.
+/// Visualizes terrain physics colliders as colored wireframes during gameplay (VR compatible).
+/// Draws collider triangle edges using pooled MeshRenderer components with MeshTopology.Lines.
 /// Fully compatible with Quest 3 and all VR platforms.
 /// </summary>
 public class TerrainColliderVisualizer : MonoBehaviour
 {
+    private const float WireframeYOffset = 0.03f;
+
     [Header("Visualization Settings")]
-    [Tooltip("Enable collider mesh visualization")]
+    [Tooltip("Enable collider wireframe visualization")]
     public bool enableVisualization = true;
 
-    [Tooltip("Color for terrain colliders (all use full-resolution geometry)")]
+    [Tooltip("Color for terrain collider wireframes")]
     public Color colliderColor = Color.green;
 
     [Header("Performance (Quest 3 Optimization)")]
     [Tooltip("Maximum tiles to render per frame. Quest 2: 20, Quest 3: 40, Desktop VR: -1 (unlimited)")]
     public int maxTilesToRenderPerFrame = 40;
 
-    [Tooltip("Maximum distance from player to render collider visualization (meters). 0 = unlimited")]
+    [Tooltip("Maximum XZ distance from player to render collider visualization (meters). Matches physics collider distance. 0 = unlimited")]
     public float maxVisualizationDistance = 500f;
 
     [Header("Info")]
@@ -39,6 +41,7 @@ public class TerrainColliderVisualizer : MonoBehaviour
     private int _activeMeshes = 0;
     private Material _meshMaterial;
     private List<Vector3> _vertexScratch = new List<Vector3>();
+    private List<int> _lineIndexScratch = new List<int>();
 
     private sealed class TileMeshEntry
     {
@@ -127,7 +130,7 @@ public class TerrainColliderVisualizer : MonoBehaviour
         query.Dispose();
     }
 
-    /// <summary>Creates a new URP Unlit (or fallback Unlit/Color) material for the collider mesh overlay.</summary>
+    /// <summary>Creates a new URP Unlit (or fallback Unlit/Color) material for wireframe line rendering.</summary>
     private void CreateMeshMaterial()
     {
         Shader shader = Shader.Find("Universal Render Pipeline/Unlit");
@@ -146,6 +149,9 @@ public class TerrainColliderVisualizer : MonoBehaviour
         _meshMaterial.hideFlags = HideFlags.HideAndDontSave;
         ApplyMaterialColor(colliderColor);
         _meshMaterial.SetFloat("_Cull", (float)CullMode.Off);
+        _meshMaterial.SetFloat("_ZWrite", 0f);
+        if (_meshMaterial.HasProperty("_ZTest"))
+            _meshMaterial.SetFloat("_ZTest", (float)CompareFunction.LessEqual);
     }
 
     /// <summary>Sets the material's <c>_BaseColor</c> (URP) or <c>_Color</c> (legacy) property to <paramref name="color"/>.</summary>
@@ -206,8 +212,8 @@ public class TerrainColliderVisualizer : MonoBehaviour
     }
 
     /// <summary>
-    /// Queries all terrain tiles with prepared collider vertex/triangle data, filters by distance
-    /// (up to <see cref="maxVisualizationDistance"/>), and uploads the geometry to pooled
+    /// Queries all terrain tiles with collider vertex/triangle data, filters by distance
+    /// (up to <see cref="maxVisualizationDistance"/>), and uploads wireframe line geometry to pooled
     /// <see cref="MeshRenderer"/> GameObjects via <see cref="GetOrCreateMeshEntry"/>.
     /// </summary>
     private void RenderColliderMeshes()
@@ -226,20 +232,6 @@ public class TerrainColliderVisualizer : MonoBehaviour
 
         var entities = query.ToEntityArray(Allocator.Temp);
 
-        float3 playerPos = float3.zero;
-        bool hasPlayerPos = false;
-
-        var playerQuery = em.CreateEntityQuery(typeof(PlayerTransformReference));
-        if (!playerQuery.IsEmpty)
-        {
-            var playerRef = playerQuery.GetSingleton<PlayerTransformReference>();
-            if (playerRef.playerTransform != null)
-            {
-                playerPos = playerRef.playerTransform.position;
-                hasPlayerPos = true;
-            }
-        }
-
         int tilesRendered = 0;
 
         foreach (var entity in entities)
@@ -247,15 +239,17 @@ public class TerrainColliderVisualizer : MonoBehaviour
             if (maxTilesToRenderPerFrame > 0 && tilesRendered >= maxTilesToRenderPerFrame)
                 break;
 
-            var tileTransform = em.GetComponentData<LocalTransform>(entity);
-            float3 tilePosition = tileTransform.Position;
-
-            if (hasPlayerPos && maxVisualizationDistance > 0)
+            // Use the same XZ distance as physics collider culling so flying high
+            // above terrain does not exclude nearby tiles via 3D distance.
+            if (maxVisualizationDistance > 0)
             {
-                float distToPlayer = math.distance(tilePosition, playerPos);
+                float distToPlayer = em.GetComponentData<TerrainTileDistanceToPlayer>(entity).distance;
                 if (distToPlayer > maxVisualizationDistance)
                     continue;
             }
+
+            var tileTransform = em.GetComponentData<LocalTransform>(entity);
+            float3 tilePosition = tileTransform.Position;
 
             var vertexBuffer = em.GetBuffer<VertexElement>(entity);
             var indexBuffer = em.GetBuffer<IndexElement>(entity);
@@ -268,12 +262,16 @@ public class TerrainColliderVisualizer : MonoBehaviour
 
         _tilesRenderedLastFrame = tilesRendered;
         entities.Dispose();
+        query.Dispose();
 
         for (int i = _activeMeshes; i < _meshPool.Count; i++)
             _meshPool[i].gameObject.SetActive(false);
     }
 
-    /// <summary>Uploads the collider vertex and triangle buffers from the ECS entity to the given Unity <see cref="Mesh"/>, applying the tile's world-space position offset.</summary>
+    /// <summary>
+    /// Uploads collider vertices and expands triangle indices into line segments for
+    /// <see cref="MeshTopology.Lines"/> wireframe rendering, with a small Y offset to reduce z-fighting.
+    /// </summary>
     private void UpdateTileMesh(
         Mesh mesh,
         DynamicBuffer<VertexElement> vertices,
@@ -289,13 +287,38 @@ public class TerrainColliderVisualizer : MonoBehaviour
         if (_vertexScratch.Capacity < vertices.Length)
             _vertexScratch.Capacity = vertices.Length;
 
+        float3 yOffset = new float3(0f, WireframeYOffset, 0f);
+
         _vertexScratch.Clear();
         for (int i = 0; i < vertices.Length; i++)
-            _vertexScratch.Add((Vector3)(tilePosition + vertices[i].value));
+            _vertexScratch.Add((Vector3)(tilePosition + vertices[i].value + yOffset));
 
+        int triangleCount = indices.Length / 3;
+        int lineIndexCount = triangleCount * 6;
+        if (_lineIndexScratch.Capacity < lineIndexCount)
+            _lineIndexScratch.Capacity = lineIndexCount;
+
+        _lineIndexScratch.Clear();
+        for (int i = 0; i + 2 < indices.Length; i += 3)
+        {
+            int i0 = indices[i].value;
+            int i1 = indices[i + 1].value;
+            int i2 = indices[i + 2].value;
+
+            if (i0 >= vertices.Length || i1 >= vertices.Length || i2 >= vertices.Length)
+                continue;
+
+            _lineIndexScratch.Add(i0);
+            _lineIndexScratch.Add(i1);
+            _lineIndexScratch.Add(i1);
+            _lineIndexScratch.Add(i2);
+            _lineIndexScratch.Add(i2);
+            _lineIndexScratch.Add(i0);
+        }
+
+        mesh.Clear();
         mesh.SetVertices(_vertexScratch);
-        mesh.SetIndices(indices.Reinterpret<int>().AsNativeArray(), MeshTopology.Triangles, 0);
+        mesh.SetIndices(_lineIndexScratch, MeshTopology.Lines, 0);
         mesh.RecalculateBounds();
     }
 }
-
