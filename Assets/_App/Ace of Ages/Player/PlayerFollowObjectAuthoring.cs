@@ -66,6 +66,18 @@ public class PlayerFollowObjectAuthoring : MonoBehaviour
     [Min(0f)]
     [SerializeField] private float maxLegCompression = 0.3f;
 
+    [Tooltip("Maximum upward speed (m/s) the contact step may add in one frame. Caps pops from the hard " +
+             "stop and damper so a probe discontinuity cannot launch the rider. Ledge launches keep their " +
+             "existing upward speed because only the increase is clamped. ~5 m/s is about a 1.3 m pop.")]
+    [Min(0f)]
+    [SerializeField] private float maxGroundLiftSpeed = 5f;
+
+    [Tooltip("Metres per second the body may be pushed back out of the ground while bottomed out. Fast " +
+             "enough that a hard landing recovers within a few frames, slow enough that sustained contact " +
+             "against a rising face cannot walk the rider up it.")]
+    [Min(0f)]
+    [SerializeField] private float maxPenetrationRecoverySpeed = 6f;
+
     [Tooltip("Half-extent (m) of the contact footprint. Probes fore/aft and left/right at this radius to " +
              "fit a steady ground plane and let the board bridge narrow crests instead of dropping into " +
              "every gap. 0 = single centre ray.")]
@@ -127,7 +139,9 @@ public class PlayerFollowObjectAuthoring : MonoBehaviour
                 capsuleRadius = capsuleRadius,
                 capsuleHalfCylinder = capsuleHalfCylinder,
                 capsuleCenter = capsuleCenter,
-                gravity = (float3)Physics.gravity
+                gravity = (float3)Physics.gravity,
+                maxGroundLiftSpeed = math.max(0f, authoring.maxGroundLiftSpeed),
+                maxPenetrationRecoverySpeed = math.max(0f, authoring.maxPenetrationRecoverySpeed)
             });
 
             AddComponent(entity, new PlayerFollowObjectMotionState
@@ -139,7 +153,10 @@ public class PlayerFollowObjectAuthoring : MonoBehaviour
                 previousContactHeight = 0f,
                 hasPreviousContact = 0,
                 previousGroundNormal = math.up(),
-                contactPoint = float3.zero
+                contactPoint = float3.zero,
+                lastSurfaceVerticalRate = 0f,
+                lastContactLiftSpeed = 0f,
+                lastLiftWasClamped = 0
             });
 
             AddComponent(entity, new PlayerFollowObjectSteeringConfig

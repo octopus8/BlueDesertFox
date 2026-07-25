@@ -980,8 +980,10 @@ MonoBehaviour:
   rideHeight: 0.35
   maxLegExtension: 0.5
   maxLegCompression: 0.3
+  maxGroundLiftSpeed: 5
+  maxPenetrationRecoverySpeed: 6
   contactProbeRadius: 0.7
-  groundFriction: 0.25
+  groundFriction: 0.15
   yawRotationSmoothTime: 1
   minYawSpeed: 0.5
   steeringSensitivity: 90
@@ -6250,7 +6252,7 @@ MonoBehaviour:
   trailWeaveFadeLength: 30
   trailSnapStartToPlayer: 1
   trailPathSettingsInitialized: 1
-  trail1Enabled: 1
+  trail1Enabled: 0
   trail1Width: 45
   trail1BlendWidth: 0
   trail1Seed: 0
@@ -6310,7 +6312,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1528308289}
-  m_Enabled: 0
+  m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: f17144813f71f9c4eab8e31b81e2c2db, type: 3}
   m_Name: 

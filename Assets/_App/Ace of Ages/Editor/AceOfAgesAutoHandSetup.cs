@@ -17,8 +17,8 @@ public static class AceOfAgesAutoHandSetup
     const string RobotHandLeftPath = "Assets/AutoHand/Examples/Scenes/OpenXR/Prefabs/RobotHand (OpenXR)(L).prefab";
     const string RobotHandRightPath = "Assets/AutoHand/Examples/Scenes/OpenXR/Prefabs/RobotHand (OpenXR)(R).prefab";
     const string AutoHandPlayerPath = "Assets/AutoHand/Examples/Prefabs/Attachments/Auto Hand Player.prefab";
-    const string LeftHandTrackingPath = "Assets/Samples/XR Hands/1.7.1/HandVisualizer/Prefabs/Left Hand Tracking.prefab";
-    const string RightHandTrackingPath = "Assets/Samples/XR Hands/1.7.1/HandVisualizer/Prefabs/Right Hand Tracking.prefab";
+    const string LeftHandTrackingPath = "Assets/Samples/XR Hands/1.8.0/HandVisualizer/Prefabs/Left Hand Tracking.prefab";
+    const string RightHandTrackingPath = "Assets/Samples/XR Hands/1.8.0/HandVisualizer/Prefabs/Right Hand Tracking.prefab";
 
     const string XrRigName = "XR Origin Hands (XR Rig)";
     const string HandTrackingParentName = "Hand Tracking";
@@ -215,11 +215,11 @@ public static class AceOfAgesAutoHandSetup
     static void WireHandTracking(Transform xrOrigin, GameObject leftHand, GameObject rightHand)
     {
         var handTrackingParent = GetOrCreateChild(xrOrigin, HandTrackingParentName);
-        WireHandTrackingSide(handTrackingParent, leftHand, LeftHandTrackingPath, LeftHandTrackingName);
-        WireHandTrackingSide(handTrackingParent, rightHand, RightHandTrackingPath, RightHandTrackingName);
+        WireHandTrackingSide(handTrackingParent, leftHand, LeftHandTrackingPath, LeftHandTrackingName, isLeft: true);
+        WireHandTrackingSide(handTrackingParent, rightHand, RightHandTrackingPath, RightHandTrackingName, isLeft: false);
     }
 
-    static void WireHandTrackingSide(Transform parent, GameObject robotHand, string prefabPath, string instanceName)
+    static void WireHandTrackingSide(Transform parent, GameObject robotHand, string prefabPath, string instanceName, bool isLeft)
     {
         if (robotHand == null)
             return;
@@ -234,16 +234,9 @@ public static class AceOfAgesAutoHandSetup
         var trackingObject = GetOrCreatePrefabInstance(parent, prefabPath, instanceName);
         trackingObject.SetActive(false);
 
-        var handTracking = trackingObject.GetComponent<OpenXRAutoHandTracking>();
-        if (handTracking == null)
-        {
-            Debug.LogError($"[AceOfAgesAutoHandSetup] {instanceName} is missing OpenXRAutoHandTracking.");
-            trackingObject.SetActive(true);
-            return;
-        }
+        var controllerLink = robotHand.GetComponentInChildren<OpenXRHandControllerLink>(true);
+        AceOfAgesAutoHandRigBootstrap.EnsureHandTracking(trackingObject, hand, controllerLink, isLeft);
 
-        handTracking.hand = hand;
-        handTracking.controllerLink = robotHand.GetComponentInChildren<OpenXRHandControllerLink>(true);
         HideHandTrackingVisuals(trackingObject);
         trackingObject.SetActive(true);
         EditorUtility.SetDirty(trackingObject);

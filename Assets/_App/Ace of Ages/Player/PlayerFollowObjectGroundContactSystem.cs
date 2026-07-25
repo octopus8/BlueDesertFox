@@ -27,6 +27,11 @@ public struct PlayerFollowObjectGroundConfig : IComponentData
     public float capsuleHalfCylinder;
     public float3 capsuleCenter;
     public float3 gravity;
+    // Appended fields stay at the end so a closed SubScene bake from before they existed still lines
+    // up every earlier field (capsule, gravity, friction). Inserting them mid-struct scrambled those on
+    // Quest and left the rider stuck on first contact while Editor live-bake looked fine.
+    public float maxGroundLiftSpeed;
+    public float maxPenetrationRecoverySpeed;
 
     /// <summary>Leg length past which the surface is out of reach and contact is lost.</summary>
     public float MaxLegLength => rideHeight + math.max(0f, maxLegExtension);
@@ -49,6 +54,15 @@ public struct PlayerFollowObjectMotionState : IComponentData
     public byte hasPreviousContact;
     public float3 previousGroundNormal;
     public float3 contactPoint;
+
+    /// <summary>Diagnostic: clamped rate the supporting surface was seen rising at, in m/s.</summary>
+    public float lastSurfaceVerticalRate;
+
+    /// <summary>Diagnostic: upward velocity the contact step tried to add this frame, before clamping.</summary>
+    public float lastContactLiftSpeed;
+
+    /// <summary>Diagnostic: set when <see cref="lastContactLiftSpeed"/> hit the configured lift cap.</summary>
+    public byte lastLiftWasClamped;
 }
 
 /// <summary>
@@ -75,15 +89,14 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
     // supporting surface may rise per step and how fast it may climb, which keeps a wall the probe
     // happens to see over from being mistaken for ground.
     private const float MaxClimbTangent = 1.7320508f;
-    // Metres per second the body may be pushed back out of the ground. Fast enough that a hard landing
-    // recovers within a few frames, slow enough that it is never a single-frame teleport in VR.
-    private const float PenetrationRecoverySpeed = 20f;
     private const float MinGradientNormalY = 0.1f;
     private const float WalkableSlopeThreshold = 0.5f;
     private const float MinSlideSpeed = 0.01f;
     // Squared ratio (0.1^2): tangential motion below a tenth of the inbound magnitude counts as head-on,
     // where the surface tangent is too ill-conditioned to slide along and a direction must be chosen.
     private const float MinTangentFractionSq = 0.01f;
+    private const float DefaultMaxGroundLiftSpeed = 5f;
+    private const float DefaultMaxPenetrationRecoverySpeed = 6f;
     private static readonly float3 DefaultGravity = new float3(0f, -9.81f, 0f);
 
     /// <summary>Result of a single downward probe within the contact footprint.</summary>
@@ -188,6 +201,14 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
                     supportGradient *= MaxClimbTangent / gradientLength;
             }
 
+            // How fast the world-space surface under the board can legitimately rise, as a rate rather
+            // than a distance: the board's travel over the slope it is already riding, plus the slab's own
+            // vertical motion. Deriving this from maxSurfaceRise instead divided that budget's positional
+            // step-up allowance by dt, which read as tens of metres per second of surface motion even at a
+            // standstill and let the damper and the hard stop turn a probe discontinuity into a launch.
+            float surfaceFollowRateLimit = math.length(supportGradient) * traverseSpeed
+                + math.abs(scrollVelocity.y);
+
             bool hasContact = false;
             float3 contactNormal = previousGroundNormal;
             float legLength = config.ValueRO.rideHeight;
@@ -226,8 +247,17 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
                 terrainRelativeVelocity,
                 scrollVelocity);
 
+            float surfaceVerticalRate = 0f;
+            float contactLiftSpeed = 0f;
+            byte liftWasClamped = 0;
+
             if (hasContact)
             {
+                // Air time must come from losing contact with retained velocity, never from the ground
+                // injecting lift. Capture the upward speed on entry so any increase produced below can be
+                // capped; existing upward speed from a ledge launch passes through untouched.
+                float entryUpwardSpeed = worldVelocity.y;
+
                 // Correct any penetration left over from the previous step before applying forces, so the
                 // hard stop doubles as the ground-interpenetration guard. The correction is rate limited
                 // so a deep recovery plays out over several frames instead of teleporting the rider.
@@ -235,23 +265,25 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
                 bool bottomedOut = legLength < minLegLength;
                 if (bottomedOut)
                 {
-                    float lift = math.min(minLegLength - legLength, PenetrationRecoverySpeed * dt);
+                    // Non-positive means a stale closed SubScene bake from before the field existed (reads
+                    // as zero). Fall back so Quest does not freeze the rider inside the first contact.
+                    float recoverySpeed = config.ValueRO.maxPenetrationRecoverySpeed;
+                    if (recoverySpeed <= 0f)
+                        recoverySpeed = DefaultMaxPenetrationRecoverySpeed;
+                    float lift = math.min(minLegLength - legLength, recoverySpeed * dt);
                     position += contactNormal * lift;
                     legLength += lift;
                 }
 
-                float surfaceVerticalRate = 0f;
                 if (hadContact)
                 {
-                    // Bounded by the same continuity budget the probe enforces, expressed as a rate. The
-                    // support height cannot legitimately have moved further than that, so this only ever
-                    // catches a discontinuity that slipped through before it reaches the damper or the
-                    // hard stop as a launch impulse.
-                    float maxSurfaceRate = maxSurfaceRise / dt;
+                    // Bounded by the rate the ridden surface can actually climb, so anything faster is read
+                    // as a measurement discontinuity — the footprint swinging onto a new face, say — and is
+                    // never handed to the damper or the hard stop as a launch impulse.
                     surfaceVerticalRate = math.clamp(
                         (supportHeight - motionState.ValueRO.previousContactHeight) / dt,
-                        -maxSurfaceRate,
-                        maxSurfaceRate);
+                        -surfaceFollowRateLimit,
+                        surfaceFollowRateLimit);
                 }
 
                 // Closing rate between body and surface along the contact normal. The horizontal terms
@@ -280,6 +312,16 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
                 worldVelocity += GetTangentComponent(gravity, contactNormal) * dt;
 
                 ApplyGroundFriction(ref worldVelocity, scrollVelocity, contactNormal, config.ValueRO.groundFriction, dt);
+
+                contactLiftSpeed = worldVelocity.y - entryUpwardSpeed;
+                float maxLift = config.ValueRO.maxGroundLiftSpeed;
+                if (maxLift <= 0f)
+                    maxLift = DefaultMaxGroundLiftSpeed;
+                if (contactLiftSpeed > maxLift)
+                {
+                    worldVelocity.y = entryUpwardSpeed + maxLift;
+                    liftWasClamped = 1;
+                }
             }
             else
             {
@@ -349,6 +391,9 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
             motionState.ValueRW.hasPreviousContact = hasContact ? (byte)1 : (byte)0;
             motionState.ValueRW.previousGroundNormal = previousGroundNormal;
             motionState.ValueRW.contactPoint = new float3(position.x, position.y + contactOffsetY, position.z);
+            motionState.ValueRW.lastSurfaceVerticalRate = surfaceVerticalRate;
+            motionState.ValueRW.lastContactLiftSpeed = contactLiftSpeed;
+            motionState.ValueRW.lastLiftWasClamped = liftWasClamped;
 
             UpdateSmoothedYaw(
                 ref smoothedYaw,
@@ -690,8 +735,9 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
     /// Blocks the body against a steep surface and lets it scrape along the face. The step is truncated
     /// at the contact point and its unspent remainder continues along the wall plane, so grinding along
     /// a wall (where the sweep hits at fraction zero every frame) still makes progress instead of
-    /// freezing in place. A near head-on hit is deflected along the wall's horizontal tangent, never up
-    /// its face, which is what separates a cliff collision from the halfpipe response in
+    /// freezing in place. The whole response is resolved against a plumb version of the face and a head-on
+    /// hit is deflected along its horizontal tangent, so no part of it can trade horizontal speed for
+    /// climb. That is what separates a cliff collision from the halfpipe response in
     /// <see cref="ResolveRideableCollision"/>. Walkable hits are left to the suspension.
     /// </summary>
     private static void ResolveBlockingCollision(
@@ -726,13 +772,22 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
         if (math.dot(blockingNormal, math.up()) >= WalkableSlopeThreshold)
             return;
 
-        float3 horizontalTangent = GetHorizontalWallTangent(blockingNormal, direction);
+        // Respond as though the face were plumb. A "vertical" cliff never is — its normal leans back a
+        // few degrees — and resolving the step against that leaning plane turns speed driven into the wall
+        // into speed up the wall, which is the climb-and-launch. Standing the normal up removes the lift
+        // term entirely while still cancelling the approach. An overhang or ceiling has no horizontal
+        // normal to stand up, so it keeps the true one and blocks the rider's rise as before.
+        float3 barrierNormal = math.normalizesafe(new float3(blockingNormal.x, 0f, blockingNormal.z), float3.zero);
+        if (math.lengthsq(barrierNormal) < 0.5f)
+            barrierNormal = blockingNormal;
+
+        float3 horizontalTangent = GetHorizontalWallTangent(barrierNormal, direction);
 
         // Spend the step up to the contact point, then carry the remainder along the face. Dropping the
         // remainder instead pinned the rider to any wall they touched: once in contact the sweep reports
         // fraction zero every frame, so the position never advanced again.
         float fraction = math.max(castHit.Fraction - ObstacleSkin, 0f);
-        float3 slideDirection = RemoveNormalComponent(direction, blockingNormal);
+        float3 slideDirection = RemoveNormalComponent(direction, barrierNormal);
         if (math.lengthsq(slideDirection) < MinTangentFractionSq)
             slideDirection = horizontalTangent;
 
@@ -745,9 +800,9 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
         // instead of driving through them. Cancelling the outbound half too would undo the separation the
         // suspension and the deflection below provide, which is another way to end up pinned.
         float inboundHorizontalSpeed = math.length(new float2(terrainRelativeVelocity.x, terrainRelativeVelocity.z));
-        float approachRate = math.dot(terrainRelativeVelocity, blockingNormal);
+        float approachRate = math.dot(terrainRelativeVelocity, barrierNormal);
         if (approachRate < 0f)
-            terrainRelativeVelocity -= blockingNormal * approachRate;
+            terrainRelativeVelocity -= barrierNormal * approachRate;
 
         // A head-on hit projects to almost no tangential speed, which leaves the rider parked against the
         // face while the scroll keeps pressing them into it. Turning the horizontal speed along the wall
