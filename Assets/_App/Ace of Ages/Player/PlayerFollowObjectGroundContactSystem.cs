@@ -63,6 +63,9 @@ public struct PlayerFollowObjectMotionState : IComponentData
 
     /// <summary>Diagnostic: set when <see cref="lastContactLiftSpeed"/> hit the configured lift cap.</summary>
     public byte lastLiftWasClamped;
+
+    /// <summary>Set while a steep blocking wall is actively scraping the capsule this frame.</summary>
+    public byte wallSlideActive;
 }
 
 /// <summary>
@@ -100,6 +103,15 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
     private const float MinTangentFractionSq = 0.01f;
     private const float DefaultMaxGroundLiftSpeed = 5f;
     private const float DefaultMaxPenetrationRecoverySpeed = 6f;
+    // Closing rate (m/s) past which a meaningfully extended leg is freefall onto distant ground, not a
+    // bump. Only the closing sign is used: downhill tessellation makes supportHeight step down so the
+    // separating sign false-triggered every few metres and popped the board.
+    private const float ExtensionAirborneSpeed = 1f;
+    // How far past neutral the leg must be before that freefall check can fire.
+    private const float MinAirborneSlack = 0.2f;
+    // Fraction of horizontal terrain-relative speed kept the frame a blocking wall scrape ends. Without
+    // this, clearing the face releases the full wall-tangent speed as a sideways slingshot.
+    private const float WallExitSpeedRetain = 0.25f;
     private static readonly float3 DefaultGravity = new float3(0f, -9.81f, 0f);
 
     /// <summary>Result of a single downward probe within the contact footprint.</summary>
@@ -283,6 +295,29 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
                 scrollVelocity);
 
             float surfaceVerticalRate = 0f;
+            if (hasContact && hadContact)
+            {
+                // Bounded by the rate the ridden surface can actually climb, so anything faster is read
+                // as a measurement discontinuity — the footprint swinging onto a new face, say — and is
+                // never handed to the damper or the hard stop as a launch impulse.
+                surfaceVerticalRate = math.clamp(
+                    (supportHeight - motionState.ValueRO.previousContactHeight) / dt,
+                    -surfaceFollowRateLimit,
+                    surfaceFollowRateLimit);
+            }
+
+            // Freefall onto ground still inside MaxLegLength but well past neutral: drop contact so the
+            // damper cannot crawl through the slack. Do not treat separating rates as airborne — on a
+            // downhill the support height steps with the mesh, surfaceVerticalRate goes largely negative,
+            // and abs(rate) flickered contact every few metres (board pop). Ledge drops still lose
+            // contact when the leg hits MaxLegLength.
+            if (hasContact && legLength > config.ValueRO.rideHeight + MinAirborneSlack)
+            {
+                float extensionRate = contactNormal.y * (worldVelocity.y - surfaceVerticalRate);
+                if (extensionRate < -ExtensionAirborneSpeed)
+                    hasContact = false;
+            }
+
             float contactLiftSpeed = 0f;
             byte liftWasClamped = 0;
 
@@ -310,17 +345,6 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
                     legLength += lift;
                 }
 
-                if (hadContact)
-                {
-                    // Bounded by the rate the ridden surface can actually climb, so anything faster is read
-                    // as a measurement discontinuity — the footprint swinging onto a new face, say — and is
-                    // never handed to the damper or the hard stop as a launch impulse.
-                    surfaceVerticalRate = math.clamp(
-                        (supportHeight - motionState.ValueRO.previousContactHeight) / dt,
-                        -surfaceFollowRateLimit,
-                        surfaceFollowRateLimit);
-                }
-
                 // Match a rising surface vertically when bottomed out. Matching along the contact normal
                 // instead converted horizontal speed into a launch up steep faces.
                 if (bottomedOut && worldVelocity.y < surfaceVerticalRate)
@@ -335,8 +359,13 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
                 float omega = 2f * math.PI * math.max(0f, config.ValueRO.rideFrequency);
                 float stiffness = omega * omega;
                 float damping = 2f * math.max(0f, config.ValueRO.rideDampingRatio) * omega;
+                // Damping a closing rate while the leg is already long fights freefall. Only damp when
+                // the leg is at/under neutral, or when it is extending (soft landing from a crest).
+                float damperRate = relativeNormalRate;
+                if (legLength > config.ValueRO.rideHeight && relativeNormalRate < 0f)
+                    damperRate = 0f;
                 float springAcceleration = stiffness * (config.ValueRO.rideHeight - legLength)
-                    - damping * relativeNormalRate;
+                    - damping * damperRate;
 
                 worldVelocity += contactNormal * (springAcceleration * dt);
 
@@ -379,6 +408,7 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
             float3 displacement = worldVelocity * dt;
             position = startPosition + displacement;
 
+            byte wallSlideActive = 0;
             if (hasPhysicsWorld && math.lengthsq(displacement) > MinCastDistance * MinCastDistance)
             {
                 if (ResolveRideableCollision(
@@ -397,30 +427,40 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
                 // Each blocking sweep runs on the distance actually travelled so far, so whichever surface
                 // is nearest ends up truncating the step.
                 float3 traveledDisplacement = position - startPosition;
-                if (math.lengthsq(traveledDisplacement) > MinCastDistance * MinCastDistance)
-                {
-                    ResolveBlockingCollision(
+                if (math.lengthsq(traveledDisplacement) > MinCastDistance * MinCastDistance
+                    && ResolveBlockingCollision(
                         ref position,
                         ref terrainRelativeVelocity,
                         startPosition,
                         traveledDisplacement,
                         config.ValueRO,
                         collisionWorld,
-                        terrainWallFilter);
+                        terrainWallFilter))
+                {
+                    wallSlideActive = 1;
                 }
 
                 traveledDisplacement = position - startPosition;
-                if (math.lengthsq(traveledDisplacement) > MinCastDistance * MinCastDistance)
-                {
-                    ResolveBlockingCollision(
+                if (math.lengthsq(traveledDisplacement) > MinCastDistance * MinCastDistance
+                    && ResolveBlockingCollision(
                         ref position,
                         ref terrainRelativeVelocity,
                         startPosition,
                         traveledDisplacement,
                         config.ValueRO,
                         collisionWorld,
-                        obstacleFilter);
+                        obstacleFilter))
+                {
+                    wallSlideActive = 1;
                 }
+            }
+
+            // Leaving a wall scrape releases the full tangent speed that was preserved against the face.
+            // Keep a fraction so clearing a cliff does not read as a sideways slingshot.
+            if (motionState.ValueRO.wallSlideActive != 0 && wallSlideActive == 0)
+            {
+                terrainRelativeVelocity.x *= WallExitSpeedRetain;
+                terrainRelativeVelocity.z *= WallExitSpeedRetain;
             }
 
             localTransform.ValueRW.Position = position;
@@ -434,6 +474,7 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
             motionState.ValueRW.lastSurfaceVerticalRate = surfaceVerticalRate;
             motionState.ValueRW.lastContactLiftSpeed = contactLiftSpeed;
             motionState.ValueRW.lastLiftWasClamped = liftWasClamped;
+            motionState.ValueRW.wallSlideActive = wallSlideActive;
 
             UpdateSmoothedYaw(
                 ref smoothedYaw,
@@ -794,7 +835,7 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
     /// face. Head-on hits deflect along the horizontal wall tangent — never up the face — which is what
     /// separates a cliff collision from the halfpipe response in <see cref="ResolveRideableCollision"/>.
     /// </summary>
-    private static void ResolveBlockingCollision(
+    private static bool ResolveBlockingCollision(
         ref float3 position,
         ref float3 terrainRelativeVelocity,
         float3 startPosition,
@@ -805,7 +846,7 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
     {
         float distance = math.length(displacement);
         if (distance < MinCastDistance)
-            return;
+            return false;
 
         float3 direction = displacement / distance;
         GetCapsuleEndpoints(startPosition, config, out float3 point1, out float3 point2);
@@ -820,7 +861,7 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
                 blockingFilter,
                 out ColliderCastHit castHit))
         {
-            return;
+            return false;
         }
 
         float3 blockingNormal = math.normalizesafe(castHit.SurfaceNormal, math.up());
@@ -899,6 +940,8 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
                 terrainRelativeVelocity.y,
                 horizontalTangent.z * inboundHorizontalSpeed);
         }
+
+        return true;
     }
 
     /// <summary>

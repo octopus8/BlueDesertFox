@@ -156,7 +156,8 @@ public class PlayerFollowObjectAuthoring : MonoBehaviour
                 contactPoint = float3.zero,
                 lastSurfaceVerticalRate = 0f,
                 lastContactLiftSpeed = 0f,
-                lastLiftWasClamped = 0
+                lastLiftWasClamped = 0,
+                wallSlideActive = 0
             });
 
             AddComponent(entity, new PlayerFollowObjectSteeringConfig
