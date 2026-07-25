@@ -321,19 +321,16 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
                         surfaceFollowRateLimit);
                 }
 
+                // Match a rising surface vertically when bottomed out. Matching along the contact normal
+                // instead converted horizontal speed into a launch up steep faces.
+                if (bottomedOut && worldVelocity.y < surfaceVerticalRate)
+                    worldVelocity.y = surfaceVerticalRate;
+
                 // Closing rate between body and surface along the contact normal. The horizontal terms
                 // of the two velocities cancel because the contact target tracks the body's XZ, leaving
                 // the vertical difference projected onto the normal. A body gliding along a constant
                 // slope therefore reads zero, so the damper follows the ground instead of fighting it.
                 float relativeNormalRate = contactNormal.y * (worldVelocity.y - surfaceVerticalRate);
-
-                if (bottomedOut && relativeNormalRate < 0f)
-                {
-                    // Inelastic normal-direction response referenced to the surface: kills the approach
-                    // rate and, on a rising ramp, redirects horizontal speed up the ramp face.
-                    worldVelocity -= contactNormal * relativeNormalRate;
-                    relativeNormalRate = 0f;
-                }
 
                 float omega = 2f * math.PI * math.max(0f, config.ValueRO.rideFrequency);
                 float stiffness = omega * omega;
@@ -348,15 +345,23 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
 
                 ApplyGroundFriction(ref worldVelocity, scrollVelocity, contactNormal, config.ValueRO.groundFriction, dt);
 
-                contactLiftSpeed = worldVelocity.y - entryUpwardSpeed;
+                // Absolute climb budget while in contact: horizontal speed times the slope tangent, floored
+                // by the authored pop allowance. A per-frame delta cap stacked (+5 m/s every tick) into
+                // launches far above travel speed.
                 float maxLift = config.ValueRO.maxGroundLiftSpeed;
                 if (maxLift <= 0f)
                     maxLift = DefaultMaxGroundLiftSpeed;
-                if (contactLiftSpeed > maxLift)
+                float ny = math.max(contactNormal.y, MinGradientNormalY);
+                float slopeTan = math.sqrt(math.max(0f, 1f - contactNormal.y * contactNormal.y)) / ny;
+                float horizontalSpeed = math.length(new float2(worldVelocity.x, worldVelocity.z));
+                float maxClimbY = math.max(maxLift, horizontalSpeed * slopeTan);
+                if (worldVelocity.y > maxClimbY)
                 {
-                    worldVelocity.y = entryUpwardSpeed + maxLift;
+                    worldVelocity.y = maxClimbY;
                     liftWasClamped = 1;
                 }
+
+                contactLiftSpeed = worldVelocity.y - entryUpwardSpeed;
             }
             else
             {
@@ -567,6 +572,21 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
         if (fitted)
         {
             normal = math.normalizesafe(new float3(-gradient.x, 1f, -gradient.y), math.up());
+
+            // A footprint that spans a cliff base fits a wall-plane from walkable hits at very different
+            // heights. Riding that plane is what launched the rider; fall back to centre-only support
+            // (or no contact) instead of extrapolating up the face. Steep Rideable raw hits still pass
+            // through ProbeColumn and are not fitted away here.
+            if (normal.y < WalkableSlopeThreshold)
+            {
+                if (!centre.hit || centre.rawNormal.y < WalkableSlopeThreshold)
+                    return false;
+
+                normal = centre.rawNormal;
+                gradient = float2.zero;
+                supportHeight = math.min(centre.height, ceilingAtBody);
+                return true;
+            }
         }
         else
         {
