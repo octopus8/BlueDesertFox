@@ -55,9 +55,10 @@ public struct PlayerFollowObjectMotionState : IComponentData
 /// Drives the Player Follow Object entity along terrain and rideable surfaces as a sprung body on a
 /// travel-limited suspension. A footprint of downward probes finds the supporting surface, a soft
 /// spring-damper tuned by ride frequency absorbs bumps, and contact is lost the moment the surface
-/// drops beyond the leg's reach — which is what launches the player off ledges. Capsule casts block
-/// steep Terrain/Rideable walls and other obstacles. Integrates in terrain-relative velocity space so
-/// scroll motion and ramp slide do not compete. Burst-compiled to avoid managed GC.
+/// drops beyond the leg's reach — which is what launches the player off ledges. Forward capsule sweeps
+/// then resolve walls by layer: a steep Rideable surface carries the body along and up its face, while
+/// steep Terrain and other obstacles block it. Integrates in terrain-relative velocity space so scroll
+/// motion and ramp slide do not compete. Burst-compiled to avoid managed GC.
 /// </summary>
 [BurstCompile]
 [UpdateInGroup(typeof(SimulationSystemGroup))]
@@ -80,6 +81,9 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
     private const float MinGradientNormalY = 0.1f;
     private const float WalkableSlopeThreshold = 0.5f;
     private const float MinSlideSpeed = 0.01f;
+    // Squared ratio (0.1^2): tangential motion below a tenth of the inbound magnitude counts as head-on,
+    // where the surface tangent is too ill-conditioned to slide along and a direction must be chosen.
+    private const float MinTangentFractionSq = 0.01f;
     private static readonly float3 DefaultGravity = new float3(0f, -9.81f, 0f);
 
     /// <summary>Result of a single downward probe within the contact footprint.</summary>
@@ -115,12 +119,14 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
 
         CollisionWorld collisionWorld = default;
         int terrainLayer = 0;
+        uint terrainLayerMask = 0u;
 
         if (hasPhysicsWorld)
         {
             state.Dependency.Complete();
             collisionWorld = SystemAPI.GetSingleton<PhysicsWorldSingleton>().PhysicsWorld.CollisionWorld;
             terrainLayer = terrainConfig.terrainPhysicsLayer;
+            terrainLayerMask = 1u << terrainLayer;
         }
 
         foreach (var (config, motionState, localTransform) in SystemAPI
@@ -135,7 +141,8 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
                 config.ValueRO,
                 terrainLayer,
                 out CollisionFilter groundFilter,
-                out CollisionFilter terrainSweepFilter,
+                out CollisionFilter rideableSweepFilter,
+                out CollisionFilter terrainWallFilter,
                 out CollisionFilter obstacleFilter);
 
             float3 position = localTransform.ValueRO.Position;
@@ -190,6 +197,7 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
                 && TryProbeGround(
                     collisionWorld,
                     groundFilter,
+                    terrainLayerMask,
                     position,
                     smoothedYaw,
                     referenceHeight,
@@ -291,23 +299,38 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
 
             if (hasPhysicsWorld && math.lengthsq(displacement) > MinCastDistance * MinCastDistance)
             {
-                if (ResolveTerrainCollision(
+                if (ResolveRideableCollision(
                         ref position,
                         ref terrainRelativeVelocity,
                         startPosition,
                         displacement,
                         config.ValueRO,
                         collisionWorld,
-                        terrainSweepFilter,
+                        rideableSweepFilter,
                         out float3 steepNormal))
                 {
                     previousGroundNormal = steepNormal;
                 }
 
+                // Each blocking sweep runs on the distance actually travelled so far, so whichever surface
+                // is nearest ends up truncating the step.
                 float3 traveledDisplacement = position - startPosition;
                 if (math.lengthsq(traveledDisplacement) > MinCastDistance * MinCastDistance)
                 {
-                    ResolveObstacleCollision(
+                    ResolveBlockingCollision(
+                        ref position,
+                        ref terrainRelativeVelocity,
+                        startPosition,
+                        traveledDisplacement,
+                        config.ValueRO,
+                        collisionWorld,
+                        terrainWallFilter);
+                }
+
+                traveledDisplacement = position - startPosition;
+                if (math.lengthsq(traveledDisplacement) > MinCastDistance * MinCastDistance)
+                {
+                    ResolveBlockingCollision(
                         ref position,
                         ref terrainRelativeVelocity,
                         startPosition,
@@ -342,7 +365,8 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
         in PlayerFollowObjectGroundConfig config,
         int terrainLayer,
         out CollisionFilter groundFilter,
-        out CollisionFilter terrainSweepFilter,
+        out CollisionFilter rideableSweepFilter,
+        out CollisionFilter terrainWallFilter,
         out CollisionFilter obstacleFilter)
     {
         int rideableLayer = config.rideablePhysicsLayer;
@@ -357,8 +381,24 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
             CollidesWith = groundLayerMask,
             GroupIndex = 0
         };
-        // Steep Terrain and Rideable (e.g. halfpipe) walls — walkable hits are ignored in ResolveTerrainCollision.
-        terrainSweepFilter = groundFilter;
+        // Steep Rideable walls (e.g. a halfpipe) are surfaces to be carried up and along, so they get the
+        // sliding response. Steep Terrain is a cliff to be stopped by, so it gets the blocking response
+        // alongside obstacles. Sharing one sweep gave cliffs the halfpipe redirect and launched the rider.
+        rideableSweepFilter = new CollisionFilter
+        {
+            BelongsTo = ~0u,
+            CollidesWith = 1u << rideableLayer,
+            GroupIndex = 0
+        };
+        terrainWallFilter = new CollisionFilter
+        {
+            BelongsTo = ~0u,
+            CollidesWith = 1u << terrainLayer,
+            GroupIndex = 0
+        };
+        // Terrain and obstacles stay separate sweeps even though they share a response: a capsule cast
+        // reports only its first hit, so one merged pass could early out on walkable terrain and miss an
+        // obstacle standing right behind it.
         obstacleFilter = new CollisionFilter
         {
             BelongsTo = ~0u,
@@ -375,11 +415,14 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
     /// a rigid board bridges narrow crests instead of dropping into every gap between them.
     /// Each column is judged against the plane <paramref name="referenceHeight"/> /
     /// <paramref name="supportGradient"/> describes, and hits more than <paramref name="maxSurfaceRise"/>
-    /// above their predicted height are discarded as walls rather than ground.
+    /// above their predicted height are discarded as walls rather than ground. Terrain steeper than
+    /// <see cref="WalkableSlopeThreshold"/> is discarded outright, since a cliff face is something to
+    /// collide with rather than stand on; steep Rideable surfaces are kept so halfpipes still work.
     /// </summary>
     private static bool TryProbeGround(
         CollisionWorld collisionWorld,
         CollisionFilter groundFilter,
+        uint terrainLayerMask,
         float3 position,
         float yaw,
         float referenceHeight,
@@ -401,7 +444,7 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
         float ceilingAtBody = referenceHeight + maxSurfaceRise;
 
         GroundProbe centre = ProbeColumn(
-            collisionWorld, groundFilter, position, float3.zero, ceilingAtBody, supportGradient, config);
+            collisionWorld, groundFilter, terrainLayerMask, position, float3.zero, ceilingAtBody, supportGradient, config);
 
         if (radius < MinProbeRadius)
         {
@@ -414,13 +457,13 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
         }
 
         GroundProbe fore = ProbeColumn(
-            collisionWorld, groundFilter, position, forwardOffset, ceilingAtBody, supportGradient, config);
+            collisionWorld, groundFilter, terrainLayerMask, position, forwardOffset, ceilingAtBody, supportGradient, config);
         GroundProbe aft = ProbeColumn(
-            collisionWorld, groundFilter, position, -forwardOffset, ceilingAtBody, supportGradient, config);
+            collisionWorld, groundFilter, terrainLayerMask, position, -forwardOffset, ceilingAtBody, supportGradient, config);
         GroundProbe starboard = ProbeColumn(
-            collisionWorld, groundFilter, position, rightOffset, ceilingAtBody, supportGradient, config);
+            collisionWorld, groundFilter, terrainLayerMask, position, rightOffset, ceilingAtBody, supportGradient, config);
         GroundProbe port = ProbeColumn(
-            collisionWorld, groundFilter, position, -rightOffset, ceilingAtBody, supportGradient, config);
+            collisionWorld, groundFilter, terrainLayerMask, position, -rightOffset, ceilingAtBody, supportGradient, config);
 
         if (!centre.hit && !fore.hit && !aft.hit && !starboard.hit && !port.hit)
             return false;
@@ -491,6 +534,7 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
     private static GroundProbe ProbeColumn(
         CollisionWorld collisionWorld,
         CollisionFilter groundFilter,
+        uint terrainLayerMask,
         float3 position,
         float3 horizontalOffset,
         float ceilingAtBody,
@@ -527,20 +571,46 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
         if (hit.Position.y > ceiling)
             return probe;
 
+        float3 hitNormal = math.normalizesafe(hit.SurfaceNormal, math.up());
+
+        // A terrain cliff face is something to hit, not to stand on. Accepting it made the suspension
+        // adopt a near-horizontal contact normal and then latch there via the steep-wall rule below,
+        // gluing the rider to the wall. Steep Rideable surfaces are still accepted so halfpipes work.
+        if (hitNormal.y < WalkableSlopeThreshold && IsTerrainSurface(collisionWorld, hit, terrainLayerMask))
+            return probe;
+
         probe.hit = true;
         probe.height = hit.Position.y;
-        probe.rawNormal = math.normalizesafe(hit.SurfaceNormal, math.up());
+        probe.rawNormal = hitNormal;
         return probe;
     }
 
-    private static bool ResolveTerrainCollision(
+    /// <summary>Tests whether a query hit belongs to the terrain physics layer.</summary>
+    private static bool IsTerrainSurface(in CollisionWorld collisionWorld, in RaycastHit hit, uint terrainLayerMask)
+    {
+        if (terrainLayerMask == 0u || hit.RigidBodyIndex < 0 || hit.RigidBodyIndex >= collisionWorld.NumBodies)
+            return false;
+
+        RigidBody body = collisionWorld.Bodies[hit.RigidBodyIndex];
+        if (!body.Collider.IsCreated)
+            return false;
+
+        return (body.Collider.Value.GetCollisionFilter(hit.ColliderKey).BelongsTo & terrainLayerMask) != 0u;
+    }
+
+    /// <summary>
+    /// Carries the body along a steep Rideable wall, redirecting its speed up the face when the approach
+    /// is near head-on. This is the halfpipe response; steep Terrain is handled by
+    /// <see cref="ResolveBlockingCollision"/> instead.
+    /// </summary>
+    private static bool ResolveRideableCollision(
         ref float3 position,
         ref float3 terrainRelativeVelocity,
         float3 startPosition,
         float3 displacement,
         in PlayerFollowObjectGroundConfig config,
         CollisionWorld collisionWorld,
-        CollisionFilter terrainFilter,
+        CollisionFilter rideableFilter,
         out float3 steepNormal)
     {
         steepNormal = math.up();
@@ -558,36 +628,36 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
                 direction,
                 distance,
                 out ColliderCastHit castHit,
-                terrainFilter))
+                rideableFilter))
         {
             return false;
         }
 
-        float3 terrainNormal = math.normalizesafe(castHit.SurfaceNormal, math.up());
-        if (terrainNormal.y >= WalkableSlopeThreshold)
+        float3 wallNormal = math.normalizesafe(castHit.SurfaceNormal, math.up());
+        if (wallNormal.y >= WalkableSlopeThreshold)
             return false;
 
-        if (math.dot(direction, terrainNormal) >= -ObstacleSkin)
+        if (math.dot(direction, wallNormal) >= -ObstacleSkin)
             return false;
 
-        steepNormal = terrainNormal;
+        steepNormal = wallNormal;
 
-        float3 slideDisplacement = ComputeSteepWallSlideDisplacement(displacement, terrainNormal, direction);
+        float3 slideDisplacement = ComputeSteepWallSlideDisplacement(displacement, wallNormal, direction);
         position = startPosition + slideDisplacement;
 
-        // Sliding is resolved against the terrain surface, so the redirect happens in terrain-relative space.
+        // Sliding is resolved against the wall surface, so the redirect happens in terrain-relative space.
         float inboundSpeed = math.length(terrainRelativeVelocity);
-        float vNormal = math.dot(terrainRelativeVelocity, terrainNormal);
+        float vNormal = math.dot(terrainRelativeVelocity, wallNormal);
 
         if (vNormal < 0f)
-            terrainRelativeVelocity -= terrainNormal * vNormal;
+            terrainRelativeVelocity -= wallNormal * vNormal;
 
-        float minTangentSpeedSq = inboundSpeed * inboundSpeed * 0.01f;
+        float minTangentSpeedSq = inboundSpeed * inboundSpeed * MinTangentFractionSq;
         if (math.lengthsq(terrainRelativeVelocity) < minTangentSpeedSq && inboundSpeed > MinSlideSpeed)
         {
             float3 slideDir = math.normalizesafe(
-                RemoveNormalComponent(displacement, terrainNormal),
-                GetTangentComponent(math.up(), terrainNormal));
+                RemoveNormalComponent(displacement, wallNormal),
+                GetTangentComponent(math.up(), wallNormal));
             terrainRelativeVelocity = slideDir * inboundSpeed;
         }
 
@@ -596,16 +666,16 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
 
     private static float3 ComputeSteepWallSlideDisplacement(
         float3 displacement,
-        float3 terrainNormal,
+        float3 wallNormal,
         float3 direction)
     {
         float slideDistance = math.length(displacement);
-        float3 slideDisplacement = RemoveNormalComponent(displacement, terrainNormal);
-        float minTangentDistSq = slideDistance * slideDistance * 0.01f;
+        float3 slideDisplacement = RemoveNormalComponent(displacement, wallNormal);
+        float minTangentDistSq = slideDistance * slideDistance * MinTangentFractionSq;
 
         if (math.lengthsq(slideDisplacement) < minTangentDistSq)
         {
-            float3 uphillTangent = GetTangentComponent(math.up(), terrainNormal);
+            float3 uphillTangent = GetTangentComponent(math.up(), wallNormal);
             slideDisplacement = math.normalizesafe(uphillTangent, direction) * slideDistance;
         }
         else
@@ -616,14 +686,22 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
         return slideDisplacement;
     }
 
-    private static void ResolveObstacleCollision(
+    /// <summary>
+    /// Blocks the body against a steep surface and lets it scrape along the face. The step is truncated
+    /// at the contact point and its unspent remainder continues along the wall plane, so grinding along
+    /// a wall (where the sweep hits at fraction zero every frame) still makes progress instead of
+    /// freezing in place. A near head-on hit is deflected along the wall's horizontal tangent, never up
+    /// its face, which is what separates a cliff collision from the halfpipe response in
+    /// <see cref="ResolveRideableCollision"/>. Walkable hits are left to the suspension.
+    /// </summary>
+    private static void ResolveBlockingCollision(
         ref float3 position,
         ref float3 terrainRelativeVelocity,
         float3 startPosition,
         float3 displacement,
         in PlayerFollowObjectGroundConfig config,
         CollisionWorld collisionWorld,
-        CollisionFilter obstacleFilter)
+        CollisionFilter blockingFilter)
     {
         float distance = math.length(displacement);
         if (distance < MinCastDistance)
@@ -639,19 +717,65 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
                 direction,
                 distance,
                 out ColliderCastHit castHit,
-                obstacleFilter))
+                blockingFilter))
         {
             return;
         }
 
-        float3 obstacleNormal = math.normalizesafe(castHit.SurfaceNormal, math.up());
-        if (math.dot(obstacleNormal, math.up()) >= WalkableSlopeThreshold)
+        float3 blockingNormal = math.normalizesafe(castHit.SurfaceNormal, math.up());
+        if (math.dot(blockingNormal, math.up()) >= WalkableSlopeThreshold)
             return;
 
-        float fraction = math.max(castHit.Fraction - ObstacleSkin, 0f);
-        position = startPosition + direction * (distance * fraction);
+        float3 horizontalTangent = GetHorizontalWallTangent(blockingNormal, direction);
 
-        terrainRelativeVelocity = RemoveNormalComponent(terrainRelativeVelocity, obstacleNormal);
+        // Spend the step up to the contact point, then carry the remainder along the face. Dropping the
+        // remainder instead pinned the rider to any wall they touched: once in contact the sweep reports
+        // fraction zero every frame, so the position never advanced again.
+        float fraction = math.max(castHit.Fraction - ObstacleSkin, 0f);
+        float3 slideDirection = RemoveNormalComponent(direction, blockingNormal);
+        if (math.lengthsq(slideDirection) < MinTangentFractionSq)
+            slideDirection = horizontalTangent;
+
+        position = startPosition
+            + direction * (distance * fraction)
+            + math.normalizesafe(slideDirection, float3.zero) * (distance * (1f - fraction));
+
+        // Cancel only the approach into the face, in terrain-relative space so the world velocity ends up
+        // matching the scroll along that normal — a scrolling slab then carries the rider with its face
+        // instead of driving through them. Cancelling the outbound half too would undo the separation the
+        // suspension and the deflection below provide, which is another way to end up pinned.
+        float inboundHorizontalSpeed = math.length(new float2(terrainRelativeVelocity.x, terrainRelativeVelocity.z));
+        float approachRate = math.dot(terrainRelativeVelocity, blockingNormal);
+        if (approachRate < 0f)
+            terrainRelativeVelocity -= blockingNormal * approachRate;
+
+        // A head-on hit projects to almost no tangential speed, which leaves the rider parked against the
+        // face while the scroll keeps pressing them into it. Turning the horizontal speed along the wall
+        // instead lets them scrape past. Vertical speed is left to the projection and to gravity, so this
+        // can never throw the rider up the face the way the rideable redirect does.
+        float2 slidHorizontal = new float2(terrainRelativeVelocity.x, terrainRelativeVelocity.z);
+        if (inboundHorizontalSpeed > MinSlideSpeed
+            && math.lengthsq(horizontalTangent) > 0.5f
+            && math.lengthsq(slidHorizontal) < inboundHorizontalSpeed * inboundHorizontalSpeed * MinTangentFractionSq)
+        {
+            terrainRelativeVelocity = new float3(
+                horizontalTangent.x * inboundHorizontalSpeed,
+                terrainRelativeVelocity.y,
+                horizontalTangent.z * inboundHorizontalSpeed);
+        }
+    }
+
+    /// <summary>
+    /// The horizontal direction along a wall face that best matches <paramref name="direction"/>. Used to
+    /// deflect a head-on hit sideways rather than up the face.
+    /// </summary>
+    private static float3 GetHorizontalWallTangent(float3 wallNormal, float3 direction)
+    {
+        float3 tangent = math.normalizesafe(math.cross(math.up(), wallNormal), float3.zero);
+        if (math.lengthsq(tangent) < 0.5f)
+            return float3.zero;
+
+        return math.dot(tangent, direction) < 0f ? -tangent : tangent;
     }
 
     private static void GetCapsuleEndpoints(

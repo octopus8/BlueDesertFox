@@ -981,10 +981,10 @@ MonoBehaviour:
   maxLegExtension: 0.5
   maxLegCompression: 0.3
   contactProbeRadius: 0.7
-  groundFriction: 0.15
+  groundFriction: 0.25
   yawRotationSmoothTime: 1
   minYawSpeed: 0.5
-  steeringSensitivity: 38
+  steeringSensitivity: 90
 --- !u!136 &935523118
 CapsuleCollider:
   m_ObjectHideFlags: 0
