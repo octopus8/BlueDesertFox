@@ -147,13 +147,21 @@ public class PlayerHoverboardVisual : MonoBehaviour
     private static Quaternion ComputeTerrainAlignedLocalRotation(Quaternion parentRotation, Vector3 groundNormal)
     {
         Vector3 up = groundNormal.sqrMagnitude > 0.0001f ? groundNormal.normalized : Vector3.up;
-        Vector3 forward = parentRotation * Vector3.forward;
-        forward = Vector3.ProjectOnPlane(forward, up);
+
+        // Pitch only: drop the sideways component of the terrain normal so side slopes do not
+        // roll the board around Z. Fore/aft slope still tilts the nose up/down.
+        Vector3 right = parentRotation * Vector3.right;
+        Vector3 pitchUp = Vector3.ProjectOnPlane(up, right);
+        if (pitchUp.sqrMagnitude < 0.0001f)
+            return Quaternion.identity;
+        pitchUp.Normalize();
+
+        Vector3 forward = Vector3.ProjectOnPlane(parentRotation * Vector3.forward, pitchUp);
         if (forward.sqrMagnitude < 0.0001f)
-            forward = Vector3.ProjectOnPlane(parentRotation * Vector3.right, up);
+            return Quaternion.identity;
 
         forward.Normalize();
-        Quaternion targetWorld = Quaternion.LookRotation(forward, up);
+        Quaternion targetWorld = Quaternion.LookRotation(forward, pitchUp);
         return Quaternion.Inverse(parentRotation) * targetWorld;
     }
 
