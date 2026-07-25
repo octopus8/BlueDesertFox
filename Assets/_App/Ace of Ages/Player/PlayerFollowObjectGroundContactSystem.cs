@@ -81,6 +81,9 @@ public struct PlayerFollowObjectMotionState : IComponentData
 public partial struct PlayerFollowObjectGroundContactSystem : ISystem
 {
     private const float ObstacleSkin = 0.001f;
+    // Nudge out of a wall when the steep cast already reports fraction ~0, so the next frame does not
+    // start buried and miss. Kept small so it cannot read as a launch.
+    private const float BlockingDepenetrationSkin = 0.01f;
     private const float MinCastDistance = 1e-4f;
     private const float ProbeReachMargin = 0.5f;
     private const float MinProbeRadius = 1e-3f;
@@ -105,6 +108,38 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
         public bool hit;
         public float height;
         public float3 rawNormal;
+    }
+
+    /// <summary>
+    /// Capsule-cast collector that ignores walkable hits and keeps the closest steep face. A plain
+    /// CapsuleCast returns the nearest surface, which near a cliff is often the floor — accepting that
+    /// and early-outing left the full step through the wall behind it.
+    /// </summary>
+    private struct SteepHitCollector : ICollector<ColliderCastHit>
+    {
+        public bool EarlyOutOnFirstHit => false;
+        public float MaxFraction { get; private set; }
+        public int NumHits { get; private set; }
+        public ColliderCastHit ClosestHit;
+
+        public SteepHitCollector(float maxFraction)
+        {
+            MaxFraction = maxFraction;
+            NumHits = 0;
+            ClosestHit = default;
+        }
+
+        public bool AddHit(ColliderCastHit hit)
+        {
+            float3 normal = math.normalizesafe(hit.SurfaceNormal, math.up());
+            if (normal.y >= WalkableSlopeThreshold)
+                return false;
+
+            MaxFraction = hit.Fraction;
+            ClosestHit = hit;
+            NumHits = 1;
+            return true;
+        }
     }
 
     [BurstCompile]
@@ -732,13 +767,12 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
     }
 
     /// <summary>
-    /// Blocks the body against a steep surface and lets it scrape along the face. The step is truncated
-    /// at the contact point and its unspent remainder continues along the wall plane, so grinding along
-    /// a wall (where the sweep hits at fraction zero every frame) still makes progress instead of
-    /// freezing in place. The whole response is resolved against a plumb version of the face and a head-on
-    /// hit is deflected along its horizontal tangent, so no part of it can trade horizontal speed for
-    /// climb. That is what separates a cliff collision from the halfpipe response in
-    /// <see cref="ResolveRideableCollision"/>. Walkable hits are left to the suspension.
+    /// Blocks the body against a steep surface and lets it scrape along the face. Walkable hits are
+    /// skipped by <see cref="SteepHitCollector"/> so a floor underfoot cannot authorize a step through
+    /// the cliff behind it. The step is truncated at the steep contact, then the remainder is re-swept
+    /// along the plumb barrier plane so grinding still progresses without an unswept tunnel into the
+    /// face. Head-on hits deflect along the horizontal wall tangent — never up the face — which is what
+    /// separates a cliff collision from the halfpipe response in <see cref="ResolveRideableCollision"/>.
     /// </summary>
     private static void ResolveBlockingCollision(
         ref float3 position,
@@ -756,21 +790,20 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
         float3 direction = displacement / distance;
         GetCapsuleEndpoints(startPosition, config, out float3 point1, out float3 point2);
 
-        if (!collisionWorld.CapsuleCast(
+        if (!TryCastSteepCapsule(
+                collisionWorld,
                 point1,
                 point2,
                 config.capsuleRadius,
                 direction,
                 distance,
-                out ColliderCastHit castHit,
-                blockingFilter))
+                blockingFilter,
+                out ColliderCastHit castHit))
         {
             return;
         }
 
         float3 blockingNormal = math.normalizesafe(castHit.SurfaceNormal, math.up());
-        if (math.dot(blockingNormal, math.up()) >= WalkableSlopeThreshold)
-            return;
 
         // Respond as though the face were plumb. A "vertical" cliff never is — its normal leans back a
         // few degrees — and resolving the step against that leaning plane turns speed driven into the wall
@@ -783,17 +816,45 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
 
         float3 horizontalTangent = GetHorizontalWallTangent(barrierNormal, direction);
 
-        // Spend the step up to the contact point, then carry the remainder along the face. Dropping the
-        // remainder instead pinned the rider to any wall they touched: once in contact the sweep reports
-        // fraction zero every frame, so the position never advanced again.
         float fraction = math.max(castHit.Fraction - ObstacleSkin, 0f);
+        float3 contactPosition = startPosition + direction * (distance * fraction);
+
+        // Already touching or slightly inside: nudge out so the next cast does not start buried and miss.
+        if (castHit.Fraction <= ObstacleSkin)
+            contactPosition += barrierNormal * BlockingDepenetrationSkin;
+
+        // Carry the unspent travel along the face, but re-sweep it — an unswept remainder was how a
+        // leaning or concave cliff ate the capsule in one frame after the first hit.
+        float remainder = distance * (1f - fraction);
         float3 slideDirection = RemoveNormalComponent(direction, barrierNormal);
         if (math.lengthsq(slideDirection) < MinTangentFractionSq)
             slideDirection = horizontalTangent;
+        slideDirection = math.normalizesafe(slideDirection, float3.zero);
 
-        position = startPosition
-            + direction * (distance * fraction)
-            + math.normalizesafe(slideDirection, float3.zero) * (distance * (1f - fraction));
+        float3 slideDisplacement = float3.zero;
+        if (remainder > MinCastDistance && math.lengthsq(slideDirection) > 0.5f)
+        {
+            GetCapsuleEndpoints(contactPosition, config, out float3 slidePoint1, out float3 slidePoint2);
+            if (TryCastSteepCapsule(
+                    collisionWorld,
+                    slidePoint1,
+                    slidePoint2,
+                    config.capsuleRadius,
+                    slideDirection,
+                    remainder,
+                    blockingFilter,
+                    out ColliderCastHit slideHit))
+            {
+                float slideFraction = math.max(slideHit.Fraction - ObstacleSkin, 0f);
+                slideDisplacement = slideDirection * (remainder * slideFraction);
+            }
+            else
+            {
+                slideDisplacement = slideDirection * remainder;
+            }
+        }
+
+        position = contactPosition + slideDisplacement;
 
         // Cancel only the approach into the face, in terrain-relative space so the world velocity ends up
         // matching the scroll along that normal — a scrolling slab then carries the rider with its face
@@ -818,6 +879,40 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
                 terrainRelativeVelocity.y,
                 horizontalTangent.z * inboundHorizontalSpeed);
         }
+    }
+
+    /// <summary>
+    /// Capsule-casts and returns the closest steep hit, ignoring walkable surfaces.
+    /// </summary>
+    private static bool TryCastSteepCapsule(
+        CollisionWorld collisionWorld,
+        float3 point1,
+        float3 point2,
+        float radius,
+        float3 direction,
+        float maxDistance,
+        CollisionFilter filter,
+        out ColliderCastHit hit)
+    {
+        hit = default;
+        if (maxDistance < MinCastDistance)
+            return false;
+
+        var collector = new SteepHitCollector(1f);
+        collisionWorld.CapsuleCastCustom(
+            point1,
+            point2,
+            radius,
+            direction,
+            maxDistance,
+            ref collector,
+            filter);
+
+        if (collector.NumHits == 0)
+            return false;
+
+        hit = collector.ClosestHit;
+        return true;
     }
 
     /// <summary>
