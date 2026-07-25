@@ -66,6 +66,9 @@ public struct PlayerFollowObjectMotionState : IComponentData
 
     /// <summary>Set while a steep blocking wall is actively scraping the capsule this frame.</summary>
     public byte wallSlideActive;
+
+    /// <summary>Previous frame was supported by the Rideable layer (quarterpipe / halfpipe).</summary>
+    public byte previousOnRideable;
 }
 
 /// <summary>
@@ -120,6 +123,7 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
         public bool hit;
         public float height;
         public float3 rawNormal;
+        public bool isRideable;
     }
 
     /// <summary>
@@ -197,6 +201,11 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
             if (math.lengthsq(gravity) < 1e-8f)
                 gravity = DefaultGravity;
 
+            int rideableLayer = config.ValueRO.rideablePhysicsLayer;
+            if (rideableLayer < 0 || rideableLayer > 30)
+                rideableLayer = 15;
+            uint rideableLayerMask = 1u << rideableLayer;
+
             BuildCollisionFilters(
                 config.ValueRO,
                 terrainLayer,
@@ -213,6 +222,7 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
                 previousGroundNormal = math.up();
 
             bool hadContact = motionState.ValueRO.hasPreviousContact != 0;
+            bool previousOnRideable = motionState.ValueRO.previousOnRideable != 0;
 
             // Support heights are compared in world space between frames, so the budget has to cover
             // every way the world-space surface under the board can move: the board travelling over the
@@ -257,6 +267,7 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
                 + math.abs(scrollVelocity.y);
 
             bool hasContact = false;
+            bool onRideable = false;
             float3 contactNormal = previousGroundNormal;
             float legLength = config.ValueRO.rideHeight;
             float supportHeight = position.y;
@@ -266,6 +277,7 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
                     collisionWorld,
                     groundFilter,
                     terrainLayerMask,
+                    rideableLayerMask,
                     position,
                     smoothedYaw,
                     referenceHeight,
@@ -273,21 +285,38 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
                     maxSurfaceRise,
                     config.ValueRO,
                     out supportHeight,
-                    out float3 probedNormal))
+                    out float3 probedNormal,
+                    out onRideable))
             {
                 contactNormal = probedNormal;
 
                 // Stay attached to a steep rideable wall (halfpipe) rather than snapping onto the
-                // walkable floor the probe can also see from up there.
+                // walkable floor the probe can also see from up there. Persist the steep normal so
+                // attachment survives more than one frame. Steep prior contact is always rideable —
+                // ProbeColumn rejects steep terrain — so keep pipe physics armed.
                 if (contactNormal.y >= WalkableSlopeThreshold && previousGroundNormal.y < WalkableSlopeThreshold)
+                {
                     contactNormal = previousGroundNormal;
+                    previousGroundNormal = contactNormal;
+                    onRideable = true;
+                }
+                else
+                {
+                    previousGroundNormal = probedNormal;
+                }
 
                 // Probes are vertical columns, so the leg runs from the body straight down to the surface
                 // beneath it, measured along the contact normal.
                 legLength = contactNormal.y * (position.y - supportHeight) - config.ValueRO.bottomOffset;
                 hasContact = legLength <= config.ValueRO.MaxLegLength;
+            }
 
-                previousGroundNormal = probedNormal;
+            // Quarterpipes need the full climbable rise rate even when the previous frame was flat
+            // mountain — otherwise the rising face is treated as a discontinuity and the climb dies.
+            if (onRideable || previousOnRideable)
+            {
+                surfaceFollowRateLimit = MaxClimbTangent * traverseSpeed
+                    + math.abs(scrollVelocity.y);
             }
 
             float3 worldVelocity = TerrainScrollVelocityMath.WorldVelocityFromTerrainRelative(
@@ -345,16 +374,27 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
                     legLength += lift;
                 }
 
-                // Match a rising surface vertically when bottomed out. Matching along the contact normal
-                // instead converted horizontal speed into a launch up steep faces.
-                if (bottomedOut && worldVelocity.y < surfaceVerticalRate)
-                    worldVelocity.y = surfaceVerticalRate;
-
                 // Closing rate between body and surface along the contact normal. The horizontal terms
                 // of the two velocities cancel because the contact target tracks the body's XZ, leaving
                 // the vertical difference projected onto the normal. A body gliding along a constant
                 // slope therefore reads zero, so the damper follows the ground instead of fighting it.
                 float relativeNormalRate = contactNormal.y * (worldVelocity.y - surfaceVerticalRate);
+
+                if (bottomedOut && relativeNormalRate < 0f)
+                {
+                    if (onRideable || previousOnRideable)
+                    {
+                        // Quarterpipe / halfpipe: convert inbound speed up the face. Terrain keeps the
+                        // vertical-only match below so cliffs cannot launch the rider.
+                        worldVelocity -= contactNormal * relativeNormalRate;
+                        relativeNormalRate = 0f;
+                    }
+                    else if (worldVelocity.y < surfaceVerticalRate)
+                    {
+                        worldVelocity.y = surfaceVerticalRate;
+                        relativeNormalRate = contactNormal.y * (worldVelocity.y - surfaceVerticalRate);
+                    }
+                }
 
                 float omega = 2f * math.PI * math.max(0f, config.ValueRO.rideFrequency);
                 float stiffness = omega * omega;
@@ -374,16 +414,25 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
 
                 ApplyGroundFriction(ref worldVelocity, scrollVelocity, contactNormal, config.ValueRO.groundFriction, dt);
 
-                // Absolute climb budget while in contact: horizontal speed times the slope tangent, floored
-                // by the authored pop allowance. A per-frame delta cap stacked (+5 m/s every tick) into
-                // launches far above travel speed.
+                // Climb budget while in contact. Rideable uses total speed so converting H→V up a pipe
+                // cannot starve the clamp mid-transition; terrain keeps horizontal × slope tan so cliffs
+                // cannot stack vertical launch.
                 float maxLift = config.ValueRO.maxGroundLiftSpeed;
                 if (maxLift <= 0f)
                     maxLift = DefaultMaxGroundLiftSpeed;
-                float ny = math.max(contactNormal.y, MinGradientNormalY);
-                float slopeTan = math.sqrt(math.max(0f, 1f - contactNormal.y * contactNormal.y)) / ny;
-                float horizontalSpeed = math.length(new float2(worldVelocity.x, worldVelocity.z));
-                float maxClimbY = math.max(maxLift, horizontalSpeed * slopeTan);
+                float maxClimbY;
+                if (onRideable || previousOnRideable)
+                {
+                    maxClimbY = math.max(maxLift, math.length(worldVelocity));
+                }
+                else
+                {
+                    float ny = math.max(contactNormal.y, MinGradientNormalY);
+                    float slopeTan = math.sqrt(math.max(0f, 1f - contactNormal.y * contactNormal.y)) / ny;
+                    float horizontalSpeed = math.length(new float2(worldVelocity.x, worldVelocity.z));
+                    maxClimbY = math.max(maxLift, horizontalSpeed * slopeTan);
+                }
+
                 if (worldVelocity.y > maxClimbY)
                 {
                     worldVelocity.y = maxClimbY;
@@ -422,6 +471,7 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
                         out float3 steepNormal))
                 {
                     previousGroundNormal = steepNormal;
+                    onRideable = true;
                 }
 
                 // Each blocking sweep runs on the distance actually travelled so far, so whichever surface
@@ -475,6 +525,7 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
             motionState.ValueRW.lastContactLiftSpeed = contactLiftSpeed;
             motionState.ValueRW.lastLiftWasClamped = liftWasClamped;
             motionState.ValueRW.wallSlideActive = wallSlideActive;
+            motionState.ValueRW.previousOnRideable = onRideable ? (byte)1 : (byte)0;
 
             UpdateSmoothedYaw(
                 ref smoothedYaw,
@@ -549,6 +600,7 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
         CollisionWorld collisionWorld,
         CollisionFilter groundFilter,
         uint terrainLayerMask,
+        uint rideableLayerMask,
         float3 position,
         float yaw,
         float referenceHeight,
@@ -556,10 +608,12 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
         float maxSurfaceRise,
         in PlayerFollowObjectGroundConfig config,
         out float supportHeight,
-        out float3 normal)
+        out float3 normal,
+        out bool onRideable)
     {
         supportHeight = position.y;
         normal = math.up();
+        onRideable = false;
 
         float radius = math.max(0f, config.contactProbeRadius);
         float3 forward = new float3(math.sin(yaw), 0f, math.cos(yaw));
@@ -570,7 +624,8 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
         float ceilingAtBody = referenceHeight + maxSurfaceRise;
 
         GroundProbe centre = ProbeColumn(
-            collisionWorld, groundFilter, terrainLayerMask, position, float3.zero, ceilingAtBody, supportGradient, config);
+            collisionWorld, groundFilter, terrainLayerMask, rideableLayerMask,
+            position, float3.zero, ceilingAtBody, supportGradient, config);
 
         if (radius < MinProbeRadius)
         {
@@ -579,17 +634,22 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
 
             supportHeight = centre.height;
             normal = centre.rawNormal;
+            onRideable = centre.isRideable;
             return true;
         }
 
         GroundProbe fore = ProbeColumn(
-            collisionWorld, groundFilter, terrainLayerMask, position, forwardOffset, ceilingAtBody, supportGradient, config);
+            collisionWorld, groundFilter, terrainLayerMask, rideableLayerMask,
+            position, forwardOffset, ceilingAtBody, supportGradient, config);
         GroundProbe aft = ProbeColumn(
-            collisionWorld, groundFilter, terrainLayerMask, position, -forwardOffset, ceilingAtBody, supportGradient, config);
+            collisionWorld, groundFilter, terrainLayerMask, rideableLayerMask,
+            position, -forwardOffset, ceilingAtBody, supportGradient, config);
         GroundProbe starboard = ProbeColumn(
-            collisionWorld, groundFilter, terrainLayerMask, position, rightOffset, ceilingAtBody, supportGradient, config);
+            collisionWorld, groundFilter, terrainLayerMask, rideableLayerMask,
+            position, rightOffset, ceilingAtBody, supportGradient, config);
         GroundProbe port = ProbeColumn(
-            collisionWorld, groundFilter, terrainLayerMask, position, -rightOffset, ceilingAtBody, supportGradient, config);
+            collisionWorld, groundFilter, terrainLayerMask, rideableLayerMask,
+            position, -rightOffset, ceilingAtBody, supportGradient, config);
 
         if (!centre.hit && !fore.hit && !aft.hit && !starboard.hit && !port.hit)
             return false;
@@ -615,17 +675,17 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
             normal = math.normalizesafe(new float3(-gradient.x, 1f, -gradient.y), math.up());
 
             // A footprint that spans a cliff base fits a wall-plane from walkable hits at very different
-            // heights. Riding that plane is what launched the rider; fall back to centre-only support
-            // (or no contact) instead of extrapolating up the face. Steep Rideable raw hits still pass
-            // through ProbeColumn and are not fitted away here.
+            // heights. Fall back to centre-only support instead of riding that wall. Steep rideable
+            // centres are valid (ProbeColumn already dropped steep terrain).
             if (normal.y < WalkableSlopeThreshold)
             {
-                if (!centre.hit || centre.rawNormal.y < WalkableSlopeThreshold)
+                if (!centre.hit)
                     return false;
 
                 normal = centre.rawNormal;
                 gradient = float2.zero;
                 supportHeight = math.min(centre.height, ceilingAtBody);
+                onRideable = centre.isRideable;
                 return true;
             }
         }
@@ -633,20 +693,22 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
         {
             // Not enough opposing pairs to fit a plane (e.g. hanging over an edge) — fall back to a
             // single triangle normal and treat the surface as locally flat for the support test.
-            normal = centre.hit ? centre.rawNormal
-                : fore.hit ? fore.rawNormal
-                : aft.hit ? aft.rawNormal
-                : starboard.hit ? starboard.rawNormal
-                : port.rawNormal;
+            GroundProbe fallback = centre.hit ? centre
+                : fore.hit ? fore
+                : aft.hit ? aft
+                : starboard.hit ? starboard
+                : port;
+            normal = fallback.rawNormal;
+            onRideable = fallback.isRideable;
             gradient = float2.zero;
         }
 
         supportHeight = float.MinValue;
-        AccumulateSupport(centre, float3.zero, gradient, ref supportHeight);
-        AccumulateSupport(fore, forwardOffset, gradient, ref supportHeight);
-        AccumulateSupport(aft, -forwardOffset, gradient, ref supportHeight);
-        AccumulateSupport(starboard, rightOffset, gradient, ref supportHeight);
-        AccumulateSupport(port, -rightOffset, gradient, ref supportHeight);
+        AccumulateSupport(centre, float3.zero, gradient, ref supportHeight, ref onRideable);
+        AccumulateSupport(fore, forwardOffset, gradient, ref supportHeight, ref onRideable);
+        AccumulateSupport(aft, -forwardOffset, gradient, ref supportHeight, ref onRideable);
+        AccumulateSupport(starboard, rightOffset, gradient, ref supportHeight, ref onRideable);
+        AccumulateSupport(port, -rightOffset, gradient, ref supportHeight, ref onRideable);
 
         // Extrapolating along the fitted plane can overshoot the accepted hits over a crest, so re-apply
         // the ceiling to guarantee the continuity limit holds for the height the suspension actually sees.
@@ -657,25 +719,35 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
 
     /// <summary>
     /// Projects a probe hit along the fitted plane back to the body's XZ and keeps it if it is the
-    /// highest support found so far.
+    /// highest support found so far. The winning probe's rideable flag becomes <paramref name="onRideable"/>.
     /// </summary>
     private static void AccumulateSupport(
         in GroundProbe probe,
         float3 horizontalOffset,
         float2 gradient,
-        ref float supportHeight)
+        ref float supportHeight,
+        ref bool onRideable)
     {
         if (!probe.hit)
             return;
 
         float heightAtBody = probe.height - (gradient.x * horizontalOffset.x + gradient.y * horizontalOffset.z);
-        supportHeight = math.max(supportHeight, heightAtBody);
+        if (heightAtBody > supportHeight)
+        {
+            supportHeight = heightAtBody;
+            onRideable = probe.isRideable;
+        }
+        else if (math.abs(heightAtBody - supportHeight) <= 1e-4f)
+        {
+            onRideable |= probe.isRideable;
+        }
     }
 
     private static GroundProbe ProbeColumn(
         CollisionWorld collisionWorld,
         CollisionFilter groundFilter,
         uint terrainLayerMask,
+        uint rideableLayerMask,
         float3 position,
         float3 horizontalOffset,
         float ceilingAtBody,
@@ -713,30 +785,36 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
             return probe;
 
         float3 hitNormal = math.normalizesafe(hit.SurfaceNormal, math.up());
+        bool isRideable = IsLayerSurface(collisionWorld, hit, rideableLayerMask);
 
         // A terrain cliff face is something to hit, not to stand on. Accepting it made the suspension
         // adopt a near-horizontal contact normal and then latch there via the steep-wall rule below,
         // gluing the rider to the wall. Steep Rideable surfaces are still accepted so halfpipes work.
-        if (hitNormal.y < WalkableSlopeThreshold && IsTerrainSurface(collisionWorld, hit, terrainLayerMask))
+        if (hitNormal.y < WalkableSlopeThreshold
+            && !isRideable
+            && IsLayerSurface(collisionWorld, hit, terrainLayerMask))
+        {
             return probe;
+        }
 
         probe.hit = true;
         probe.height = hit.Position.y;
         probe.rawNormal = hitNormal;
+        probe.isRideable = isRideable;
         return probe;
     }
 
-    /// <summary>Tests whether a query hit belongs to the terrain physics layer.</summary>
-    private static bool IsTerrainSurface(in CollisionWorld collisionWorld, in RaycastHit hit, uint terrainLayerMask)
+    /// <summary>Tests whether a query hit belongs to the given physics layer mask.</summary>
+    private static bool IsLayerSurface(in CollisionWorld collisionWorld, in RaycastHit hit, uint layerMask)
     {
-        if (terrainLayerMask == 0u || hit.RigidBodyIndex < 0 || hit.RigidBodyIndex >= collisionWorld.NumBodies)
+        if (layerMask == 0u || hit.RigidBodyIndex < 0 || hit.RigidBodyIndex >= collisionWorld.NumBodies)
             return false;
 
         RigidBody body = collisionWorld.Bodies[hit.RigidBodyIndex];
         if (!body.Collider.IsCreated)
             return false;
 
-        return (body.Collider.Value.GetCollisionFilter(hit.ColliderKey).BelongsTo & terrainLayerMask) != 0u;
+        return (body.Collider.Value.GetCollisionFilter(hit.ColliderKey).BelongsTo & layerMask) != 0u;
     }
 
     /// <summary>
