@@ -6227,8 +6227,8 @@ MonoBehaviour:
   viewDistance: 513
   verticesPerSide: 48
   initYOffset: -5
-  slopeAngleDegrees: -25
-  slopeAngleVariation: 0
+  slopeAngleDegrees: 25
+  slopeAngleVariation: 10
   slopeVariationBlendDistance: 128
   noiseFrequency: 0.005
   noiseAmplitude: 40
@@ -6248,7 +6248,7 @@ MonoBehaviour:
   trailLutStepMeters: 0.25
   trailStartX: 0
   trailStartZ: -2900
-  trailStraightLength: 80
+  trailStraightLength: 200
   trailWeaveFadeLength: 30
   trailSnapStartToPlayer: 1
   trailPathSettingsInitialized: 1
@@ -6260,9 +6260,9 @@ MonoBehaviour:
   trail1Amplitude: 250
   trail2Enabled: 1
   trail2Width: 45
-  trail2BlendWidth: 0
+  trail2BlendWidth: 35
   trail2Seed: 100
-  trail2Frequency: 0.0015
+  trail2Frequency: 0.001
   trail2Amplitude: 200
   trail3Enabled: 1
   trail3Width: 45
@@ -6605,15 +6605,15 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: a21f6f135b5254d4ea0991c76c069a77, type: 3}
       propertyPath: m_LocalPosition.x
-      value: 0
+      value: -0.5
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: a21f6f135b5254d4ea0991c76c069a77, type: 3}
       propertyPath: m_LocalPosition.y
-      value: -93.56
+      value: 1431.1
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: a21f6f135b5254d4ea0991c76c069a77, type: 3}
       propertyPath: m_LocalPosition.z
-      value: 200.4
+      value: -2712
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: a21f6f135b5254d4ea0991c76c069a77, type: 3}
       propertyPath: m_LocalRotation.w
