@@ -975,15 +975,13 @@ MonoBehaviour:
   rayHeightAbove: 50
   rayLengthBelow: 50
   rideablePhysicsLayer: 15
-  springStiffness: 300
-  springDamping: 30
+  rideFrequency: 1.2
+  rideDampingRatio: 0.5
+  rideHeight: 0.35
+  maxLegExtension: 0.5
+  maxLegCompression: 0.3
+  contactProbeRadius: 0.7
   groundFriction: 0.15
-  groundedDistance: 0.3
-  approachingSurfaceMaxDistance: 1
-  takeoffSpeed: 4.5
-  airborneGraceTime: 0.2
-  minCrestSpeed: 3
-  crestNormalDotThreshold: 0.85
   yawRotationSmoothTime: 1
   minYawSpeed: 0.5
   steeringSensitivity: 38
@@ -6312,7 +6310,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1528308289}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: f17144813f71f9c4eab8e31b81e2c2db, type: 3}
   m_Name: 

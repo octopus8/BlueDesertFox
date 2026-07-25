@@ -35,27 +35,46 @@ public class PlayerFollowObjectAuthoring : MonoBehaviour
     private static ValueDropdownItem<int>[] GetUnityLayerDropdown() => null;
 #endif
 
-    [Header("Spring-Damper")]
-    [SerializeField] private float springStiffness = 400f;
-    [SerializeField] private float springDamping = 35f;
+    [Header("Suspension")]
+    [Tooltip("Natural frequency (Hz) of the ride. Bumps arriving faster than this are absorbed by leg " +
+             "travel; slower terrain features pass through to the rider. Bump frequency is speed / " +
+             "collider quad size, so at 28 m/s over 5.3 m quads the terrain excites ~5 Hz. Raising this " +
+             "toward that band brings back harshness and resonance at mid speed.")]
+    [Min(0f)]
+    [SerializeField] private float rideFrequency = 1.2f;
+
+    [Tooltip("Suspension damping ratio. 1 = critically damped. Higher settles faster after landings but " +
+             "transmits more high-frequency bump energy, so isolation gets worse as this approaches 1.")]
+    [Range(0f, 1.5f)]
+    [SerializeField] private float rideDampingRatio = 0.5f;
+
+    [Tooltip("Neutral leg length (m) — how far the rider rides above the board's contact point at rest. " +
+             "The startup terrain align drops the surface by this much, so the authored position stays " +
+             "the rider's rest pose rather than the ground line.")]
+    [Min(0f)]
+    [SerializeField] private float rideHeight = 0.35f;
+
+    [Tooltip("Extra reach (m) below neutral before the leg runs out and contact is lost. This is the " +
+             "bump-versus-ledge threshold: drops shallower than this are swallowed by the leg extending, " +
+             "deeper drops launch the rider ballistically.")]
+    [Min(0f)]
+    [SerializeField] private float maxLegExtension = 0.5f;
+
+    [Tooltip("Squash (m) available above neutral before the suspension bottoms out against its hard stop. " +
+             "Clamped to Ride Height. Bottoming out kills the approach rate, which is what makes hard " +
+             "landings feel hard and ramp lips launch correctly.")]
+    [Min(0f)]
+    [SerializeField] private float maxLegCompression = 0.3f;
+
+    [Tooltip("Half-extent (m) of the contact footprint. Probes fore/aft and left/right at this radius to " +
+             "fit a steady ground plane and let the board bridge narrow crests instead of dropping into " +
+             "every gap. 0 = single centre ray.")]
+    [Min(0f)]
+    [SerializeField] private float contactProbeRadius = 0.7f;
 
     [Header("Ground Motion")]
-    [Tooltip("Tangent velocity damping while grounded. Higher = lower terminal slide speed (~g*sin(slope)/friction). 0 = no cap.")]
+    [Tooltip("Tangent velocity damping while in contact. Higher = lower terminal slide speed (~g*sin(slope)/friction). 0 = no cap.")]
     [SerializeField] private float groundFriction = 0.25f;
-    [Tooltip("Max distance to terrain surface before considered grounded.")]
-    [SerializeField] private float groundedDistance = 0.25f;
-    [Tooltip("Max distance below ideal contact to apply spring forces while approaching ground.")]
-    [SerializeField] private float approachingSurfaceMaxDistance = 1f;
-
-    [Header("Takeoff / Airborne")]
-    [Tooltip("Outward normal speed (m/s) above which ground adhesion is released. 0 = disabled.")]
-    [SerializeField] private float takeoffSpeed = 2f;
-    [Tooltip("Seconds after takeoff before ground contact can re-engage.")]
-    [SerializeField] private float airborneGraceTime = 0.2f;
-    [Tooltip("Min horizontal speed (m/s) for crest detection at convex ridge transitions.")]
-    [SerializeField] private float minCrestSpeed = 3f;
-    [Tooltip("Dot-product threshold between consecutive ground normals to detect a crest (lower = sharper ridge).")]
-    [SerializeField] private float crestNormalDotThreshold = 0.92f;
 
     [Header("Facing")]
     [Tooltip("Seconds to smooth yaw toward movement direction. Higher = less terrain jitter. 0 = instant.")]
@@ -88,21 +107,21 @@ public class PlayerFollowObjectAuthoring : MonoBehaviour
                 bottomOffset = capsule.height * 0.5f - capsule.center.y;
             }
 
+            float rideHeight = math.max(0f, authoring.rideHeight);
+
             AddComponent(entity, new PlayerFollowObjectGroundConfig
             {
                 bottomOffset = bottomOffset,
                 rayHeightAbove = authoring.rayHeightAbove,
                 rayLengthBelow = authoring.rayLengthBelow,
                 rideablePhysicsLayer = authoring.rideablePhysicsLayer,
-                springStiffness = authoring.springStiffness,
-                springDamping = authoring.springDamping,
+                rideFrequency = math.max(0f, authoring.rideFrequency),
+                rideDampingRatio = math.max(0f, authoring.rideDampingRatio),
+                rideHeight = rideHeight,
+                maxLegExtension = math.max(0f, authoring.maxLegExtension),
+                maxLegCompression = math.clamp(authoring.maxLegCompression, 0f, rideHeight),
+                contactProbeRadius = math.max(0f, authoring.contactProbeRadius),
                 groundFriction = authoring.groundFriction,
-                groundedDistance = authoring.groundedDistance,
-                approachingSurfaceMaxDistance = authoring.approachingSurfaceMaxDistance,
-                takeoffSpeed = authoring.takeoffSpeed,
-                airborneGraceTime = authoring.airborneGraceTime,
-                minCrestSpeed = authoring.minCrestSpeed,
-                crestNormalDotThreshold = authoring.crestNormalDotThreshold,
                 yawRotationSmoothTime = authoring.yawRotationSmoothTime,
                 minYawSpeed = authoring.minYawSpeed,
                 capsuleRadius = capsuleRadius,
@@ -115,10 +134,12 @@ public class PlayerFollowObjectAuthoring : MonoBehaviour
             {
                 terrainRelativeVelocity = float3.zero,
                 smoothedYaw = 0f,
-                wasGrounded = 0,
-                wasInSurfaceContact = 0,
-                airborneTimeRemaining = 0f,
-                previousGroundNormal = math.up()
+                inContact = 0,
+                legLength = rideHeight,
+                previousContactHeight = 0f,
+                hasPreviousContact = 0,
+                previousGroundNormal = math.up(),
+                contactPoint = float3.zero
             });
 
             AddComponent(entity, new PlayerFollowObjectSteeringConfig

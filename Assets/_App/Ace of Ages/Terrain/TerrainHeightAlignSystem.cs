@@ -6,7 +6,8 @@ using UnityEngine;
 /// <summary>
 /// One-shot vertical align: samples unaligned terrain height at the player's start XZ and
 /// stores <see cref="TerrainTileConfig.heightOffset"/> so the surface sits under their feet.
-/// Prefers the Player Follow Object (capsule feet via <see cref="PlayerFollowObjectGroundConfig.bottomOffset"/>);
+/// Prefers the Player Follow Object (capsule feet via <see cref="PlayerFollowObjectGroundConfig.bottomOffset"/>,
+/// plus the suspension's neutral <see cref="PlayerFollowObjectGroundConfig.rideHeight"/>);
 /// falls back to the tracked player Transform when no follow object exists.
 /// </summary>
 [UpdateInGroup(typeof(InitializationSystemGroup))]
@@ -27,6 +28,7 @@ public partial struct TerrainHeightAlignSystem : ISystem
 
         float3 anchorPosition = float3.zero;
         float bottomOffset = 0f;
+        float rideHeight = 0f;
         bool hasAnchor = false;
 
         foreach (var (localTransform, groundConfig) in SystemAPI
@@ -35,6 +37,7 @@ public partial struct TerrainHeightAlignSystem : ISystem
         {
             anchorPosition = localTransform.ValueRO.Position;
             bottomOffset = groundConfig.ValueRO.bottomOffset;
+            rideHeight = groundConfig.ValueRO.rideHeight;
             hasAnchor = true;
             break;
         }
@@ -48,6 +51,7 @@ public partial struct TerrainHeightAlignSystem : ISystem
                 Vector3 pos = playerRef.playerTransform.position;
                 anchorPosition = new float3(pos.x, pos.y, pos.z);
                 bottomOffset = 0f;
+                rideHeight = 0f;
                 hasAnchor = true;
             }
         }
@@ -72,7 +76,10 @@ public partial struct TerrainHeightAlignSystem : ISystem
             trailConfig,
             trailPath);
 
-        float feetY = anchorPosition.y - bottomOffset;
+        // The board hangs a full leg below the sprung body, so drop the surface by the neutral ride
+        // height too. Without this the suspension would start fully compressed and push the rider up
+        // by rideHeight on the first frames.
+        float feetY = anchorPosition.y - bottomOffset - rideHeight;
         config.heightOffset = feetY - unalignedHeight + config.initYOffset;
         SystemAPI.SetSingleton(config);
 

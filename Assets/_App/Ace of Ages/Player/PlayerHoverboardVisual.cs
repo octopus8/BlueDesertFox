@@ -62,10 +62,16 @@ public class PlayerHoverboardVisual : MonoBehaviour
         if (!PlayerFollowObjectPoseBridge.IsValid)
             return;
 
-        Vector3 followPosition = PlayerFollowObjectPoseBridge.Position;
         Quaternion followRotation = PlayerFollowObjectPoseBridge.Rotation;
 
-        transform.SetPositionAndRotation(followPosition, followRotation);
+        // The board rides on the surface while the rider is carried above it by the suspension, so the
+        // visible gap between the two is the knee bend. In flight there is no contact point, so the
+        // board travels with the rider.
+        Vector3 boardPosition = PlayerFollowObjectPoseBridge.HasBoardContact
+            ? PlayerFollowObjectPoseBridge.BoardContactPosition
+            : PlayerFollowObjectPoseBridge.Position;
+
+        transform.SetPositionAndRotation(boardPosition, followRotation);
 
         Vector3 terrainNormal = Vector3.up;
         bool useTerrainNormal = false;
@@ -75,7 +81,7 @@ public class PlayerHoverboardVisual : MonoBehaviour
             terrainNormal = PlayerFollowObjectPoseBridge.TerrainNormal;
             useTerrainNormal = true;
         }
-        else if (TryGetTerrainNormal(followPosition, out Vector3 raycastNormal))
+        else if (TryGetTerrainNormal(boardPosition, out Vector3 raycastNormal))
         {
             terrainNormal = raycastNormal;
             useTerrainNormal = true;

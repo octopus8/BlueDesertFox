@@ -14,42 +14,50 @@ public struct PlayerFollowObjectGroundConfig : IComponentData
     public float rayHeightAbove;
     public float rayLengthBelow;
     public int rideablePhysicsLayer;
-    public float springStiffness;
-    public float springDamping;
+    public float rideFrequency;
+    public float rideDampingRatio;
+    public float rideHeight;
+    public float maxLegExtension;
+    public float maxLegCompression;
+    public float contactProbeRadius;
     public float groundFriction;
-    public float groundedDistance;
-    public float approachingSurfaceMaxDistance;
-    public float takeoffSpeed;
-    public float airborneGraceTime;
-    public float minCrestSpeed;
-    public float crestNormalDotThreshold;
     public float yawRotationSmoothTime;
     public float minYawSpeed;
     public float capsuleRadius;
     public float capsuleHalfCylinder;
     public float3 capsuleCenter;
     public float3 gravity;
+
+    /// <summary>Leg length past which the surface is out of reach and contact is lost.</summary>
+    public float MaxLegLength => rideHeight + math.max(0f, maxLegExtension);
+
+    /// <summary>Leg length at which the suspension bottoms out against its hard stop.</summary>
+    public float MinLegLength => math.max(0f, rideHeight - math.max(0f, maxLegCompression));
 }
 
 /// <summary>
-/// Runtime terrain-relative velocity for the player follow object when driven by ground contact.
+/// Runtime terrain-relative velocity and suspension state for the player follow object.
 /// World velocity is <c>terrainRelativeVelocity - scrollVelocity</c> (see <see cref="TerrainScrollVelocityMath"/>).
 /// </summary>
 public struct PlayerFollowObjectMotionState : IComponentData
 {
     public float3 terrainRelativeVelocity;
     public float smoothedYaw;
-    public byte wasGrounded;
-    public byte wasInSurfaceContact;
-    public float airborneTimeRemaining;
+    public byte inContact;
+    public float legLength;
+    public float previousContactHeight;
+    public byte hasPreviousContact;
     public float3 previousGroundNormal;
+    public float3 contactPoint;
 }
 
 /// <summary>
-/// Drives the Player Follow Object entity along terrain and rideable surfaces using Unity Physics raycasts
-/// with a normal-axis spring-damper. Capsule casts block steep Terrain/Rideable walls and other obstacles.
-/// Integrates in terrain-relative velocity space so scroll motion and ramp slide do not compete.
-/// Burst-compiled to avoid managed GC from SystemBase OnUpdate.
+/// Drives the Player Follow Object entity along terrain and rideable surfaces as a sprung body on a
+/// travel-limited suspension. A footprint of downward probes finds the supporting surface, a soft
+/// spring-damper tuned by ride frequency absorbs bumps, and contact is lost the moment the surface
+/// drops beyond the leg's reach — which is what launches the player off ledges. Capsule casts block
+/// steep Terrain/Rideable walls and other obstacles. Integrates in terrain-relative velocity space so
+/// scroll motion and ramp slide do not compete. Burst-compiled to avoid managed GC.
 /// </summary>
 [BurstCompile]
 [UpdateInGroup(typeof(SimulationSystemGroup))]
@@ -59,13 +67,28 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
 {
     private const float ObstacleSkin = 0.001f;
     private const float MinCastDistance = 1e-4f;
-    private const float GroundHitDistanceMargin = 0.5f;
+    private const float ProbeReachMargin = 0.5f;
+    private const float MinProbeRadius = 1e-3f;
+    private const float MaxPenetrationRecovery = 2f;
+    // tan(60 deg): the steepest slope the board is considered able to ride up. Bounds both how far the
+    // supporting surface may rise per step and how fast it may climb, which keeps a wall the probe
+    // happens to see over from being mistaken for ground.
+    private const float MaxClimbTangent = 1.7320508f;
+    // Metres per second the body may be pushed back out of the ground. Fast enough that a hard landing
+    // recovers within a few frames, slow enough that it is never a single-frame teleport in VR.
+    private const float PenetrationRecoverySpeed = 20f;
+    private const float MinGradientNormalY = 0.1f;
     private const float WalkableSlopeThreshold = 0.5f;
-    private const float FlatGroundNormalThreshold = 0.95f;
-    private const float ScrollBaselineLerpSpeed = 12f;
-    private const float ScrollActiveSpeedSq = 0.01f;
     private const float MinSlideSpeed = 0.01f;
     private static readonly float3 DefaultGravity = new float3(0f, -9.81f, 0f);
+
+    /// <summary>Result of a single downward probe within the contact footprint.</summary>
+    private struct GroundProbe
+    {
+        public bool hit;
+        public float height;
+        public float3 rawNormal;
+    }
 
     [BurstCompile]
     public void OnCreate(ref SystemState state)
@@ -81,8 +104,10 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
     public void OnUpdate(ref SystemState state)
     {
         float dt = SystemAPI.Time.DeltaTime;
+        if (dt <= 0f)
+            return;
+
         float3 scrollVelocity = SystemAPI.GetSingleton<TerrainScrollVelocity>().WorldVelocity;
-        bool scrollActive = math.lengthsq(scrollVelocity) > ScrollActiveSpeedSq;
 
         bool hasPhysicsWorld = SystemAPI.TryGetSingleton(out TerrainTileConfig terrainConfig)
             && terrainConfig.enablePhysicsColliders
@@ -106,159 +131,160 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
             if (math.lengthsq(gravity) < 1e-8f)
                 gravity = DefaultGravity;
 
-            CollisionFilter groundFilter = default;
-            CollisionFilter terrainSweepFilter = default;
-            CollisionFilter obstacleFilter = default;
-
-            if (hasPhysicsWorld)
-            {
-                int rideableLayer = config.ValueRO.rideablePhysicsLayer;
-                if (rideableLayer < 0 || rideableLayer > 30)
-                    rideableLayer = 15;
-
-                uint terrainLayerMask = 1u << terrainLayer;
-                uint rideableLayerMask = 1u << rideableLayer;
-                uint groundLayerMask = terrainLayerMask | rideableLayerMask;
-                groundFilter = new CollisionFilter
-                {
-                    BelongsTo = ~0u,
-                    CollidesWith = groundLayerMask,
-                    GroupIndex = 0
-                };
-                // Steep Terrain and Rideable (e.g. halfpipe) walls — walkable hits are ignored in ResolveTerrainCollision.
-                terrainSweepFilter = new CollisionFilter
-                {
-                    BelongsTo = ~0u,
-                    CollidesWith = groundLayerMask,
-                    GroupIndex = 0
-                };
-                obstacleFilter = new CollisionFilter
-                {
-                    BelongsTo = ~0u,
-                    CollidesWith = ~groundLayerMask,
-                    GroupIndex = 0
-                };
-            }
+            BuildCollisionFilters(
+                config.ValueRO,
+                terrainLayer,
+                out CollisionFilter groundFilter,
+                out CollisionFilter terrainSweepFilter,
+                out CollisionFilter obstacleFilter);
 
             float3 position = localTransform.ValueRO.Position;
             float3 terrainRelativeVelocity = motionState.ValueRO.terrainRelativeVelocity;
-            bool wasGrounded = motionState.ValueRO.wasGrounded != 0;
-            float airborneTimeRemaining = motionState.ValueRO.airborneTimeRemaining;
+            float smoothedYaw = motionState.ValueRO.smoothedYaw;
             float3 previousGroundNormal = motionState.ValueRO.previousGroundNormal;
             if (math.lengthsq(previousGroundNormal) < 0.01f)
                 previousGroundNormal = math.up();
 
-            bool grounded = false;
-            bool inSurfaceContact = false;
-            float3 normal = math.up();
-            bool forceAirborne = airborneTimeRemaining > 0f;
+            bool hadContact = motionState.ValueRO.hasPreviousContact != 0;
 
-            if (forceAirborne)
+            // Support heights are compared in world space between frames, so the budget has to cover
+            // every way the world-space surface under the board can move: the board travelling over the
+            // terrain, and the terrain slab itself scrolling past and sinking. Measuring only the board's
+            // terrain-relative speed reads zero whenever it rides along with the scroll, which collapses
+            // the budget to its floor and makes ordinary terrain look like a wall.
+            float traverseSpeed = math.max(
+                math.length(new float2(terrainRelativeVelocity.x, terrainRelativeVelocity.z)),
+                math.length(new float2(scrollVelocity.x, scrollVelocity.z)));
+            float surfaceRiseSpeed = traverseSpeed * MaxClimbTangent + math.abs(scrollVelocity.y);
+
+            // How far the supporting surface may rise in one step. Anything higher is a wall for the
+            // capsule sweep to block, not ground for the leg to climb — admitting it would let a cliff
+            // top seen past its face shove the rider skyward. The leg's own squash range floors it so
+            // small steps stay climbable when nothing is moving.
+            float maxSurfaceRise = hadContact
+                ? config.ValueRO.maxLegCompression + surfaceRiseSpeed * dt
+                : MaxPenetrationRecovery;
+            float referenceHeight = hadContact
+                ? motionState.ValueRO.previousContactHeight
+                : position.y + config.ValueRO.bottomOffset;
+
+            // Probes sit out at the footprint radius, where a slope legitimately puts the surface well
+            // above the height under the body. Predicting each probe from the plane already being ridden
+            // keeps them valid on a ramp while still rejecting a cliff top, which sits above the plane.
+            float2 supportGradient = float2.zero;
+            if (hadContact && previousGroundNormal.y > MinGradientNormalY)
             {
-                airborneTimeRemaining = math.max(0f, airborneTimeRemaining - dt);
-                terrainRelativeVelocity += gravity * dt;
-
-                if (hasPhysicsWorld
-                    && TryGetGroundHit(collisionWorld, groundFilter, position, config.ValueRO, out RaycastHit airborneHit)
-                    && IsValidGroundHit(airborneHit, position, config.ValueRO))
-                {
-                    previousGroundNormal = math.normalizesafe(airborneHit.SurfaceNormal, math.up());
-                }
+                supportGradient = new float2(-previousGroundNormal.x, -previousGroundNormal.z)
+                    / previousGroundNormal.y;
+                float gradientLength = math.length(supportGradient);
+                if (gradientLength > MaxClimbTangent)
+                    supportGradient *= MaxClimbTangent / gradientLength;
             }
-            else if (hasPhysicsWorld
-                && TryGetGroundHit(collisionWorld, groundFilter, position, config.ValueRO, out RaycastHit groundHit)
-                && IsValidGroundHit(groundHit, position, config.ValueRO))
+
+            bool hasContact = false;
+            float3 contactNormal = previousGroundNormal;
+            float legLength = config.ValueRO.rideHeight;
+            float supportHeight = position.y;
+
+            if (hasPhysicsWorld
+                && TryProbeGround(
+                    collisionWorld,
+                    groundFilter,
+                    position,
+                    smoothedYaw,
+                    referenceHeight,
+                    supportGradient,
+                    maxSurfaceRise,
+                    config.ValueRO,
+                    out supportHeight,
+                    out float3 probedNormal))
             {
-                normal = math.normalizesafe(groundHit.SurfaceNormal, math.up());
-                float3 contactNormal = normal;
-                if (normal.y >= WalkableSlopeThreshold
-                    && previousGroundNormal.y < WalkableSlopeThreshold)
-                {
+                contactNormal = probedNormal;
+
+                // Stay attached to a steep rideable wall (halfpipe) rather than snapping onto the
+                // walkable floor the probe can also see from up there.
+                if (contactNormal.y >= WalkableSlopeThreshold && previousGroundNormal.y < WalkableSlopeThreshold)
                     contactNormal = previousGroundNormal;
-                }
 
-                float3 surfaceTarget = groundHit.Position + contactNormal * config.ValueRO.bottomOffset;
-                float error = math.dot(surfaceTarget - position, contactNormal);
-                grounded = math.abs(error) < config.ValueRO.groundedDistance;
-                bool approachingSurface = error > 0f && error < config.ValueRO.approachingSurfaceMaxDistance;
-                bool contactCandidate = grounded || approachingSurface;
+                // Probes are vertical columns, so the leg runs from the body straight down to the surface
+                // beneath it, measured along the contact normal.
+                legLength = contactNormal.y * (position.y - supportHeight) - config.ValueRO.bottomOffset;
+                hasContact = legLength <= config.ValueRO.MaxLegLength;
 
-                float3 contactWorldVelocity = TerrainScrollVelocityMath.WorldVelocityFromTerrainRelative(
-                    terrainRelativeVelocity,
-                    scrollVelocity);
-                float vNormal = math.dot(contactWorldVelocity, contactNormal);
-                float3 flatVelocity = new float3(contactWorldVelocity.x, 0f, contactWorldVelocity.z);
-                float flatSpeed = math.length(flatVelocity);
-
-                bool takeoffFromSpeed = config.ValueRO.takeoffSpeed > 0f
-                    && contactCandidate
-                    && vNormal > config.ValueRO.takeoffSpeed;
-                bool takeoffFromCrest = wasGrounded
-                    && config.ValueRO.minCrestSpeed > 0f
-                    && flatSpeed >= config.ValueRO.minCrestSpeed
-                    && math.dot(previousGroundNormal, normal) < config.ValueRO.crestNormalDotThreshold;
-
-                if (takeoffFromSpeed || takeoffFromCrest)
-                {
-                    airborneTimeRemaining = config.ValueRO.airborneGraceTime;
-                    terrainRelativeVelocity += gravity * dt;
-                    grounded = false;
-                }
-                else if (contactCandidate)
-                {
-                    inSurfaceContact = true;
-
-                    if (grounded && !wasGrounded)
-                    {
-                        if (scrollActive)
-                            terrainRelativeVelocity = scrollVelocity;
-
-                        float3 touchdownVelocity = TerrainScrollVelocityMath.WorldVelocityFromTerrainRelative(
-                            terrainRelativeVelocity,
-                            scrollVelocity);
-                        float touchdownNormal = math.dot(touchdownVelocity, contactNormal);
-                        if (touchdownNormal > 0f)
-                        {
-                            touchdownVelocity -= contactNormal * touchdownNormal;
-                            terrainRelativeVelocity = TerrainScrollVelocityMath.TerrainRelativeFromWorld(
-                                touchdownVelocity,
-                                scrollVelocity);
-                        }
-                    }
-
-                    terrainRelativeVelocity += GetTangentComponent(gravity, contactNormal) * dt;
-                    ApplySpringDamper(
-                        ref terrainRelativeVelocity,
-                        scrollVelocity,
-                        position,
-                        surfaceTarget,
-                        contactNormal,
-                        config.ValueRO,
-                        dt);
-
-                    if (grounded)
-                    {
-                        ApplyGroundFriction(ref terrainRelativeVelocity, scrollVelocity, contactNormal, config.ValueRO.groundFriction, dt);
-
-                        if (scrollActive && contactNormal.y >= FlatGroundNormalThreshold)
-                            ApplyScrollBaseline(ref terrainRelativeVelocity, scrollVelocity, dt);
-                    }
-                }
-                else
-                {
-                    terrainRelativeVelocity += gravity * dt;
-                }
-
-                previousGroundNormal = normal;
-            }
-            else
-            {
-                terrainRelativeVelocity += gravity * dt;
+                previousGroundNormal = probedNormal;
             }
 
             float3 worldVelocity = TerrainScrollVelocityMath.WorldVelocityFromTerrainRelative(
                 terrainRelativeVelocity,
                 scrollVelocity);
+
+            if (hasContact)
+            {
+                // Correct any penetration left over from the previous step before applying forces, so the
+                // hard stop doubles as the ground-interpenetration guard. The correction is rate limited
+                // so a deep recovery plays out over several frames instead of teleporting the rider.
+                float minLegLength = config.ValueRO.MinLegLength;
+                bool bottomedOut = legLength < minLegLength;
+                if (bottomedOut)
+                {
+                    float lift = math.min(minLegLength - legLength, PenetrationRecoverySpeed * dt);
+                    position += contactNormal * lift;
+                    legLength += lift;
+                }
+
+                float surfaceVerticalRate = 0f;
+                if (hadContact)
+                {
+                    // Bounded by the same continuity budget the probe enforces, expressed as a rate. The
+                    // support height cannot legitimately have moved further than that, so this only ever
+                    // catches a discontinuity that slipped through before it reaches the damper or the
+                    // hard stop as a launch impulse.
+                    float maxSurfaceRate = maxSurfaceRise / dt;
+                    surfaceVerticalRate = math.clamp(
+                        (supportHeight - motionState.ValueRO.previousContactHeight) / dt,
+                        -maxSurfaceRate,
+                        maxSurfaceRate);
+                }
+
+                // Closing rate between body and surface along the contact normal. The horizontal terms
+                // of the two velocities cancel because the contact target tracks the body's XZ, leaving
+                // the vertical difference projected onto the normal. A body gliding along a constant
+                // slope therefore reads zero, so the damper follows the ground instead of fighting it.
+                float relativeNormalRate = contactNormal.y * (worldVelocity.y - surfaceVerticalRate);
+
+                if (bottomedOut && relativeNormalRate < 0f)
+                {
+                    // Inelastic normal-direction response referenced to the surface: kills the approach
+                    // rate and, on a rising ramp, redirects horizontal speed up the ramp face.
+                    worldVelocity -= contactNormal * relativeNormalRate;
+                    relativeNormalRate = 0f;
+                }
+
+                float omega = 2f * math.PI * math.max(0f, config.ValueRO.rideFrequency);
+                float stiffness = omega * omega;
+                float damping = 2f * math.max(0f, config.ValueRO.rideDampingRatio) * omega;
+                float springAcceleration = stiffness * (config.ValueRO.rideHeight - legLength)
+                    - damping * relativeNormalRate;
+
+                worldVelocity += contactNormal * (springAcceleration * dt);
+
+                // The leg carries the normal component of weight, so only the tangent drives sliding.
+                worldVelocity += GetTangentComponent(gravity, contactNormal) * dt;
+
+                ApplyGroundFriction(ref worldVelocity, scrollVelocity, contactNormal, config.ValueRO.groundFriction, dt);
+            }
+            else
+            {
+                worldVelocity += gravity * dt;
+            }
+
+            terrainRelativeVelocity = TerrainScrollVelocityMath.TerrainRelativeFromWorld(worldVelocity, scrollVelocity);
+
+            // Capture the body-to-surface gap before integrating so the board can be republished from the
+            // final position below. Publishing the pre-integration contact point instead left the board
+            // trailing the rider by a frame of travel, which read as fore/aft judder as frametime varied.
+            float contactOffsetY = supportHeight - position.y;
+
             float3 startPosition = position;
             float3 displacement = worldVelocity * dt;
             position = startPosition + displacement;
@@ -268,7 +294,6 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
                 if (ResolveTerrainCollision(
                         ref position,
                         ref terrainRelativeVelocity,
-                        scrollVelocity,
                         startPosition,
                         displacement,
                         config.ValueRO,
@@ -285,7 +310,6 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
                     ResolveObstacleCollision(
                         ref position,
                         ref terrainRelativeVelocity,
-                        scrollVelocity,
                         startPosition,
                         traveledDisplacement,
                         config.ValueRO,
@@ -294,26 +318,18 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
                 }
             }
 
-            if (hasPhysicsWorld && !grounded)
-            {
-                SnapToTerrainSurface(
-                    ref position,
-                    collisionWorld,
-                    groundFilter,
-                    config.ValueRO);
-            }
-
             localTransform.ValueRW.Position = position;
             motionState.ValueRW.terrainRelativeVelocity = terrainRelativeVelocity;
-            motionState.ValueRW.wasGrounded = grounded ? (byte)1 : (byte)0;
-            motionState.ValueRW.wasInSurfaceContact = inSurfaceContact ? (byte)1 : (byte)0;
-            motionState.ValueRW.airborneTimeRemaining = airborneTimeRemaining;
+            motionState.ValueRW.inContact = hasContact ? (byte)1 : (byte)0;
+            motionState.ValueRW.legLength = legLength;
+            motionState.ValueRW.previousContactHeight = supportHeight;
+            motionState.ValueRW.hasPreviousContact = hasContact ? (byte)1 : (byte)0;
             motionState.ValueRW.previousGroundNormal = previousGroundNormal;
+            motionState.ValueRW.contactPoint = new float3(position.x, position.y + contactOffsetY, position.z);
 
-            float smoothedYaw = motionState.ValueRO.smoothedYaw;
             UpdateSmoothedYaw(
                 ref smoothedYaw,
-                worldVelocity,
+                TerrainScrollVelocityMath.WorldVelocityFromTerrainRelative(terrainRelativeVelocity, scrollVelocity),
                 config.ValueRO.minYawSpeed,
                 config.ValueRO.yawRotationSmoothTime,
                 dt);
@@ -322,67 +338,204 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
         }
     }
 
-    private static void ApplyScrollBaseline(ref float3 terrainRelativeVelocity, float3 scrollVelocity, float dt)
-    {
-        float3 target = new float3(scrollVelocity.x, terrainRelativeVelocity.y, scrollVelocity.z);
-        float t = math.saturate(ScrollBaselineLerpSpeed * dt);
-        float3 flat = new float3(terrainRelativeVelocity.x, 0f, terrainRelativeVelocity.z);
-        float3 targetFlat = new float3(scrollVelocity.x, 0f, scrollVelocity.z);
-        float3 lerpedFlat = math.lerp(flat, targetFlat, t);
-        terrainRelativeVelocity = new float3(lerpedFlat.x, target.y, lerpedFlat.z);
-    }
-
-    private static bool IsValidGroundHit(RaycastHit hit, float3 position, in PlayerFollowObjectGroundConfig config)
-    {
-        float3 rayStart = position + math.up() * config.rayHeightAbove;
-        float hitDistance = math.distance(rayStart, hit.Position);
-        float maxDistance = config.rayHeightAbove + config.bottomOffset + config.groundedDistance + GroundHitDistanceMargin;
-        return hitDistance <= maxDistance;
-    }
-
-    private static void ApplySpringDamper(
-        ref float3 terrainRelativeVelocity,
-        float3 scrollVelocity,
-        float3 position,
-        float3 surfaceTarget,
-        float3 normal,
+    private static void BuildCollisionFilters(
         in PlayerFollowObjectGroundConfig config,
-        float dt)
+        int terrainLayer,
+        out CollisionFilter groundFilter,
+        out CollisionFilter terrainSweepFilter,
+        out CollisionFilter obstacleFilter)
     {
-        float error = math.dot(surfaceTarget - position, normal);
-        float3 worldVelocity = TerrainScrollVelocityMath.WorldVelocityFromTerrainRelative(
-            terrainRelativeVelocity,
-            scrollVelocity);
-        float vNormal = math.dot(worldVelocity, normal);
-        float3 springAccel = normal * (config.springStiffness * error - config.springDamping * vNormal);
-        worldVelocity += springAccel * dt;
-        terrainRelativeVelocity = TerrainScrollVelocityMath.TerrainRelativeFromWorld(worldVelocity, scrollVelocity);
+        int rideableLayer = config.rideablePhysicsLayer;
+        if (rideableLayer < 0 || rideableLayer > 30)
+            rideableLayer = 15;
+
+        uint groundLayerMask = (1u << terrainLayer) | (1u << rideableLayer);
+
+        groundFilter = new CollisionFilter
+        {
+            BelongsTo = ~0u,
+            CollidesWith = groundLayerMask,
+            GroupIndex = 0
+        };
+        // Steep Terrain and Rideable (e.g. halfpipe) walls — walkable hits are ignored in ResolveTerrainCollision.
+        terrainSweepFilter = groundFilter;
+        obstacleFilter = new CollisionFilter
+        {
+            BelongsTo = ~0u,
+            CollidesWith = ~groundLayerMask,
+            GroupIndex = 0
+        };
     }
 
-    private static bool TryGetGroundHit(
+    /// <summary>
+    /// Probes the supporting surface under the board footprint: a centre column plus fore/aft and
+    /// left/right columns at <see cref="PlayerFollowObjectGroundConfig.contactProbeRadius"/>. Opposing
+    /// pairs give a fitted plane normal, which is far steadier than a single ray's per-triangle normal.
+    /// Each probe is then extrapolated along that plane to the body's XZ and the highest result wins, so
+    /// a rigid board bridges narrow crests instead of dropping into every gap between them.
+    /// Each column is judged against the plane <paramref name="referenceHeight"/> /
+    /// <paramref name="supportGradient"/> describes, and hits more than <paramref name="maxSurfaceRise"/>
+    /// above their predicted height are discarded as walls rather than ground.
+    /// </summary>
+    private static bool TryProbeGround(
         CollisionWorld collisionWorld,
         CollisionFilter groundFilter,
         float3 position,
+        float yaw,
+        float referenceHeight,
+        float2 supportGradient,
+        float maxSurfaceRise,
         in PlayerFollowObjectGroundConfig config,
-        out RaycastHit hit)
+        out float supportHeight,
+        out float3 normal)
     {
-        float3 rayStart = position + math.up() * config.rayHeightAbove;
-        float3 rayEnd = position - math.up() * config.rayLengthBelow;
+        supportHeight = position.y;
+        normal = math.up();
 
+        float radius = math.max(0f, config.contactProbeRadius);
+        float3 forward = new float3(math.sin(yaw), 0f, math.cos(yaw));
+        float3 right = new float3(forward.z, 0f, -forward.x);
+        float3 forwardOffset = forward * radius;
+        float3 rightOffset = right * radius;
+
+        float ceilingAtBody = referenceHeight + maxSurfaceRise;
+
+        GroundProbe centre = ProbeColumn(
+            collisionWorld, groundFilter, position, float3.zero, ceilingAtBody, supportGradient, config);
+
+        if (radius < MinProbeRadius)
+        {
+            if (!centre.hit)
+                return false;
+
+            supportHeight = centre.height;
+            normal = centre.rawNormal;
+            return true;
+        }
+
+        GroundProbe fore = ProbeColumn(
+            collisionWorld, groundFilter, position, forwardOffset, ceilingAtBody, supportGradient, config);
+        GroundProbe aft = ProbeColumn(
+            collisionWorld, groundFilter, position, -forwardOffset, ceilingAtBody, supportGradient, config);
+        GroundProbe starboard = ProbeColumn(
+            collisionWorld, groundFilter, position, rightOffset, ceilingAtBody, supportGradient, config);
+        GroundProbe port = ProbeColumn(
+            collisionWorld, groundFilter, position, -rightOffset, ceilingAtBody, supportGradient, config);
+
+        if (!centre.hit && !fore.hit && !aft.hit && !starboard.hit && !port.hit)
+            return false;
+
+        float invSpan = 1f / (2f * radius);
+        float2 gradient = float2.zero;
+        bool fitted = false;
+
+        if (fore.hit && aft.hit)
+        {
+            gradient += (fore.height - aft.height) * invSpan * new float2(forward.x, forward.z);
+            fitted = true;
+        }
+
+        if (starboard.hit && port.hit)
+        {
+            gradient += (starboard.height - port.height) * invSpan * new float2(right.x, right.z);
+            fitted = true;
+        }
+
+        if (fitted)
+        {
+            normal = math.normalizesafe(new float3(-gradient.x, 1f, -gradient.y), math.up());
+        }
+        else
+        {
+            // Not enough opposing pairs to fit a plane (e.g. hanging over an edge) — fall back to a
+            // single triangle normal and treat the surface as locally flat for the support test.
+            normal = centre.hit ? centre.rawNormal
+                : fore.hit ? fore.rawNormal
+                : aft.hit ? aft.rawNormal
+                : starboard.hit ? starboard.rawNormal
+                : port.rawNormal;
+            gradient = float2.zero;
+        }
+
+        supportHeight = float.MinValue;
+        AccumulateSupport(centre, float3.zero, gradient, ref supportHeight);
+        AccumulateSupport(fore, forwardOffset, gradient, ref supportHeight);
+        AccumulateSupport(aft, -forwardOffset, gradient, ref supportHeight);
+        AccumulateSupport(starboard, rightOffset, gradient, ref supportHeight);
+        AccumulateSupport(port, -rightOffset, gradient, ref supportHeight);
+
+        // Extrapolating along the fitted plane can overshoot the accepted hits over a crest, so re-apply
+        // the ceiling to guarantee the continuity limit holds for the height the suspension actually sees.
+        supportHeight = math.min(supportHeight, ceilingAtBody);
+
+        return true;
+    }
+
+    /// <summary>
+    /// Projects a probe hit along the fitted plane back to the body's XZ and keeps it if it is the
+    /// highest support found so far.
+    /// </summary>
+    private static void AccumulateSupport(
+        in GroundProbe probe,
+        float3 horizontalOffset,
+        float2 gradient,
+        ref float supportHeight)
+    {
+        if (!probe.hit)
+            return;
+
+        float heightAtBody = probe.height - (gradient.x * horizontalOffset.x + gradient.y * horizontalOffset.z);
+        supportHeight = math.max(supportHeight, heightAtBody);
+    }
+
+    private static GroundProbe ProbeColumn(
+        CollisionWorld collisionWorld,
+        CollisionFilter groundFilter,
+        float3 position,
+        float3 horizontalOffset,
+        float ceilingAtBody,
+        float2 supportGradient,
+        in PlayerFollowObjectGroundConfig config)
+    {
+        GroundProbe probe = default;
+
+        float3 origin = position + horizontalOffset;
         var rayInput = new RaycastInput
         {
-            Start = rayStart,
-            End = rayEnd,
+            Start = origin + math.up() * config.rayHeightAbove,
+            End = origin - math.up() * config.rayLengthBelow,
             Filter = groundFilter
         };
 
-        return collisionWorld.CastRay(rayInput, out hit);
+        if (!collisionWorld.CastRay(rayInput, out RaycastHit hit))
+            return probe;
+
+        // Discard surfaces the leg could never reach so ledges and cliffs read as open air. The margin
+        // keeps the leg-reach test in OnUpdate authoritative for the contact decision itself.
+        float reach = config.bottomOffset + config.MaxLegLength + ProbeReachMargin;
+        if (hit.Position.y < position.y - reach)
+            return probe;
+
+        // The rays start well overhead, so anything above the ceiling is a ceiling, an overhang, or the
+        // top of a wall seen past its face — none of which the board can be resting on. The ceiling
+        // follows the ridden plane out to this column's offset, so a ramp stays ground while a step up
+        // out of that plane does not. While in contact it tracks the surface already being ridden; on
+        // landing it tracks the body, so penetration the hard stop still needs to undo stays visible.
+        float ceiling = ceilingAtBody
+            + supportGradient.x * horizontalOffset.x
+            + supportGradient.y * horizontalOffset.z;
+        if (hit.Position.y > ceiling)
+            return probe;
+
+        probe.hit = true;
+        probe.height = hit.Position.y;
+        probe.rawNormal = math.normalizesafe(hit.SurfaceNormal, math.up());
+        return probe;
     }
 
     private static bool ResolveTerrainCollision(
         ref float3 position,
         ref float3 terrainRelativeVelocity,
-        float3 scrollVelocity,
         float3 startPosition,
         float3 displacement,
         in PlayerFollowObjectGroundConfig config,
@@ -422,25 +575,22 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
         float3 slideDisplacement = ComputeSteepWallSlideDisplacement(displacement, terrainNormal, direction);
         position = startPosition + slideDisplacement;
 
-        float3 worldVelocity = TerrainScrollVelocityMath.WorldVelocityFromTerrainRelative(
-            terrainRelativeVelocity,
-            scrollVelocity);
-        float inboundSpeed = math.length(worldVelocity);
-        float vNormal = math.dot(worldVelocity, terrainNormal);
+        // Sliding is resolved against the terrain surface, so the redirect happens in terrain-relative space.
+        float inboundSpeed = math.length(terrainRelativeVelocity);
+        float vNormal = math.dot(terrainRelativeVelocity, terrainNormal);
 
         if (vNormal < 0f)
-            worldVelocity -= terrainNormal * vNormal;
+            terrainRelativeVelocity -= terrainNormal * vNormal;
 
         float minTangentSpeedSq = inboundSpeed * inboundSpeed * 0.01f;
-        if (math.lengthsq(worldVelocity) < minTangentSpeedSq && inboundSpeed > MinSlideSpeed)
+        if (math.lengthsq(terrainRelativeVelocity) < minTangentSpeedSq && inboundSpeed > MinSlideSpeed)
         {
             float3 slideDir = math.normalizesafe(
                 RemoveNormalComponent(displacement, terrainNormal),
                 GetTangentComponent(math.up(), terrainNormal));
-            worldVelocity = slideDir * inboundSpeed;
+            terrainRelativeVelocity = slideDir * inboundSpeed;
         }
 
-        terrainRelativeVelocity = TerrainScrollVelocityMath.TerrainRelativeFromWorld(worldVelocity, scrollVelocity);
         return true;
     }
 
@@ -466,30 +616,9 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
         return slideDisplacement;
     }
 
-    private static void SnapToTerrainSurface(
-        ref float3 position,
-        CollisionWorld collisionWorld,
-        CollisionFilter groundFilter,
-        in PlayerFollowObjectGroundConfig config)
-    {
-        if (!TryGetGroundHit(collisionWorld, groundFilter, position, config, out RaycastHit hit)
-            || !IsValidGroundHit(hit, position, config))
-        {
-            return;
-        }
-
-        float3 normal = math.normalizesafe(hit.SurfaceNormal, math.up());
-        float3 surfaceTarget = hit.Position + normal * config.bottomOffset;
-        float error = math.dot(surfaceTarget - position, normal);
-
-        if (math.abs(error) <= config.groundedDistance)
-            position += normal * error;
-    }
-
     private static void ResolveObstacleCollision(
         ref float3 position,
         ref float3 terrainRelativeVelocity,
-        float3 scrollVelocity,
         float3 startPosition,
         float3 displacement,
         in PlayerFollowObjectGroundConfig config,
@@ -522,11 +651,7 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
         float fraction = math.max(castHit.Fraction - ObstacleSkin, 0f);
         position = startPosition + direction * (distance * fraction);
 
-        float3 worldVelocity = TerrainScrollVelocityMath.WorldVelocityFromTerrainRelative(
-            terrainRelativeVelocity,
-            scrollVelocity);
-        worldVelocity = RemoveNormalComponent(worldVelocity, obstacleNormal);
-        terrainRelativeVelocity = TerrainScrollVelocityMath.TerrainRelativeFromWorld(worldVelocity, scrollVelocity);
+        terrainRelativeVelocity = RemoveNormalComponent(terrainRelativeVelocity, obstacleNormal);
     }
 
     private static void GetCapsuleEndpoints(
@@ -552,7 +677,7 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
     }
 
     private static void ApplyGroundFriction(
-        ref float3 terrainRelativeVelocity,
+        ref float3 worldVelocity,
         float3 scrollVelocity,
         float3 normal,
         float groundFriction,
@@ -561,13 +686,13 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
         if (groundFriction <= 0f)
             return;
 
-        float3 worldVelocity = TerrainScrollVelocityMath.WorldVelocityFromTerrainRelative(
-            terrainRelativeVelocity,
-            scrollVelocity);
-        float3 tangent = RemoveNormalComponent(worldVelocity, normal);
+        // Friction resists sliding against the terrain surface, which moves at -scrollVelocity in world
+        // space, so it must damp the terrain-relative tangent rather than the world tangent.
+        float3 surfaceRelative = TerrainScrollVelocityMath.TerrainRelativeFromWorld(worldVelocity, scrollVelocity);
+        float3 tangent = RemoveNormalComponent(surfaceRelative, normal);
         float damping = math.max(0f, 1f - groundFriction * dt);
-        worldVelocity = normal * math.dot(worldVelocity, normal) + tangent * damping;
-        terrainRelativeVelocity = TerrainScrollVelocityMath.TerrainRelativeFromWorld(worldVelocity, scrollVelocity);
+        surfaceRelative = normal * math.dot(surfaceRelative, normal) + tangent * damping;
+        worldVelocity = TerrainScrollVelocityMath.WorldVelocityFromTerrainRelative(surfaceRelative, scrollVelocity);
     }
 
     private static void UpdateSmoothedYaw(

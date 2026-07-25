@@ -1,47 +1,68 @@
 using Unity.Entities;
 using Unity.Mathematics;
-using Unity.Physics;
 using Unity.Transforms;
 using UnityEngine;
-using RaycastHit = Unity.Physics.RaycastHit;
 
 /// <summary>
 /// Main-thread pose cache for the Player Follow Object entity in a baked subscene.
 /// Updated each frame by <see cref="PlayerFollowObjectSyncSystem"/>.
 /// </summary>
+/// <remarks>
+/// Two positions are published because the rider and the board are separated by the suspension.
+/// <see cref="Position"/> is the sprung rider body (what the XR rig follows) and
+/// <see cref="BoardContactPosition"/> is the surface the board rests on. The gap between them is the
+/// leg travel that absorbs bumps.
+/// </remarks>
 public static class PlayerFollowObjectPoseBridge
 {
+    /// <summary>World position of the sprung rider body.</summary>
     public static Vector3 Position { get; private set; }
+
     public static Quaternion Rotation { get; private set; }
+
+    /// <summary>World position of the supporting surface under the board. Only valid when <see cref="HasBoardContact"/>.</summary>
+    public static Vector3 BoardContactPosition { get; private set; }
+
+    public static bool HasBoardContact { get; private set; }
+
     public static Vector3 TerrainNormal { get; private set; } = Vector3.up;
+
     public static bool HasTiltTerrainNormal { get; private set; }
-    public static float AirborneTimeRemaining { get; private set; }
+
+    /// <summary>False while the leg is out of reach and the rider is in ballistic flight.</summary>
+    public static bool IsInContact { get; private set; }
+
+    /// <summary>Suspension squash, 0 at or above neutral ride height, 1 fully bottomed out.</summary>
+    public static float LegCompression01 { get; private set; }
+
     public static bool IsValid { get; private set; }
 
     internal static void SetPose(
         float3 position,
         quaternion rotation,
-        float3 terrainNormal,
-        float3 tiltTerrainNormal,
-        bool hasTiltTerrainNormal,
-        float airborneTimeRemaining)
+        float3 contactPoint,
+        float3 groundNormal,
+        bool inContact,
+        float legCompression01)
     {
         Position = (Vector3)position;
         Rotation = (Quaternion)rotation;
-        TerrainNormal = (Vector3)math.normalizesafe(terrainNormal, math.up());
-        HasTiltTerrainNormal = hasTiltTerrainNormal;
-        AirborneTimeRemaining = airborneTimeRemaining;
-
-        if (hasTiltTerrainNormal)
-            TerrainNormal = (Vector3)math.normalizesafe(tiltTerrainNormal, math.up());
-
+        BoardContactPosition = (Vector3)contactPoint;
+        HasBoardContact = inContact;
+        TerrainNormal = (Vector3)math.normalizesafe(groundNormal, math.up());
+        HasTiltTerrainNormal = inContact;
+        IsInContact = inContact;
+        LegCompression01 = legCompression01;
         IsValid = true;
     }
 
     internal static void Clear()
     {
         IsValid = false;
+        HasBoardContact = false;
         HasTiltTerrainNormal = false;
+        IsInContact = false;
+        LegCompression01 = 0f;
     }
 }
 
@@ -55,9 +76,6 @@ public static class PlayerFollowObjectPoseBridge
 [UpdateBefore(typeof(TileScrollPositionSystem))]
 public partial struct PlayerFollowObjectSyncSystem : ISystem
 {
-    private const float MinWalkableNormalY = 0.01f;
-    private const float MaxTiltDistance = 8f;
-
     private bool _loggedMultipleWarning;
 
     public void OnCreate(ref SystemState state)
@@ -80,19 +98,22 @@ public partial struct PlayerFollowObjectSyncSystem : ISystem
 
             found = true;
 
-            bool hasTiltNormal = TryGetTiltTerrainNormal(
-                ref state,
-                localTransform.ValueRO.Position,
-                groundConfig.ValueRO,
-                out float3 tiltNormal);
+            bool inContact = motionState.ValueRO.inContact != 0;
 
+            float maxCompression = groundConfig.ValueRO.maxLegCompression;
+            float compression01 = maxCompression > 0f
+                ? math.saturate((groundConfig.ValueRO.rideHeight - motionState.ValueRO.legLength) / maxCompression)
+                : 0f;
+
+            // The ground-contact system already fitted a plane across the contact footprint, which is
+            // far steadier than re-raycasting a single per-triangle normal here.
             PlayerFollowObjectPoseBridge.SetPose(
                 localTransform.ValueRO.Position,
                 localTransform.ValueRO.Rotation,
+                motionState.ValueRO.contactPoint,
                 motionState.ValueRO.previousGroundNormal,
-                tiltNormal,
-                hasTiltNormal,
-                motionState.ValueRO.airborneTimeRemaining);
+                inContact,
+                compression01);
         }
 
         if (!found)
@@ -106,56 +127,5 @@ public partial struct PlayerFollowObjectSyncSystem : ISystem
             Debug.LogWarning($"[PlayerFollowObjectSyncSystem] Found {count} entities with {nameof(PlayerFollowObjectTag)}. Using the first one.");
             _loggedMultipleWarning = true;
         }
-    }
-
-    private bool TryGetTiltTerrainNormal(
-        ref SystemState state,
-        float3 position,
-        in PlayerFollowObjectGroundConfig groundConfig,
-        out float3 terrainNormal)
-    {
-        terrainNormal = math.up();
-
-        if (!SystemAPI.TryGetSingleton(out TerrainTileConfig terrainConfig)
-            || !terrainConfig.enablePhysicsColliders
-            || !SystemAPI.HasSingleton<PhysicsWorldSingleton>())
-        {
-            return false;
-        }
-
-        state.Dependency.Complete();
-        var collisionWorld = SystemAPI.GetSingleton<PhysicsWorldSingleton>().PhysicsWorld.CollisionWorld;
-
-        int terrainLayer = terrainConfig.terrainPhysicsLayer;
-        int rideableLayer = groundConfig.rideablePhysicsLayer;
-        if (rideableLayer < 0 || rideableLayer > 30)
-            rideableLayer = 15;
-
-        uint groundLayerMask = (1u << terrainLayer) | (1u << rideableLayer);
-        var groundFilter = new CollisionFilter
-        {
-            BelongsTo = ~0u,
-            CollidesWith = groundLayerMask,
-            GroupIndex = 0
-        };
-
-        float3 rayStart = position + math.up() * groundConfig.rayHeightAbove;
-        float3 rayEnd = position - math.up() * groundConfig.rayLengthBelow;
-        var rayInput = new RaycastInput
-        {
-            Start = rayStart,
-            End = rayEnd,
-            Filter = groundFilter
-        };
-
-        if (!collisionWorld.CastRay(rayInput, out RaycastHit hit))
-            return false;
-
-        terrainNormal = math.normalizesafe(hit.SurfaceNormal, math.up());
-        if (terrainNormal.y < MinWalkableNormalY)
-            return false;
-
-        float heightAboveSurface = math.dot(position - hit.Position, terrainNormal);
-        return heightAboveSurface <= MaxTiltDistance;
     }
 }
