@@ -67,7 +67,7 @@ public struct PlayerFollowObjectMotionState : IComponentData
     /// <summary>Set while a steep blocking wall is actively scraping the capsule this frame.</summary>
     public byte wallSlideActive;
 
-    /// <summary>Previous frame was supported by the Rideable layer (quarterpipe / halfpipe).</summary>
+    /// <summary>Diagnostic: current frame was on Rideable (written each frame; not used to gate physics).</summary>
     public byte previousOnRideable;
 }
 
@@ -222,7 +222,6 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
                 previousGroundNormal = math.up();
 
             bool hadContact = motionState.ValueRO.hasPreviousContact != 0;
-            bool previousOnRideable = motionState.ValueRO.previousOnRideable != 0;
 
             // Support heights are compared in world space between frames, so the budget has to cover
             // every way the world-space surface under the board can move: the board travelling over the
@@ -290,15 +289,15 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
             {
                 contactNormal = probedNormal;
 
-                // Stay attached to a steep rideable wall (halfpipe) rather than snapping onto the
-                // walkable floor the probe can also see from up there. Persist the steep normal so
-                // attachment survives more than one frame. Steep prior contact is always rideable —
-                // ProbeColumn rejects steep terrain — so keep pipe physics armed.
-                if (contactNormal.y >= WalkableSlopeThreshold && previousGroundNormal.y < WalkableSlopeThreshold)
+                // Stay attached to a steep rideable wall when the probe still sees rideable support
+                // (halfpipe floor under you). Do not force this on terrain after leaving a pipe — that
+                // re-armed pipe hard-stop on the mountain and launched the rider uphill.
+                if (onRideable
+                    && contactNormal.y >= WalkableSlopeThreshold
+                    && previousGroundNormal.y < WalkableSlopeThreshold)
                 {
                     contactNormal = previousGroundNormal;
                     previousGroundNormal = contactNormal;
-                    onRideable = true;
                 }
                 else
                 {
@@ -313,7 +312,9 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
 
             // Quarterpipes need the full climbable rise rate even when the previous frame was flat
             // mountain — otherwise the rising face is treated as a discontinuity and the climb dies.
-            if (onRideable || previousOnRideable)
+            // Current-frame rideable only: previousOnRideable would keep this armed on the first
+            // terrain frame after exiting the pipe.
+            if (onRideable)
             {
                 surfaceFollowRateLimit = MaxClimbTangent * traverseSpeed
                     + math.abs(scrollVelocity.y);
@@ -382,7 +383,7 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
 
                 if (bottomedOut && relativeNormalRate < 0f)
                 {
-                    if (onRideable || previousOnRideable)
+                    if (onRideable)
                     {
                         // Quarterpipe / halfpipe: convert inbound speed up the face. Terrain keeps the
                         // vertical-only match below so cliffs cannot launch the rider.
@@ -416,12 +417,13 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
 
                 // Climb budget while in contact. Rideable uses total speed so converting H→V up a pipe
                 // cannot starve the clamp mid-transition; terrain keeps horizontal × slope tan so cliffs
-                // cannot stack vertical launch.
+                // cannot stack vertical launch. Current-frame rideable only — previousOnRideable would
+                // allow full-speed vertical on the first mountain frame after leaving the pipe.
                 float maxLift = config.ValueRO.maxGroundLiftSpeed;
                 if (maxLift <= 0f)
                     maxLift = DefaultMaxGroundLiftSpeed;
                 float maxClimbY;
-                if (onRideable || previousOnRideable)
+                if (onRideable)
                 {
                     maxClimbY = math.max(maxLift, math.length(worldVelocity));
                 }
