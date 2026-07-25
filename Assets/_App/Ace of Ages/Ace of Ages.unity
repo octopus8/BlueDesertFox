@@ -1693,6 +1693,14 @@ PrefabInstance:
       propertyPath: m_Name
       value: Auto Hand Player
       objectReference: {fileID: 0}
+    - target: {fileID: 8834320319295017372, guid: fdc3ba53f4e81a040b0471bbbafbb10a, type: 3}
+      propertyPath: m_Enabled
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 8834320319295017374, guid: fdc3ba53f4e81a040b0471bbbafbb10a, type: 3}
+      propertyPath: m_Enabled
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 8834320319295017375, guid: fdc3ba53f4e81a040b0471bbbafbb10a, type: 3}
       propertyPath: m_LocalPosition.x
       value: 0
