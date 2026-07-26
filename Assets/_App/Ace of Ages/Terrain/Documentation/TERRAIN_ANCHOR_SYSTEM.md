@@ -57,7 +57,8 @@ A cyan gizmo (sphere + axes) appears in Scene view when the component is selecte
 1. Place the GameObject in the subscene at its desired world-space position.
 2. Add `TerrainAnchorTagAuthoring` component.
 3. Leave `useCustomBasePosition` unchecked (default) — the bake position is used automatically.
-4. Enter Play mode. The entity moves with scrolling terrain.
+4. **If the object has a collider that gameplay must hit** (Rideable pipes, barriers): add a **kinematic Rigidbody** (`isKinematic = true`, gravity off) so baking includes `PhysicsVelocity`. Also keep `TerrainAnchorTagAuthoring` — `TerrainAnchorPhysicsSyncSystem` copies the scrolled `LocalTransform` into `CollisionWorld` every frame so Simulation-group queries (player ground contact) hit the mesh where it is, not where FixedStep last built physics.
+5. Enter Play mode. Rebake / reload the SubScene after adding the Rigidbody.
 
 ## Use Cases
 

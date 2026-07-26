@@ -14,6 +14,8 @@ using Unity.Transforms;
 [BurstCompile]
 [UpdateInGroup(typeof(SimulationSystemGroup))]
 [UpdateAfter(typeof(ScrollTerrainSystem))]
+// After ground contact so Rideable casts see last-frame anchor poses (same timing as tiles).
+[UpdateAfter(typeof(PlayerFollowObjectGroundContactSystem))]
 [UpdateBefore(typeof(TransformSystemGroup))]
 public partial struct TerrainAnchorSystem : ISystem
 {
