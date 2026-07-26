@@ -357,12 +357,29 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
                             config.ValueRO,
                             out float3 stickyWallNormal))
                     {
-                        contactNormal = stickyWallNormal;
-                        previousGroundNormal = stickyWallNormal;
-                        // Neutral leg — floor support height must not pair with a steep normal.
-                        legLength = config.ValueRO.rideHeight;
-                        supportHeight = position.y;
-                        hasContact = true;
+                        // Wall-up tangent: climbing keeps stickiness (lip / vertical face); descending
+                        // onto an in-reach walkable floor must release or the transition catches (185652).
+                        float3 wallUp = math.normalizesafe(
+                            RemoveNormalComponent(math.up(), stickyWallNormal),
+                            float3.zero);
+                        bool descendingWall = math.lengthsq(wallUp) > 0.5f
+                            && math.dot(terrainRelativeVelocity, wallUp) < 0f;
+
+                        if (walkableInReach && descendingWall)
+                        {
+                            previousGroundNormal = probedNormal;
+                            legLength = probedLegLength;
+                            hasContact = true;
+                        }
+                        else
+                        {
+                            contactNormal = stickyWallNormal;
+                            previousGroundNormal = stickyWallNormal;
+                            // Neutral leg — floor support height must not pair with a steep normal.
+                            legLength = config.ValueRO.rideHeight;
+                            supportHeight = position.y;
+                            hasContact = true;
+                        }
                     }
                     else if (separatingFromWall)
                     {
@@ -568,10 +585,11 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
                     config.ValueRO.groundFriction,
                     dt);
 
-                // Steep pipe: kill horizontal peel along the plumb wall normal. Do NOT subtract XZ from
-                // (n * dot(v,n)) while leaving vy — on a tilted face that invents outward horizontal
-                // speed (energy gain) and reads as a downhill slingshot at the lip.
-                if (steepRideable)
+                // Steep pipe: kill horizontal peel along the plumb wall normal when actually separating
+                // from the face. Do NOT subtract XZ from (n * dot(v,n)) while leaving vy — on a tilted
+                // face that invents outward horizontal speed (energy gain) and reads as a downhill
+                // slingshot at the lip. Gating on dot(v,n) > 0 avoids eating along-face descent speed.
+                if (steepRideable && math.dot(worldVelocity, contactNormal) > 0f)
                 {
                     float3 barrierNormal = math.normalizesafe(
                         new float3(contactNormal.x, 0f, contactNormal.z),
@@ -614,13 +632,20 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
                     liftWasClamped = 1;
                 }
 
-                // Quarterpipe must redirect, not inject energy. Cap on all Rideable frames and the
-                // pipe→terrain exit frame (capture 130536 still launched when spring flickered on).
+                // Quarterpipe must redirect, not inject energy. Only clamp launch-like gains — symmetric
+                // magnitude cap bled legitimate downhill acceleration along the face (capture 154832).
                 if (onRideable || pipeExitFrame)
                 {
-                    float maxSpeed = entrySpeed + math.length(gravity) * dt;
+                    float gravityMag = math.length(gravity);
+                    float maxSpeed = entrySpeed + gravityMag * dt;
                     float speed = math.length(worldVelocity);
-                    if (speed > maxSpeed && speed > 1e-4f)
+                    bool gainedSpeed = speed > maxSpeed + 1e-4f;
+                    bool launchLike = onRideable
+                        ? (math.dot(worldVelocity, contactNormal) > 0f
+                            || (steepRideable
+                                && worldVelocity.y > entryUpwardSpeed + gravityMag * dt))
+                        : worldVelocity.y > entryUpwardSpeed + gravityMag * dt;
+                    if (gainedSpeed && launchLike)
                         worldVelocity *= maxSpeed / speed;
                 }
 
@@ -1029,11 +1054,17 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
         position += bestNormal * (deepestPenetration + BlockingDepenetrationSkin);
 
         float vNormal = math.dot(terrainRelativeVelocity, bestNormal);
-        if (vNormal < 0f)
+        bool pressingIntoWall = vNormal < 0f;
+        if (pressingIntoWall)
             terrainRelativeVelocity -= bestNormal * vNormal;
 
         // Depenetrate walkable overlap without arming wall-ride state.
         if (bestNormal.y >= WalkableSlopeThreshold)
+            return false;
+
+        // Descending out of the face: still push out of the mesh, but do not re-stick wall-ride
+        // (that briefly catches the rider at the steep→floor transition).
+        if (!pressingIntoWall)
             return false;
 
         steepNormal = bestNormal;
