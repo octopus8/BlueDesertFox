@@ -448,6 +448,36 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
                 supportHeight = position.y;
             }
 
+            // Enter handoff: probes still report mountain underfoot while a steep Rideable face is
+            // already within contact range. Sustain above requires previousOnRideable, so high-speed
+            // approach used to tunnel until depenetration / terrain cliff-block. Only engage when the
+            // face is close — long-range lookahead used to apply steep peel/gravity a metre early (pop).
+            if (hasPhysicsWorld
+                && onTerrain
+                && !previousOnRideable
+                && TryCastApproachingRideable(
+                    collisionWorld,
+                    anchoredBodies,
+                    rideableSweepFilter,
+                    rideableLayerMask,
+                    position,
+                    terrainRelativeVelocity,
+                    smoothedYaw,
+                    traverseSpeed,
+                    dt,
+                    config.ValueRO,
+                    out float3 enterWallNormal))
+            {
+                onRideable = true;
+                hasContact = true;
+                wallRide = true;
+                onTerrain = false;
+                contactNormal = enterWallNormal;
+                previousGroundNormal = enterWallNormal;
+                legLength = config.ValueRO.rideHeight;
+                // Keep mountain supportHeight so board contact does not snap to the body for a frame.
+            }
+
             // Quarterpipes need the full climbable rise rate even when the previous frame was flat
             // mountain — otherwise the rising face is treated as a discontinuity and the climb dies.
             // Current-frame rideable only: previousOnRideable would keep this armed on the first
@@ -676,7 +706,21 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
             byte wallSlideActive = 0;
             // Probe already found terrain this frame — scraping the pipe must not re-arm rideable
             // contact state (that re-triggers pipe physics on the mountain and slingshots downhill).
+            // Exception: first enter (!previousOnRideable) must arm so high-speed approach is not left
+            // on terrain suspension / cliff-block while already hitting the pipe.
             bool probeOnTerrain = onTerrain;
+            bool allowEnterRideableArm = !previousOnRideable;
+            float enterClampEntryUpward = 0f;
+            float enterClampEntrySpeed = 0f;
+            if (allowEnterRideableArm)
+            {
+                float3 enterWorldVelocity = TerrainScrollVelocityMath.WorldVelocityFromTerrainRelative(
+                    terrainRelativeVelocity,
+                    scrollVelocity);
+                enterClampEntryUpward = enterWorldVelocity.y;
+                enterClampEntrySpeed = math.length(enterWorldVelocity);
+            }
+
             if (hasPhysicsWorld
                 && math.lengthsq(relativeDisplacement) > MinCastDistance * MinCastDistance)
             {
@@ -692,7 +736,7 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
                         rideableLayerMask,
                         out float3 steepNormal))
                 {
-                    if (!probeOnTerrain)
+                    if (!probeOnTerrain || allowEnterRideableArm)
                     {
                         previousGroundNormal = steepNormal;
                         onRideable = true;
@@ -702,10 +746,15 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
                     }
                 }
 
+                // Entering the pipe: skip steep Terrain cliff-block this frame. Sharing that response
+                // with the pipe mouth is the high-speed "hit a wall" on enter; Rideable already slid.
+                bool enteringRideable = allowEnterRideableArm && onRideable;
+
                 // Each blocking sweep runs on the distance actually travelled so far, so whichever surface
                 // is nearest ends up truncating the step.
                 float3 traveledDisplacement = position - startPosition;
-                if (math.lengthsq(traveledDisplacement) > MinCastDistance * MinCastDistance
+                if (!enteringRideable
+                    && math.lengthsq(traveledDisplacement) > MinCastDistance * MinCastDistance
                     && ResolveBlockingCollision(
                         ref position,
                         ref terrainRelativeVelocity,
@@ -743,9 +792,10 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
                         ref terrainRelativeVelocity,
                         anchoredBodies,
                         config.ValueRO,
+                        dt,
                         out float3 depenNormal))
                 {
-                    if (!probeOnTerrain)
+                    if (!probeOnTerrain || allowEnterRideableArm)
                     {
                         previousGroundNormal = depenNormal;
                         onRideable = true;
@@ -754,6 +804,20 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
                         legLength = config.ValueRO.rideHeight;
                     }
                 }
+            }
+
+            // Enter frame: Rideable sweep/depen convert H→V after the pre-sweep climb clamp. Re-apply a
+            // terrain-style vertical budget so the first pipe hit does not launch.
+            if (allowEnterRideableArm && onRideable)
+            {
+                ApplyPipeEnterVelocityClamp(
+                    ref terrainRelativeVelocity,
+                    scrollVelocity,
+                    gravity,
+                    config.ValueRO,
+                    dt,
+                    enterClampEntryUpward,
+                    enterClampEntrySpeed);
             }
 
             // Leaving a wall scrape releases the full tangent speed that was preserved against the face.
@@ -836,6 +900,115 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
             CollidesWith = ~groundLayerMask,
             GroupIndex = 0
         };
+    }
+
+    /// <summary>
+    /// First Rideable frame after mountain: sweep/depen can invent vertical speed after the pre-sweep
+    /// climb clamp. Apply a terrain-style vertical budget and launch energy cap for that handoff only.
+    /// </summary>
+    private static void ApplyPipeEnterVelocityClamp(
+        ref float3 terrainRelativeVelocity,
+        float3 scrollVelocity,
+        float3 gravity,
+        in PlayerFollowObjectGroundConfig config,
+        float dt,
+        float entryUpwardSpeed,
+        float entrySpeed)
+    {
+        float3 worldVelocity = TerrainScrollVelocityMath.WorldVelocityFromTerrainRelative(
+            terrainRelativeVelocity,
+            scrollVelocity);
+
+        float maxLift = config.maxGroundLiftSpeed;
+        if (maxLift <= 0f)
+            maxLift = DefaultMaxGroundLiftSpeed;
+        float horizontalSpeed = math.length(new float2(worldVelocity.x, worldVelocity.z));
+        float maxClimbY = math.max(maxLift, horizontalSpeed * MaxClimbTangent);
+        if (worldVelocity.y > maxClimbY)
+            worldVelocity.y = maxClimbY;
+
+        float gravityMag = math.length(gravity);
+        float maxSpeed = entrySpeed + gravityMag * math.max(0f, dt);
+        float speed = math.length(worldVelocity);
+        bool gainedSpeed = speed > maxSpeed + 1e-4f;
+        bool launchLike = worldVelocity.y > entryUpwardSpeed + gravityMag * math.max(0f, dt);
+        if (gainedSpeed && launchLike)
+            worldVelocity *= maxSpeed / speed;
+
+        terrainRelativeVelocity = TerrainScrollVelocityMath.TerrainRelativeFromWorld(
+            worldVelocity,
+            scrollVelocity);
+    }
+
+    /// <summary>
+    /// Cast along horizontal travel for a steep Rideable face the body is closing on. Arms wall-ride
+    /// only when the hit is within contact range so long-range lookahead cannot apply pipe physics
+    /// while the rider is still on the mountain.
+    /// </summary>
+    private static bool TryCastApproachingRideable(
+        CollisionWorld collisionWorld,
+        NativeList<RigidBody> anchoredBodies,
+        CollisionFilter rideableFilter,
+        uint rideableLayerMask,
+        float3 position,
+        float3 terrainRelativeVelocity,
+        float yaw,
+        float traverseSpeed,
+        float dt,
+        in PlayerFollowObjectGroundConfig config,
+        out float3 hitNormal)
+    {
+        hitNormal = math.up();
+
+        float3 horizontal = new float3(terrainRelativeVelocity.x, 0f, terrainRelativeVelocity.z);
+        float3 direction = math.normalizesafe(horizontal, float3.zero);
+        if (math.lengthsq(direction) < 0.5f)
+            direction = new float3(math.sin(yaw), 0f, math.cos(yaw));
+
+        float engageDistance = math.max(0f, config.capsuleRadius) + WallRideCastMargin;
+        // Cast farther than engage so high-speed steps still find the face; reject hits beyond engage.
+        float castDistance = engageDistance
+            + math.max(0f, traverseSpeed) * math.max(0f, dt);
+        if (castDistance < MinCastDistance)
+            return false;
+
+        GetCapsuleEndpoints(position, config, out float3 point1, out float3 point2);
+
+        if (!TryCapsuleCastRideable(
+                collisionWorld,
+                anchoredBodies,
+                point1,
+                point2,
+                config.capsuleRadius,
+                direction,
+                castDistance,
+                rideableFilter,
+                rideableLayerMask,
+                out ColliderCastHit castHit))
+        {
+            return false;
+        }
+
+        float hitDistance = castHit.Fraction * castDistance;
+        if (hitDistance > engageDistance)
+            return false;
+
+        float3 n = math.normalizesafe(castHit.SurfaceNormal, float3.zero);
+        if (math.lengthsq(n) < 0.5f || n.y >= WalkableSlopeThreshold)
+            return false;
+
+        // Closing on the face only — grazing / separating must not steal contact from mountain.
+        if (math.dot(direction, n) >= -ObstacleSkin)
+            return false;
+
+        if (math.lengthsq(horizontal) > MinSlideSpeed * MinSlideSpeed
+            && math.dot(horizontal, n) >= 0f)
+        {
+            return false;
+        }
+
+        hitNormal = n;
+        return true;
     }
 
     /// <summary>
@@ -988,12 +1161,14 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
     /// <summary>
     /// If the capsule center/ends overlap an anchored Rideable mesh, push out along the surface normal
     /// and cancel into-wall velocity. Recovers cases CapsuleCast misses from inside a thin face.
+    /// Push-out is rate-limited so a deep embed cannot teleport the rider in one frame.
     /// </summary>
     private static bool TryDepenetrateAnchoredRideable(
         ref float3 position,
         ref float3 terrainRelativeVelocity,
         NativeList<RigidBody> anchoredBodies,
         in PlayerFollowObjectGroundConfig config,
+        float dt,
         out float3 steepNormal)
     {
         steepNormal = math.up();
@@ -1051,7 +1226,12 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
         if (!found)
             return false;
 
-        position += bestNormal * (deepestPenetration + BlockingDepenetrationSkin);
+        float recoverySpeed = config.maxPenetrationRecoverySpeed;
+        if (recoverySpeed <= 0f)
+            recoverySpeed = DefaultMaxPenetrationRecoverySpeed;
+        float maxPush = recoverySpeed * math.max(0f, dt);
+        float push = math.min(deepestPenetration + BlockingDepenetrationSkin, maxPush);
+        position += bestNormal * push;
 
         float vNormal = math.dot(terrainRelativeVelocity, bestNormal);
         bool pressingIntoWall = vNormal < 0f;
