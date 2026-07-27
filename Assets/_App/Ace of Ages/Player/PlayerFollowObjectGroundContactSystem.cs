@@ -486,6 +486,49 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
                 // Keep mountain supportHeight so board contact does not snap to the body for a frame.
             }
 
+            // Bottom-of-pipe enter: walkable Rideable floor ahead (steep approach cast rejects these).
+            // Without this, the thin vertical rim hard-stops via ResolveRideableCollision while probes
+            // still report mountain.
+            bool walkableRideableAhead = false;
+            if (hasPhysicsWorld
+                && !previousOnRideable
+                && TryFindWalkableRideableAhead(
+                    collisionWorld,
+                    anchoredBodies,
+                    rideableSweepFilter,
+                    rideableLayerMask,
+                    position,
+                    terrainRelativeVelocity,
+                    smoothedYaw,
+                    traverseSpeed,
+                    dt,
+                    referenceHeight,
+                    maxSurfaceRise,
+                    config.ValueRO,
+                    out float3 walkableNormal,
+                    out float walkableHeight,
+                    out bool walkableWithinEngage))
+            {
+                walkableRideableAhead = true;
+                if (onTerrain && walkableWithinEngage)
+                {
+                    onRideable = true;
+                    onTerrain = false;
+                    contactNormal = walkableNormal;
+                    previousGroundNormal = walkableNormal;
+                    supportHeight = walkableHeight;
+                    legLength = contactNormal.y * (position.y - supportHeight) - config.ValueRO.bottomOffset;
+                    hasContact = legLength <= config.ValueRO.MaxLegLength;
+                    if (!hasContact)
+                    {
+                        // Floor slightly out of reach: still mark Rideable so rim/terrain skips arm,
+                        // but keep neutral leg until probes catch up.
+                        legLength = config.ValueRO.rideHeight;
+                        hasContact = true;
+                    }
+                }
+            }
+
             float pipeEnterGraceTimer = motionState.ValueRO.pipeEnterGraceTimer;
             if (onRideable && !previousOnRideable)
                 pipeEnterGraceTimer = PipeEnterGraceDuration;
@@ -744,7 +787,21 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
             if (hasPhysicsWorld
                 && math.lengthsq(relativeDisplacement) > MinCastDistance * MinCastDistance)
             {
-                if (ResolveRideableCollision(
+                // Enter/grace onto walkable pipe floor: skip steep rim ResolveRideableCollision so the
+                // thin vertical mouth edge cannot cancel all forward speed (bottom-enter wall-hit).
+                bool skipRideableRim =
+                    allowEnterRideableArm
+                    && (walkableRideableAhead
+                        || TryProbeWalkableRideableUnderfoot(
+                            collisionWorld,
+                            anchoredBodies,
+                            rideableSweepFilter,
+                            rideableLayerMask,
+                            position,
+                            config.ValueRO));
+
+                if (!skipRideableRim
+                    && ResolveRideableCollision(
                         ref position,
                         ref terrainRelativeVelocity,
                         startPosition,
@@ -766,9 +823,8 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
                     }
                 }
 
-                // Entering / enter grace: skip steep Terrain cliff-block. Sharing that response with
-                // the pipe mouth is the high-speed "hit a wall" on enter; Rideable already slid.
-                bool enteringRideable = allowEnterRideableArm && onRideable;
+                // Entering / enter grace / walkable floor ahead: skip steep Terrain cliff-block.
+                bool enteringRideable = allowEnterRideableArm && (onRideable || walkableRideableAhead);
 
                 // Each blocking sweep runs on the distance actually travelled so far, so whichever surface
                 // is nearest ends up truncating the step.
@@ -969,6 +1025,134 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
         terrainRelativeVelocity = TerrainScrollVelocityMath.TerrainRelativeFromWorld(
             worldVelocity,
             scrollVelocity);
+    }
+
+    /// <summary>
+    /// Downward Rideable samples along travel looking for a walkable pipe floor. Used to prime bottom
+    /// enter and to skip rim/terrain hard-stops while the floor is ahead but probes still see mountain.
+    /// </summary>
+    private static bool TryFindWalkableRideableAhead(
+        CollisionWorld collisionWorld,
+        NativeList<RigidBody> anchoredBodies,
+        CollisionFilter rideableFilter,
+        uint rideableLayerMask,
+        float3 position,
+        float3 terrainRelativeVelocity,
+        float yaw,
+        float traverseSpeed,
+        float dt,
+        float referenceHeight,
+        float maxSurfaceRise,
+        in PlayerFollowObjectGroundConfig config,
+        out float3 hitNormal,
+        out float supportHeight,
+        out bool withinEngage)
+    {
+        hitNormal = math.up();
+        supportHeight = referenceHeight;
+        withinEngage = false;
+
+        float3 horizontal = new float3(terrainRelativeVelocity.x, 0f, terrainRelativeVelocity.z);
+        float3 direction = math.normalizesafe(horizontal, float3.zero);
+        if (math.lengthsq(direction) < 0.5f)
+            direction = new float3(math.sin(yaw), 0f, math.cos(yaw));
+
+        float engageDistance = math.max(0f, config.capsuleRadius) + WallRideCastMargin;
+        float lookAhead = engageDistance + math.max(0f, traverseSpeed) * math.max(0f, dt);
+        float ceiling = referenceHeight + maxSurfaceRise;
+        float reach = config.bottomOffset + config.MaxLegLength + ProbeReachMargin;
+
+        bool any = false;
+        float bestHeight = float.MinValue;
+        float3 bestNormal = math.up();
+        float bestHorizDist = float.MaxValue;
+
+        for (int i = 0; i < 3; i++)
+        {
+            float t = i * 0.5f;
+            float3 samplePos = position + direction * (lookAhead * t);
+            float3 rayStart = samplePos + math.up() * config.rayHeightAbove;
+            float3 rayEnd = samplePos - math.up() * config.rayLengthBelow;
+
+            if (!TryRaycastRideable(
+                    collisionWorld,
+                    anchoredBodies,
+                    rayStart,
+                    rayEnd,
+                    rideableFilter,
+                    rideableLayerMask,
+                    out RaycastHit hit))
+            {
+                continue;
+            }
+
+            float3 n = math.normalizesafe(hit.SurfaceNormal, float3.zero);
+            if (math.lengthsq(n) < 0.5f || n.y < WalkableSlopeThreshold)
+                continue;
+
+            if (hit.Position.y > ceiling)
+                continue;
+            if (hit.Position.y < position.y - reach)
+                continue;
+
+            float horizDist = math.length(
+                new float2(hit.Position.x - position.x, hit.Position.z - position.z));
+
+            if (!any || hit.Position.y > bestHeight + 1e-4f
+                || (math.abs(hit.Position.y - bestHeight) <= 1e-4f && horizDist < bestHorizDist))
+            {
+                bestHeight = hit.Position.y;
+                bestNormal = n;
+                bestHorizDist = horizDist;
+                any = true;
+            }
+        }
+
+        if (!any)
+            return false;
+
+        hitNormal = bestNormal;
+        supportHeight = bestHeight;
+        withinEngage = bestHorizDist <= engageDistance;
+        return true;
+    }
+
+    /// <summary>
+    /// Downward Rideable probe under the body for a walkable floor in leg reach. Used during enter
+    /// grace to decide whether a steep rim sweep should be ignored.
+    /// </summary>
+    private static bool TryProbeWalkableRideableUnderfoot(
+        CollisionWorld collisionWorld,
+        NativeList<RigidBody> anchoredBodies,
+        CollisionFilter rideableFilter,
+        uint rideableLayerMask,
+        float3 position,
+        in PlayerFollowObjectGroundConfig config)
+    {
+        float3 rayStart = position + math.up() * config.rayHeightAbove;
+        float3 rayEnd = position - math.up() * config.rayLengthBelow;
+        if (!TryRaycastRideable(
+                collisionWorld,
+                anchoredBodies,
+                rayStart,
+                rayEnd,
+                rideableFilter,
+                rideableLayerMask,
+                out RaycastHit hit))
+        {
+            return false;
+        }
+
+        float3 n = math.normalizesafe(hit.SurfaceNormal, float3.zero);
+        if (math.lengthsq(n) < 0.5f || n.y < WalkableSlopeThreshold)
+            return false;
+
+        float reach = config.bottomOffset + config.MaxLegLength + ProbeReachMargin;
+        if (hit.Position.y < position.y - reach)
+            return false;
+
+        float legLength = n.y * (position.y - hit.Position.y) - config.bottomOffset;
+        return legLength <= config.MaxLegLength;
     }
 
     /// <summary>

@@ -983,7 +983,7 @@ MonoBehaviour:
   maxGroundLiftSpeed: 5
   maxPenetrationRecoverySpeed: 6
   contactProbeRadius: 0.7
-  groundFriction: 0.05
+  groundFriction: 0.01
   yawRotationSmoothTime: 1
   minYawSpeed: 0.5
   steeringSensitivity: 90
