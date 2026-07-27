@@ -51,9 +51,18 @@ public partial struct PlayerFollowObjectHeadSteeringSystem : ISystem
                 continue;
 
             float bankRadians = math.radians(cameraData.headBankAngle);
-            float rotationAmount = -math.sin(bankRadians) * sensitivity * dt;
+            float sinBank = math.sin(bankRadians);
+            float rotationAmount = -sinBank * sensitivity * dt;
             quaternion yawRotation = quaternion.RotateY(math.radians(rotationAmount));
             float3 rotatedFlat = math.rotate(yawRotation, flat);
+
+            float turnDrag = steeringConfig.ValueRO.turnDrag;
+            if (turnDrag > 0f)
+            {
+                float tiltFactor = math.abs(sinBank);
+                float speedScale = math.max(0f, 1f - turnDrag * tiltFactor);
+                rotatedFlat *= speedScale;
+            }
 
             worldVelocity = new float3(rotatedFlat.x, worldVelocity.y, rotatedFlat.z);
             motionState.ValueRW.terrainRelativeVelocity = TerrainScrollVelocityMath.TerrainRelativeFromWorld(

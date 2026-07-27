@@ -97,6 +97,9 @@ public class PlayerFollowObjectAuthoring : MonoBehaviour
     [Header("Head Steering")]
     [Tooltip("Degrees per second of Y-axis velocity rotation at full head roll (±90°). 0 = disabled.")]
     [SerializeField] private float steeringSensitivity = 30f;
+    [Tooltip("Fraction of horizontal speed lost at full ±90° head roll (either direction). 0 = off, 1 = full stop.")]
+    [Range(0f, 1f)]
+    [SerializeField] private float turnDrag = 0f;
 
     public class Baker : Baker<PlayerFollowObjectAuthoring>
     {
@@ -163,7 +166,8 @@ public class PlayerFollowObjectAuthoring : MonoBehaviour
 
             AddComponent(entity, new PlayerFollowObjectSteeringConfig
             {
-                steeringSensitivity = authoring.steeringSensitivity
+                steeringSensitivity = authoring.steeringSensitivity,
+                turnDrag = authoring.turnDrag
             });
         }
     }
@@ -173,6 +177,7 @@ public class PlayerFollowObjectAuthoring : MonoBehaviour
 public struct PlayerFollowObjectSteeringConfig : IComponentData
 {
     public float steeringSensitivity;
+    public float turnDrag;
 }
 
 /// <summary>Tag component that identifies the Player Follow Object entity in the ECS world.</summary>
