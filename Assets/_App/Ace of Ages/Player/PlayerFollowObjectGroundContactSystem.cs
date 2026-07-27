@@ -70,6 +70,12 @@ public struct PlayerFollowObjectMotionState : IComponentData
 
     /// <summary>Diagnostic: current frame was on Rideable (written each frame; not used to gate physics).</summary>
     public byte previousOnRideable;
+
+    /// <summary>
+    /// Seconds remaining of pipe-enter grace. While &gt; 0, upward H→V redirect is delta-capped so
+    /// high-speed Quaterpipe mouth hits do not bump. Started on first Rideable arm from mountain.
+    /// </summary>
+    public float pipeEnterGraceTimer;
 }
 
 /// <summary>
@@ -126,6 +132,8 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
     // separate from WalkableSlopeThreshold so collision routing stays at ~60° while spring stays off
     // through ~32° from flat.
     private const float WallRideSpringSkipNy = 0.85f;
+    // How long after first mountain→Rideable arm to keep the tight upward-delta enter clamp.
+    private const float PipeEnterGraceDuration = 0.2f;
     private static readonly float3 DefaultGravity = new float3(0f, -9.81f, 0f);
 
     /// <summary>Result of a single downward probe within the contact footprint.</summary>
@@ -478,6 +486,13 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
                 // Keep mountain supportHeight so board contact does not snap to the body for a frame.
             }
 
+            float pipeEnterGraceTimer = motionState.ValueRO.pipeEnterGraceTimer;
+            if (onRideable && !previousOnRideable)
+                pipeEnterGraceTimer = PipeEnterGraceDuration;
+            else if (!onRideable)
+                pipeEnterGraceTimer = 0f;
+            bool inPipeEnterGrace = pipeEnterGraceTimer > 0f;
+
             // Quarterpipes need the full climbable rise rate even when the previous frame was flat
             // mountain — otherwise the rising face is treated as a discontinuity and the climb dies.
             // Current-frame rideable only: previousOnRideable would keep this armed on the first
@@ -640,11 +655,16 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
                 // cannot starve the clamp mid-transition; terrain keeps horizontal × slope tan so cliffs
                 // cannot stack vertical launch. Current-frame rideable only — previousOnRideable would
                 // allow full-speed vertical on the first mountain frame after leaving the pipe.
+                // Enter grace: delta-cap upward so close-range wallRide engage cannot invent a bump.
                 float maxLift = config.ValueRO.maxGroundLiftSpeed;
                 if (maxLift <= 0f)
                     maxLift = DefaultMaxGroundLiftSpeed;
                 float maxClimbY;
-                if (onRideable)
+                if (onRideable && inPipeEnterGrace)
+                {
+                    maxClimbY = entryUpwardSpeed + maxLift;
+                }
+                else if (onRideable)
                 {
                     maxClimbY = math.max(maxLift, math.length(worldVelocity));
                 }
@@ -706,10 +726,10 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
             byte wallSlideActive = 0;
             // Probe already found terrain this frame — scraping the pipe must not re-arm rideable
             // contact state (that re-triggers pipe physics on the mountain and slingshots downhill).
-            // Exception: first enter (!previousOnRideable) must arm so high-speed approach is not left
-            // on terrain suspension / cliff-block while already hitting the pipe.
+            // Exception: first enter / enter grace must arm so high-speed approach is not left on
+            // terrain suspension / cliff-block while already hitting the pipe.
             bool probeOnTerrain = onTerrain;
-            bool allowEnterRideableArm = !previousOnRideable;
+            bool allowEnterRideableArm = !previousOnRideable || inPipeEnterGrace;
             float enterClampEntryUpward = 0f;
             float enterClampEntrySpeed = 0f;
             if (allowEnterRideableArm)
@@ -746,8 +766,8 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
                     }
                 }
 
-                // Entering the pipe: skip steep Terrain cliff-block this frame. Sharing that response
-                // with the pipe mouth is the high-speed "hit a wall" on enter; Rideable already slid.
+                // Entering / enter grace: skip steep Terrain cliff-block. Sharing that response with
+                // the pipe mouth is the high-speed "hit a wall" on enter; Rideable already slid.
                 bool enteringRideable = allowEnterRideableArm && onRideable;
 
                 // Each blocking sweep runs on the distance actually travelled so far, so whichever surface
@@ -806,9 +826,15 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
                 }
             }
 
-            // Enter frame: Rideable sweep/depen convert H→V after the pre-sweep climb clamp. Re-apply a
-            // terrain-style vertical budget so the first pipe hit does not launch.
-            if (allowEnterRideableArm && onRideable)
+            if (onRideable && !previousOnRideable)
+                pipeEnterGraceTimer = PipeEnterGraceDuration;
+            else if (!onRideable)
+                pipeEnterGraceTimer = 0f;
+            inPipeEnterGrace = pipeEnterGraceTimer > 0f;
+
+            // Enter grace: Rideable sweep/depen convert H→V after the pre-sweep climb clamp. Cap
+            // upward delta so faceted pipe-mouth hits do not launch.
+            if (inPipeEnterGrace && onRideable)
             {
                 ApplyPipeEnterVelocityClamp(
                     ref terrainRelativeVelocity,
@@ -828,6 +854,11 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
                 terrainRelativeVelocity.z *= WallExitSpeedRetain;
             }
 
+            if (onRideable && pipeEnterGraceTimer > 0f)
+                pipeEnterGraceTimer = math.max(0f, pipeEnterGraceTimer - dt);
+            else if (!onRideable)
+                pipeEnterGraceTimer = 0f;
+
             localTransform.ValueRW.Position = position;
             motionState.ValueRW.terrainRelativeVelocity = terrainRelativeVelocity;
             motionState.ValueRW.inContact = hasContact ? (byte)1 : (byte)0;
@@ -841,6 +872,7 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
             motionState.ValueRW.lastLiftWasClamped = liftWasClamped;
             motionState.ValueRW.wallSlideActive = wallSlideActive;
             motionState.ValueRW.previousOnRideable = onRideable ? (byte)1 : (byte)0;
+            motionState.ValueRW.pipeEnterGraceTimer = pipeEnterGraceTimer;
 
             UpdateSmoothedYaw(
                 ref smoothedYaw,
@@ -903,8 +935,8 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
     }
 
     /// <summary>
-    /// First Rideable frame after mountain: sweep/depen can invent vertical speed after the pre-sweep
-    /// climb clamp. Apply a terrain-style vertical budget and launch energy cap for that handoff only.
+    /// Pipe-enter grace: sweep/depen can invent vertical speed after the pre-sweep climb clamp.
+    /// Cap upward delta to maxGroundLiftSpeed (not slope×speed) so high-speed mouth hits do not bump.
     /// </summary>
     private static void ApplyPipeEnterVelocityClamp(
         ref float3 terrainRelativeVelocity,
@@ -922,8 +954,7 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
         float maxLift = config.maxGroundLiftSpeed;
         if (maxLift <= 0f)
             maxLift = DefaultMaxGroundLiftSpeed;
-        float horizontalSpeed = math.length(new float2(worldVelocity.x, worldVelocity.z));
-        float maxClimbY = math.max(maxLift, horizontalSpeed * MaxClimbTangent);
+        float maxClimbY = entryUpwardSpeed + maxLift;
         if (worldVelocity.y > maxClimbY)
             worldVelocity.y = maxClimbY;
 
