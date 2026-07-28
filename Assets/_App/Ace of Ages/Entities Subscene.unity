@@ -983,7 +983,7 @@ MonoBehaviour:
   maxGroundLiftSpeed: 5
   maxPenetrationRecoverySpeed: 6
   contactProbeRadius: 0.7
-  groundFriction: 0.15
+  groundFriction: 0.1
   yawRotationSmoothTime: 1
   minYawSpeed: 0.5
   steeringSensitivity: 90
@@ -6228,7 +6228,7 @@ MonoBehaviour:
   viewDistance: 513
   verticesPerSide: 48
   initYOffset: -5
-  slopeAngleDegrees: 25
+  slopeAngleDegrees: -20
   slopeAngleVariation: 10
   slopeVariationBlendDistance: 128
   noiseFrequency: 0.005
@@ -6651,6 +6651,10 @@ PrefabInstance:
     - target: {fileID: 919132149155446097, guid: a21f6f135b5254d4ea0991c76c069a77, type: 3}
       propertyPath: m_Layer
       value: 15
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: a21f6f135b5254d4ea0991c76c069a77, type: 3}
+      propertyPath: m_IsActive
+      value: 1
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []

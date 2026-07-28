@@ -1024,8 +1024,9 @@ public static class TerrainMeshNoise
         }
         else
         {
-            // Path-integrate from worldZ up to 0 so height is continuous across negative-Z
-            // tile boundaries (the old Z * localSlope shortcut jumped by |Z| * Δtan).
+            // Path-integrate from worldZ up to 0, then negate: ∫_0^worldZ = -∫_worldZ^0.
+            // Keeps grade continuous through the origin and across negative-Z tile boundaries
+            // (the old Z * localSlope shortcut jumped by |Z| * Δtan).
             int startTile = (int)math.floor(worldZ / tileSize);
             for (int t = startTile; t <= -1; t++)
             {
@@ -1033,6 +1034,7 @@ public static class TerrainMeshNoise
                 float segEnd = (t + 1) * tileSize;
                 height += IntegrateGradeSegment(segStart, segEnd, data);
             }
+            return -height;
         }
 
         return height;
