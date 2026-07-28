@@ -1364,6 +1364,10 @@ PrefabInstance:
       value: 
       objectReference: {fileID: 2100000, guid: c4e8b1a92f6d47a0b3e5d7c91a02f846, type: 2}
     - target: {fileID: 7845129034567812303, guid: f1b8c3d4e5a6472890bc1d2e3f4a5b6c, type: 3}
+      propertyPath: startLifetime
+      value: 2
+      objectReference: {fileID: 0}
+    - target: {fileID: 7845129034567812303, guid: f1b8c3d4e5a6472890bc1d2e3f4a5b6c, type: 3}
       propertyPath: maxLeadDistance
       value: 30
       objectReference: {fileID: 0}
