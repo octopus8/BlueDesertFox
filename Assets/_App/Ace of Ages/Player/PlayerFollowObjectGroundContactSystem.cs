@@ -134,6 +134,10 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
     private const float WallRideSpringSkipNy = 0.85f;
     // How long after first mountain→Rideable arm to keep the tight upward-delta enter clamp.
     private const float PipeEnterGraceDuration = 0.2f;
+    // Footprint highest-wins may pick a side column on the pipe lip/deck. Samples this far above the
+    // centre hit (or above the body) are treated as crest, not the surface under the board.
+    private const float LipCrestSlack = 0.15f;
+    private const float LipCrestAboveBodyMargin = 0.05f;
     private static readonly float3 DefaultGravity = new float3(0f, -9.81f, 0f);
 
     /// <summary>Result of a single downward probe within the contact footprint.</summary>
@@ -373,7 +377,10 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
                         bool descendingWall = math.lengthsq(wallUp) > 0.5f
                             && math.dot(terrainRelativeVelocity, wallUp) < 0f;
 
-                        if (walkableInReach && descendingWall)
+                        // Lip/deck above the body is not the floor we are sliding onto — releasing onto
+                        // that crest pins BoardContactPosition to the lip while the rider continues down.
+                        bool walkableIsLipCrest = supportHeight > position.y + LipCrestAboveBodyMargin;
+                        if (walkableInReach && descendingWall && !walkableIsLipCrest)
                         {
                             previousGroundNormal = probedNormal;
                             legLength = probedLegLength;
@@ -397,11 +404,20 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
                         onRideable = false;
                         previousGroundNormal = probedNormal;
                     }
-                    else if (walkableInReach)
+                    else if (walkableInReach && supportHeight <= position.y + LipCrestAboveBodyMargin)
                     {
                         // Near walkable Rideable, cast missed: use probed contact as-is.
+                        // Reject lip/deck above the body — same crest trap as the sticky release path.
                         previousGroundNormal = probedNormal;
                         legLength = probedLegLength;
+                        hasContact = true;
+                    }
+                    else if (walkableInReach)
+                    {
+                        // Walkable probe is the lip/deck above us; keep wall-ride until the floor is underfoot.
+                        contactNormal = previousGroundNormal;
+                        legLength = config.ValueRO.rideHeight;
+                        supportHeight = position.y;
                         hasContact = true;
                     }
                     else
@@ -763,6 +779,10 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
             // Capture the body-to-surface gap before integrating so the board can be republished from the
             // final position below. Publishing the pre-integration contact point instead left the board
             // trailing the rider by a frame of travel, which read as fore/aft judder as frametime varied.
+            // Rideable spring is off: a supportHeight above the body is a lip/deck crest (or stale wall-ride
+            // remap miss). Publishing it glues the hoverboard visual to the lip while the rider slides.
+            if (onRideable && supportHeight > position.y + LipCrestAboveBodyMargin)
+                supportHeight = position.y;
             float contactOffsetY = supportHeight - position.y;
 
             // Colliders (tiles + TerrainAnchors) still sit at last frame's scroll pose while we run.
@@ -1683,6 +1703,19 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
         // Extrapolating along the fitted plane can overshoot the accepted hits over a crest, so re-apply
         // the ceiling to guarantee the continuity limit holds for the height the suspension actually sees.
         supportHeight = math.min(supportHeight, ceilingAtBody);
+
+        // Rideable lip: a side column on the deck can win highest-support and pin the board visual while
+        // the body is already past the crest. Prefer the centre column when it is Rideable and lower.
+        if (onRideable && centre.hit && centre.isRideable)
+        {
+            float centreHeight = math.min(centre.height, ceilingAtBody);
+            if (supportHeight > centreHeight + LipCrestSlack)
+            {
+                supportHeight = centreHeight;
+                normal = centre.rawNormal;
+                onRideable = true;
+            }
+        }
 
         return true;
     }
