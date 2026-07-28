@@ -536,6 +536,12 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
                 pipeEnterGraceTimer = 0f;
             bool inPipeEnterGrace = pipeEnterGraceTimer > 0f;
 
+            // First exit frame: drop the pipe→mountain supportHeight discontinuity so surfaceVerticalRate
+            // does not see a lip jump as ground rushing up.
+            float previousContactHeight = motionState.ValueRO.previousContactHeight;
+            if (previousOnRideable && onTerrain)
+                previousContactHeight = supportHeight;
+
             // Quarterpipes need the full climbable rise rate even when the previous frame was flat
             // mountain — otherwise the rising face is treated as a discontinuity and the climb dies.
             // Current-frame rideable only: previousOnRideable would keep this armed on the first
@@ -566,16 +572,18 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
             // Capture 130536: mega-launch mid-climb when ny briefly rose above WallRideSpringSkipNy and
             // re-enabled spring/hard-stop. Rideable is slide-only (gravity tangent + friction + sweeps);
             // never inject suspension energy on any Rideable contact.
-            bool suppressContactInjection = onRideable || pipeExitFrame;
+            // Spring suppress only — penetration recovery (bottomedOut) stays active on the exit frame
+            // so lip tunneling cannot store a launch for the next frame.
+            bool suppressSpringInjection = onRideable || pipeExitFrame;
 
             float surfaceVerticalRate = 0f;
-            if (hasContact && hadContact && !suppressContactInjection)
+            if (hasContact && hadContact && !suppressSpringInjection)
             {
                 // Bounded by the rate the ridden surface can actually climb, so anything faster is read
                 // as a measurement discontinuity — the footprint swinging onto a new face, say — and is
                 // never handed to the damper or the hard stop as a launch impulse.
                 surfaceVerticalRate = math.clamp(
-                    (supportHeight - motionState.ValueRO.previousContactHeight) / dt,
+                    (supportHeight - previousContactHeight) / dt,
                     -surfaceFollowRateLimit,
                     surfaceFollowRateLimit);
             }
@@ -585,7 +593,7 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
             // downhill the support height steps with the mesh, surfaceVerticalRate goes largely negative,
             // and abs(rate) flickered contact every few metres (board pop). Ledge drops still lose
             // contact when the leg hits MaxLegLength.
-            if (hasContact && !suppressContactInjection
+            if (hasContact && !suppressSpringInjection
                 && legLength > config.ValueRO.rideHeight + MinAirborneSlack)
             {
                 float extensionRate = contactNormal.y * (worldVelocity.y - surfaceVerticalRate);
@@ -607,8 +615,9 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
                 // Correct any penetration left over from the previous step before applying forces, so the
                 // hard stop doubles as the ground-interpenetration guard. The correction is rate limited
                 // so a deep recovery plays out over several frames instead of teleporting the rider.
+                // Keep active on pipe-exit terrain frames even while spring is suppressed.
                 float minLegLength = config.ValueRO.MinLegLength;
-                bool bottomedOut = !suppressContactInjection && legLength < minLegLength;
+                bool bottomedOut = !onRideable && legLength < minLegLength;
                 if (bottomedOut)
                 {
                     // Non-positive means a stale closed SubScene bake from before the field existed (reads
@@ -643,7 +652,7 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
                     }
                 }
 
-                if (!suppressContactInjection)
+                if (!suppressSpringInjection)
                 {
                     float omega = 2f * math.PI * math.max(0f, config.ValueRO.rideFrequency);
                     float stiffness = omega * omega;
@@ -789,16 +798,19 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
             {
                 // Enter/grace onto walkable pipe floor: skip steep rim ResolveRideableCollision so the
                 // thin vertical mouth edge cannot cancel all forward speed (bottom-enter wall-hit).
+                // Exit: probes already on mountain and not enter-arming — do not run the rim sweep;
+                // truncating velocity then ignoring the re-arm was the hard stop at the mouth.
                 bool skipRideableRim =
-                    allowEnterRideableArm
-                    && (walkableRideableAhead
-                        || TryProbeWalkableRideableUnderfoot(
-                            collisionWorld,
-                            anchoredBodies,
-                            rideableSweepFilter,
-                            rideableLayerMask,
-                            position,
-                            config.ValueRO));
+                    (probeOnTerrain && !allowEnterRideableArm)
+                    || (allowEnterRideableArm
+                        && (walkableRideableAhead
+                            || TryProbeWalkableRideableUnderfoot(
+                                collisionWorld,
+                                anchoredBodies,
+                                rideableSweepFilter,
+                                rideableLayerMask,
+                                position,
+                                config.ValueRO)));
 
                 if (!skipRideableRim
                     && ResolveRideableCollision(
@@ -813,14 +825,11 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
                         rideableLayerMask,
                         out float3 steepNormal))
                 {
-                    if (!probeOnTerrain || allowEnterRideableArm)
-                    {
-                        previousGroundNormal = steepNormal;
-                        onRideable = true;
-                        hasContact = true;
-                        contactNormal = steepNormal;
-                        legLength = config.ValueRO.rideHeight;
-                    }
+                    previousGroundNormal = steepNormal;
+                    onRideable = true;
+                    hasContact = true;
+                    contactNormal = steepNormal;
+                    legLength = config.ValueRO.rideHeight;
                 }
 
                 // Entering / enter grace / walkable floor ahead: skip steep Terrain cliff-block.
@@ -861,7 +870,11 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
             position -= scrollDelta;
 
             // CapsuleCast can miss when already overlapping a thin mesh; pull back out against anchors.
-            if (hasPhysicsWorld && anchoredBodies.IsCreated && anchoredBodies.Length > 0)
+            // Same exit gate as the rim sweep: do not mutate when probes already locked onto mountain.
+            if (hasPhysicsWorld
+                && anchoredBodies.IsCreated
+                && anchoredBodies.Length > 0
+                && (!probeOnTerrain || allowEnterRideableArm))
             {
                 if (TryDepenetrateAnchoredRideable(
                         ref position,
@@ -871,14 +884,11 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
                         dt,
                         out float3 depenNormal))
                 {
-                    if (!probeOnTerrain || allowEnterRideableArm)
-                    {
-                        previousGroundNormal = depenNormal;
-                        onRideable = true;
-                        hasContact = true;
-                        contactNormal = depenNormal;
-                        legLength = config.ValueRO.rideHeight;
-                    }
+                    previousGroundNormal = depenNormal;
+                    onRideable = true;
+                    hasContact = true;
+                    contactNormal = depenNormal;
+                    legLength = config.ValueRO.rideHeight;
                 }
             }
 
@@ -903,8 +913,11 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
             }
 
             // Leaving a wall scrape releases the full tangent speed that was preserved against the face.
-            // Keep a fraction so clearing a cliff does not read as a sideways slingshot.
-            if (motionState.ValueRO.wallSlideActive != 0 && wallSlideActive == 0)
+            // Keep a fraction so clearing a cliff does not read as a sideways slingshot. Skip on the
+            // pipe→terrain exit frame — that retain is for cliff scrapes, not the mouth handoff.
+            if (motionState.ValueRO.wallSlideActive != 0
+                && wallSlideActive == 0
+                && !previousOnRideable)
             {
                 terrainRelativeVelocity.x *= WallExitSpeedRetain;
                 terrainRelativeVelocity.z *= WallExitSpeedRetain;
