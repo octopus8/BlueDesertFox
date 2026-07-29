@@ -3,14 +3,14 @@ guid: b3451cd0f27f27c498d1f1d13f32ce92
 timeCreated: 1585527198
 licenseType: Store
 NativeFormatImporter:
-  mainObjectFileID: 11400000
+  mainObjectFileID: 43553725762460536
   userData: 
   assetBundleName: 
   assetBundleVariant: 
 AssetOrigin:
   serializedVersion: 1
   productId: 138857
-  packageName: POLYGON Sci-Fi Space - Low Poly 3D Art by Synty
-  packageVersion: 1.13.1
+  packageName: POLYGON - Sci-Fi Space Pack - Art by Synty
+  packageVersion: 1.14.0
   assetPath: Assets/PolygonSciFiSpace/Models/Collision/Convex/SM_Bld_Ceiling_03_Convex.asset
-  uploadId: 737404
+  uploadId: 915402

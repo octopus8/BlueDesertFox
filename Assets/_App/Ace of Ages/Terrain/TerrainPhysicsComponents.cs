@@ -1,17 +1,43 @@
-using System;
-using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
+using Unity.Physics;
+using UnityEngine;
+using Collider = Unity.Physics.Collider;
+using Material = Unity.Physics.Material;
 
 /// <summary>
-/// LOD levels for terrain physics colliders based on distance to player.
+/// Converts UnityEngine physics materials to Unity Physics collider materials.
 /// </summary>
-public enum TerrainPhysicsLODLevel : byte
+public static class TerrainPhysicsMaterialUtility
 {
-    FullResolution = 0,      // Use all vertices
-    HalfResolution = 1,      // Use every 2nd vertex
-    QuarterResolution = 2,   // Use every 4th vertex
-    NoCollider = 3           // Too far away, no collider needed
+    /// <summary>
+    /// Creates a Unity Physics material from an optional classic <see cref="PhysicsMaterial"/>.
+    /// Returns <see cref="Material.Default"/> when <paramref name="source"/> is null.
+    /// </summary>
+    public static Material FromPhysicsMaterial(PhysicsMaterial source)
+    {
+        if (source == null)
+            return Material.Default;
+
+        var material = Material.Default;
+        material.Friction = math.max(source.staticFriction, source.dynamicFriction);
+        material.Restitution = source.bounciness;
+        material.FrictionCombinePolicy = ToCombinePolicy(source.frictionCombine);
+        material.RestitutionCombinePolicy = ToCombinePolicy(source.bounceCombine);
+        return material;
+    }
+
+    static Material.CombinePolicy ToCombinePolicy(PhysicsMaterialCombine combine)
+    {
+        return combine switch
+        {
+            PhysicsMaterialCombine.Average => Material.CombinePolicy.ArithmeticMean,
+            PhysicsMaterialCombine.Multiply => Material.CombinePolicy.GeometricMean,
+            PhysicsMaterialCombine.Minimum => Material.CombinePolicy.Minimum,
+            PhysicsMaterialCombine.Maximum => Material.CombinePolicy.Maximum,
+            _ => Material.CombinePolicy.ArithmeticMean
+        };
+    }
 }
 
 /// <summary>
@@ -20,8 +46,8 @@ public enum TerrainPhysicsLODLevel : byte
 /// </summary>
 public struct TerrainTileDistanceToPlayer : IComponentData
 {
+    /// <summary>Distance in world units from this tile's centre to the player position.</summary>
     public float distance;
-    public TerrainPhysicsLODLevel lodLevel;
 }
 
 /// <summary>
@@ -33,153 +59,104 @@ public struct PhysicsColliderValid : IComponentData
 }
 
 /// <summary>
-/// Blob asset containing pre-baked collider mesh data for a terrain tile.
-/// Similar to SplineDataBlob pattern - allows efficient reuse and survives origin shifts.
-/// </summary>
-public struct TerrainColliderBlob
-{
-    public BlobArray<float3> vertices;
-    public BlobArray<int3> triangles;
-    public int vertexCount;
-    public int triangleCount;
-    public TerrainPhysicsLODLevel lodLevel;
-    
-    /// <summary>
-    /// Creates a BlobAssetReference containing collider mesh data.
-    /// Memory estimation: vertexCount * 12 bytes (float3) + triangleCount * 12 bytes (int3)
-    /// </summary>
-    public static BlobAssetReference<TerrainColliderBlob> Create(
-        NativeArray<float3> sourceVertices,
-        NativeArray<int3> sourceTriangles,
-        TerrainPhysicsLODLevel lodLevel,
-        Allocator allocator)
-    {
-        var builder = new BlobBuilder(Allocator.Temp);
-        ref TerrainColliderBlob root = ref builder.ConstructRoot<TerrainColliderBlob>();
-        
-        // Build vertex array
-        var vertexArray = builder.Allocate(ref root.vertices, sourceVertices.Length);
-        for (int i = 0; i < sourceVertices.Length; i++)
-        {
-            vertexArray[i] = sourceVertices[i];
-        }
-        
-        // Build triangle array
-        var triangleArray = builder.Allocate(ref root.triangles, sourceTriangles.Length);
-        for (int i = 0; i < sourceTriangles.Length; i++)
-        {
-            triangleArray[i] = sourceTriangles[i];
-        }
-        
-        root.vertexCount = sourceVertices.Length;
-        root.triangleCount = sourceTriangles.Length;
-        root.lodLevel = lodLevel;
-        
-        var result = builder.CreateBlobAssetReference<TerrainColliderBlob>(allocator);
-        builder.Dispose();
-        
-        return result;
-    }
-}
-
-/// <summary>
-/// Component holding a reference to pre-baked collider data as a BlobAsset.
-/// </summary>
-public struct TerrainPhysicsColliderComponent : IComponentData
-{
-    public BlobAssetReference<TerrainColliderBlob> colliderData;
-}
-
-/// <summary>
-/// Buffer element for storing prepared collider vertices ready for MeshCollider.Create().
-/// Used as intermediate storage between Burst job preparation and main-thread collider creation.
-/// </summary>
-public struct ColliderPreparedVertexElement : IBufferElementData
-{
-    public float3 value;
-}
-
-/// <summary>
-/// Buffer element for storing prepared triangle indices.
-/// </summary>
-public struct ColliderPreparedTriangleElement : IBufferElementData
-{
-    public int3 value;
-}
-
-/// <summary>
-/// Component indicating this tile needs collider preparation job to run.
-/// Added when mesh changes or LOD level changes.
+/// Component indicating this tile needs collider BVH construction.
+/// Added when mesh is ready and tile is within maxColliderDistance.
 /// </summary>
 public struct PhysicsColliderNeedsPreparation : IComponentData, IEnableableComponent
 {
-    public TerrainPhysicsLODLevel targetLOD;
 }
 
 /// <summary>
-/// Component indicating this tile has prepared collider data ready for MeshCollider.Create().
-/// Added after preparation job completes, removed after collider is created.
-/// Priority is distance-based (lower = closer = higher priority).
+/// Holds a created MeshCollider blob awaiting registration with the physics world next frame.
+/// Separates expensive MeshCollider.Create from PhysicsCollider component addition.
 /// </summary>
-public struct PhysicsColliderPrepared : IComponentData
+public struct PhysicsColliderRegistrationPending : IComponentData
 {
-    public TerrainPhysicsLODLevel lodLevel;
-    public int priority; // Distance-based priority (lower = closer = higher priority)
+    /// <summary>The fully-created Unity Physics collider blob awaiting registration with the physics world.</summary>
+    public BlobAssetReference<Collider> collider;
 }
 
 /// <summary>
-/// Key for caching collider BlobAssets based on generation parameters.
-/// Allows tiles with identical parameters to share the same cached collider.
+/// Singleton tracking aggregate terrain collider blob cache memory for LRU eviction.
 /// </summary>
-public struct ColliderCacheKey : IEquatable<ColliderCacheKey>
+public struct TerrainColliderCacheStats : IComponentData
 {
-    public int verticesPerSide;
-    public TerrainPhysicsLODLevel lodLevel;
-    public uint noiseParamsHash; // Hash of noise parameters
-    
-    public bool Equals(ColliderCacheKey other)
-    {
-        return verticesPerSide == other.verticesPerSide &&
-               lodLevel == other.lodLevel &&
-               noiseParamsHash == other.noiseParamsHash;
-    }
-    
-    public override int GetHashCode()
-    {
-        return verticesPerSide.GetHashCode() ^
-               ((int)lodLevel << 8) ^
-               (int)noiseParamsHash;
-    }
-    
+    public int entryCount;
+    public int totalMemoryBytes;
+}
+
+/// <summary>
+/// Resolves per-stage physics collider creation budgets from terrain config.
+/// </summary>
+public static class TerrainPhysicsBudget
+{
     /// <summary>
-    /// Creates a cache key from terrain configuration.
+    /// Returns the mesh-generation / prep-marking budget (<see cref="TerrainTileConfig.maxCollidersCreatedPerFrame"/>).
     /// </summary>
-    public static ColliderCacheKey FromConfig(TerrainTileConfig config, TerrainPhysicsLODLevel lodLevel)
+    public static int GetPrepMarkBudget(in TerrainTileConfig config)
     {
-        // Combine all noise parameters into a single hash
-        uint hash = (uint)config.noiseFrequency.GetHashCode();
-        hash ^= (uint)config.noiseAmplitude.GetHashCode() << 8;
-        hash ^= (uint)config.noiseOctaves << 16;
-        hash ^= (uint)config.noiseLacunarity.GetHashCode() << 4;
-        hash ^= (uint)config.noisePersistence.GetHashCode() << 12;
-        
-        return new ColliderCacheKey
-        {
-            verticesPerSide = config.verticesPerSide,
-            lodLevel = lodLevel,
-            noiseParamsHash = hash
-        };
+        if (config.maxCollidersCreatedPerFrame > 0)
+            return config.maxCollidersCreatedPerFrame;
+        return 4;
     }
+
+    /// <summary>
+    /// Returns the BVH / MeshCollider.Create budget (<see cref="TerrainTileConfig.maxPhysicsCollidersCreatedPerFrame"/>).
+    /// Clamped to 1–2 on mobile platforms to bound worst-case Complete() spike time on Quest.
+    /// </summary>
+    public static int GetBvhCreationBudget(in TerrainTileConfig config)
+    {
+        int budget = config.maxPhysicsCollidersCreatedPerFrame > 0
+            ? config.maxPhysicsCollidersCreatedPerFrame
+            : 4;
+
+#if !UNITY_EDITOR
+        if (UnityEngine.Application.isMobilePlatform)
+            budget = math.min(budget, 2);
+#endif
+
+        return math.max(1, budget);
+    }
+
+    /// <summary>
+    /// Returns the registration budget for attaching pending collider blobs (matches BVH throughput).
+    /// </summary>
+    public static int GetRegistrationBudget(in TerrainTileConfig config)
+        => GetBvhCreationBudget(config);
+
+    /// <summary>
+    /// Legacy combined budget — prefer stage-specific helpers above.
+    /// </summary>
+    public static int GetCreationBudget(in TerrainTileConfig config)
+        => math.min(GetPrepMarkBudget(config), GetBvhCreationBudget(config));
 }
 
 /// <summary>
-/// Entry in the LRU cache for tracking BlobAsset usage and memory.
+/// Camera-aware collider priority scoring shared by distance tracking and BVH scheduling.
+/// Lower score = higher priority.
 /// </summary>
-public struct ColliderCacheEntry
+public static class TerrainColliderPriority
 {
-    public BlobAssetReference<TerrainColliderBlob> blobAsset;
-    public long lastAccessFrame;
-    public int estimatedMemoryBytes;
+    /// <summary>
+    /// Computes a priority score from tile grid coordinate and camera pose.
+    /// Lower values are processed first.
+    /// </summary>
+    public static int Compute(in int2 gridCoord, in TerrainTileConfig config, in CameraDataSingleton camera, in float3 scrollOffset)
+    {
+        float3 tileCenterBase = new float3(
+            gridCoord.x * config.tileSize + config.tileSize * 0.5f,
+            0f,
+            gridCoord.y * config.tileSize + config.tileSize * 0.5f);
+        float3 tileCenterScrolled = tileCenterBase - scrollOffset;
+        float2 cameraPos2D = new float2(camera.position.x, camera.position.z);
+        float2 tileCenter2D = new float2(tileCenterScrolled.x, tileCenterScrolled.z);
+        float2 toTile = tileCenter2D - cameraPos2D;
+        float dist2D = math.length(toTile);
+        float normalizedDist = math.clamp(dist2D / config.viewDistance, 0f, 1f);
+        float2 fwd2D = math.normalize(new float2(camera.forward.x, camera.forward.z));
+        float2 toTileNorm = math.lengthsq(toTile) < 0.001f ? fwd2D : math.normalize(toTile);
+        float dot = math.dot(fwd2D, toTileNorm);
+        float viewScore = (dot + 1f) * 0.5f;
+        return (int)((1f - viewScore) * 1000f + normalizedDist * 500f);
+    }
 }
-
-

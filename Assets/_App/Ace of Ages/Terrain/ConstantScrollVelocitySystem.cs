@@ -11,12 +11,17 @@ using Unity.Mathematics;
 [UpdateBefore(typeof(ScrollTerrainSystem))]
 public partial struct ConstantScrollVelocitySystem : ISystem
 {
+    /// <summary>Registers <see cref="TerrainScrollVelocity"/> and <see cref="ConstantTerrainScrollVelocityConfig"/> requirements.</summary>
     public void OnCreate(ref SystemState state)
     {
         state.RequireForUpdate<TerrainScrollVelocity>();
         state.RequireForUpdate<ConstantTerrainScrollVelocityConfig>();
     }
 
+    /// <summary>
+    /// Writes the fixed direction and speed from <see cref="ConstantTerrainScrollVelocityConfig"/>
+    /// into the <see cref="TerrainScrollVelocity"/> singleton, overriding any player-driven velocity.
+    /// </summary>
     [BurstCompile]
     public void OnUpdate(ref SystemState state)
     {
@@ -25,6 +30,7 @@ public partial struct ConstantScrollVelocitySystem : ISystem
         
         scrollVelocity.ValueRW.direction = config.direction;
         scrollVelocity.ValueRW.speed = config.speed;
+        scrollVelocity.ValueRW.verticalSpeed = 0f;
     }
 }
 
@@ -33,7 +39,9 @@ public partial struct ConstantScrollVelocitySystem : ISystem
 /// </summary>
 public struct ConstantTerrainScrollVelocityConfig : IComponentData
 {
+    /// <summary>Normalized scroll direction in world space (XZ plane).</summary>
     public float3 direction;
+    /// <summary>Scroll speed in world units per second.</summary>
     public float speed;
 }
 

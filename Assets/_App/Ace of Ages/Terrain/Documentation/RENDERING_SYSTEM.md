@@ -208,26 +208,19 @@ for each vertex at position (x, y, z):
 System calculates smooth normals using cross-product method:
 
 ```csharp
-// For each vertex, average normals of adjacent triangles
-for each triangle (v0, v1, v2):
-{
-    float3 edge1 = v1 - v0;
-    float3 edge2 = v2 - v0;
-    float3 normal = math.normalize(math.cross(edge1, edge2));
-    
-    // Accumulate to vertex normals
-    vertexNormals[i0] += normal;
-    vertexNormals[i1] += normal;
-    vertexNormals[i2] += normal;
-}
+// Central finite differences on the height field
+float heightLeft  = GetHeight(x - 1, z);
+float heightRight = GetHeight(x + 1, z);
+float heightDown  = GetHeight(x, z - 1);
+float heightUp    = GetHeight(x, z + 1);
 
-// Normalize accumulated normals
-for each vertex:
-    normals[i] = math.normalize(accumulatedNormal[i]);
+float3 tangentX = new float3(2.0f * stepSize, heightRight - heightLeft, 0);
+float3 tangentZ = new float3(0, heightUp - heightDown, 2.0f * stepSize);
+normal = math.normalize(math.cross(tangentZ, tangentX));
 ```
 
 **Effect**: Smooth shading across terrain  
-**Edge handling**: Tiles calculate normals independently (may have seams)
+**Edge handling**: Edge vertices sample heights in world space so adjacent tiles produce matching normals at boundaries (no lighting seams)
 
 ### Mesh Attributes
 
@@ -346,61 +339,26 @@ receiveShadows: true,
 
 ## Rendering Debug Tools
 
-### TerrainTileGizmoVisualizer
+Use **[Debug Tools](DEBUG_TOOLS.md)** and the **Terrain Status Inspector** (`Window → Terrain → Status Inspector`) to diagnose rendering issues in play mode.
 
-Visual debugging in Scene view:
-
-```csharp
-// Add to GameObject in scene
-TerrainTileGizmoVisualizer:
-  - Draw Tile Bounds: ✅
-  - Draw Grid Coordinates: ✅
-  - Tile Color: Green
-  - Tile With Mesh Color: Yellow
-  - Tile With Rendering Color: Cyan
-```
-
-**Shows**:
-- Green wireframes: Tiles without mesh
-- Yellow wireframes: Tiles with mesh data
-- Cyan wireframes: Tiles with rendering
-- Grid coordinates as text labels
-
-### TerrainRenderingDebugSystem
-
-Optional logging system (disabled by default):
-
-**To enable**: Uncomment `[UpdateInGroup]` attribute in code
-
-**Logs every 10 seconds**:
-```
-[TerrainDebug] ========== Terrain Tile Analysis ==========
-[TerrainDebug] Total tiles: 25
-[TerrainDebug] Tiles with mesh data: 25
-[TerrainDebug] Tiles with rendering components: 23
-[TerrainDebug] Tiles with RenderBounds: 23
-```
-
-## Troubleshooting Rendering
-
-### Terrain Not Visible
+### Terrain Not Visible — Checklist
 
 **Check 1: Are meshes generated?**
 ```
-Add TerrainTileGizmoVisualizer
-Look for yellow wireframes (mesh data exists)
+Terrain Status Inspector → play-mode tile / mesh counts
+Profiler → TerrainMesh.Generation marker
 ```
 
 **Check 2: Does rendering system run?**
 ```
-Look for console errors from TerrainRenderingSystem
-Check material is assigned (_terrainMaterial != null)
+Console: [TerrainRendering] warnings or errors
+Confirm TerrainMaterial is assigned or in Resources
 ```
 
 **Check 3: Are bounds correct?**
 ```
-Enable TerrainRenderingDebugSystem
-Check "Tiles with RenderBounds" count
+Terrain Status Inspector → tiles with rendering components
+Profiler → PresentationSystemGroup
 ```
 
 **Check 4: Camera culling**

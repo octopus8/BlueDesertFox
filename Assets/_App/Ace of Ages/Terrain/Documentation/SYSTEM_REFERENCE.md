@@ -19,12 +19,12 @@ The terrain system consists of **20+ ECS systems** organized in categories:
 8. **TerrainPhysicsSystem** - Collider creation
 9. **TerrainRenderingSystem** - Mesh rendering
 
-### Tree Management Systems (5)
-10. **TerrainTreeSpawningSystem** - Tree spawning on tiles
-11. **TreeSpatialChunkingSystem** - Spatial chunk assignment
-12. **TreePositionUpdateSystem** - Tree position updates
-13. **TreeLODUpdateSystem** - Dynamic LOD with hysteresis
-14. **GlobalTreeInstanceSystem** - Instanced rendering with culling
+### Static Object Management Systems (5)
+10. **TerrainStaticObjectSpawningSystemOptimized** - Static object spawning on tiles
+11. **StaticObjectSpatialChunkingSystem** - Spatial chunk assignment
+12. **StaticObjectPositionUpdateSystem** - Static object position updates
+13. **StaticObjectLODUpdateSystem** - Dynamic LOD with hysteresis
+14. **StaticObjectLODMeshInfoInitSystem** - BRG mesh info initialization (one-shot)
 
 ### Scroll Velocity Systems (2)
 15. **PlayerScrollVelocitySystem** - Player rotation-based velocity
@@ -34,12 +34,11 @@ The terrain system consists of **20+ ECS systems** organized in categories:
 17. **TerrainAnchorSystem** - Anchored entity positioning
 18. **WorldOriginTrackingInitSystem** - Optional world origin tracking
 
-### Debug Tools (3)
-- **TerrainTrackingDebugger** (MonoBehaviour)
-- **TerrainTileGizmoVisualizer** (MonoBehaviour)
-- **TerrainRenderingDebugSystem** (ECS system, disabled by default)
-- **TreeLODDebugSystem** (ECS system, disabled by default)
-- **TreeCleanupDebugSystem** (ECS system, disabled by default)
+### Diagnostics (2)
+- **StaticObjectCleanupDebugSystem** — Orphan static-object detection (`LogWarning`)
+- **TerrainStatusInspector** — Editor window (`Window → Terrain → Status Inspector`)
+
+See [Debug Tools](DEBUG_TOOLS.md) for profiler markers and console diagnostics.
 
 ---
 
@@ -71,7 +70,6 @@ RequireForUpdate<PlayerTransformReference>()
    b. Execute search based on mode:
       - FindByName: GameObject.Find(name)
       - FindByTag: GameObject.FindGameObjectWithTag(tag)
-      - FindAutoHandPlayer: FindFirstObjectByType<AutoHandPlayer>()
       - FindMainCamera: Camera.main
    c. If found:
       - Get PlayerTransformReference component
@@ -574,12 +572,12 @@ protected override void OnUpdate()
 
 ## Systems 10-18: Tree & Scroll Velocity Systems
 
-**Detailed Documentation:** See [Tree Rendering System](TREE_RENDERING_SYSTEM.md) for comprehensive coverage of:
-- **System 10:** TerrainTreeSpawningSystem
-- **System 11:** TreeSpatialChunkingSystem  
-- **System 12:** TreePositionUpdateSystem
-- **System 13:** TreeLODUpdateSystem
-- **System 14:** GlobalTreeInstanceSystem
+**Detailed Documentation:** See [Static Object Rendering System](STATIC_OBJECT_RENDERING.md) for comprehensive coverage of:
+- **System 10:** TerrainStaticObjectSpawningSystemOptimized
+- **System 11:** StaticObjectSpatialChunkingSystem
+- **System 12:** StaticObjectPositionUpdateSystem
+- **System 13:** StaticObjectLODUpdateSystem
+- **System 14:** StaticObjectLODMeshInfoInitSystem
 - **System 15:** PlayerScrollVelocitySystem
 - **System 16:** ConstantScrollVelocitySystem
 - **System 17:** TerrainAnchorSystem
@@ -751,7 +749,7 @@ private partial struct TerrainAnchorUpdateJob : IJobEntity
 - Non-tile entities that need to move with scroll offset
 
 **Do NOT use for**:
-- ❌ **Trees** - Use `TreeTileOwnership` + `TreePositionUpdateSystem` instead
+- ❌ **Static Objects** - Use `StaticObjectTileOwnership` + `StaticObjectPositionUpdateSystem` instead
 - ❌ **Terrain Tiles** - Handled by `TileScrollPositionSystem` automatically
 - ❌ **Player/Camera** - Should remain stationary while terrain scrolls
 
@@ -791,7 +789,7 @@ SimulationSystemGroup
 - Converted from sequential `foreach` to parallel job execution
 - Added Burst compilation for SIMD optimization
 - Result: 3-5x speedup with 1000+ entities on Quest 3
-- Pattern matches: `TreePositionUpdateSystem`, `TileScrollPositionSystem`
+- Pattern matches: `StaticObjectPositionUpdateSystem`, `TileScrollPositionSystem`
 
 ---
 

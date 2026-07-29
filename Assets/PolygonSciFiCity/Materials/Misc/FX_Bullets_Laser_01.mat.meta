@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 3994839659084ef4dad69772bf97ad66
+timeCreated: 1521081596
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 115950
+  packageName: POLYGON - Sci-Fi City Pack - Art by Synty
+  packageVersion: 1.3.2
+  assetPath: Assets/PolygonSciFiCity/Materials/Misc/FX_Bullets_Laser_01.mat
+  uploadId: 939484

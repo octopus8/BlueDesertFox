@@ -6,75 +6,28 @@ Detailed documentation of how all terrain systems execute and interact each fram
 
 The terrain system consists of 8 systems that run in a carefully orchestrated order:
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│ INITIALIZATION SYSTEM GROUP (Runs once at startup)          │
-├─────────────────────────────────────────────────────────────┤
-│                                                              │
-│ PlayerTrackingInitSystem                                    │
-│ └─ Finds player GameObject                                   │
-│ └─ Populates PlayerTransformReference                        │
-│ └─ Sets PlayerTrackingSearch.initialized = true             │
-│                                                              │
-└─────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    subgraph INIT["Initialization System Group — Runs once at startup"]
+        PTIS["PlayerTrackingInitSystem\n→ Finds player GameObject\n→ Populates PlayerTransformReference\n→ Sets PlayerTrackingSearch.initialized = true"]
+    end
 
-┌─────────────────────────────────────────────────────────────┐
-│ SIMULATION SYSTEM GROUP (Runs every frame)                  │
-├─────────────────────────────────────────────────────────────┤
-│                                                              │
-│ 1. ScrollTerrainSystem                                      │
-│    ├─ Reads: ScrollConfig, PlayerTransformReference         │
-│    ├─ Updates: ScrollOffset.accumulatedOffset               │
-│    └─ Timing: ~0.01ms                                       │
-│                                                              │
-│ 2. TileSpawningSystem                                       │
-│    ├─ Reads: PlayerTransformReference, ScrollOffset, Config │
-│    ├─ Creates: New tile entities                            │
-│    ├─ Destroys: Far tiles                                   │
-│    └─ Timing: ~0.1-0.5ms (depends on spawn/despawn count)  │
-│                                                              │
-│ 3. TileScrollPositionSystem                                 │
-│    ├─ Reads: ScrollOffset, TerrainTileConfig                │
-│    ├─ Updates: LocalTransform.Position for all tiles        │
-│    └─ Timing: ~0.05ms                                       │
-│                                                              │
-│ 4. TerrainMeshGenerationSystem                              │
-│    ├─ Reads: TerrainTile, TerrainTileConfig                 │
-│    ├─ Schedules: Parallel Burst jobs for noise generation   │
-│    ├─ Updates: Vertex/Normal/UV/Index buffers               │
-│    └─ Timing: ~5-10ms per tile (frame budgeted)            │
-│                                                              │
-│ 5. TerrainDistanceTrackingSystem                            │
-│    ├─ Reads: TerrainTile, PlayerTransformReference          │
-│    ├─ Calculates: Distance to player                        │
-│    ├─ Updates: TerrainTileDistanceToPlayer, LOD level       │
-│    └─ Timing: ~0.1ms                                        │
-│                                                              │
-│ 6. TerrainColliderPreparationSystem                         │
-│    ├─ Reads: PhysicsColliderNeedsPreparation                │
-│    ├─ Schedules: Parallel Burst jobs for LOD decimation     │
-│    ├─ Updates: ColliderPreparedVertex/Triangle buffers      │
-│    └─ Timing: ~0.5-2ms per tile (parallel)                 │
-│                                                              │
-│ 7. TerrainPhysicsSystem                                     │
-│    ├─ Reads: PhysicsColliderPrepared, cache                 │
-│    ├─ Creates: Unity Physics MeshCollider (main thread)     │
-│    ├─ Updates: PhysicsCollider component                    │
-│    └─ Timing: ~2-5ms per collider (frame budgeted)         │
-│                                                              │
-└─────────────────────────────────────────────────────────────┘
+    subgraph SIM["Simulation System Group — Runs every frame"]
+        STS["1. ScrollTerrainSystem\nReads: ScrollConfig, PlayerTransformReference\nUpdates: ScrollOffset.accumulatedOffset\n~0.01ms"]
+        TSS["2. TileSpawningSystem\nReads: PlayerTransformReference, ScrollOffset, Config\nCreates: New tile entities / Destroys: Far tiles\n~0.1–0.5ms"]
+        TSPS["3. TileScrollPositionSystem\nReads: ScrollOffset, TerrainTileConfig\nUpdates: LocalTransform.Position for all tiles\n~0.05ms"]
+        TMGS["4. TerrainMeshGenerationSystem\nReads: TerrainTile, TerrainTileConfig\nSchedules: Parallel Burst jobs for noise generation\nUpdates: Vertex/Normal/UV/Index buffers\n~5–10ms per tile (frame budgeted)"]
+        TDTS["5. TerrainDistanceTrackingSystem\nReads: TerrainTile, PlayerTransformReference\nCalculates: Distance to player\nUpdates: TerrainTileDistanceToPlayer, LOD level\n~0.1ms"]
+        TCPS["6. TerrainColliderPreparationSystem\nReads: PhysicsColliderNeedsPreparation\nSchedules: Parallel Burst jobs for LOD decimation\nUpdates: ColliderPreparedVertex/Triangle buffers\n~0.5–2ms per tile (parallel)"]
+        TPS["7. TerrainPhysicsSystem\nReads: PhysicsColliderPrepared, cache\nCreates: Unity Physics MeshCollider (main thread)\nUpdates: PhysicsCollider component\n~2–5ms per collider (frame budgeted)"]
+        STS --> TSS --> TSPS --> TMGS --> TDTS --> TCPS --> TPS
+    end
 
-┌─────────────────────────────────────────────────────────────┐
-│ PRESENTATION SYSTEM GROUP (After simulation)                │
-├─────────────────────────────────────────────────────────────┤
-│                                                              │
-│ TerrainRenderingSystem                                      │
-│ ├─ Reads: Vertex/Normal/UV/Index buffers                    │
-│ ├─ Creates: Unity Mesh objects (main thread)                │
-│ ├─ Updates: MeshReference, MaterialMeshInfo, RenderBounds   │
-│ └─ Timing: ~0.5-1ms per tile                                │
-│                                                              │
-└─────────────────────────────────────────────────────────────┘
+    subgraph PRES["Presentation System Group — After simulation"]
+        TRS["TerrainRenderingSystem\nReads: Vertex/Normal/UV/Index buffers\nCreates: Unity Mesh objects (main thread)\nUpdates: MeshReference, MaterialMeshInfo, RenderBounds\n~0.5–1ms per tile"]
+    end
+
+    INIT --> SIM --> PRES
 ```
 
 ## Frame-by-Frame Walkthrough
@@ -383,133 +336,72 @@ After Physics Creation:
 
 ### Job Dependencies
 
-```
-Frame Start
-    │
-    ├─ ScrollTerrainSystem (main thread)
-    │
-    ├─ TileSpawningSystem (main thread)
-    │
-    ├─ TileScrollPositionSystem (main thread)
-    │
-    ├─ TerrainMeshGenerationSystem
-    │  │
-    │  └─ MeshGenerationJob (parallel, Burst)
-    │     ├─ Tile 1 ─┐
-    │     ├─ Tile 2 ─┼─ Run simultaneously on worker threads
-    │     └─ Tile 3 ─┘
-    │
-    │     JobHandle.Complete()
-    │
-    ├─ TerrainDistanceTrackingSystem (main thread)
-    │
-    ├─ TerrainColliderPreparationSystem
-    │  │
-    │  └─ PrepareColliderDataJob (parallel, Burst)
-    │     ├─ Tile A ─┐
-    │     ├─ Tile B ─┼─ Run simultaneously on worker threads
-    │     └─ Tile C ─┘
-    │
-    │     JobHandle.Complete()
-    │
-    ├─ TerrainPhysicsSystem (main thread, budgeted)
-    │  └─ MeshCollider.Create() × 3
-    │
-Frame End
+```mermaid
+flowchart TD
+    FS["Frame Start"]
+    STS["ScrollTerrainSystem\n(main thread)"]
+    TSS["TileSpawningSystem\n(main thread)"]
+    TSPS["TileScrollPositionSystem\n(main thread)"]
+
+    subgraph MESH["TerrainMeshGenerationSystem"]
+        M1["MeshGenerationJob — Tile 1\n(parallel, Burst)"]
+        M2["MeshGenerationJob — Tile 2\n(parallel, Burst)"]
+        M3["MeshGenerationJob — Tile 3\n(parallel, Burst)"]
+        JC1["JobHandle.Complete()"]
+        M1 & M2 & M3 --> JC1
+    end
+
+    TDTS["TerrainDistanceTrackingSystem\n(main thread)"]
+
+    subgraph COLL["TerrainColliderPreparationSystem"]
+        C1["PrepareColliderDataJob — Tile A\n(parallel, Burst)"]
+        C2["PrepareColliderDataJob — Tile B\n(parallel, Burst)"]
+        C3["PrepareColliderDataJob — Tile C\n(parallel, Burst)"]
+        JC2["JobHandle.Complete()"]
+        C1 & C2 & C3 --> JC2
+    end
+
+    TPS["TerrainPhysicsSystem\n(main thread, budgeted)\nMeshCollider.Create() × 3"]
+    FE["Frame End"]
+
+    FS --> STS --> TSS --> TSPS --> MESH --> TDTS --> COLL --> TPS --> FE
 ```
 
 ## Component State Transitions
 
 ### New Tile Lifecycle
 
-```
-1. Creation:
-   Entity created with:
-   - TerrainTile (meshGenerated = false)
-   - LocalTransform
-   - Empty buffers
+```mermaid
+flowchart TD
+    C["① Creation\nTerrainTile (meshGenerated=false)\nLocalTransform\nEmpty buffers"]
+    Q["② Mesh Generation Pending\nQueued in _pendingTiles"]
+    MGA["③ Mesh Generation Active\nBurst job: Vertex/Normal/UV/Index\nCalculating Perlin noise\nComputing normals"]
+    MGD["④ Mesh Generated\nmeshGenerated = true\nBuffers populated"]
+    RP["⑤ Rendering Pending\nHas mesh data, no MeshReference"]
+    RA["⑥ Rendering Active\nMesh object instantiated\nBuffers copied (zero-copy)\nMaterialMeshInfo added"]
+    VIS["⑦ Visible\nMeshReference assigned\nEntities Graphics renders tile"]
+    DT["⑧ Distance Tracking\nTerrainTileDistanceToPlayer added\nLOD level determined"]
+    CP["⑨ Collider Preparation\nPhysicsColliderNeedsPreparation added\nBurst job decimates vertices by LOD"]
+    CPD["⑩ Collider Prepared\nPhysicsColliderPrepared added\nPrepared buffers ready"]
+    CC["⑪ Collider Created\nMeshCollider created\nPhysicsCollider component added\nPhysicsColliderValid tag added"]
+    FF["⑫ Fully Functional\n✅ Visible + Collidable"]
+    D["⑬ Despawn\nEntity destroyed\nMesh destroyed\nCollider destroyed\n(cache may retain BlobAsset)"]
 
-2. Mesh Generation Pending:
-   Entity queued in TerrainMeshGenerationSystem._pendingTiles
-
-3. Mesh Generation Active:
-   Burst job running:
-   - Filling Vertex/Normal/UV/Index buffers
-   - Calculating Perlin noise
-   - Computing normals
-
-4. Mesh Generated:
-   - TerrainTile.meshGenerated = true
-   - Buffers populated
-
-5. Rendering Pending:
-   Entity has mesh data but no MeshReference
-
-6. Rendering Active:
-   Unity Mesh creation:
-   - Mesh object instantiated
-   - Buffers copied (zero-copy)
-   - MaterialMeshInfo added
-
-7. Visible:
-   - MeshReference assigned
-   - Entities Graphics renders tile
-
-8. Distance Tracking:
-   - TerrainTileDistanceToPlayer added
-   - LOD level determined
-
-9. Collider Preparation:
-   - PhysicsColliderNeedsPreparation added
-   - Burst job decimates vertices by LOD
-
-10. Collider Prepared:
-    - PhysicsColliderPrepared added
-    - Prepared buffers ready
-
-11. Collider Created:
-    - MeshCollider created
-    - PhysicsCollider component added
-    - PhysicsColliderValid tag added
-
-12. Fully Functional:
-    - Visible
-    - Collidable
-    - All systems complete
-
-13. Despawn:
-    Player moves away:
-    - Entity destroyed
-    - Mesh destroyed
-    - Collider destroyed (cache may retain BlobAsset)
+    C --> Q --> MGA --> MGD --> RP --> RA --> VIS --> DT --> CP --> CPD --> CC --> FF
+    FF -->|"Player moves away"| D
 ```
 
 ### LOD Transition
 
-```
-Tile at LOD Full Resolution:
-  ├─ Distance < 150m
-  ├─ PhysicsCollider with all vertices
-  └─ PhysicsColliderValid tag present
+```mermaid
+flowchart TD
+    FULL["LOD Full Resolution\ndistance < 150m\nPhysicsCollider (all vertices)\nPhysicsColliderValid tag present"]
+    DET["TerrainDistanceTrackingSystem\nDetects LOD change (distance > 150m)\n→ Removes PhysicsColliderValid\n→ Adds PhysicsColliderNeedsPreparation (targetLOD=Half)\n→ Tile marked for regeneration"]
+    PREP["Next Frame: TerrainColliderPreparationSystem\nRuns LOD decimation job\nAdds PhysicsColliderPrepared (half-res data)\nOld PhysicsCollider retained temporarily"]
+    CACHE["Following Frame: TerrainPhysicsSystem\nChecks collider cache\nCache hit → Replaces PhysicsCollider\nAdds PhysicsColliderValid tag"]
+    DONE["✅ LOD Transition Complete\nMinimal cost via caching"]
 
-Player moves away (distance > 150m):
-  ├─ TerrainDistanceTrackingSystem detects LOD change
-  ├─ Removes PhysicsColliderValid tag
-  ├─ Adds PhysicsColliderNeedsPreparation (targetLOD = Half)
-  └─ Tile marked for regeneration
-
-Next Frame:
-  ├─ TerrainColliderPreparationSystem runs decimation job
-  ├─ PhysicsColliderPrepared added (half resolution data)
-  └─ Old PhysicsCollider retained temporarily
-
-Following Frame:
-  ├─ TerrainPhysicsSystem checks cache
-  ├─ Cache hit (half-res collider exists)
-  ├─ Replaces PhysicsCollider with cached version
-  └─ PhysicsColliderValid tag added
-
-Result: LOD transition complete with minimal cost
+    FULL -->|"Player moves away"| DET --> PREP --> CACHE --> DONE
 ```
 
 ## Query-Based Updates

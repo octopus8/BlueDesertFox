@@ -4,7 +4,7 @@ using UnityEngine;
 /// <summary>
 /// Authoring component for player-based scroll velocity with world origin tracking rotation.
 /// Scrolls terrain in the direction the player is facing, with rotation based on world origin orientation.
-/// Supports vertical movement based on player pitch angle.
+/// Vertical movement and scroll speed are derived from pitch angle: level flight = full scroll, nose-up = full vertical.
 /// Only one velocity provider (PlayerScrollVelocityAuthoring or ConstantScrollVelocityAuthoring) should be in the scene.
 /// </summary>
 public class PlayerScrollVelocityAuthoring : MonoBehaviour
@@ -23,16 +23,6 @@ public class PlayerScrollVelocityAuthoring : MonoBehaviour
     [Tooltip("Rotation speed multiplier for world origin tracking (higher = faster rotation toward world origin direction)")]
     public float rotationSpeed = 2.0f;
     
-    [Header("Vertical Movement")]
-    [Tooltip("Vertical movement speed in units per second at maximum pitch (90°). Speed scales proportionally with pitch angle. Looking up moves world origin upward, looking down moves it downward.")]
-    public float verticalSpeed = 10f;
-    
-    [Tooltip("Minimum Y position for the world origin (prevents moving too far down)")]
-    public float minVerticalPosition = -100f;
-    
-    [Tooltip("Maximum Y position for the world origin (prevents moving too far up)")]
-    public float maxVerticalPosition = 100f;
-    
     [Header("World Origin Tracking")]
     [Tooltip("How to find the world origin GameObject at runtime")]
     public WorldOriginSearchMode worldOriginSearchMode = WorldOriginSearchMode.FindMainCamera;
@@ -43,8 +33,10 @@ public class PlayerScrollVelocityAuthoring : MonoBehaviour
     [Tooltip("GameObject tag to search for (only used if mode is FindByTag)")]
     public string worldOriginTag = "MainCamera";
 
+    /// <summary>Bakes player scroll velocity config (speed, rotation speed, world-origin search params) into <see cref="PlayerTerrainScrollVelocityConfig"/> and supporting search components.</summary>
     public class Baker : Baker<PlayerScrollVelocityAuthoring>
     {
+        /// <inheritdoc/>
         public override void Bake(PlayerScrollVelocityAuthoring authoring)
         {
             Entity entity = GetEntity(TransformUsageFlags.None);
@@ -52,10 +44,7 @@ public class PlayerScrollVelocityAuthoring : MonoBehaviour
             AddComponent(entity, new PlayerTerrainScrollVelocityConfig
             {
                 speed = authoring.speed,
-                rotationSpeed = authoring.rotationSpeed,
-                verticalSpeed = authoring.verticalSpeed,
-                minVerticalPosition = authoring.minVerticalPosition,
-                maxVerticalPosition = authoring.maxVerticalPosition
+                rotationSpeed = authoring.rotationSpeed
             });
             
             // Determine world origin search mode and parameters

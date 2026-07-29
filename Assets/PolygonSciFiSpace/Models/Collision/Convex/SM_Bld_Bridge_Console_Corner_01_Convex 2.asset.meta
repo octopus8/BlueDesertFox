@@ -3,15 +3,15 @@ guid: 3dafa2643c4d23044bbeb322d9cf7246
 timeCreated: 1585531491
 licenseType: Store
 NativeFormatImporter:
-  mainObjectFileID: 11400000
+  mainObjectFileID: 43082355889935460
   userData: 
   assetBundleName: 
   assetBundleVariant: 
 AssetOrigin:
   serializedVersion: 1
   productId: 138857
-  packageName: POLYGON Sci-Fi Space - Low Poly 3D Art by Synty
-  packageVersion: 1.13.1
+  packageName: POLYGON - Sci-Fi Space Pack - Art by Synty
+  packageVersion: 1.14.0
   assetPath: Assets/PolygonSciFiSpace/Models/Collision/Convex/SM_Bld_Bridge_Console_Corner_01_Convex
     2.asset
-  uploadId: 737404
+  uploadId: 915402

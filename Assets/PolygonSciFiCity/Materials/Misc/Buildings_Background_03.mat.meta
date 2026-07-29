@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 73cef2d806bac9949999a9ce00dabadc
+timeCreated: 1521158188
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 115950
+  packageName: POLYGON - Sci-Fi City Pack - Art by Synty
+  packageVersion: 1.3.2
+  assetPath: Assets/PolygonSciFiCity/Materials/Misc/Buildings_Background_03.mat
+  uploadId: 939484

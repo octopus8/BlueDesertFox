@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: d07418c2301363642a004be31ca5b1d9
+timeCreated: 1545087915
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 100100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 115950
+  packageName: POLYGON - Sci-Fi City Pack - Art by Synty
+  packageVersion: 1.3.2
+  assetPath: Assets/PolygonSciFiCity/Prefabs/Characters/SM_Chr_Cop_01.prefab
+  uploadId: 939484

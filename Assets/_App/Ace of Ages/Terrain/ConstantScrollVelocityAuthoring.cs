@@ -14,8 +14,10 @@ public class ConstantScrollVelocityAuthoring : MonoBehaviour
     [Tooltip("Scroll speed in units per second")]
     public float speed = 50f;
 
+    /// <summary>Bakes constant scroll direction and speed into a <see cref="ConstantTerrainScrollVelocityConfig"/> singleton component.</summary>
     public class Baker : Baker<ConstantScrollVelocityAuthoring>
     {
+        /// <inheritdoc/>
         public override void Bake(ConstantScrollVelocityAuthoring authoring)
         {
             Entity entity = GetEntity(TransformUsageFlags.None);

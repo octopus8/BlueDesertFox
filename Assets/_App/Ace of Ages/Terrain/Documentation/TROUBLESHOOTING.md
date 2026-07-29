@@ -16,15 +16,14 @@ Comprehensive problem-solving guide for the terrain system.
 
 ### Symptoms
 - Scene runs but no terrain appears
-- TerrainTileGizmoVisualizer shows 0 tiles
+- Terrain Status Inspector shows zero active tiles in play mode
 
 ### Diagnostic Steps
 
 **Step 1**: Check Player Tracking
 ```
-Add TerrainTrackingDebugger
-Right-click → "Check Tracking Status"
-Look for: "✅ Tracking: [player name]"
+Window → Terrain → Status Inspector (play mode)
+Check Console for [PlayerTrackingInitSystem] warnings
 ```
 
 **Step 2**: Check SubScene
@@ -65,7 +64,7 @@ Extreme coordinates (>100,000) cause issues
 ## Issue 2: Terrain Not Rendering
 
 ### Symptoms
-- Gizmo visualizer shows tiles (yellow wireframes)
+- Terrain Status Inspector or ECS queries show tiles exist
 - No visible terrain in Game view
 
 ### Diagnostic Steps
@@ -112,13 +111,14 @@ Culling Mask: Everything or Default included
 - Console: "Could not find player GameObject!"
 - Or: "Transform is null"
 
-### Use TerrainTrackingDebugger
+### Diagnose Player Tracking
 
 ```
-Add component to GameObject
-Right-click → Check Tracking Status
-Review detailed console output
+Window → Terrain → Status Inspector (play mode)
+Review Console for [PlayerTrackingInitSystem] warnings/errors
 ```
+
+See [Player Tracking Setup](PLAYER_TRACKING.md) for search mode configuration.
 
 ### Solutions
 
@@ -169,10 +169,11 @@ Max Colliders Per Frame: 5 (increase from 3)
 Trade-off: Faster but potential brief spikes
 ```
 
-**Solution 4**: Optimize Physics LOD
+**Solution 4**: Reduce collider cost
 ```
-Full Resolution Distance: 100m (reduce from 150m)
-More tiles use cheaper colliders
+Max Collider Distance: 200m (reduce from 450m)
+Vertices Per Side: 32 (reduce from 48)
+Fewer tiles with colliders and lower triangle count per collider
 ```
 
 **See**: [Performance Optimization](PERFORMANCE.md)
@@ -186,7 +187,7 @@ More tiles use cheaper colliders
 **Check**:
 ```
 Is Unity.Physics package installed?
-Are tiles within LOD Quarter Distance?
+Are tiles within maxColliderDistance?
 Check console for collider errors
 ```
 
@@ -234,23 +235,23 @@ Increase view distance: 800m (was 500m)
 
 ## Debug Tools
 
-### TerrainTrackingDebugger
-```
-Right-click component → Check Tracking Status
-Shows player tracking state and tile counts
-```
+See **[Debug Tools](DEBUG_TOOLS.md)** for the full guide. Quick reference:
 
-### TerrainTileGizmoVisualizer
+### Terrain Status Inspector
 ```
-Green: Tile exists, no mesh
-Yellow: Tile has mesh data
-Cyan: Tile has rendering
+Window → Terrain → Status Inspector
+Material, URP, package checks; play-mode tile and tracking status
 ```
 
 ### Console Logs
 ```
-Filter: [Terrain
-Shows all terrain system messages
+Filter: [Terrain] or [PlayerTracking]
+Warnings and errors only — success paths are silent
+```
+
+### StaticObjectCleanupDebugSystem
+```
+Automatic LogWarning if orphaned static objects detected after tile despawn
 ```
 
 ---
@@ -261,7 +262,7 @@ When reporting issues, include:
 ```
 1. Unity version
 2. Console errors (full stack trace)
-3. TerrainTrackingDebugger output
+3. Terrain Status Inspector screenshot or Console warnings/errors
 4. Configuration screenshot
 5. Platform (VR/desktop, GPU model)
 ```

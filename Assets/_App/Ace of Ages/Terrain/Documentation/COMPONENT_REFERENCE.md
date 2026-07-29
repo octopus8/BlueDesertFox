@@ -44,14 +44,10 @@ public struct TerrainTileConfig : IComponentData
     public float noisePersistence;            // Amplitude multiplier
     
     // Physics optimization
-    public int maxCollidersCreatedPerFrame;   // Frame budget
-    public float lodFullResolutionDistance;   // Full-res threshold
-    public float lodHalfResolutionDistance;   // Half-res threshold
-    public float lodQuarterResolutionDistance; // Quarter-res threshold
-    public int maxColliderCacheMemoryMB;      // Cache memory limit
-    public bool usePhysicsLODLayers;          // Enable layer separation
-    public int closeTerrainPhysicsLayer;      // Close terrain layer index
-    public int lowDetailPhysicsLayer;         // LOD layer index
+    public int maxCollidersCreatedPerFrame;   // Frame budget (mesh prep)
+    public int maxPhysicsCollidersCreatedPerFrame; // Frame budget (BVH creation)
+    public float maxColliderDistance;         // Distance beyond which colliders removed
+    public int terrainPhysicsLayer;           // Physics layer for all terrain
 }
 ```
 
@@ -63,7 +59,9 @@ verticesPerSide: 32
 noiseFrequency: 0.01f
 noiseAmplitude: 20f
 noiseOctaves: 4
-maxCollidersCreatedPerFrame: 3
+maxCollidersCreatedPerFrame: 6
+maxPhysicsCollidersCreatedPerFrame: 4
+maxColliderDistance: 450f
 ```
 
 **Read By**: All terrain systems  
@@ -117,8 +115,7 @@ public struct PlayerTrackingSearch : IComponentData
     {
         FindByName = 0,
         FindByTag = 1,
-        FindAutoHandPlayer = 2,
-        FindMainCamera = 3
+        FindMainCamera = 2
     }
     
     public Mode mode;                           // Search method
@@ -129,7 +126,7 @@ public struct PlayerTrackingSearch : IComponentData
 
 **Typical Values**:
 ```csharp
-mode: Mode.FindAutoHandPlayer
+mode: Mode.FindMainCamera
 searchString: "" (not used for this mode)
 initialized: false (becomes true after player found)
 ```
@@ -214,21 +211,19 @@ needsRegeneration: false
 **Type**: `IComponentData` (struct)  
 **Per Entity**: Yes
 
-**Purpose**: Caches distance from tile to player and LOD level.
+**Purpose**: Caches distance from tile to player for collider culling and debug visualization.
 
 **Fields**:
 ```csharp
 public struct TerrainTileDistanceToPlayer : IComponentData
 {
-    public float distance;                      // Distance in meters
-    public TerrainPhysicsLODLevel lodLevel;     // Current LOD
+    public float distance;  // Distance in meters
 }
 ```
 
 **Example**:
 ```csharp
 distance: 245.6f
-lodLevel: TerrainPhysicsLODLevel.HalfResolution
 ```
 
 **Added By**: TerrainDistanceTrackingSystem  
@@ -244,21 +239,10 @@ lodLevel: TerrainPhysicsLODLevel.HalfResolution
 
 **Purpose**: Tags tiles that need collider data preparation.
 
-**Fields**:
-```csharp
-public struct PhysicsColliderNeedsPreparation : IComponentData, IEnableableComponent
-{
-    public TerrainPhysicsLODLevel targetLOD;  // Desired LOD level
-}
-```
-
-**Example**:
-```csharp
-targetLOD: TerrainPhysicsLODLevel.HalfResolution
-```
+**Fields**: None (tag component with enable/disable)
 
 **Added By**: TerrainDistanceTrackingSystem  
-**Removed By**: TerrainColliderPreparationSystem (after preparation)  
+**Disabled By**: TerrainColliderCompleteSystem (after preparation)  
 **Enableable**: Can disable temporarily without removing
 
 ---
@@ -275,19 +259,17 @@ targetLOD: TerrainPhysicsLODLevel.HalfResolution
 ```csharp
 public struct PhysicsColliderPrepared : IComponentData
 {
-    public TerrainPhysicsLODLevel lodLevel;  // LOD of prepared data
-    public int priority;                      // Sort order (lower = first)
+    public int priority;  // Sort order (lower = first)
 }
 ```
 
 **Example**:
 ```csharp
-lodLevel: TerrainPhysicsLODLevel.FullResolution
 priority: 150 // Distance 150m, in front of camera
 ```
 
-**Added By**: TerrainColliderPreparationSystem  
-**Removed By**: TerrainPhysicsSystem (after collider created)
+**Added By**: TerrainColliderCompleteSystem  
+**Removed By**: TerrainPhysicsCompleteSystem (after BVH created)
 
 ---
 
@@ -302,7 +284,7 @@ priority: 150 // Distance 150m, in front of camera
 **Fields**: None (tag component)
 
 **Added By**: TerrainPhysicsSystem  
-**Removed By**: TerrainDistanceTrackingSystem (when LOD changes)
+**Removed By**: TerrainDistanceTrackingSystem (when tile exceeds maxColliderDistance)
 
 ---
 
@@ -514,103 +496,6 @@ playerTransform: Transform of "XR Origin Hands (XR Rig)" GameObject
 
 Components specific to the physics collider system.
 
-### TerrainPhysicsLODLevel (Enum)
-
-**File**: `TerrainPhysicsComponents.cs`  
-**Type**: Enum (byte)
-
-**Purpose**: Defines physics collider LOD levels.
-
-**Values**:
-```csharp
-public enum TerrainPhysicsLODLevel : byte
-{
-    FullResolution = 0,      // Use all vertices
-    HalfResolution = 1,      // Use every 2nd vertex
-    QuarterResolution = 2,   // Use every 4th vertex
-    NoCollider = 3           // Too far, no collider
-}
-```
-
-**Used By**: All physics systems
-
----
-
-### TerrainColliderBlob
-
-**File**: `TerrainPhysicsComponents.cs`  
-**Type**: Blob Asset (struct)
-
-**Purpose**: Stores pre-baked collider mesh data for caching.
-
-**Fields**:
-```csharp
-public struct TerrainColliderBlob
-{
-    public BlobArray<float3> vertices;    // Collider vertices
-    public BlobArray<int3> triangles;     // Collider triangles
-    public int vertexCount;               // Number of vertices
-    public int triangleCount;             // Number of triangles
-    public TerrainPhysicsLODLevel lodLevel; // LOD of this data
-}
-```
-
-**Created By**: `TerrainColliderBlob.Create()` factory method  
-**Stored In**: Collider cache (NativeHashMap)  
-**Lifetime**: Persists until cache eviction
-
----
-
-### ColliderCacheKey
-
-**File**: `TerrainPhysicsComponents.cs`  
-**Type**: Struct (implements IEquatable)
-
-**Purpose**: Key for looking up cached colliders.
-
-**Fields**:
-```csharp
-public struct ColliderCacheKey : IEquatable<ColliderCacheKey>
-{
-    public int verticesPerSide;
-    public TerrainPhysicsLODLevel lodLevel;
-    public uint noiseParamsHash;  // Hash of all noise parameters
-}
-```
-
-**Factory Method**:
-```csharp
-ColliderCacheKey key = ColliderCacheKey.FromConfig(config, lodLevel);
-```
-
-**Hash Calculation**: Combines all noise parameters into single uint
-
-**Used By**: TerrainPhysicsSystem for cache lookups
-
----
-
-### ColliderCacheEntry
-
-**File**: `TerrainPhysicsComponents.cs`  
-**Type**: Struct
-
-**Purpose**: Entry in LRU cache tracking collider usage.
-
-**Fields**:
-```csharp
-public struct ColliderCacheEntry
-{
-    public BlobAssetReference<TerrainColliderBlob> blobAsset;
-    public long lastAccessFrame;
-    public int estimatedMemoryBytes;
-}
-```
-
-**Stored In**: `NativeHashMap<ColliderCacheKey, ColliderCacheEntry>`  
-**Updated**: Every time cached collider is accessed (LRU tracking)
-
----
-
 ## Rendering Components
 
 ### MaterialMeshInfo
@@ -749,7 +634,7 @@ TerrainAnchorTagAuthoring
 - Entity must be in a SubScene to be baked
 - Base position is set at bake time from GameObject position (unless custom)
 - System updates `LocalTransform.Position` every frame: `basePosition - scrollOffset`
-- **Do NOT use for trees** - Use `TreeTileOwnership` instead
+- **Do NOT use for static objects** - Use `StaticObjectTileOwnership` instead
 - **Do NOT use for tiles** - Handled by `TileScrollPositionSystem` automatically
 
 **Performance**: 

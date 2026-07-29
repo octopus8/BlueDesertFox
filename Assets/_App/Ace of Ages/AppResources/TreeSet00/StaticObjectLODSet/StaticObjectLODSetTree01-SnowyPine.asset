@@ -1,0 +1,19 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 86bf5fcb4230ff84a8dab3ac93ce3773, type: 3}
+  m_Name: StaticObjectLODSetTree01-SnowyPine
+  m_EditorClassIdentifier: Assembly-CSharp::StaticObjectLODSet
+  name: Tree00
+  lod0: {fileID: 1790061847135392082, guid: 9ad2bd1d68eef3b4c996e795fb54cb36, type: 3}
+  lod1: {fileID: 1790061847135392082, guid: 7f99c9d073d6a314082f65101105603c, type: 3}
+  lod2: {fileID: 7576544295198489702, guid: 425e06c0d5a39894b8513c7ef902f621, type: 3}
+  lod2IsBillboard: 1

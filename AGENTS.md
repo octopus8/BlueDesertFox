@@ -1,53 +1,79 @@
 # AI Agent Guide for BlueDesertFox
 
 ## Project Overview
+
 Unity VR application combining traditional MonoBehaviour components with Unity DOTS (ECS). Uses AutoHand for VR hand interactions, custom word prediction system, and hybrid scene management via Addressables and ECS SubScenes.
 
 ## Architecture
 
 ### Hybrid Unity Architecture
+
 - **MonoBehaviour Layer**: VR interactions (AutoHand), UI, keyboard input, word prediction
 - **ECS Layer**: Performance-critical systems loaded via SubScenes (see `Assets/_App/Ace of Ages/` for DOTS systems)
 - **Scene Management**: `SceneStartup.cs` orchestrates initial setup, loading SubScenes via `SubSceneLoader` singleton and managing camera fade-ins, calls `DeviceTracking.Instance.UpdateImmediate()` after setting tracking origin
 - **UI System**: State machine pattern via `UIManager` with stack-based state management (`IUIState`, `UIState`)
 - **Input System**: Uses Unity Input System with `InputSystem.actions.FindAction("ActionName")` pattern for runtime action binding. Scenes using this pattern must include `InputSystemActionsInitializer` component to set the global `InputSystem.actions` reference, or configure Project-Wide Actions in Project Settings.
 
+
+
 ### Key Namespaces & Assembly Definitions
+
 - `Autohand` (AutoHandAssembly.asmdef): VR hand/grabbable interactions
 - `LiquidForce` (LiquidForce.asmdef): Camera fading, device tracking, object following utilities, scene loading
 - `App.StartScene`: Scene selection UI and Addressables-based scene loading (legacy pattern, coexists with UIManager)
 
+
+
 ### Singleton Pattern Usage
+
 Project relies on several Singleton patterns:
+
 - `DeviceTracking.Instance` - VR tracking origin management (LiquidForce), includes `UpdateImmediate()` for instant head follower sync
 - `CameraFader.Instance` - Screen fade transitions (LiquidForce)
 - `SubSceneLoader.Instance` - ECS SubScene loading system, extends `SystemBase` and sets `Instance` in `OnCreate()`
 - `AutoHandPlayer.Instance` - VR player controller (Autohand namespace), uses `_Instance` backing field with lazy initialization
 
+
+
 ## Critical Systems
 
+
+
 ### VR Hand Interaction (AutoHand)
+
 - **Grabbable objects**: Extend `Grabbable` class, implement `CanGrab()` for custom logic
 - **Hand component**: `Hand.cs` manages grab states, uses `GrabType` enum (InstantGrab, HandToGrabbable, GrabbableToHand)
 - **Physics-dependent**: Requires specific physics settings (see `AutoHandSetupWizard.cs` for quality presets: 50-90Hz fixedDeltaTime, solver iterations 10-30)
 - Example: `Assets/AutoHand/Scripts/Hand/Hand.cs`, `Assets/AutoHand/Scripts/Grabbable/Grabbable.cs`
 
+
+
 ### Word Prediction System
+
 Located in `Assets/Scripts/Word Prediction/`:
+
 - **N-gram based**: `NGramGenerator.cs` uses bi-gram dictionaries for next-word prediction
 - **Levenshtein autocomplete**: `Levenshtein.cs` provides spell-correction suggestions
 - **Initialization**: Dictionaries loaded from Resources at Awake(), uses corpus files for training
 - **Integration**: `TextFieldBehaviour.cs` triggers predictions on spacebar press
 - Button selection: `AutocompleteWordPicker.cs` handles word replacement in input field
 
+
+
 ### VR Keyboard
+
 Located in `Assets/Scripts/Keyboard/`:
+
 - **Key.cs**: Physical key simulation with Rigidbody-based press detection (DistanceToBePressed = 0.01f)
 - Press feedback: Color changes, sound via `KeySoundController`, constrained physics movement
 - Text input: `KeycodeAdder.cs` component handles character insertion
 
+
+
 ### Texture Blending System
+
 Located in `Assets/LiquidForce/TextureBlender/`:
+
 - **TextureBlender**: Reusable MonoBehaviour component for GPU-accelerated texture blending, removes 8-texture hard limit via Texture2DArray
 - **Performance**: Target <5ms for 4×2048² textures on RTX 3070, <2ms for cached repeat blends, <3ms for VR-optimized (1024×1024)
 - **Rotation**: Per-texture rotation (0-360°) with zero-overhead optimization when unused (cached zero arrays, 98% faster), automatic UV tiling/wrapping for seamless rotated textures, ideal for terrain variation and normal map coherence
@@ -65,22 +91,33 @@ Located in `Assets/LiquidForce/TextureBlender/`:
 - **PDF Documentation**: `TextureBlender_Architecture.pdf` in Documentation folder - comprehensive architecture guide with diagrams (generate with Pandoc+XeLaTeX)
 - Legacy: `ImageProcessorTest.cs` is deprecated (8-texture limit), marked with `[Obsolete]` attribute
 
+
+
 ### Ace of Ages Game Systems
+
 Located in `Assets/_App/Ace of Ages/`:
-- **Terrain System** (`Terrain/`): DOTS-based infinite terrain with procedural generation using multi-octave Perlin noise, parallel Burst-compiled mesh generation, LOD physics colliders with LRU caching, camera-aware prioritization, optional directional auto-scrolling, and procedural tree spawning (see `Terrain/ARCHITECTURE.md`, `Terrain/TREE_SPAWNING_SYSTEM.md`)
+
+- **Terrain System** (`Terrain/`): DOTS-based infinite terrain with procedural generation using multi-octave Perlin noise, parallel Burst-compiled mesh generation, full-resolution physics colliders with distance culling, camera-aware prioritization, optional directional auto-scrolling, and procedural static object spawning (see `Terrain/ARCHITECTURE.md`, `Terrain/STATIC_OBJECT_SPAWNING_SYSTEM.md`)
 - **Terrain Core Systems**: 
   - `PlayerTrackingInitSystem`: Finds and assigns player Transform reference at runtime (runs in `InitializationSystemGroup`), searches via `PlayerTrackingSearch` component with modes: FindByName, FindByTag, FindAutoHandPlayer, FindMainCamera
   - `ScrollTerrainSystem`: Updates `ScrollOffset` each frame in player's forward direction (XZ plane projection) when auto-scroll enabled
   - `TileSpawningSystem`: Spawns/despawns tiles in ring around player using `NativeParallelHashMap<int2, Entity>` to track active tiles, applies scroll offset to tile positions, explicitly destroys trees when tiles despawn via `SpawnedTreeReference` buffer
   - `TileScrollPositionSystem`: **OPTIMIZED (May 2026)** - Parallel Burst-compiled system using `IJobEntity` to update all existing tile positions each frame based on `ScrollOffset` (ensures smooth scrolling), optimized for Quest 3 performance with 3-5x speedup via multi-core execution (see `TILE_SCROLL_POSITION_OPTIMIZATION.md`)
-  - `TerrainDistanceTrackingSystem`: Calculates distance to player and LOD level for each tile, runs before physics system
+  - `TerrainDistanceTrackingSystem`: Calculates distance to player for each tile and manages collider lifecycle (add/remove based on `maxColliderDistance`), runs before physics system
   - `TerrainMeshGenerationSystem`: Parallel Burst jobs with `IJobParallelFor` for vertex/normal generation, camera-aware priority sorting, frame budgeting via `NativeQueue<Entity>` (processes up to `maxCollidersCreatedPerFrame` tiles/frame)
-  - `TerrainColliderPreparationSystem`: Burst-compiled job for LOD decimation (1x/2x/4x vertex stride), calculates camera-aware priority, schedules parallel jobs
-  - `TerrainPhysicsSystem`: Main-thread `MeshCollider.Create()` with LRU cache (`NativeHashMap<ColliderCacheKey, ColliderCacheEntry>`), frame budgeting, cache eviction when memory threshold exceeded
+  - `TerrainColliderScheduleSystem` / `TerrainColliderCompleteSystem`: Burst-compiled cross-frame pipeline; copies full-resolution vertex/triangle data, calculates camera-aware priority score, writes prepared buffers
+  - `TerrainPhysicsScheduleSystem` / `TerrainPhysicsCompleteSystem` / `TerrainPhysicsSystem`: Cross-frame async BVH construction on worker threads, lightweight main-thread registration, frame budgeting
   - `TerrainRenderingSystem`: Converts DynamicBuffers to Unity Mesh instances, sets up `RenderMesh` component, runs in `PresentationSystemGroup`, uses material from `TerrainMaterialReference` component (assigned via `TerrainConfigAuthoring.terrainMaterial`), falls back to Resources ("TerrainMaterial") if not assigned
-  - `TerrainTreeSpawningSystem`: Spawns tree entities on tiles after mesh rendering, uses deterministic random placement (seeded by grid coordinate) with bilinear interpolation to sample height/normals at truly random XZ positions (eliminates grid pattern), frame budgeting, height/slope filtering, random rotation/scale variation, tracks tile ownership via `TreeTileOwnership` without parent-child hierarchy for better performance
-  - `TreePositionUpdateSystem`: Burst-compiled system that updates tree positions when tiles move, uses `TreeTileOwnership` component to track which tile each tree belongs to without parent-child hierarchy overhead, runs in `TransformSystemGroup` after `TileScrollPositionSystem`
+  - `TerrainStaticObjectSpawningSystemOptimized`: Spawns static object entities (trees, turrets, decorations) on tiles after mesh rendering, uses deterministic random placement (seeded by grid coordinate) with bilinear interpolation to sample height/normals at truly random XZ positions (eliminates grid pattern), frame budgeting, slope filtering, trail exclusion, random rotation/scale variation, tracks tile ownership via `StaticObjectTileOwnership` without parent-child hierarchy for better performance
+  - `StaticObjectPositionUpdateSystem`: Burst-compiled system that updates static object positions when tiles move, uses `StaticObjectTileOwnership` component to track which tile each object belongs to without parent-child hierarchy overhead, runs in `TransformSystemGroup` after `TileScrollPositionSystem`
   - `TerrainAnchorSystem`: **OPTIMIZED (May 2026)** - Parallel Burst-compiled system using `IJobEntity` to update positions of entities with `TerrainAnchorTag` based on scroll offset, allows non-tile entities (obstacles, decorations) to move with scrolling terrain, optimized for Quest 3 performance with 3-5x speedup via multi-core execution (see `TERRAIN_ANCHOR_OPTIMIZATION.md`)
+  - `PlayerScrollVelocitySystem` / `PlayerScrollVelocityAuthoring`: Player pitch/bank drives terrain scroll direction and speed; bank angle optionally yaws a world-origin Transform via `WorldOriginTrackingInitSystem`; configurable `speed` and `rotationSpeed` in `PlayerTerrainScrollVelocityConfig`
+  - `ConstantScrollVelocitySystem` / `ConstantScrollVelocityAuthoring`: Fixed-direction scroll provider for testing/racing; writes `TerrainScrollVelocity` each frame; use instead of `PlayerScrollVelocitySystem` when player input should not drive terrain
+  - `TurretAimingSystem`: Solves ballistic intercept for turret dome; reads `PlayerTargetVelocity` (smoothed via `PlayerTargetVelocityEstimateSystem`) to predict player position; rotates dome Y-axis toward intercept point
+  - `TurretBarrelSystem`: Pitches turret barrel toward intercept point in dome-local YZ plane; configured via `TurretBarrelTag` (pitch limits, speed)
+  - `TurretShooterSystem`: Burst-fire with LOS raycast against physics world; `TurretShooterState` tracks cooldown, intra-burst delay, remaining rounds; fires from `TurretLaunchOffset` baked world position
+  - `PlayerTargetVelocityEstimateSystem`: Finite-difference velocity estimate from player position with 0.45 lerp smoothing; feeds `PlayerTargetVelocity` singleton used by `TurretAimingSystem`
+  - `CameraDataUpdateSystem`: Reads player Transform → writes `CameraDataSingleton` (position + forward) used by `TerrainColliderPreparationSystem` for camera-aware priority
 - **DOTS Systems**: ECS performance-critical systems including:
   - `TransformFollowerSystem` (`TransformFollower/`): Makes DOTS entities follow GameObject Transforms outside subscenes using managed `TransformReference` component, runs on main thread via `.Run()` (cannot use Burst/Jobs due to managed references). **OPTIMIZED VERSION AVAILABLE**: `TransformFollowerSystemOptimized` (ISystem) batches Transform reads and uses parallel Burst jobs with proper dependency chaining for 5-10x speedup - see `TRANSFORM_FOLLOWER_OPTIMIZATION_FIX.md`
   - `SplineFollowerSystem` (`Splines/`): Moves entities along Unity.Splines with formation support via Burst-compiled job, uses `SplineDataComponent` (with pre-sampled `BlobAssetReference<SplineDataBlob>`) and `FormationPosition`
@@ -88,35 +125,42 @@ Located in `Assets/_App/Ace of Ages/`:
   - `ResetEventsSystem`: Resets event flags (e.g., `doSpawn`) each frame, runs before `EnemySpawnerSystem` via `[UpdateBefore]` attribute
   - `TransformFollowerInitSystem` (`TransformFollower/`): Initializes Transform references at runtime (runs in `InitializationSystemGroup`), searches for targets via `TransformFollowerTargetSearch` component
 - **Terrain Components**:
-  - `TerrainTileConfig`: Singleton with tile size, view distance, vertices per side, noise parameters (frequency/amplitude/octaves/lacunarity/persistence), physics LOD thresholds, cache memory limit
+  - `TerrainTileConfig`: Singleton with tile size, view distance, vertices per side, noise parameters (frequency/amplitude/octaves/lacunarity/persistence), physics frame budgets and `maxColliderDistance`
   - `TerrainTile`: Grid coordinate, mesh generation flags (`meshGenerated`, `needsRegeneration`)
   - `ScrollOffset`: Singleton with `accumulatedOffset` (float3) for directional auto-scrolling (locked to XZ plane)
-  - `ScrollConfig`: Singleton with `enabled` flag and `scrollSpeed` for terrain auto-scrolling
+  - `TerrainScrollVelocity`: Singleton with `direction` (float3) and `speed` (float), written by scroll velocity providers (`PlayerScrollVelocitySystem` or `ConstantScrollVelocitySystem`), read by `ScrollTerrainSystem`
   - `PlayerTransformReference`: Managed singleton holding player Transform reference for terrain tracking
   - `PlayerTrackingSearch`: Runtime search configuration (FindByName/FindByTag/FindAutoHandPlayer/FindMainCamera modes)
-  - `TerrainTileDistanceToPlayer`: Distance to player and current `TerrainPhysicsLODLevel` (FullResolution/HalfResolution/QuarterResolution/NoCollider)
+  - `TerrainTileDistanceToPlayer`: Per-tile distance to player (float), used for collider culling and debug visualization
   - `PhysicsColliderValid`: Tag indicating collider is up-to-date and cached
-  - `TreeSpawnerConfig`: Singleton with tree density (min/max per tile), scale variation, height/slope filters, frame budget
-  - `TreePrefabElement`: Buffer element storing tree prefab entities for random selection
-  - `TreesSpawned`: Tag component indicating trees spawned on tile
-  - `SpawnedTreeReference`: Buffer element tracking spawned tree entities for cleanup
-  - `TreeTileOwnership`: Component tracking which tile owns each tree and the tree's local offset, used to update positions without parent-child hierarchy overhead
+  - `StaticObjectSpawnerConfig`: Singleton with static object density (min/max per tile), scale variation, slope filter, frame budget
+  - `StaticObjectPrefabElement`: Buffer element storing static object prefab entities for random selection
+  - `StaticObjectsSpawned`: Tag component indicating static objects spawned on tile
+  - `SpawnedStaticObjectReference`: Buffer element on tile entities tracking spawned static object entities for explicit cleanup when tile despawns
+  - `StaticObjectTileOwnership`: Component tracking which tile owns each static object and the object's local offset, used to update positions without parent-child hierarchy overhead
   - `TerrainAnchorTag`: Component marking entities that should move with terrain scroll offset, stores `basePosition` (float3) for calculating scrolled position (basePosition - scrollOffset), intended for spawned obstacles/decorations (NOT for trees or tiles)
   - DynamicBuffers: `VertexElement`, `NormalElement`, `UVElement`, `IndexElement` for mesh data; `ColliderPreparedVertexElement`, `ColliderPreparedTriangleElement` for physics data
-- **Authoring Components**: Co-located with systems in subdirectories - `TransformFollowerAuthoring`, `SplineFollowerAuthoring`, `EnemySpawnerAuthoring`, `PlayerTagAuthoring` (in `Player/`), `FormationPositionAuthoring`, `PrefabEntitiesReferencesAuthoring`, `TreeSpawnerConfigAuthoring`, `TerrainAnchorTagAuthoring` (Terrain/)
+- **Authoring Components**: Co-located with systems in subdirectories - `TransformFollowerAuthoring`, `SplineFollowerAuthoring`, `EnemySpawnerAuthoring`, `PlayerTagAuthoring` (in `Player/`), `FormationPositionAuthoring`, `PrefabEntitiesReferencesAuthoring`, `StaticObjectSpawnerConfigAuthoring`, `TerrainAnchorTagAuthoring` (Terrain/)
 - **Cross-Subscene References**: `TransformFollowerAuthoring` uses `TransformFollowerTargetSearch` component with `FindByName`, `FindByTag`, or `DirectReference` modes to locate targets at runtime, initialized by `TransformFollowerInitSystem` since `MonoBehaviour.Start()` doesn't run in baked SubScenes
 - **Managed Components**: `TransformReference` is a managed `IComponentData` class (not struct) bridging GameObject/Transform references to ECS
 - Entry point: `AceOfAges.cs` test component triggers enemy spawns after 3-second delay using EntityQuery
 
+
+
 ### Camera & Scene Transitions (LiquidForce namespace)
+
 - **CameraFader**: Creates inverted sphere mesh around camera with custom shader, uses DOTween for async fade animations
 - **DeviceTracking**: Manages VR tracking origin, provides head-following via `ObjectFollower` component, includes `UpdateImmediate()` for instant sync
 - **ObjectFollower**: Smoothly lerps transform to follow targets with configurable speed/offsets, supports multiple update timings (OnUpdate, OnFixedUpdate, OnLateUpdate, OnPreRender, OnPreCull), includes `UpdateImmediate()` to snap targets to source instantly and force re-positioning by calling internal `UpdateTargetTransforms()`
 - **SceneLoader**: Handles both Addressable and standard scene loading with camera fade coordination, supports `isAddressable` flag in `SceneListSO.SceneListScene` for mixed scene types
 - **UICamera**: Manages camera culling masks to separate UI layer rendering from main scene, toggles UI camera active state via `OnUIVisible(bool)`, used by `UIManager`
 
+
+
 ### UI State Machine System
+
 Located in `Assets/_App/Scripts/UI/`:
+
 - **UIManager**: Stack-based state machine with `PushState()`, `PopState()`, `PushModal()`, `PopModalPush()` methods for navigation
 - **IUIState**: Interface defining lifecycle methods: `OnEnter()`, `OnExit()`, `OnPushed()`, `OnModalPushed()`, `OnPopped()`
 - **UIState**: Base MonoBehaviour implementing IUIState with default GameObject activation/deactivation, includes `stateName` property for debugging
@@ -125,35 +169,53 @@ Located in `Assets/_App/Scripts/UI/`:
 - **Integration**: `UIManager` requires `ObjectFollower` component (head following), `UICamera` for camera culling management, calls `objectFollower.UpdateImmediate()` on Show() to snap UI to head position
 - Pattern: Create UIState subclasses in child GameObjects, set `startState` in Inspector to initialize UI on Start
 
+
+
 ### Scene Loading
+
 Three parallel systems:
+
 1. **Addressables** (legacy): `UI.cs` in `App.StartScene` namespace uses `Addressables.LoadSceneAsync()`, waits for camera fade before activation via coroutine
 2. **Modern Scene Loading**: `LiquidForce.SceneLoader` handles both Addressable and standard scenes, `SceneSelectUIState` uses this for scene transitions
 3. **ECS SubScenes**: `SubSceneLoader.Instance.LoadScene(subScene.SceneGUID)` via `Unity.Scenes.SceneSystem.LoadSceneAsync(World.Unmanaged, sceneGUID)`
 4. Entry point: `SceneStartup.cs` sets tracking origin with `UpdateImmediate()` call, fades camera, loads SubScenes from array via `SubSceneLoader.Instance`, then destroys itself
 
+
+
 ## Development Workflows
 
+
+
 ### Building & Testing
-- Project uses Unity 6 (6000.3.10f1) with URP 17.3.0
+
+- Project uses Unity 6 (6000.5.4f1) with URP 17.3.0
 - VR: OpenXR (1.16.1), XR Hands (1.7.3), XR Interaction Toolkit (3.3.1)
 - Entry scene: `Assets/_App/Start Scene/Start Scene.unity`
 - Test scenes: `Assets/_App/Test Scenes/` (KeyboardTest.unity, UIManager Test/)
 - Ace of Ages scene: `Assets/_App/Ace of Ages/Ace of Ages.unity` (DOTS terrain demo with subscenes)
 
+
+
 ### Adding New VR Interactable
+
 1. Add `Grabbable` component to GameObject with Rigidbody
 2. Set `HandGrabType` (Default/HandToGrabbable/GrabbableToHand)
 3. Override `CanGrab(HandBase hand)` for conditional grabbing
 4. Use events: `OnGrab(Hand hand)`, `OnRelease(Hand hand)` for custom behavior
 5. Configure physics: joint break force, parent on grab, single hand only settings
 
+
+
 ### Extending Word Prediction
+
 - Dictionaries stored in `Assets/Resources/WordPrediction/` (biGramDict.txt, levenshteinDict.txt)
 - To regenerate: Uncomment dictionary generation code in `NGramGenerator.Awake()`, provide corpus in Resources as "Sample" TextAsset
 - UI labels: Set `ButtonLabels` array in Inspector to TextMeshPro text components for predictions
 
+
+
 ### Building UI State Machines
+
 1. Create new UIState subclass extending `UIState` MonoBehaviour
 2. Override lifecycle methods: `OnEnter()` (show), `OnExit()` (hide), `OnPushed()` (paused by new state), `OnPopped()` (resumed)
 3. Assign `uiManager` reference in Inspector
@@ -161,83 +223,118 @@ Three parallel systems:
 5. Use `uiManager.PushModal(modalState)` for overlays that don't hide previous state
 6. Example: `Assets/_App/Scripts/UI/Scene Select/` contains scene selection state implementation
 
+
+
 ### Async Operations
+
 - Uses **UniTask** (Cysharp.UniTask) for async/await in Unity
 - DOTween integration: `.WithCancellation(token)` extension for cancellable animations
 - Pattern: Store `CancellationTokenSource[]` arrays, cancel/dispose on state changes (see `UI.cs` or `UIManager.cs` for reference)
 
+
+
 ### Working with Terrain System
+
 Located in `Assets/_App/Ace of Ages/Terrain/`:
 
 **Configuration** (`TerrainConfigAuthoring`):
+
 - Set player search mode: AutoDetect/FindByName/FindByTag/FindAutoHandPlayer/FindMainCamera
 - Tile settings: `tileSize` (100m), `viewDistance` (500m), `verticesPerSide` (32)
 - Auto-scroll: Enable via `scrollEnabled`, set `scrollSpeed` (5.0 m/s), scrolls in player's facing direction (XZ plane)
 - Noise params: `noiseFrequency` (0.01), `noiseAmplitude` (20), `noiseOctaves` (4), `noiseLacunarity` (2.0), `noisePersistence` (0.5)
-- Physics LOD: `maxCollidersCreatedPerFrame` (3), distance thresholds for LOD levels, `maxColliderCacheMemoryMB` (50)
+- Physics: `maxCollidersCreatedPerFrame` (6), `maxPhysicsCollidersCreatedPerFrame` (4), `maxColliderDistance` (450m)
 
 **Debugging Tools**:
-- `TerrainTrackingDebugger`: Attach to any GameObject, use context menu "Check Tracking Status" to verify player reference, shows GUI overlay in play mode
-- Editor window: Window → Terrain → Status Inspector (checks material, URP config, entity counts)
-- Profiler markers: `TerrainMesh.Generation`, `TerrainPhysics.ColliderCreation`, `TerrainMesh.PrioritySort` (monitor to ensure <5ms per frame)
+
+- Editor window: **Window → Terrain → Status Inspector** (material, URP, play-mode tile counts, player tracking)
+- `StaticObjectCleanupDebugSystem`: Automatic `LogWarning` when orphaned static objects detected after tile despawn
+- Console: production systems emit warnings/errors only (no success-path spam); filter `[PlayerTracking`, `[Terrain`, `[StaticObjectCleanup`
+- Profiler markers: `TerrainMesh.Generation`, `TerrainPhysics.ColliderCreation`, `TerrainMesh.PrioritySort`, `TreeLOD.*` (monitor to ensure <5ms per frame)
+- See `Assets/_App/Ace of Ages/Terrain/Documentation/DEBUG_TOOLS.md` for full diagnostic guide
 
 **Performance Tuning**:
+
 - High-end VR (RTX 4080+): Set `maxCollidersCreatedPerFrame` to 5-8
 - Mid-range VR (RTX 3070): Keep at 3-4
 - Low-end VR (Quest 2): Set to 1-2
-- Increase `verticesPerSide` for more detail (32→64), reduces physics LOD decimation effectiveness
+- Increase `verticesPerSide` for more detail (32→64), increases collider triangle count proportionally
 - Material can be assigned in `TerrainConfigAuthoring.terrainMaterial` (recommended) or loaded from Resources as "TerrainMaterial" (URP/Lit shader recommended)
 
 **Zero-GC Pattern for ECS**:
+
 - Use `SystemAPI.Query<>().WithEntityAccess()` for direct iteration (no `ToEntityArray()`)
 - Collect entities in `NativeList<Entity>(Allocator.Temp)` when structural changes needed
 - Phase 1: Collect entities during query iteration (no AddComponent/RemoveComponent calls)
 - Phase 2: Process collected entities after iteration completes (structural changes allowed)
 - Always dispose temp collections: `nativeList.Dispose()`
 
+
+
 ## Project-Specific Conventions
 
+
+
 ### Component Initialization Order
+
 - ECS systems: `SubSceneLoader` extends `SystemBase` and sets `Instance` in `OnCreate()`
 - AutoHand: Uses explicit `[DefaultExecutionOrder(10)]` for Hand, `[-100]` for Grabbable
 - Singletons initialize in Awake(), register Instance, check for duplicates and Destroy if found
 - `SceneStartup` destroys its own GameObject after fade-in completes
 
+
+
 ### ScriptableObject Configuration
+
 - `SceneListSO`: Two versions exist:
   - `LiquidForce.SceneListSO`: Uses `sceneDisplayName`, `isAddressable` flag, `scenePath`, `AssetReference scene` - supports mixed Addressable/standard scenes
   - Root namespace version (legacy): Uses only `sceneName` and `AssetReference scene` for Addressables only
 - `AutoHandSettings`: Stores setup wizard config, loaded from Resources ("AutoHandSettings")
 - Pattern: Create via Assets menu (`[CreateAssetMenu]` attribute), assign in Inspector
 
+
+
 ### Layer Usage
+
 - "UI" layer: Used for CameraFader sphere and UI elements, UICamera culls "UI" and "Hand" layers together
 - "Hand" layer: AutoHand sets hand colliders recursively to left/right hand layers, UICamera includes in culling mask
 - AutoHand layers: "Grabbable", "Grabbing", "HandPlayer" - see `AutoHandSetupWizard.cs` for layer collision matrix setup
 - **Terrain layers**: "Terrain" (close/full-resolution tiles), "TerrainLowDetail" (distant/half-quarter-resolution tiles) - use `Tools/Terrain/Setup Physics Layers` to configure
 - Physics interactions expect default layer setup, AutoHand uses layer masks extensively
 
+
+
 ### Namespace Organization
+
 - Global namespace: Utilities, keyboard, word prediction (legacy code), UIManager/UIState system, DOTS components/systems
 - `Autohand`: All VR hand interaction code
 - `LiquidForce`: Custom utilities (camera, tracking, following, scene loading)
 - `App.StartScene`: Legacy scene selection UI (coexists with modern `SceneSelectUIState`)
 
+
+
 ### Code Style Notes
+
 - Singletons use `static Instance` property with private set, initialized in `Awake()` or `OnCreate()` for ECS systems
 - Async methods return `UniTask` or `IEnumerator` for coroutines
 - Heavy use of `?.` null-conditional operators for null safety
 - SerializeField with `[field: SerializeField]` property syntax in newer code (auto-properties)
 - DOTS components in global namespace (no assembly definitions for custom ECS code)
 
+
+
 ## External Dependencies
+
 - **UniTask**: Async/await replacement for Unity coroutines
 - **DOTween**: Animation tweening library (fadeCameraIn/Out, UI show/hide)
 - **AutoHand**: Third-party VR interaction framework (Assets/AutoHand/)
 - **NaughtyAttributes**: Custom inspector attributes (within AutoHand)
 - **TextMeshPro**: Text rendering (Unity package)
 
+
+
 ## Common Pitfalls
+
 - Physics timestep critical for AutoHand: Don't modify `Time.fixedDeltaTime` without checking AutoHandSettings
 - CameraFader requires "LiquidForce/CameraFader" shader in Resources
 - SubScenes must be added to `SceneStartup.subScenes[]` array to load at startup
@@ -250,7 +347,7 @@ Located in `Assets/_App/Ace of Ages/Terrain/`:
 - `ObjectFollower.UpdateImmediate()` forces instant snap without smoothing - call after Show()/position changes to prevent UI from being visible during transition
 - DOTS `TransformFollowerAuthoring` must be on entities inside SubScenes - runtime init won't work for non-baked entities
 - `TransformFollowerSystem` uses `.Run()` instead of `.Schedule()` because it accesses managed Transform references (Burst incompatible). For better performance, use `TransformFollowerSystemOptimized` (ISystem) which batches Transform reads and uses `.ScheduleParallel(state.Dependency)` for parallel execution with proper dependency chaining - critical for Quest 3 VR
-- **TransformFollowerSystemOptimized**: MUST use `state.Dependency = job.ScheduleParallel(state.Dependency)` to chain dependencies, otherwise rendering systems (like `GlobalTreeInstanceSystem`) will read stale positions causing frustum culling failures. See `TRANSFORM_FOLLOWER_OPTIMIZATION_FIX.md` for details
+- **TransformFollowerSystemOptimized**: MUST use `state.Dependency = job.ScheduleParallel(state.Dependency)` to chain dependencies, otherwise rendering systems (like `StaticObjectLODUpdateSystem`) will read stale positions causing frustum culling failures. See `TRANSFORM_FOLLOWER_OPTIMIZATION_FIX.md` for details
 - `SplineDataComponent` stores pre-sampled spline data as BlobAsset - configure `sampleCount` in `SplineComponentAuthoring` for accuracy vs memory tradeoff
 - **Terrain System**: Floating origin system removed - player should stay within ~1000-2000m of world origin for best float precision
 - **Zero-GC Pattern**: Never use `query.ToEntityArray()` - use direct iteration with `SystemAPI.Query<>().WithEntityAccess()` or collect in `NativeList<Entity>` to avoid managed allocations
@@ -261,3 +358,5 @@ Located in `Assets/_App/Ace of Ages/Terrain/`:
 - **Formation Movement**: `FormationMovementSystem` integrates with terrain scroll velocity - entities compensate for scrolling during approach/exit phases to maintain correct world positions
 - **Movement Phase Transitions**: Threshold-based state machine - entities automatically progress through phases based on distance checks, no manual state management required
 - **EnemySpawner Positioning**: Spawn point calculated perpendicular to spline start (Z-axis direction), using player position for off-camera placement
+- **Static Object LOD Weights**: `StaticObjectLODWeights` buffer determines initial LOD spawn distribution per object type - weights normalized to sum to 1.0 during baking, used for weighted random selection at spawn time (separate from distance-based runtime LOD transitions)
+

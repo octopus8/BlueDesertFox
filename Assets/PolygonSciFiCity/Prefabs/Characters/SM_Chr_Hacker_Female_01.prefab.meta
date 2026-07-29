@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: e2f409743d4b5fd4ba77bbac6b2ce12c
+timeCreated: 1545087913
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 100100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 115950
+  packageName: POLYGON - Sci-Fi City Pack - Art by Synty
+  packageVersion: 1.3.2
+  assetPath: Assets/PolygonSciFiCity/Prefabs/Characters/SM_Chr_Hacker_Female_01.prefab
+  uploadId: 939484

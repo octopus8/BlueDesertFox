@@ -3,14 +3,14 @@ guid: 5cc29b9da6314754c842813c042dbfc7
 timeCreated: 1585526555
 licenseType: Store
 NativeFormatImporter:
-  mainObjectFileID: 11400000
+  mainObjectFileID: 43723099105169272
   userData: 
   assetBundleName: 
   assetBundleVariant: 
 AssetOrigin:
   serializedVersion: 1
   productId: 138857
-  packageName: POLYGON Sci-Fi Space - Low Poly 3D Art by Synty
-  packageVersion: 1.13.1
+  packageName: POLYGON - Sci-Fi Space Pack - Art by Synty
+  packageVersion: 1.14.0
   assetPath: Assets/PolygonSciFiSpace/Models/Collision/Convex/SM_Prop_Medical_Cart_02_Convex.asset
-  uploadId: 737404
+  uploadId: 915402

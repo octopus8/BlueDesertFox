@@ -3,14 +3,14 @@ guid: adf36b7c5d7e066499e2e233902f21d4
 timeCreated: 1580692119
 licenseType: Store
 NativeFormatImporter:
-  mainObjectFileID: 11400000
+  mainObjectFileID: 43234189397369796
   userData: 
   assetBundleName: 
   assetBundleVariant: 
 AssetOrigin:
   serializedVersion: 1
   productId: 115950
-  packageName: POLYGON Sci-Fi City - Low Poly 3D Art by Synty
-  packageVersion: 1.2.4
+  packageName: POLYGON - Sci-Fi City Pack - Art by Synty
+  packageVersion: 1.3.2
   assetPath: Assets/PolygonSciFiCity/Models/ConvexCollision/SM_Prop_Hologram_Pizza_01_Convex.asset
-  uploadId: 756032
+  uploadId: 939484

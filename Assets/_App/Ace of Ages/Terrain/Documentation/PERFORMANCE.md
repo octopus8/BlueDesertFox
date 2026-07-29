@@ -24,12 +24,13 @@ For immediate performance improvements:
 
 ### VR Optimization (90fps)
 ```
-✅ Vertices Per Side: 16-24 (not 32+)
+✅ Vertices Per Side: 48 OK with low BVH budget (Ace of Ages full-res)
 ✅ View Distance: 300-400m (not 500m+)
 ✅ Noise Octaves: 3-4 (not 5+)
-✅ Max Colliders Per Frame: 2-3
-✅ LOD Full Res Distance: 100m
-✅ Use Physics LOD Layers: ✅
+✅ Max Colliders Created Per Frame: 4-6 (mesh generation)
+✅ Max Physics Colliders Per Frame: 1-2 (BVH batch — critical on Quest)
+✅ Max Collider Distance: 220-400m
+✅ Max Collider Cache Memory: 32-53 MB
 ```
 
 ### Desktop Optimization (60fps)
@@ -37,8 +38,9 @@ For immediate performance improvements:
 ✅ Vertices Per Side: 32-48
 ✅ View Distance: 500-800m
 ✅ Noise Octaves: 4-5
-✅ Max Colliders Per Frame: 5-10
-✅ LOD Full Res Distance: 150m
+✅ Max Colliders Created Per Frame: 8-12
+✅ Max Physics Colliders Per Frame: 6-8
+✅ Max Collider Distance: 500-600m
 ```
 
 ---
@@ -56,15 +58,22 @@ Move player to trigger tile spawning
 ```
 
 **Check These Markers**:
-- `TerrainMesh.Generation` - Mesh generation time
-- `TerrainPhysics.ColliderCreation` - Collider creation time
-- `TerrainPhysics.LRUEviction` - Cache eviction time
+- `TerrainMesh.Schedule` / `TerrainMesh.Complete` - Mesh generation scheduling and buffer copy
+- `TerrainMesh.TrailLUTBuild` - Per-tile trail centerline LUT build (Editor only)
+- `TerrainMesh.TrailInfluence` - LUT-based trail height blending per vertex (Editor only)
+- `TerrainMesh.BaseNoise` - Base terrain octave noise per vertex (Editor only)
+- `TerrainPhysics.BvhSchedule` / `TerrainPhysics.BvhComplete` - BVH construction time
+- `BuildTerrainMeshColliderJob` - Per-tile MeshCollider.Create on worker threads
+- `StaticObjectSpawner.Instantiation` - Static object ECB instantiation batch
+- `EndSimulationEntityCommandBufferSystem` - Deferred structural changes playback (spawn + chunk assign)
 - CPU markers for overall frame time
 
 **Typical Bottlenecks**:
 1. **TerrainMesh.Generation > 10ms**: Too many vertices or octaves
-2. **TerrainPhysics.ColliderCreation > 10ms**: Frame budget too high
-3. **GPU time > CPU time**: Too many tiles or vertices rendering
+2. **TerrainPhysics.BvhComplete > 8ms**: `maxPhysicsCollidersCreatedPerFrame` too high for 48×48 tiles on Quest — lower to 1-2
+3. **BuildTerrainMeshColliderJob long tail**: Multiple parallel BVHs in one batch — reduce physics budget
+4. **EntityCommandBuffer.Playback > 2ms**: Static object spawn/despawn budget too high for density, or SubScene prefabs not re-baked after component baking changes
+5. **GPU time > CPU time**: Too many tiles or vertices rendering
 
 ---
 
@@ -92,27 +101,34 @@ Max Colliders Per Frame: 5 (was 3)
 Impact: Faster completion, may cause brief spikes
 ```
 
+**Tune Trail LUT Step** (when three trails are enabled):
+```
+Trail LUT Step Meters: 1.0 (default)
+Impact: Lower values (0.5) sharpen blend edges but increase LUT build cost;
+        higher values (2.0) reduce LUT samples with softer trail shoulders.
+```
+
+**Disable unused trails**:
+```
+Trail 2/3 Enabled: false
+Impact: Skips LUT build and influence lookup for disabled trails entirely.
+```
+
 ---
 
 #### If Collider Creation is Slow
 
 **Reduce Collider Budget** (trade speed for smoothness):
 ```
-Max Colliders Per Frame: 2 (was 3)
-Impact: Slower completion, smoother frames
+Max Physics Colliders Per Frame: 1 (was 2-6)
+Impact: Slower first-time collider completion, bounded frame spikes on Quest
 ```
 
-**Optimize LOD Distances**:
+**Reduce collider coverage**:
 ```
-Full Res Distance: 100m (was 150m)
-Half Res Distance: 250m (was 300m)
-Impact: More tiles use cheaper LOD levels
-```
-
-**Increase Cache Memory**:
-```
-Max Collider Cache Memory: 100MB (was 50MB)
-Impact: Better cache hit rate, less creation
+Max Collider Distance: 200m (was 450m)
+Vertices Per Side: 24 (was 32)
+Impact: Fewer tiles with colliders, lower triangle count
 ```
 
 ---
@@ -210,6 +226,16 @@ Sample noise at lower resolution, interpolate between samples
 Advanced technique, requires code modification
 ```
 
+**Method D**: Trail centerline LUT (implemented)
+```
+Trail LUT Step Meters: 1.0 on TerrainConfigAuthoring
+Impact: Replaces per-vertex 48-sample snoise search with one LUT build per tile
+        (~900 snoise/tile vs ~330k with three trails at 48×48 vertices).
+Tiles outside trail corridors skip LUT build and trail influence entirely.
+Height/mesh/normals jobs run in parallel (batch size 64) even when maxCollidersCreatedPerFrame = 1;
+        halo heights eliminate edge re-sampling in the normals pass.
+```
+
 ---
 
 ### Strategy 4: Optimize Frame Budgets
@@ -235,33 +261,31 @@ int budget = (Application.targetFrameRate >= 90) ? 3 : 10;
 
 ---
 
-### Strategy 5: Physics LOD Aggressiveness
+### Strategy 5: Physics Distance Culling
 
-**Method**: Push LOD transitions closer to player
+**Method**: Reduce `maxColliderDistance` to limit how many tiles have colliders
 
-**Aggressive LOD** (maximum performance):
+**Aggressive culling** (maximum performance):
 ```
-Full Res Distance: 50m
-Half Res Distance: 150m
-Quarter Res Distance: 300m
+Max Collider Distance: 150m
+Vertices Per Side: 24
 
-Result: Most tiles use cheap quarter-res colliders
-```
-
-**Conservative LOD** (maximum quality):
-```
-Full Res Distance: 250m
-Half Res Distance: 400m
-Quarter Res Distance: 450m
-
-Result: Most tiles use expensive full-res colliders
+Result: Fewer tiles with colliders, lower triangle count
 ```
 
-**Balanced LOD** (recommended):
+**Conservative culling** (maximum coverage):
 ```
-Full Res Distance: 150m
-Half Res Distance: 300m
-Quarter Res Distance: 450m
+Max Collider Distance: 600m
+Vertices Per Side: 48
+
+Result: More tiles with full-resolution colliders
+```
+
+**Balanced** (recommended for VR):
+```
+Max Collider Distance: 300-450m
+Vertices Per Side: 32
+Max Physics Colliders Per Frame: 4
 ```
 
 ---
@@ -416,15 +440,7 @@ if (distance > config.viewDistance * 1.5f)
 
 ## Build Optimization
 
-### Strip Debug Code
-
-**Remove** from build:
-```
-- TerrainTrackingDebugger
-- TerrainTileGizmoVisualizer
-- TerrainRenderingDebugSystem
-- All #if UNITY_EDITOR blocks (automatic)
-```
+Runtime debug visualizers and verbose logging were removed from source. Editor-only profiler markers and `#if UNITY_EDITOR` blocks are stripped automatically in release builds.
 
 ### Build Settings
 
@@ -554,12 +570,9 @@ Noise Octaves: 3
 Noise Lacunarity: 2.0
 Noise Persistence: 0.4
 
-Max Colliders Per Frame: 2
-Full Res Distance: 75
-Half Res Distance: 150
-Quarter Res Distance: 250
-Max Collider Cache: 25MB
-Use Physics LOD Layers: ✅
+Max Colliders Created Per Frame: 4
+Max Physics Colliders Per Frame: 3
+Max Collider Distance: 250m
 
 Scroll Enabled: ✅ (if needed)
 Scroll Speed: 8.0
@@ -587,12 +600,9 @@ Noise Octaves: 4
 Noise Lacunarity: 2.0
 Noise Persistence: 0.5
 
-Max Colliders Per Frame: 3
-Full Res Distance: 125
-Half Res Distance: 275
-Quarter Res Distance: 375
-Max Collider Cache: 50MB
-Use Physics LOD Layers: ✅
+Max Colliders Created Per Frame: 3
+Max Physics Colliders Per Frame: 3
+Max Collider Distance: 250m
 
 Scroll Enabled: ✅
 Scroll Speed: 10.0
@@ -620,12 +630,9 @@ Noise Octaves: 5
 Noise Lacunarity: 2.0
 Noise Persistence: 0.6
 
-Max Colliders Per Frame: 8
-Full Res Distance: 200
-Half Res Distance: 400
-Quarter Res Distance: 550
-Max Collider Cache: 100MB
-Use Physics LOD Layers: ❌
+Max Colliders Created Per Frame: 8
+Max Physics Colliders Per Frame: 6
+Max Collider Distance: 550m
 
 Scroll Enabled: ✅
 Scroll Speed: 15.0
@@ -653,12 +660,9 @@ Noise Octaves: 7
 Noise Lacunarity: 2.2
 Noise Persistence: 0.65
 
-Max Colliders Per Frame: 15
-Full Res Distance: 300
-Half Res Distance: 600
-Quarter Res Distance: 900
-Max Collider Cache: 200MB
-Use Physics LOD Layers: ❌
+Max Colliders Created Per Frame: 12
+Max Physics Colliders Per Frame: 8
+Max Collider Distance: 900m
 ```
 
 **Expected Performance**:

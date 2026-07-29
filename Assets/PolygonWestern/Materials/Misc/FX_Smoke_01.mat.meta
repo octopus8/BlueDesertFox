@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: a4f58d8796a56864aa0bc09bc29e3679
+timeCreated: 1519247307
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 112212
+  packageName: POLYGON - Western Pack - Art by Synty
+  packageVersion: 1.2.1
+  assetPath: Assets/PolygonWestern/Materials/Misc/FX_Smoke_01.mat
+  uploadId: 924224

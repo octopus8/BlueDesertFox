@@ -1,5 +1,6 @@
 using Unity.Entities;
 using Unity.Mathematics;
+using Unity.Physics;
 using UnityEngine;
 
 /// <summary>
@@ -15,47 +16,170 @@ public struct TerrainTileConfig : IComponentData
     
     /// <summary>Number of vertices per side of each tile (e.g., 32 = 32x32 grid).</summary>
     public int verticesPerSide;
+
+    /// <summary>Constant terrain grade along world +Z in degrees. Positive = uphill as Z increases.</summary>
+    public float slopeAngleDegrees;
+
+    /// <summary>Per-tile grade variation in degrees subtracted from <see cref="slopeAngleDegrees"/>. 0 = uniform grade.</summary>
+    public float slopeAngleVariation;
+
+    /// <summary>Meters of blend zone centered on each tile Z-boundary where adjacent tile grades crossfade.</summary>
+    public float slopeVariationBlendDistance;
     
-    // Noise parameters for procedural generation
+    /// <summary>Base frequency of the Perlin noise used for height generation (e.g. 0.01). Higher values = smaller terrain features.</summary>
     public float noiseFrequency;
+    /// <summary>Maximum height amplitude in world units (e.g. 20). Scales the full noise range to this height.</summary>
     public float noiseAmplitude;
+    /// <summary>Number of fractal octaves summed for the noise (e.g. 4). More octaves add fine detail but cost CPU.</summary>
     public int noiseOctaves;
+    /// <summary>Frequency multiplier between successive noise octaves (e.g. 2.0). Controls how quickly higher octaves add finer detail.</summary>
     public float noiseLacunarity;
+    /// <summary>Amplitude reduction factor between successive noise octaves (e.g. 0.5). Values &lt; 1 make higher octaves progressively quieter.</summary>
     public float noisePersistence;
+
+    /// <summary>
+    /// Frequency of the low-frequency continental mask noise (e.g. 0.0008). Controls the scale
+    /// of flat-plains versus mountain regions. Lower values produce larger continental features.
+    /// </summary>
+    public float continentalFrequency;
+    /// <summary>
+    /// Power exponent applied to the continental mask (e.g. 2.5). Values greater than 1 push
+    /// more of the map toward flat plains, while values near 1 produce uniform highlands.
+    /// </summary>
+    public float continentalExponent;
+
+    /// <summary>
+    /// Vertical shift applied to all sampled terrain heights so the surface under the player
+    /// at init matches their feet. Set once by <see cref="TerrainHeightAlignSystem"/>.
+    /// </summary>
+    public float heightOffset;
+
+    /// <summary>
+    /// Extra Y shift baked from authoring and added on top of player-feet align at init.
+    /// Negative values lower the terrain (e.g. -5 = surface 5m below feet).
+    /// </summary>
+    public float initYOffset;
     
     // Physics optimization parameters
-    /// <summary>Maximum number of physics colliders created per frame (prevents stalls).</summary>
+    /// <summary>Maximum number of terrain meshes generated per frame (prevents stalls).</summary>
     public int maxCollidersCreatedPerFrame;
+
+    /// <summary>Maximum number of physics colliders created per frame (main-thread MeshCollider.Create budget).</summary>
+    public int maxPhysicsCollidersCreatedPerFrame;
     
-    /// <summary>Distance threshold for full-resolution colliders (all vertices).</summary>
-    public float lodFullResolutionDistance;
+    /// <summary>Distance threshold beyond which colliders are removed completely.</summary>
+    public float maxColliderDistance;
     
-    /// <summary>Distance threshold for half-resolution colliders (every 2nd vertex).</summary>
-    public float lodHalfResolutionDistance;
-    
-    /// <summary>Distance threshold for quarter-resolution colliders (every 4th vertex).</summary>
-    public float lodQuarterResolutionDistance;
-    
-    /// <summary>Maximum memory in megabytes for collider cache (LRU eviction when exceeded).</summary>
+    /// <summary>Maximum memory in megabytes for the grid-coordinate collider blob LRU cache.</summary>
     public int maxColliderCacheMemoryMB;
     
-    /// <summary>Whether to assign distant tiles to low-detail physics layer.</summary>
-    public bool usePhysicsLODLayers;
-    
-    /// <summary>Physics layer index for close terrain (full resolution).</summary>
-    public int closeTerrainPhysicsLayer;
-    
-    /// <summary>Physics layer index for low-detail terrain (half/quarter resolution).</summary>
-    public int lowDetailPhysicsLayer;
+    /// <summary>Physics layer index for terrain colliders.</summary>
+    public int terrainPhysicsLayer;
+
+    /// <summary>Unity Physics material applied when creating terrain mesh colliders.</summary>
+    public Unity.Physics.Material terrainColliderMaterial;
     
     /// <summary>Whether to render terrain tiles (disable for tree-only testing).</summary>
     public bool renderTerrain;
     
     /// <summary>Whether to generate physics colliders for terrain tiles (disable for debugging/performance testing).</summary>
     public bool enablePhysicsColliders;
-    
-    /// <summary>Whether to enable TerrainRenderingDebugSystem logging (disable to reduce console spam).</summary>
-    public bool enableRenderingDebug;
+}
+
+/// <summary>
+/// Singleton flag set by <see cref="TerrainHeightAlignSystem"/> once the one-shot vertical
+/// height offset has been computed from the player's start position.
+/// Mesh generation and tile spawning wait until <see cref="aligned"/> is non-zero.
+/// </summary>
+public struct TerrainHeightAlignState : IComponentData
+{
+    /// <summary>1 when <see cref="TerrainTileConfig.heightOffset"/> has been initialized; 0 otherwise.</summary>
+    public byte aligned;
+}
+
+/// <summary>
+/// Per-trail settings. Height is shared across all trails on <see cref="TrailConfig"/>.
+/// Path origin / straight-run live on <see cref="TrailPathConfig"/>.
+/// After the shared straight run, each trail weaves via
+/// centerX(Z) = startX + amplitude * fade(Z) * (snoise(Z) - snoise(edgeZ)),
+/// guaranteeing the path always advances in the +Z direction (cannot turn past 90°).
+/// Trail cross-section is level (ski-trail style): grade uses world +Z at the nearest centerline sample.
+/// </summary>
+public struct TrailInstanceConfig
+{
+    /// <summary>Whether this trail is active.</summary>
+    public bool enabled;
+
+    /// <summary>Width of the fully-flat portion of the trail in world units.</summary>
+    public float width;
+
+    /// <summary>Width of the smooth blend zone on each side of the flat portion, in world units.</summary>
+    public float blendWidth;
+
+    /// <summary>Noise offset / random seed. Different values produce different weave patterns.</summary>
+    public float seed;
+
+    /// <summary>How rapidly the trail weaves along the Z axis. Higher values = tighter turns.</summary>
+    public float frequency;
+
+    /// <summary>Maximum left/right deviation of the trail centerline in world units.</summary>
+    public float amplitude;
+}
+
+/// <summary>
+/// Singleton configuration for up to three procedural winding trails carved flat into the terrain.
+/// All trails share a single Y height value; each trail has its own shape parameters via
+/// <see cref="TrailInstanceConfig"/>. Where trails overlap the maximum carve influence wins.
+/// Shared start / straight-run path settings live on <see cref="TrailPathConfig"/>.
+/// </summary>
+public struct TrailConfig : IComponentData
+{
+    /// <summary>Y height of all flat trail surfaces in world units (shared by trail1/2/3).</summary>
+    public float height;
+
+    /// <summary>
+    /// Spacing in meters between centerline LUT samples used for mesh generation and spawn exclusion.
+    /// Lower values sharpen blend edges; higher values reduce LUT build cost.
+    /// </summary>
+    public float lutStepMeters;
+
+    public TrailInstanceConfig trail1;
+    public TrailInstanceConfig trail2;
+    public TrailInstanceConfig trail3;
+}
+
+/// <summary>
+/// Shared trail path origin and straight-run settings (separate from <see cref="TrailConfig"/>
+/// so existing baked trail instance layouts stay stable).
+/// </summary>
+public struct TrailPathConfig : IComponentData
+{
+    /// <summary>Shared world X where all trails meet at the start.</summary>
+    public float startX;
+
+    /// <summary>World Z where the shared straight run is centered.</summary>
+    public float startZ;
+
+    /// <summary>
+    /// Distance in meters from <see cref="startZ"/> (both +Z and −Z) where all trails stay
+    /// locked to <see cref="startX"/> before weaving begins.
+    /// </summary>
+    public float straightLength;
+
+    /// <summary>
+    /// Distance in meters over which weave amplitude fades in after the straight run.
+    /// Zero applies full amplitude immediately (still continuous because fade starts at 0).
+    /// </summary>
+    public float weaveFadeLength;
+
+    /// <summary>
+    /// 0 = start XZ not yet snapped to the player; 1 = aligned.
+    /// When <see cref="snapStartToPlayer"/> is set, a startup system writes player content XZ here.
+    /// </summary>
+    public byte startAligned;
+
+    /// <summary>1 = snap <see cref="startX"/>/<see cref="startZ"/> to the player once at startup.</summary>
+    public byte snapStartToPlayer;
 }
 
 /// <summary>
@@ -78,6 +202,7 @@ public struct TerrainTile : IComponentData
 /// </summary>
 public struct VertexElement : IBufferElementData
 {
+    /// <summary>World-space (or tile-local) position of this vertex.</summary>
     public float3 value;
 }
 
@@ -86,6 +211,7 @@ public struct VertexElement : IBufferElementData
 /// </summary>
 public struct NormalElement : IBufferElementData
 {
+    /// <summary>Normalized surface normal for this vertex, used for lighting calculations.</summary>
     public float3 value;
 }
 
@@ -94,6 +220,7 @@ public struct NormalElement : IBufferElementData
 /// </summary>
 public struct UVElement : IBufferElementData
 {
+    /// <summary>Texture UV coordinate (0–1 range) for this vertex.</summary>
     public float2 value;
 }
 
@@ -102,6 +229,7 @@ public struct UVElement : IBufferElementData
 /// </summary>
 public struct IndexElement : IBufferElementData
 {
+    /// <summary>Index into the vertex buffer identifying one corner of a triangle.</summary>
     public int value;
 }
 
@@ -127,6 +255,21 @@ public class PlayerTransformReference : IComponentData
 }
 
 /// <summary>
+/// Smoothed world-space horizontal velocity of the player for ballistic intercept (turrets etc.).
+/// Updated by <see cref="PlayerTargetVelocityEstimateSystem"/> from finite differences on
+/// <see cref="PlayerTransformReference"/>.
+/// </summary>
+public struct PlayerTargetVelocity : IComponentData
+{
+    /// <summary>Smoothed velocity on XZ (world units/sec); Y kept at 0.</summary>
+    public float3 horizontal;
+    /// <summary>Player world position sampled on the previous frame, used to compute finite-difference velocity.</summary>
+    public float3 lastWorldPosition;
+    /// <summary>Whether <see cref="lastWorldPosition"/> has been populated from at least one prior frame.</summary>
+    public bool hasPrevious;
+}
+
+/// <summary>
 /// Component that stores search parameters for finding the player GameObject at runtime.
 /// This is baked into the entity so it can find the target after subscenes load.
 /// </summary>
@@ -136,8 +279,7 @@ public struct PlayerTrackingSearch : IComponentData
     {
         FindByName = 0,
         FindByTag = 1,
-        FindAutoHandPlayer = 2,
-        FindMainCamera = 3
+        FindMainCamera = 2
     }
     
     /// <summary>
@@ -158,14 +300,15 @@ public struct PlayerTrackingSearch : IComponentData
 
 /// <summary>
 /// Singleton component that tracks accumulated terrain scroll distance.
-/// Used for auto-scrolling terrain in the direction the player is facing (XZ plane).
+/// Used for auto-scrolling terrain in the direction the player is facing (XZ plane)
+/// and for pitch-driven vertical scroll (Y axis).
 /// </summary>
 public struct ScrollOffset : IComponentData
 {
     /// <summary>
-    /// Total distance the terrain has scrolled as a directional vector (locked to XZ plane, Y=0).
+    /// Total distance the terrain has scrolled as a directional vector.
+    /// XZ components come from horizontal scroll; Y from pitch-driven vertical scroll.
     /// This offset is subtracted from tile positions to create the scrolling effect.
-    /// Direction is determined by the player's forward direction projected onto the XZ plane.
     /// </summary>
     public float3 accumulatedOffset;
 }
@@ -177,14 +320,23 @@ public struct ScrollOffset : IComponentData
 public struct TerrainScrollVelocity : IComponentData
 {
     /// <summary>
-    /// Normalized direction vector for scrolling (expected to be pre-normalized by provider system).
+    /// Normalized direction vector for horizontal scrolling (expected to be pre-normalized by provider system).
     /// </summary>
     public float3 direction;
     
     /// <summary>
-    /// Speed of scrolling in units per second. Set to 0 to disable scrolling.
+    /// Horizontal scroll speed in units per second. Set to 0 to disable horizontal scrolling.
     /// </summary>
     public float speed;
+
+    /// <summary>
+    /// Vertical scroll speed in units per second (positive = terrain moves down in world space).
+    /// Driven by player pitch when using <see cref="PlayerScrollVelocitySystem"/>.
+    /// </summary>
+    public float verticalSpeed;
+
+    /// <summary>Combined world-space terrain velocity (horizontal + vertical).</summary>
+    public readonly float3 WorldVelocity => direction * speed + new float3(0f, verticalSpeed, 0f);
 }
 
 /// <summary>
@@ -204,23 +356,6 @@ public struct PlayerTerrainScrollVelocityConfig : IComponentData
     /// Higher values make the scroll direction rotate faster toward the world origin direction.
     /// </summary>
     public float rotationSpeed;
-    
-    /// <summary>
-    /// Vertical movement speed in units per second at maximum pitch (90 degrees up/down).
-    /// The actual vertical speed scales proportionally with the player's pitch angle.
-    /// Positive values: looking up moves world origin upward, looking down moves it downward.
-    /// </summary>
-    public float verticalSpeed;
-    
-    /// <summary>
-    /// Minimum Y position for the world origin (prevents moving too far down).
-    /// </summary>
-    public float minVerticalPosition;
-    
-    /// <summary>
-    /// Maximum Y position for the world origin (prevents moving too far up).
-    /// </summary>
-    public float maxVerticalPosition;
 }
 
 /// <summary>
@@ -278,80 +413,103 @@ public class TerrainMaterialReference : IComponentData
 }
 
 /// <summary>
-/// Singleton component that configures tree spawning on terrain tiles.
+/// Singleton component that configures static object spawning on terrain tiles.
 /// </summary>
-public struct TreeSpawnerConfig : IComponentData
+public struct StaticObjectSpawnerConfig : IComponentData
 {
-    /// <summary>Minimum number of trees to spawn per tile.</summary>
-    public int minTreesPerTile;
+    /// <summary>Random seed offset added to tile grid coordinates for deterministic placement.</summary>
+    public int randomSeed;
+
+    /// <summary>Minimum number of Objects to spawn per tile.</summary>
+    public int minObjectsPerTile;
     
-    /// <summary>Maximum number of trees to spawn per tile.</summary>
-    public int maxTreesPerTile;
+    /// <summary>Maximum number of Objects to spawn per tile.</summary>
+    public int maxObjectsPerTile;
+
+    /// <summary>Spawn acceptance multiplier at trail center (0 = none, 1 = same as open terrain). Blend zone interpolates to 1.0.</summary>
+    public float trailSpawnDensityMultiplier;
     
-    /// <summary>Minimum height (Y coordinate) for tree spawning.</summary>
-    public float minSpawnHeight;
-    
-    /// <summary>Maximum height (Y coordinate) for tree spawning.</summary>
-    public float maxSpawnHeight;
-    
-    /// <summary>Pre-calculated slope threshold (cosine of max slope angle) for filtering steep terrain.</summary>
-    public float slopeThreshold;
-    
-    /// <summary>Maximum number of trees to spawn per frame (performance budgeting).</summary>
-    public int maxTreesSpawnedPerFrame;
-    
-    /// <summary>Enable debug logging for tree spawner system.</summary>
-    public bool enableSpawnerDebug;
+    /// <summary>Maximum number of Objects to spawn per frame (performance budgeting).</summary>
+    public int maxObjectsSpawnedPerFrame;
+
+    /// <summary>Maximum objects to spawn per frame for tiles within LOD0 distance (near-field burst budget).</summary>
+    public int maxNearObjectsSpawnedPerFrame;
+
+    /// <summary>Maximum spawn-position rejection attempts per frame (spread across active tiles).</summary>
+    public int maxPositionCalcAttemptsPerFrame;
 }
 
 /// <summary>
-/// Buffer element that stores a reference to a tree prefab entity for random selection.
+/// Buffer element that stores a reference to a object prefab entity for random selection.
 /// </summary>
-public struct TreePrefabElement : IBufferElementData
+public struct StaticObjectPrefabElement : IBufferElementData
 {
-    /// <summary>The entity prefab to instantiate for this tree type.</summary>
+    /// <summary>The entity prefab to instantiate for this object type.</summary>
     public Entity prefabEntity;
 }
 
-/// <summary>
-/// Managed component that stores mesh and material references for all tree prefabs.
-/// Used during tree spawning to assign GlobalTreeInstanceData without runtime lookups.
-/// Must be a class (not struct) to hold managed Unity object references.
-/// Singleton component stored on the same entity as TreeSpawnerConfig.
-/// </summary>
-public class TreePrefabMeshMaterialData : IComponentData
-{
-    /// <summary>Array of meshes, one per tree prefab (same index as TreePrefabElement buffer).</summary>
-    public Mesh[] meshes;
-    
-    /// <summary>Array of materials, one per tree prefab (same index as TreePrefabElement buffer).</summary>
-    public Material[] materials;
-}
 
 /// <summary>
-/// Tag component indicating that trees have been spawned for this tile.
+/// Tag component indicating that static objects have been spawned for this tile.
 /// </summary>
-public struct TreesSpawned : IComponentData
+public struct StaticObjectsSpawned : IComponentData
 {
 }
 
 /// <summary>
-/// Temporary buffer element storing calculated tree spawn data for deferred instantiation.
-/// Calculated by Burst job, consumed by ECB-based instantiation job, then cleared same frame.
+/// Tracks partial static object instantiation progress on a tile.
+/// Present while <see cref="StaticObjectSpawnPosition"/> entries remain to be instantiated.
 /// </summary>
-public struct TreeSpawnPosition : IBufferElementData
+public struct StaticObjectSpawnProgress : IComponentData
+{
+    /// <summary>Next index in <see cref="StaticObjectSpawnPosition"/> buffer to instantiate.</summary>
+    public int nextSpawnIndex;
+}
+
+/// <summary>
+/// Tracks incremental spawn-position calculation on a tile across frames.
+/// Removed when all positions are calculated and instantiation begins or completes.
+/// </summary>
+public struct StaticObjectPositionCalcProgress : IComponentData
+{
+    /// <summary>Deterministic target object count for this tile.</summary>
+    public int targetCount;
+
+    /// <summary>Accepted spawn positions written so far.</summary>
+    public int acceptedCount;
+
+    /// <summary>Total rejection-sampling attempts consumed.</summary>
+    public int attempts;
+
+    /// <summary>Persisted RNG state for deterministic cross-frame continuation (0 = uninitialized).</summary>
+    public uint randomState;
+}
+
+/// <summary>
+/// Marks a terrain tile scheduled for budgeted despawn. Static objects are destroyed over multiple
+/// frames before the tile entity itself is destroyed.
+/// </summary>
+public struct PendingTileDespawn : IComponentData
+{
+}
+
+/// <summary>
+/// Temporary buffer element storing calculated static object spawn data for deferred instantiation.
+/// Calculated by Burst job, consumed incrementally by ECB-based instantiation, then cleared when complete.
+/// </summary>
+public struct StaticObjectSpawnPosition : IBufferElementData
 {
     /// <summary>Position relative to tile origin (tile-local space).</summary>
     public float3 localPosition;
     
-    /// <summary>World-space position for the tree.</summary>
+    /// <summary>World-space position for the object.</summary>
     public float3 worldPosition;
     
     /// <summary>Random Y-axis rotation for visual variety.</summary>
     public quaternion rotation;
     
-    /// <summary>Tree type index (0 to N-1 where N is number of tree types).</summary>
-    public int treeTypeIndex;
+    /// <summary>Object type index (0 to N-1 where N is number of object types).</summary>
+    public int objectTypeIndex;
     
     /// <summary>Initial LOD level based on distance to camera (0=LOD0, 1=LOD1, 2=LOD2).</summary>
     public byte initialLODLevel;
@@ -359,72 +517,84 @@ public struct TreeSpawnPosition : IBufferElementData
     /// <summary>Initial distance to player/camera for LOD calculation.</summary>
     public float initialDistance;
     
-    /// <summary>Initial mesh index based on tree type and LOD level.</summary>
+    /// <summary>Initial mesh index based on object type and LOD level.</summary>
     public int initialMeshIndex;
+    
+    /// <summary>Uniform scale for this instance (prefab base scale plus random delta).</summary>
+    public float scale;
 }
 
 /// <summary>
-/// Buffer element that stores references to trees spawned on this tile for cleanup.
+/// Buffer element that stores references to static objects spawned on this tile for cleanup.
 /// </summary>
-public struct SpawnedTreeReference : IBufferElementData
+public struct SpawnedStaticObjectReference : IBufferElementData
 {
-    /// <summary>The entity of a tree spawned on this tile.</summary>
-    public Entity treeEntity;
+    /// <summary>The entity of a static object spawned on this tile.</summary>
+    public Entity objectEntity;
 }
 
 /// <summary>
-/// Component that tracks which terrain tile a tree belongs to and its local offset.
-/// Used to update tree positions when tiles move, without using parent-child hierarchy.
+/// Component that tracks which terrain tile a static object belongs to and its local offset.
+/// Used to update object positions when tiles move, without using parent-child hierarchy.
 /// </summary>
-public struct TreeTileOwnership : IComponentData
+public struct StaticObjectTileOwnership : IComponentData
 {
-    /// <summary>The terrain tile entity this tree belongs to.</summary>
+    /// <summary>The terrain tile entity this object belongs to.</summary>
     public Entity tileEntity;
     
     /// <summary>Local position offset from tile origin (relative to tile's position).</summary>
     public float3 localOffset;
+
+    /// <summary>World-space Y rotation baked at spawn (reapplied each frame when tiles scroll).</summary>
+    public quaternion localRotation;
 }
 
 /// <summary>
-/// Tag component marking a tree entity for global instance rendering.
-/// Trees with this tag are rendered via Graphics.DrawMeshInstanced instead of individual ECS rendering.
-/// This dramatically reduces draw calls by batching trees with the same mesh/material.
+/// Tag component marking a static object entity as part of the static object system.
+/// Root entities with this tag are rendered via Entities.Graphics (BRG) using their MaterialMeshInfo component.
 /// </summary>
-public struct GlobalTreeInstance : IComponentData
+public struct GlobalStaticObjectInstance : IComponentData
 {
 }
 
 /// <summary>
-/// Unmanaged component storing indices for global tree instance rendering.
-/// Uses indices instead of direct references for Burst compatibility and better performance.
-/// References the GlobalTreeRenderingData singleton to resolve actual mesh/material.
+/// One-frame marker after ECB instantiate: stripped render components must be applied to all
+/// entities in LinkedEntityGroup once instantiation has played back (parallel ECB cannot enumerate children beforehand).
 /// </summary>
-public struct GlobalTreeInstanceData : IComponentData
+public struct PendingStaticObjectRendererStrip : IComponentData
 {
-    /// <summary>Index into the GlobalTreeRenderingData.meshes array.</summary>
-    public int meshIndex;
-    
-    /// <summary>Index into the GlobalTreeRenderingData.materials array.</summary>
-    public int materialIndex;
-    
-    /// <summary>Index of the tree prefab in the TreePrefabElement buffer (for debugging).</summary>
+}
+
+/// <summary>
+/// Unmanaged component storing LOD state for static object instance rendering.
+/// The actual mesh/material is stored in the entity's MaterialMeshInfo component (Entities.Graphics).
+/// </summary>
+public struct GlobalStaticObjectInstanceData : IComponentData
+{
+    /// <summary>Index of the object prefab in the StaticObjectPrefabElement buffer (for debugging).</summary>
     public int prefabIndex;
     
-    /// <summary>Tree type index (0 to N-1 where N is number of tree types). Used to calculate LOD mesh indices.</summary>
-    public int treeTypeIndex;
+    /// <summary>Object type index (0 to N-1 where N is number of object types). Used to calculate LOD mesh indices.</summary>
+    public int objectTypeIndex;
     
     /// <summary>Current LOD level (0=highest detail, 2=lowest detail).</summary>
     public byte currentLODLevel;
     
     /// <summary>Last calculated distance to player (used for LOD hysteresis).</summary>
     public float lastDistanceToPlayer;
+    
+    /// <summary>When true, LOD2 is a camera-facing billboard that should rotate to face the camera each frame.</summary>
+    public bool isBillboardType;
+    
+    /// <summary>Spawn scale relative to LOD0 prefab (base scale plus random delta).</summary>
+    public float spawnScale;
 }
 
 /// <summary>
-/// Singleton configuration for tree mesh LOD system.
+/// Singleton configuration for static object mesh LOD system.
 /// Controls distance-based LOD switching with hysteresis to prevent flickering.
 /// </summary>
-public struct TreeLODConfig : IComponentData
+public struct StaticObjectLODConfig : IComponentData
 {
     /// <summary>Distance threshold for LOD0->LOD1 transition (meters).</summary>
     public float lod0Distance;
@@ -432,31 +602,19 @@ public struct TreeLODConfig : IComponentData
     /// <summary>Distance threshold for LOD1->LOD2 transition (meters).</summary>
     public float lod1Distance;
     
-    /// <summary>Distance beyond which trees use LOD2 (meters).</summary>
+    /// <summary>Distance beyond which objects use LOD2 (meters).</summary>
     public float lod2Distance;
     
     /// <summary>Hysteresis buffer to prevent LOD flickering (meters). Adds/subtracts from thresholds.</summary>
     public float hysteresisDelta;
     
-    /// <summary>Number of LOD levels per tree type (hardcoded to 3).</summary>
-    public int lodsPerTreeType;
+    /// <summary>Number of LOD levels per object type (hardcoded to 3).</summary>
+    public int lodsPerObjectType;
     
     /// <summary>Maximum number of spatial chunks to update per frame for LOD calculations.</summary>
     public int maxChunksUpdatedPerFrame;
     
-    /// <summary>Whether to enable tree LOD and spawning debug logging (disable to reduce console spam).</summary>
-    public bool enableTreeLODDebug;
-    
-    /// <summary>Enable distance-based culling for tree rendering (trees beyond maxTreeRenderDistance won't render).</summary>
-    public bool enableDistanceCulling;
-    
-    /// <summary>Maximum distance to render trees in meters. Trees beyond this distance are culled (not rendered). Quest 3 recommended: 300-500m.</summary>
-    public float maxTreeRenderDistance;
-    
     // QUEST 3 VR OPTIMIZATIONS
-    
-    /// <summary>Maximum number of unique mesh/material batch combinations. Default: 32. Increase if seeing capacity warnings.</summary>
-    public int maxUniqueBatches;
     
     /// <summary>Frame skip interval when player velocity exceeds threshold during terrain scrolling. Default: 4 (update every 4th frame). Quest 3 recommended: 3-4.</summary>
     public int vrFrameSkipScrolling;
@@ -466,27 +624,118 @@ public struct TreeLODConfig : IComponentData
 }
 
 /// <summary>
-/// Component tracking which spatial chunk a tree belongs to for efficient LOD updates.
+/// Component tracking which spatial chunk a static object belongs to for efficient LOD updates.
 /// Chunks are 100m x 100m grid cells used to batch LOD update calculations.
 /// </summary>
-public struct TreeChunkMembership : IComponentData
+public struct StaticObjectChunkMembership : IComponentData
 {
     /// <summary>2D chunk coordinate (X, Z grid position).</summary>
     public int2 chunkCoord;
 }
 
 /// <summary>
-/// Singleton managed component that stores mesh and material arrays for all tree types.
-/// This allows thousands of tree entities to reference these arrays via indices,
-/// dramatically reducing managed component lookups and enabling Burst compilation.
-/// Stored on the same entity as TreeSpawnerConfig.
+/// Buffer element storing the pre-registered MaterialMeshInfo for each LOD slot.
+/// Index = objectTypeIndex * lodsPerObjectType + lodLevel.
+/// Populated at world startup by StaticObjectLODMeshInfoInitSystem from baked prefab entities.
+/// Used by the LOD update and spawning systems to switch mesh/material via Entities.Graphics.
 /// </summary>
-public class GlobalTreeRenderingData : IComponentData
+public struct StaticObjectLODMaterialMeshInfoElement : IBufferElementData
 {
-    /// <summary>Array of unique meshes used by tree prefabs.</summary>
-    public Mesh[] meshes;
-    
-    /// <summary>Array of unique materials used by tree prefabs.</summary>
-    public Material[] materials;
+    public Unity.Rendering.MaterialMeshInfo materialMeshInfo;
 }
+
+/// <summary>
+/// Per-LOD-prefab render bounds lookup (same index order as StaticObjectLODMaterialMeshInfoElement).
+/// </summary>
+public struct StaticObjectLODRenderBoundsElement : IBufferElementData
+{
+    public Unity.Mathematics.AABB bounds;
+}
+
+/// <summary>
+/// Conservative max render bounds per object type (union of all LOD prefab bounds).
+/// Used at spawn time so frustum culling is safe before the first LOD pass runs.
+/// </summary>
+public struct StaticObjectTypeMaxRenderBoundsElement : IBufferElementData
+{
+    public Unity.Mathematics.AABB bounds;
+}
+
+/// <summary>
+/// Tag component placed on the config entity once StaticObjectLODMeshInfoInitSystem has finished
+/// populating the StaticObjectLODMaterialMeshInfoElement buffer.
+/// Systems that need the LOD MaterialMeshInfo lookup table gate on this tag.
+/// </summary>
+public struct StaticObjectLODMeshInfoReady : IComponentData
+{
+}
+
+/// <summary>
+/// Buffer element that stores normalized spawn weight for each object type.
+/// Determines the probability distribution for selecting which object type to spawn.
+/// Weights are normalized to sum to 1.0 during baking.
+/// </summary>
+public struct StaticObjectTypeSpawnWeight : IBufferElementData
+{
+    /// <summary>Object type index (0 to N-1 where N is number of object types).</summary>
+    public int objectTypeIndex;
+    
+    /// <summary>Normalized spawn probability for this object type. Range [0.0, 1.0].</summary>
+    public float weight;
+}
+
+/// <summary>
+/// Buffer element storing per-object-type billboard flag, indexed by objectTypeIndex.
+/// Populated at bake time by <see cref="StaticObjectSpawnerConfigAuthoring.Baker"/>.
+/// When true, LOD2 for that object type is a camera-facing billboard.
+/// </summary>
+public struct StaticObjectBillboardTypeElement : IBufferElementData
+{
+    /// <summary>When true, LOD2 for this object type rotates to face the camera each frame.</summary>
+    public bool isBillboard;
+}
+
+/// <summary>
+/// Per-object-type slope filter thresholds baked from entry min/max slope degrees.
+/// Indexed by objectTypeIndex. Cosine of angle from vertical (flat ≈ 1, cliff ≈ 0).
+/// Accept spawn when minSlopeThreshold &lt;= normal.y &lt;= maxSlopeThreshold.
+/// </summary>
+public struct StaticObjectTypeSlopeElement : IBufferElementData
+{
+    /// <summary>Cosine of maxSlopeDegrees — reject steeper slopes (normal.y below this).</summary>
+    public float minSlopeThreshold;
+
+    /// <summary>Cosine of minSlopeDegrees — reject flatter slopes (normal.y above this).</summary>
+    public float maxSlopeThreshold;
+}
+
+/// <summary>
+/// Per-object-type scale configuration baked from LOD0 prefab transform and entry maxScaleDelta.
+/// Indexed by objectTypeIndex.
+/// </summary>
+public struct StaticObjectTypeScaleElement : IBufferElementData
+{
+    /// <summary>Base uniform scale from LOD0 prefab (max axis of lossyScale).</summary>
+    public float baseScale;
+    
+    /// <summary>Maximum random scale offset applied per instance (+/- this value).</summary>
+    public float maxScaleDelta;
+    
+    /// <summary>LOD1 display scale multiplier relative to LOD0 prefab scale.</summary>
+    public float lod1ScaleMultiplier;
+    
+    /// <summary>LOD2 display scale multiplier relative to LOD0 prefab scale.</summary>
+    public float lod2ScaleMultiplier;
+    
+    /// <summary>Returns display scale multiplier for the given LOD level relative to LOD0 spawn scale.</summary>
+    public float GetLodScaleMultiplier(byte lodLevel)
+    {
+        if (lodLevel == 1)
+            return lod1ScaleMultiplier;
+        if (lodLevel == 2)
+            return lod2ScaleMultiplier;
+        return 1f;
+    }
+}
+
 

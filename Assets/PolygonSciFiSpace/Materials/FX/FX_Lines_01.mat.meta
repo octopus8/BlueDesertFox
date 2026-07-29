@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: d704ca4e23f9413686918dfa37880332
+timeCreated: 1549333968
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: -1
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 138857
+  packageName: POLYGON - Sci-Fi Space Pack - Art by Synty
+  packageVersion: 1.14.0
+  assetPath: Assets/PolygonSciFiSpace/Materials/FX/FX_Lines_01.mat
+  uploadId: 915402

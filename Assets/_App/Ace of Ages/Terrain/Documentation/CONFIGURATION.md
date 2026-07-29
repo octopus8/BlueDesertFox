@@ -15,23 +15,25 @@ The terrain system is configured via the `TerrainConfigAuthoring` MonoBehaviour 
 Controls how the terrain system finds and tracks the player GameObject.
 
 #### Player Search Mode
+
 **Type**: Enum  
 **Default**: `AutoDetect`  
 **Options**:
-- `AutoDetect` - Try AutoHandPlayer, fallback to Main Camera
+
+- `AutoDetect` - Use Camera.main (zero configuration)
 - `FindByName` - Search by GameObject name
 - `FindByTag` - Search by GameObject tag
-- `FindAutoHandPlayer` - Find AutoHandPlayer component
-- `FindMainCamera` - Use Camera.main
+- `FindMainCamera` - Use Camera.main explicitly
 
 **When to use each:**
-- **AutoDetect**: Best for most cases, tries VR player then camera
-- **FindByName**: Use when player has specific name (e.g., "XR Origin Hands (XR Rig)")
-- **FindByTag**: Use when player tagged (e.g., "Player" tag)
-- **FindAutoHandPlayer**: VR projects using Autohand package
-- **FindMainCamera**: Simple projects where camera represents player position
+
+- **AutoDetect**: Best for most cases, uses main camera
+- **FindByName**: Use when player has a specific name (e.g., "XR Origin Hands (XR Rig)")
+- **FindByTag**: Use when player is tagged (e.g., "Player" tag)
+- **FindMainCamera**: Equivalent to AutoDetect but explicit
 
 #### Player Name
+
 **Type**: String  
 **Default**: `"XR Origin Hands (XR Rig)"`  
 **Used When**: Player Search Mode = FindByName
@@ -39,6 +41,7 @@ Controls how the terrain system finds and tracks the player GameObject.
 **Example**: If your VR rig GameObject is named "MyVRPlayer", enter that here.
 
 #### Player Tag
+
 **Type**: String  
 **Default**: `"Player"`  
 **Used When**: Player Search Mode = FindByTag
@@ -52,6 +55,7 @@ Controls how the terrain system finds and tracks the player GameObject.
 Controls the size and density of terrain tiles.
 
 #### Tile Size
+
 **Type**: Float  
 **Default**: `100`  
 **Units**: Meters  
@@ -60,15 +64,18 @@ Controls the size and density of terrain tiles.
 Size of each square terrain tile. Smaller tiles = more tiles for same view distance.
 
 **Performance Impact**:
+
 - Smaller tiles: More entities, more spawning overhead
 - Larger tiles: Larger meshes, more generation time per tile
 
 **Recommended Values**:
+
 - VR: 100m (balanced)
 - Desktop: 100-200m
 - Mobile: 50-100m
 
 #### View Distance
+
 **Type**: Float  
 **Default**: `500`  
 **Units**: Meters  
@@ -79,6 +86,7 @@ Distance from player that tiles remain active. Circular culling area.
 **Tile Count Formula**: Approximately `(viewDistance / tileSize)²` tiles
 
 **Examples**:
+
 - View Distance 300m, Tile Size 100m: ~9 tiles
 - View Distance 500m, Tile Size 100m: ~25 tiles
 - View Distance 1000m, Tile Size 100m: ~100 tiles
@@ -86,11 +94,13 @@ Distance from player that tiles remain active. Circular culling area.
 **Performance Impact**: Quadratic scaling! Doubling view distance = 4× tiles.
 
 **Recommended Values**:
+
 - VR High Performance: 300m
 - VR Balanced: 500m
 - Desktop: 800m+
 
 #### Vertices Per Side
+
 **Type**: Int  
 **Default**: `32`  
 **Range**: 2 - 256
@@ -98,6 +108,7 @@ Distance from player that tiles remain active. Circular culling area.
 Number of vertices along each edge of the tile mesh. Total vertices = `verticesPerSide²`
 
 **Examples**:
+
 - 16 vertices per side = 256 total vertices
 - 32 vertices per side = 1024 total vertices
 - 64 vertices per side = 4096 total vertices
@@ -105,6 +116,7 @@ Number of vertices along each edge of the tile mesh. Total vertices = `verticesP
 **Performance Impact**: Quadratic scaling! Affects mesh generation, rendering, and physics.
 
 **Recommended Values**:
+
 - VR High Performance: 16
 - VR Balanced: 32
 - Desktop High Quality: 64
@@ -117,18 +129,21 @@ Number of vertices along each edge of the tile mesh. Total vertices = `verticesP
 Controls automatic terrain scrolling for endless runner gameplay.
 
 #### Scroll Enabled
+
 **Type**: Bool  
 **Default**: `false`
 
 Enable/disable automatic terrain scrolling. When enabled, terrain scrolls in the direction the player is facing (XZ plane projection).
 
 **How it works**:
+
 - Player GameObject stays fixed in world space
 - Terrain tiles physically move backward relative to scroll direction
 - Tiles spawn ahead, despawn behind
 - Creates endless runner effect without moving player (no VR motion sickness)
 
 #### Scroll Speed
+
 **Type**: Float  
 **Default**: `5.0`  
 **Units**: Meters per second  
@@ -137,6 +152,7 @@ Enable/disable automatic terrain scrolling. When enabled, terrain scrolls in the
 Speed of terrain scrolling. Positive values scroll forward (in player's facing direction).
 
 **Examples**:
+
 - `5.0` - Walking speed (5 m/s = 18 km/h)
 - `10.0` - Running speed (10 m/s = 36 km/h)
 - `30.0` - Vehicle speed (30 m/s = 108 km/h)
@@ -153,6 +169,7 @@ Speed of terrain scrolling. Positive values scroll forward (in player's facing d
 Controls the appearance of terrain using multi-octave Perlin noise.
 
 #### Noise Frequency
+
 **Type**: Float  
 **Default**: `0.01`  
 **Range**: 0.0001 - 1.0
@@ -160,12 +177,14 @@ Controls the appearance of terrain using multi-octave Perlin noise.
 Base frequency of noise sampling. Lower = smoother/larger features, higher = rougher/smaller features.
 
 **Examples**:
+
 - `0.001` - Very smooth, rolling hills
 - `0.01` - Default, natural terrain
 - `0.05` - Rough, mountainous
 - `0.1` - Very rough, rocky
 
 #### Noise Amplitude
+
 **Type**: Float  
 **Default**: `20`  
 **Units**: Meters  
@@ -174,12 +193,14 @@ Base frequency of noise sampling. Lower = smoother/larger features, higher = rou
 Maximum height variation of terrain features. This is the height range from lowest to highest points.
 
 **Examples**:
+
 - `5` - Gentle hills
 - `20` - Default, moderate terrain
 - `50` - Mountainous
 - `100` - Extreme mountains
 
 #### Noise Octaves
+
 **Type**: Int  
 **Default**: `4`  
 **Range**: 1 - 8
@@ -187,6 +208,7 @@ Maximum height variation of terrain features. This is the height range from lowe
 Number of noise layers combined. More octaves = more detail at different scales.
 
 **Examples**:
+
 - `1` - Single noise layer, very smooth
 - `4` - Default, good balance of large and small features
 - `8` - Maximum detail, expensive
@@ -194,6 +216,7 @@ Number of noise layers combined. More octaves = more detail at different scales.
 **Performance Impact**: Linear - each octave adds one noise sample per vertex.
 
 #### Noise Lacunarity
+
 **Type**: Float  
 **Default**: `2.0`  
 **Range**: 1.0 - 4.0
@@ -203,10 +226,12 @@ Frequency multiplier for each octave. Controls how quickly detail increases.
 **Formula**: `frequency[octave] = baseFrequency × lacunarity^octave`
 
 **Examples**:
+
 - `2.0` - Default, each octave doubles frequency
 - `3.0` - Each octave triples frequency (more high-frequency detail)
 
 #### Noise Persistence
+
 **Type**: Float  
 **Default**: `0.5`  
 **Range**: 0.0 - 1.0
@@ -216,6 +241,7 @@ Amplitude multiplier for each octave. Controls how much each detail layer contri
 **Formula**: `amplitude[octave] = baseAmplitude × persistence^octave`
 
 **Examples**:
+
 - `0.5` - Default, each octave contributes half
 - `0.3` - Less detail contribution (smoother)
 - `0.7` - More detail contribution (rougher)
@@ -226,105 +252,60 @@ Amplitude multiplier for each octave. Controls how much each detail layer contri
 
 ### Physics Optimization
 
-Controls physics collider creation and LOD behavior.
+Controls physics collider creation, distance culling, and frame budgeting. All in-range tiles use full-resolution collider geometry matching the rendered mesh.
 
-#### Max Colliders Per Frame
+#### Max Colliders Created Per Frame
+
 **Type**: Int  
-**Default**: `3`  
-**Range**: 1 - 10
+**Default**: `6`  
+**Range**: 1 - 20
 
-Maximum number of physics colliders created per frame. Higher = faster collider creation but potential frame spikes.
-
-**Performance Impact**: Each collider creation takes ~2-5ms on main thread.
+Maximum number of Burst mesh-prep jobs submitted per frame. Shared with mesh generation budgeting.
 
 **Recommended Values**:
-- VR: 3 (ensures <15ms budget)
-- Desktop: 5-10 (more headroom)
 
-#### LOD Full Resolution Distance
-**Type**: Float  
-**Default**: `150`  
-**Units**: Meters  
-**Range**: 0 - View Distance
+- VR: 4–6
+- Desktop: 8–12
 
-Distance threshold for full-resolution colliders. Tiles closer than this use all vertices for physics.
+#### Max Physics Colliders Created Per Frame
 
-**Example**: At 150m, a 32×32 tile uses all 1024 vertices for collider.
+**Type**: Int  
+**Default**: `4`  
+**Range**: 1 - 8
 
-#### LOD Half Resolution Distance
-**Type**: Float  
-**Default**: `300`  
-**Units**: Meters  
-**Range**: Full Resolution Distance - View Distance
+Maximum number of BVH `MeshCollider.Create` calls per frame. The effective budget is `min(maxCollidersCreatedPerFrame, maxPhysicsCollidersCreatedPerFrame)`.
 
-Distance threshold for half-resolution colliders. Tiles between this and full resolution distance use every 2nd vertex.
+**Recommended Values**:
 
-**Example**: At 300m, a 32×32 tile uses only 16×16 = 256 vertices (75% reduction).
+- VR: 3–4 (ensures stable frame times)
+- Desktop: 6–8
 
-#### LOD Quarter Resolution Distance
+#### Max Collider Distance
+
 **Type**: Float  
 **Default**: `450`  
-**Units**: Meters  
-**Range**: Half Resolution Distance - View Distance
+**Units**: Meters
 
-Distance threshold for quarter-resolution colliders. Tiles beyond this use every 4th vertex.
+Distance beyond which terrain colliders are removed completely. Tiles within this distance receive full-resolution colliders.
 
-**Example**: At 450m, a 32×32 tile uses only 8×8 = 64 vertices (93.75% reduction).
+**Example**: At 450m, tiles beyond this threshold have no physics collider.
 
-**Note**: Tiles beyond this distance have no collider at all.
+#### Terrain Physics Layer
 
-#### Max Collider Cache Memory (MB)
-**Type**: Int  
-**Default**: `50`  
-**Units**: Megabytes  
-**Range**: 10 - 200
-
-Maximum memory for cached collider BlobAssets. When exceeded, least recently used colliders are evicted.
-
-**Memory Estimation**:
-- Full resolution (32×32): ~50KB per collider
-- Half resolution (16×16): ~12KB per collider
-- Quarter resolution (8×8): ~3KB per collider
-
-**Recommended Values**:
-- VR: 50MB (1000 full-res or 4000 quarter-res colliders)
-- Desktop: 100MB (more caching capacity)
-
-#### Use Physics LOD Layers
-**Type**: Bool  
-**Default**: `true`
-
-Assign distant tiles (half/quarter resolution) to separate physics layer. Allows you to configure collision matrix to ignore low-detail terrain.
-
-**Use Case**: Player should only collide with high-detail nearby terrain, not distant low-res tiles.
-
-#### Close Terrain Physics Layer
 **Type**: Int (Layer Dropdown)  
 **Default**: `0`  
 **Range**: 0 - 31
 
-Physics layer index for close terrain tiles (full resolution).
+Physics layer index for all terrain colliders.
 
-**Inspector**: Displays as a dropdown menu showing all available Unity layers.
-
-**Recommended**: Select "Terrain" layer from the dropdown. Use the menu item `Tools/Terrain/Setup Physics Layers` to automatically create and configure both layers.
-
-#### Low Detail Physics Layer
-**Type**: Int (Layer Dropdown)  
-**Default**: `0`  
-**Range**: 0 - 31
-
-Physics layer index for low-detail terrain tiles (half/quarter resolution).
-
-**Inspector**: Displays as a dropdown menu showing all available Unity layers.
-
-**Recommended**: Select "TerrainLowDetail" layer from the dropdown. Use the menu item `Tools/Terrain/Setup Physics Layers` to automatically create and configure both layers.
+**Recommended**: Select "Terrain" layer from the dropdown. Use `Tools/Terrain/Setup Physics Layer` to configure the collision matrix.
 
 ---
 
 ## Configuration Presets
 
 ### Preset 1: VR High Performance
+
 **Target**: 90fps on Quest 2
 
 ```
@@ -334,13 +315,13 @@ Vertices Per Side: 16
 Noise Frequency: 0.01
 Noise Amplitude: 20
 Noise Octaves: 3
-Max Colliders Per Frame: 5
-Full Res Distance: 100
-Half Res Distance: 200
-Quarter Res Distance: 300
+Max Colliders Created Per Frame: 5
+Max Physics Colliders Per Frame: 3
+Max Collider Distance: 300m
 ```
 
 ### Preset 2: VR Balanced
+
 **Target**: 90fps on PC VR (Index, Quest 3)
 
 ```
@@ -350,13 +331,13 @@ Vertices Per Side: 32
 Noise Frequency: 0.01
 Noise Amplitude: 20
 Noise Octaves: 4
-Max Colliders Per Frame: 3
-Full Res Distance: 150
-Half Res Distance: 300
-Quarter Res Distance: 450
+Max Colliders Created Per Frame: 6
+Max Physics Colliders Per Frame: 4
+Max Collider Distance: 450m
 ```
 
 ### Preset 3: Desktop High Quality
+
 **Target**: 60fps on desktop PC
 
 ```
@@ -366,13 +347,13 @@ Vertices Per Side: 64
 Noise Frequency: 0.01
 Noise Amplitude: 50
 Noise Octaves: 6
-Max Colliders Per Frame: 10
-Full Res Distance: 200
-Half Res Distance: 400
-Quarter Res Distance: 600
+Max Colliders Created Per Frame: 10
+Max Physics Colliders Per Frame: 8
+Max Collider Distance: 600m
 ```
 
 ### Preset 4: Endless Runner VR
+
 **Target**: Scrolling VR game
 
 ```
@@ -384,7 +365,9 @@ Scroll Speed: 10.0
 Noise Frequency: 0.015
 Noise Amplitude: 15
 Noise Octaves: 4
-Max Colliders Per Frame: 5
+Max Colliders Created Per Frame: 5
+Max Physics Colliders Per Frame: 4
+Max Collider Distance: 450m
 ```
 
 ## Runtime Configuration
@@ -447,6 +430,7 @@ offsetQuery.Dispose();
 The following validation occurs in `OnValidate()`:
 
 ### Automatic Corrections
+
 - `tileSize` - Clamped to minimum 1.0
 - `viewDistance` - Clamped to minimum `tileSize`
 - `verticesPerSide` - Clamped to minimum 2
@@ -455,24 +439,28 @@ The following validation occurs in `OnValidate()`:
 - `noiseLacunarity` - Clamped to minimum 1.0
 
 ### Default Values
+
 - If `playerName` empty when using FindByName → sets to "XR Origin Hands (XR Rig)"
 - If `playerTag` empty when using FindByTag → sets to "Player"
 
 ## Performance Tuning Guidelines
 
 ### For Maximum Frame Rate
+
 1. **Reduce View Distance**: Fewer tiles = less overhead
 2. **Reduce Vertices Per Side**: Lower mesh complexity
 3. **Reduce Noise Octaves**: Faster mesh generation
 4. **Increase Frame Budgets**: More work per frame (trade smoothness for speed)
 
 ### For Maximum Quality
+
 1. **Increase Vertices Per Side**: More detailed meshes
 2. **Increase Noise Octaves**: More terrain detail
 3. **Increase View Distance**: See farther
 4. **Decrease Frame Budgets**: Prevent spikes (trade speed for smoothness)
 
 ### For VR Optimization
+
 1. Keep `Vertices Per Side` ≤ 32
 2. Keep `View Distance` ≤ 500m
 3. Keep `Max Colliders Per Frame` ≤ 3
@@ -482,26 +470,31 @@ The following validation occurs in `OnValidate()`:
 ## Common Configuration Mistakes
 
 ### ❌ Tile Size Too Small
+
 **Problem**: Tile Size = 10m, View Distance = 500m  
 **Result**: 2500 tiles spawned, system overwhelmed  
 **Solution**: Increase tile size to 100m (25 tiles instead)
 
 ### ❌ Too Many Vertices
+
 **Problem**: Vertices Per Side = 256  
 **Result**: 65,536 vertices per tile, slow mesh generation  
 **Solution**: Use 32 or 64 for balanced performance
 
 ### ❌ No Frame Budget
+
 **Problem**: Max Colliders Per Frame = 100  
 **Result**: Frame spikes when spawning many tiles  
 **Solution**: Use 3-5 for VR, 10 for desktop
 
 ### ❌ LOD Distances Wrong Order
+
 **Problem**: Half Res Distance < Full Res Distance  
 **Result**: System behaves incorrectly  
 **Solution**: Ensure: Full < Half < Quarter < View Distance
 
 ### ❌ Config Not in SubScene
+
 **Problem**: TerrainConfigAuthoring in main scene  
 **Result**: Player tracking fails, no tiles spawn  
 **Solution**: Must be in SubScene for cross-scene references
@@ -509,6 +502,7 @@ The following validation occurs in `OnValidate()`:
 ## Configuration Examples
 
 ### Example 1: Flat Plane (No Noise)
+
 ```
 Noise Frequency: 0.01
 Noise Amplitude: 0        ← Zero height variation
@@ -516,6 +510,7 @@ Noise Octaves: 1
 ```
 
 ### Example 2: Gentle Rolling Hills
+
 ```
 Noise Frequency: 0.005    ← Low frequency = large features
 Noise Amplitude: 10       ← Low amplitude = gentle slopes
@@ -524,6 +519,7 @@ Noise Persistence: 0.3
 ```
 
 ### Example 3: Rough Mountains
+
 ```
 Noise Frequency: 0.02     ← Higher frequency = smaller features
 Noise Amplitude: 100      ← High amplitude = tall peaks
@@ -532,6 +528,7 @@ Noise Persistence: 0.6
 ```
 
 ### Example 4: Endless Runner
+
 ```
 Scroll Enabled: true
 Scroll Speed: 15.0        ← Fast forward scrolling
@@ -567,4 +564,3 @@ This helps visualize the configuration before running the scene.
 ---
 
 **Back to**: [Documentation Hub](README.md)
-

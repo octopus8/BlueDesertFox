@@ -28,32 +28,71 @@ namespace NaughtyAttributes.Editor
 		
 		protected bool _useCachedMetaAttributes;
 		protected bool _changeDetected;
+
+		private bool HasValidTarget()
+		{
+			if (targets == null || targets.Length == 0)
+				return false;
+
+			for (int i = 0; i < targets.Length; i++)
+			{
+				if (targets[i] == null)
+					return false;
+			}
+
+			return true;
+		}
+
+		private void ResetInspectorState()
+		{
+			_nonSerializedFields = new List<FieldInfo>();
+			_nativeProperties = new List<PropertyInfo>();
+			_methods = new List<MethodInfo>();
+			_nonGroupedSerializedProperty = new List<NaughtyProperty>();
+			_groupedSerialzedProperty = new List<IGrouping<string, NaughtyProperty>>();
+			_foldoutGroupedSerializedProperty = new List<IGrouping<string, NaughtyProperty>>();
+			_anyNaughtyAttribute = false;
+			m_ScriptProperty = null;
+			_useCachedMetaAttributes = false;
+		}
 		
 		protected virtual void OnEnable()
 		{
+			if (!HasValidTarget())
+			{
+				ResetInspectorState();
+				return;
+			}
+
 			this.Prepare();
 		}
 
 		protected virtual void OnDisable()
 		{
 			//cleanup memory
-			ReorderableListPropertyDrawer.Instance.ClearCache();
+			ReorderableListPropertyDrawer.Instance?.ClearCache();
 
-			_nonSerializedFields.Clear();
-			_nativeProperties.Clear();
-			_methods.Clear();
-			_foldouts.Clear();
+			_nonSerializedFields?.Clear();
+			_nativeProperties?.Clear();
+			_methods?.Clear();
+			_foldouts?.Clear();
 
-			_foldoutGroupedSerializedProperty.Clear();
-			_groupedSerialzedProperty.Clear();
-			_nonGroupedSerializedProperty.Clear();
-			_serializedProperties.Clear();
+			_foldoutGroupedSerializedProperty?.Clear();
+			_groupedSerialzedProperty?.Clear();
+			_nonGroupedSerializedProperty?.Clear();
+			_serializedProperties?.Clear();
 			
 			m_ScriptProperty = default;
 		}
 
 		public virtual void Prepare()
 		{
+			if (!HasValidTarget())
+			{
+				ResetInspectorState();
+				return;
+			}
+
 			_nonSerializedFields = ReflectionUtility.GetAllFields(
 				target, f => f.GetCustomAttributes(typeof(ShowNonSerializedFieldAttribute), true).Length > 0).ToList();
 
@@ -82,6 +121,12 @@ namespace NaughtyAttributes.Editor
 		
 		public override void OnInspectorGUI()
 		{
+			if (!HasValidTarget())
+			{
+				EditorGUILayout.HelpBox("Script missing or target destroyed.", MessageType.Warning);
+				return;
+			}
+
 			_changeDetected = false;
 			
 			if (!_anyNaughtyAttribute)
@@ -104,6 +149,9 @@ namespace NaughtyAttributes.Editor
 		{
 			outSerializedProperties.Clear();
 			outSerializedProperties.TrimExcess();
+
+			if (!HasValidTarget())
+				return;
 			
 			using (var iterator = serializedObject.GetIterator())
 			{
@@ -197,7 +245,7 @@ namespace NaughtyAttributes.Editor
 			
 				if (!_foldouts.ContainsKey(group.Key))
 				{
-					_foldouts[group.Key] = new SavedBool($"{target.GetInstanceID()}.{group.Key}", false);
+					_foldouts[group.Key] = new SavedBool($"{target.GetEntityId()}.{group.Key}", false);
 				}
 			
 				_foldouts[group.Key].Value = EditorGUILayout.Foldout(_foldouts[group.Key].Value, group.Key, true);
@@ -215,7 +263,7 @@ namespace NaughtyAttributes.Editor
 
 		protected virtual void DrawNonSerializedFields(bool drawHeader = false)
 		{
-			if (_nonSerializedFields.Any())
+			if (_nonSerializedFields != null && _nonSerializedFields.Any())
 			{
 				if (drawHeader)
 				{
@@ -234,7 +282,7 @@ namespace NaughtyAttributes.Editor
 
 		protected virtual void DrawNativeProperties(bool drawHeader = false)
 		{
-			if (_nativeProperties.Any())
+			if (_nativeProperties != null && _nativeProperties.Any())
 			{
 				if (drawHeader)
 				{
@@ -253,7 +301,7 @@ namespace NaughtyAttributes.Editor
 
 		protected virtual void DrawButtons(bool drawHeader = false)
 		{
-			if (_methods.Any())
+			if (_methods != null && _methods.Any())
 			{
 				if (drawHeader)
 				{

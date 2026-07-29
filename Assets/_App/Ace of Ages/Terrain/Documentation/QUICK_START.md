@@ -53,7 +53,6 @@ In the Inspector:
 ## Step 3: Verify Player GameObject (1 minute)
 
 Ensure you have one of:
-- ✅ AutoHandPlayer component (VR)
 - ✅ Camera tagged as "MainCamera"
 - ✅ GameObject named correctly
 - ✅ GameObject with "Player" tag
@@ -64,20 +63,13 @@ Press Play and watch terrain generate!
 
 ### Expected Output
 
-Console should show:
-```
-[PlayerTrackingInitSystem] ✅ Found player: XR Origin Hands (XR Rig)
-```
+Terrain should appear around the player. The Console should stay quiet on success — only warnings/errors indicate problems (see [Debug Tools](DEBUG_TOOLS.md)).
 
-Terrain should appear around player.
+## Step 5: (Optional) Open Terrain Status Inspector (1 minute)
 
-## Step 5: (Optional) Add Debug Visualization (2 minutes)
-
-1. Create GameObject named `TerrainDebug`
-2. Add `TerrainTileGizmoVisualizer` component
-3. Enable "Draw Tile Bounds" and "Draw Grid Coordinates"
-4. Add `TerrainTrackingDebugger` component
-5. Right-click → "Check Tracking Status"
+1. Menu: **Window → Terrain → Status Inspector**
+2. Enter Play mode and review material, URP, and runtime tile counts
+3. Use action buttons to create material or set up physics layers if checks fail
 
 ## Step 6: (Optional) Enable Auto-Scrolling (1 minute)
 
@@ -98,13 +90,14 @@ Terrain should appear around player.
 
 ### Terrain Not Visible
 
-- Add TerrainTileGizmoVisualizer
+- Open **Window → Terrain → Status Inspector** in play mode
 - Check camera far clip plane > 500m
 - Verify material exists in Resources
 
 ### Player Tracking Fails
 
-- Use TerrainTrackingDebugger → Check Tracking Status
+- Check Console for `[PlayerTrackingInitSystem]` warnings
+- Use **Terrain Status Inspector** in play mode
 - **See**: [Player Tracking Setup](PLAYER_TRACKING.md)
 
 ## Next Steps

@@ -1,428 +1,527 @@
-using System;
 using System.Collections.Generic;
-using System.Linq;
+using System.Diagnostics;
+using Unity.Burst;
 using Unity.Collections;
 using Unity.Entities;
+using Unity.Jobs;
 using Unity.Mathematics;
 using Unity.Physics;
 using UnityEngine;
-using MeshCollider = Unity.Physics.MeshCollider;
 
 #if UNITY_EDITOR
 using Unity.Profiling;
 #endif
 
-/// <summary>
-/// Optimized system that creates physics colliders for terrain tiles with LOD support, caching, and frame budgeting.
-/// Three-phase architecture:
-/// 1. Cache lookup and sorting by priority
-/// 2. Main-thread MeshCollider.Create() with frame budget limit
-/// 3. LRU cache eviction when memory threshold exceeded
-/// Target performance: <5ms during origin shifts (measured via profiler markers)
-/// </summary>
-[RequireMatchingQueriesForUpdate]
-[UpdateInGroup(typeof(SimulationSystemGroup))]
-[UpdateAfter(typeof(TerrainColliderPreparationSystem))]
-public partial class TerrainPhysicsSystem : SystemBase
+namespace _App.Ace_of_Ages.Terrain
 {
-#if UNITY_EDITOR
-    private static readonly ProfilerMarker s_CacheLookupMarker = new ProfilerMarker("TerrainPhysics.CacheLookup");
-    private static readonly ProfilerMarker s_ColliderCreationMarker = new ProfilerMarker("TerrainPhysics.ColliderCreation");
-    private static readonly ProfilerMarker s_LRUEvictionMarker = new ProfilerMarker("TerrainPhysics.LRUEviction");
-#endif
-
-    private NativeHashMap<ColliderCacheKey, ColliderCacheEntry> _colliderCache;
-    private long _totalCacheMemoryBytes;
-    private long _currentFrameNumber;
-
-    private int colliderCreateCount = 0;
-    protected override void OnCreate()
+    /// <summary>
+    /// Persistent NativeArray pool for cross-frame BVH construction batches.
+    /// </summary>
+    public struct TerrainPhysicsBufferPool
     {
-        RequireForUpdate<TerrainTileConfig>();
-        
-        // Initialize LRU cache
-        _colliderCache = new NativeHashMap<ColliderCacheKey, ColliderCacheEntry>(256, Allocator.Persistent);
-        _totalCacheMemoryBytes = 0;
-        _currentFrameNumber = 0;
+        public NativeList<Entity> entities;
+        public NativeArray<float3> vertices;
+        public NativeArray<int> indices;
+        public NativeArray<int> vertexCounts;
+        public NativeArray<int> indexCounts;
+        public NativeArray<BlobAssetReference<Unity.Physics.Collider>> results;
+
+        int _batchCapacity;
+        int _maxVertsPerTile;
+        int _maxIndicesPerTile;
+
+        public int MaxVertsPerTile => _maxVertsPerTile;
+        public int MaxIndicesPerTile => _maxIndicesPerTile;
+
+        public void EnsureCapacity(int batchSize, int vertsPerSide)
+        {
+            int vertsPerTile = vertsPerSide * vertsPerSide;
+            int indicesPerTile = (vertsPerSide - 1) * (vertsPerSide - 1) * 6;
+
+            bool needsRealloc = !vertices.IsCreated
+                || _batchCapacity < batchSize
+                || _maxVertsPerTile != vertsPerTile
+                || _maxIndicesPerTile != indicesPerTile;
+
+            if (needsRealloc)
+            {
+                DisposeArrays();
+
+                _batchCapacity = math.max(_batchCapacity, batchSize);
+                _maxVertsPerTile = vertsPerTile;
+                _maxIndicesPerTile = indicesPerTile;
+
+                if (!entities.IsCreated)
+                    entities = new NativeList<Entity>(_batchCapacity, Allocator.Persistent);
+                else if (entities.Capacity < _batchCapacity)
+                    entities.Capacity = _batchCapacity;
+
+                vertices = new NativeArray<float3>(_batchCapacity * vertsPerTile, Allocator.Persistent);
+                indices = new NativeArray<int>(_batchCapacity * indicesPerTile, Allocator.Persistent);
+                vertexCounts = new NativeArray<int>(_batchCapacity, Allocator.Persistent);
+                indexCounts = new NativeArray<int>(_batchCapacity, Allocator.Persistent);
+                results = new NativeArray<BlobAssetReference<Unity.Physics.Collider>>(
+                    _batchCapacity, Allocator.Persistent);
+            }
+            else if (entities.Capacity < batchSize)
+            {
+                entities.Capacity = batchSize;
+            }
+
+            entities.Clear();
+        }
+
+        public void ReleaseBatch()
+        {
+            entities.Clear();
+        }
+
+        public void Dispose()
+        {
+            DisposeArrays();
+            if (entities.IsCreated)
+                entities.Dispose();
+        }
+
+        void DisposeArrays()
+        {
+            if (vertices.IsCreated) vertices.Dispose();
+            if (indices.IsCreated) indices.Dispose();
+            if (vertexCounts.IsCreated) vertexCounts.Dispose();
+            if (indexCounts.IsCreated) indexCounts.Dispose();
+            if (results.IsCreated) results.Dispose();
+        }
     }
 
-    protected override void OnUpdate()
+    /// <summary>
+    /// Registers prepared physics colliders with the physics world.
+    /// </summary>
+    [UpdateInGroup(typeof(SimulationSystemGroup))]
+    [UpdateAfter(typeof(EndSimulationEntityCommandBufferSystem))]
+    public partial class TerrainPhysicsSystem : SystemBase
     {
-        _currentFrameNumber++;
-        
-        var config = SystemAPI.GetSingleton<TerrainTileConfig>();
-        
-        // Early exit if physics colliders are disabled
-        if (!config.enablePhysicsColliders)
-        {
-            return;
-        }
-        
-        // Phase 1: Query tiles with prepared collider data and sort by priority (ZERO GC ALLOCATIONS)
-        var preparedQuery = GetEntityQuery(
-            ComponentType.ReadOnly<PhysicsColliderPrepared>(),
-            ComponentType.ReadOnly<TerrainTile>(),
-            ComponentType.ReadWrite<ColliderPreparedVertexElement>(),
-            ComponentType.ReadWrite<ColliderPreparedTriangleElement>()
-        );
-        
-        // Use NativeList to collect entities (stack allocated, no GC)
-        var preparedEntities = new NativeList<Entity>(64, Allocator.Temp);
-        
-        foreach (var (prepared, tile, entity) in SystemAPI.Query<
-            RefRO<PhysicsColliderPrepared>, 
-            RefRO<TerrainTile>>()
-            .WithAll<ColliderPreparedVertexElement, ColliderPreparedTriangleElement>()
-            .WithEntityAccess())
-        {
-            preparedEntities.Add(entity);
-        }
-        
-        if (preparedEntities.Length == 0)
-        {
-            preparedEntities.Dispose();
-            return;
-        }
-        
-        // Sort entities by priority (distance-based, lower = closer = higher priority)
-        var sortedEntities = new NativeArray<EntityWithPriority>(preparedEntities.Length, Allocator.Temp);
-        for (int i = 0; i < preparedEntities.Length; i++)
-        {
-            var prepared = EntityManager.GetComponentData<PhysicsColliderPrepared>(preparedEntities[i]);
-            sortedEntities[i] = new EntityWithPriority
-            {
-                entity = preparedEntities[i],
-                priority = prepared.priority
-            };
-        }
-        sortedEntities.Sort(new PriorityComparer());
-        
-        preparedEntities.Dispose();
-        
-        // Phase 2: Create colliders with frame budget limit
-        int collidersCreatedThisFrame = 0;
-        int maxPerFrame = math.max(1, config.maxCollidersCreatedPerFrame);
-        
 #if UNITY_EDITOR
-        using (s_ColliderCreationMarker.Auto())
+        static readonly ProfilerMarker s_RegisterMarker = new ProfilerMarker("TerrainPhysics.RegisterCollider");
 #endif
+
+        protected override void OnCreate()
         {
-            for (int i = 0; i < sortedEntities.Length && collidersCreatedThisFrame < maxPerFrame; i++)
+            RequireForUpdate<TerrainTileConfig>();
+        }
+
+        protected override void OnUpdate()
+        {
+            var config = SystemAPI.GetSingleton<TerrainTileConfig>();
+            if (!config.enablePhysicsColliders)
+                return;
+
+            var ecb = new EntityCommandBuffer(Allocator.Temp);
+
+#if UNITY_EDITOR
+            using (s_RegisterMarker.Auto())
+#endif
             {
-                Entity entity = sortedEntities[i].entity;
-                
+                RegisterPendingColliders(TerrainPhysicsBudget.GetRegistrationBudget(config), ecb);
+            }
+
+            ecb.Playback(EntityManager);
+            ecb.Dispose();
+        }
+
+        void RegisterPendingColliders(int budget, EntityCommandBuffer ecb)
+        {
+            if (budget <= 0)
+                return;
+
+            var pendingEntities = new NativeList<Entity>(budget, Allocator.Temp);
+
+            foreach (var (_, entity) in SystemAPI.Query<RefRO<PhysicsColliderRegistrationPending>>().WithEntityAccess())
+            {
+                pendingEntities.Add(entity);
+                if (pendingEntities.Length >= budget)
+                    break;
+            }
+
+            for (int i = 0; i < pendingEntities.Length; i++)
+            {
+                Entity entity = pendingEntities[i];
                 if (!EntityManager.Exists(entity))
                     continue;
-                
-                var prepared = EntityManager.GetComponentData<PhysicsColliderPrepared>(entity);
-                var tile = EntityManager.GetComponentData<TerrainTile>(entity);
-                
-                // Calculate cache key
-                var cacheKey = ColliderCacheKey.FromConfig(config, prepared.lodLevel);
-                
+
+                var pending = EntityManager.GetComponentData<PhysicsColliderRegistrationPending>(entity);
+                ecb.AddComponent(entity, new PhysicsCollider { Value = pending.collider });
+
+                if (!EntityManager.HasComponent<PhysicsWorldIndex>(entity))
+                    ecb.AddSharedComponent(entity, new PhysicsWorldIndex());
+
+                ecb.AddComponent<PhysicsColliderValid>(entity);
+                ecb.RemoveComponent<PhysicsColliderRegistrationPending>(entity);
+
+                if (EntityManager.HasComponent<PhysicsColliderNeedsPreparation>(entity))
+                    ecb.SetComponentEnabled<PhysicsColliderNeedsPreparation>(entity, false);
+            }
+
+            pendingEntities.Dispose();
+        }
+    }
+
+    /// <summary>
+    /// Schedules cross-frame BVH construction directly from terrain mesh buffers,
+    /// skipping the redundant intermediate prepared-buffer stage.
+    /// </summary>
+    [UpdateInGroup(typeof(SimulationSystemGroup))]
+    [UpdateAfter(typeof(EndSimulationEntityCommandBufferSystem))]
+    [UpdateAfter(typeof(TerrainPhysicsSystem))]
+    public partial struct TerrainPhysicsScheduleSystem : ISystem
+    {
 #if UNITY_EDITOR
-                using (s_CacheLookupMarker.Auto())
+        static readonly ProfilerMarker s_ProfilerMarker = new ProfilerMarker("TerrainPhysics.BvhSchedule");
+        static readonly ProfilerMarker s_BufferCopyMarker = new ProfilerMarker("TerrainPhysics.BufferCopy");
 #endif
+
+        public TerrainPhysicsBufferPool _bufferPool;
+        public JobHandle _inFlightHandle;
+        public bool _hasInFlight;
+
+        public void OnCreate(ref SystemState state)
+        {
+            state.RequireForUpdate<TerrainTileConfig>();
+            state.RequireForUpdate<CameraDataSingleton>();
+            state.RequireForUpdate<ScrollOffset>();
+        }
+
+        public void OnDestroy(ref SystemState state)
+        {
+            if (_hasInFlight)
+                _inFlightHandle.Complete();
+
+            _bufferPool.Dispose();
+        }
+
+        public void OnUpdate(ref SystemState state)
+        {
+            if (_hasInFlight)
+            {
+                state.Dependency = JobHandle.CombineDependencies(state.Dependency, _inFlightHandle);
+                return;
+            }
+
+            var config = SystemAPI.GetSingleton<TerrainTileConfig>();
+            if (!config.enablePhysicsColliders)
+                return;
+
+#if UNITY_EDITOR
+            using (s_ProfilerMarker.Auto())
+#endif
+            {
+                var cameraData = SystemAPI.GetSingleton<CameraDataSingleton>();
+                float3 scrollOffset = SystemAPI.GetSingleton<ScrollOffset>().accumulatedOffset;
+                var candidates = new NativeList<ColliderEntityWithPriority>(Allocator.Temp);
+
+                foreach (var (tile, entity) in SystemAPI
+                    .Query<RefRO<TerrainTile>>()
+                    .WithAll<VertexElement, IndexElement, PhysicsColliderNeedsPreparation>()
+                    .WithNone<PhysicsColliderRegistrationPending, PhysicsColliderValid>()
+                    .WithEntityAccess())
                 {
-                    // Check cache for existing BlobAsset
-                    if (_colliderCache.TryGetValue(cacheKey, out var cacheEntry))
+                    if (!SystemAPI.IsComponentEnabled<PhysicsColliderNeedsPreparation>(entity))
+                        continue;
+
+                    if (!tile.ValueRO.meshGenerated)
+                        continue;
+
+                    candidates.Add(new ColliderEntityWithPriority
                     {
-                        // Cache hit - reuse existing collider
-                        cacheEntry.lastAccessFrame = _currentFrameNumber;
-                        _colliderCache[cacheKey] = cacheEntry;
-                        
-                        // Create PhysicsCollider from cached blob data
-                        CreatePhysicsColliderFromCache(entity, cacheEntry.blobAsset, prepared.lodLevel, config);
-//                        Debug.Log("# Created colliders: " + ++colliderCreateCount);
-                        
-                        // Clean up prepared buffers
-                        EntityManager.RemoveComponent<PhysicsColliderPrepared>(entity);
-                        
-                        collidersCreatedThisFrame++;
+                        entity = entity,
+                        priority = TerrainColliderPriority.Compute(
+                            tile.ValueRO.gridCoordinate, config, cameraData, scrollOffset)
+                    });
+                }
+
+                if (candidates.Length == 0)
+                {
+                    candidates.Dispose();
+                    return;
+                }
+
+                if (candidates.Length > 1)
+                    candidates.Sort(new ColliderPriorityComparer());
+
+                int budget = TerrainPhysicsBudget.GetBvhCreationBudget(config);
+
+#if DEVELOPMENT_BUILD || UNITY_EDITOR
+                if (candidates.Length > budget)
+                {
+                    UnityEngine.Debug.LogWarning(
+                        $"[TerrainPhysics] BVH queue depth {candidates.Length} exceeds budget {budget}. " +
+                        "Processing highest-priority tiles first.");
+                }
+#endif
+
+                int tilesToProcess = math.min(candidates.Length, budget);
+                _bufferPool.EnsureCapacity(tilesToProcess, config.verticesPerSide);
+
+                int maxVertsPerTile = _bufferPool.MaxVertsPerTile;
+                int maxIndicesPerTile = _bufferPool.MaxIndicesPerTile;
+
+                for (int i = 0; i < tilesToProcess; i++)
+                {
+                    Entity entity = candidates[i].entity;
+                    if (state.EntityManager.Exists(entity))
+                        _bufferPool.entities.Add(entity);
+                }
+
+                candidates.Dispose();
+
+                int scheduledCount = _bufferPool.entities.Length;
+                if (scheduledCount == 0)
+                    return;
+
+                var vertexLookup = SystemAPI.GetBufferLookup<VertexElement>(true);
+                var indexLookup = SystemAPI.GetBufferLookup<IndexElement>(true);
+                vertexLookup.Update(ref state);
+                indexLookup.Update(ref state);
+
+                var entityArray = _bufferPool.entities.AsArray();
+
+                var copyJob = new CopyTerrainMeshBuffersJob
+                {
+                    entities = entityArray,
+                    vertexLookup = vertexLookup,
+                    indexLookup = indexLookup,
+                    outVertices = _bufferPool.vertices,
+                    outIndices = _bufferPool.indices,
+                    outVertexCounts = _bufferPool.vertexCounts,
+                    outIndexCounts = _bufferPool.indexCounts,
+                    maxVerticesPerTile = maxVertsPerTile,
+                    maxIndicesPerTile = maxIndicesPerTile
+                };
+
+                uint layerMask = 1u << config.terrainPhysicsLayer;
+                var filter = new CollisionFilter
+                {
+                    BelongsTo = layerMask,
+                    CollidesWith = ~0u,
+                    GroupIndex = 0
+                };
+
+                var buildJob = new BuildTerrainMeshColliderJob
+                {
+                    sourceVertices = _bufferPool.vertices,
+                    sourceIndices = _bufferPool.indices,
+                    vertexCounts = _bufferPool.vertexCounts,
+                    indexCounts = _bufferPool.indexCounts,
+                    maxVerticesPerTile = maxVertsPerTile,
+                    maxIndicesPerTile = maxIndicesPerTile,
+                    filter = filter,
+                    colliderMaterial = config.terrainColliderMaterial,
+                    results = _bufferPool.results
+                };
+
+#if UNITY_EDITOR
+                JobHandle copyHandle;
+                using (s_BufferCopyMarker.Auto())
+                {
+                    copyHandle = copyJob.Schedule(scheduledCount, 1, state.Dependency);
+                }
+#else
+                var copyHandle = copyJob.Schedule(scheduledCount, 1, state.Dependency);
+#endif
+
+                _inFlightHandle = buildJob.Schedule(scheduledCount, 1, copyHandle);
+                _hasInFlight = true;
+                state.Dependency = JobHandle.CombineDependencies(state.Dependency, _inFlightHandle);
+            }
+        }
+
+        internal static void ReleaseBatch(ref TerrainPhysicsScheduleSystem s)
+        {
+            s._bufferPool.ReleaseBatch();
+            s._hasInFlight = false;
+        }
+    }
+
+    /// <summary>
+    /// Completes the cross-frame BVH job and writes results as PhysicsColliderRegistrationPending.
+    /// </summary>
+    [UpdateInGroup(typeof(InitializationSystemGroup))]
+    [UpdateAfter(typeof(BeginInitializationEntityCommandBufferSystem))]
+    public partial struct TerrainPhysicsCompleteSystem : ISystem
+    {
+#if UNITY_EDITOR
+        static readonly ProfilerMarker s_ProfilerMarker = new ProfilerMarker("TerrainPhysics.BvhComplete");
+#endif
+
+        public void OnCreate(ref SystemState state) { }
+
+        public void OnUpdate(ref SystemState state)
+        {
+            var schedHandle = state.WorldUnmanaged.GetExistingUnmanagedSystem<TerrainPhysicsScheduleSystem>();
+            if (schedHandle == SystemHandle.Null)
+                return;
+
+            ref var sched = ref state.WorldUnmanaged.GetUnsafeSystemRef<TerrainPhysicsScheduleSystem>(schedHandle);
+            if (!sched._hasInFlight)
+                return;
+
+            if (!sched._inFlightHandle.IsCompleted)
+                return;
+
+#if UNITY_EDITOR
+            using (s_ProfilerMarker.Auto())
+#endif
+            {
+                var sw = Stopwatch.StartNew();
+                sched._inFlightHandle.Complete();
+                sw.Stop();
+
+#if DEVELOPMENT_BUILD || UNITY_EDITOR
+                double completeMs = sw.Elapsed.TotalMilliseconds;
+                if (completeMs > 8.0)
+                {
+                    UnityEngine.Debug.LogWarning(
+                        $"[TerrainPhysics] BvhComplete waited {completeMs:F1}ms for " +
+                        $"{sched._bufferPool.entities.Length} collider(s). Consider lowering maxPhysicsCollidersCreatedPerFrame.");
+                }
+#endif
+
+                for (int i = 0; i < sched._bufferPool.entities.Length; i++)
+                {
+                    Entity entity = sched._bufferPool.entities[i];
+                    BlobAssetReference<Unity.Physics.Collider> result = sched._bufferPool.results[i];
+
+                    if (!state.EntityManager.Exists(entity))
+                    {
+                        if (result.IsCreated)
+                            result.Dispose();
                         continue;
                     }
-                }
-                
-                // Cache miss - create new collider from prepared data
-                var vertexBuffer = EntityManager.GetBuffer<ColliderPreparedVertexElement>(entity);
-                var triangleBuffer = EntityManager.GetBuffer<ColliderPreparedTriangleElement>(entity);
-                
-                if (vertexBuffer.Length == 0 || triangleBuffer.Length == 0)
-                {
-                    Debug.LogWarning($"[TerrainPhysics] Entity {entity.Index} has empty prepared buffers, skipping");
-                    EntityManager.RemoveComponent<PhysicsColliderPrepared>(entity);
-                    continue;
-                }
-                
-                // Convert buffers to NativeArrays for MeshCollider.Create()
-                var vertices = new NativeArray<float3>(vertexBuffer.Length, Allocator.Temp);
-                var triangles = new NativeArray<int3>(triangleBuffer.Length, Allocator.Temp);
-                
-                for (int v = 0; v < vertexBuffer.Length; v++)
-                {
-                    vertices[v] = vertexBuffer[v].value;
-                }
-                
-                for (int t = 0; t < triangleBuffer.Length; t++)
-                {
-                    triangles[t] = triangleBuffer[t].value;
-                }
-                
-                // Create MeshCollider on main thread (cannot be Burst-compiled)
-                try
-                {
-                    var collider = MeshCollider.Create(
-                        vertices,
-                        triangles,
-                        CreateCollisionFilter(prepared.lodLevel, config),
-                        Unity.Physics.Material.Default
-                    );
-                    
-                    // Add PhysicsCollider component
-                    EntityManager.AddComponentData(entity, new PhysicsCollider { Value = collider });
-                    
-                    // Add PhysicsWorldIndex if not present
-                    if (!EntityManager.HasComponent<PhysicsWorldIndex>(entity))
+
+                    if (!result.IsCreated)
                     {
-                        EntityManager.AddSharedComponent(entity, new PhysicsWorldIndex());
+                        UnityEngine.Debug.LogWarning(
+                            $"[TerrainPhysics] Entity {entity.Index} produced no collider (empty mesh?), skipping");
+                        if (state.EntityManager.HasComponent<PhysicsColliderNeedsPreparation>(entity))
+                            state.EntityManager.SetComponentEnabled<PhysicsColliderNeedsPreparation>(entity, false);
+                        continue;
                     }
-                    
-                    // Mark as valid (survives origin shifts)
-                    EntityManager.AddComponent<PhysicsColliderValid>(entity);
-                    
-                    // Create BlobAsset for caching
-                    var blobAsset = TerrainColliderBlob.Create(vertices, triangles, prepared.lodLevel, Allocator.Persistent);
-                    
-                    // Estimate memory usage: vertexCount * 12 bytes + triangleCount * 12 bytes
-                    int estimatedMemory = vertices.Length * 12 + triangles.Length * 12;
-                    
-                    // Add to cache
-                    _colliderCache[cacheKey] = new ColliderCacheEntry
-                    {
-                        blobAsset = blobAsset,
-                        lastAccessFrame = _currentFrameNumber,
-                        estimatedMemoryBytes = estimatedMemory
-                    };
-                    
-                    _totalCacheMemoryBytes += estimatedMemory;
-                    
-                    collidersCreatedThisFrame++;
+
+                    state.EntityManager.AddComponentData(entity,
+                        new PhysicsColliderRegistrationPending { collider = result });
                 }
-                catch (Exception e)
-                {
-                    Debug.LogError($"[TerrainPhysics] Failed to create collider for entity {entity.Index}: {e.Message}");
-                }
-                finally
-                {
-                    vertices.Dispose();
-                    triangles.Dispose();
-                }
-                
-                // Remove prepared component
-                EntityManager.RemoveComponent<PhysicsColliderPrepared>(entity);
+
+                TerrainPhysicsScheduleSystem.ReleaseBatch(ref sched);
             }
         }
-        
-        sortedEntities.Dispose();
-        
-        // Phase 3: LRU cache eviction if memory threshold exceeded
-        long maxMemoryBytes = (long)config.maxColliderCacheMemoryMB * 1024 * 1024;
-        if (_totalCacheMemoryBytes > maxMemoryBytes)
-        {
-            EvictLRUEntries(maxMemoryBytes);
-        }
-    }
-
-    /// <summary>
-    /// Creates a PhysicsCollider from cached BlobAsset data.
-    /// </summary>
-    private void CreatePhysicsColliderFromCache(Entity entity, BlobAssetReference<TerrainColliderBlob> cachedBlob, TerrainPhysicsLODLevel lodLevel, TerrainTileConfig config)
-    {
-        ref var blobData = ref cachedBlob.Value;
-        
-        // Convert blob arrays to NativeArrays
-        var vertices = new NativeArray<float3>(blobData.vertexCount, Allocator.Temp);
-        var triangles = new NativeArray<int3>(blobData.triangleCount, Allocator.Temp);
-        
-        for (int i = 0; i < blobData.vertexCount; i++)
-        {
-            vertices[i] = blobData.vertices[i];
-        }
-        
-        for (int i = 0; i < blobData.triangleCount; i++)
-        {
-            triangles[i] = blobData.triangles[i];
-        }
-        
-        // Create collider
-        var collider = MeshCollider.Create(
-            vertices,
-            triangles,
-            CreateCollisionFilter(lodLevel, config),
-            Unity.Physics.Material.Default
-        );
-        
-        EntityManager.AddComponentData(entity, new PhysicsCollider { Value = collider });
-        
-        if (!EntityManager.HasComponent<PhysicsWorldIndex>(entity))
-        {
-            EntityManager.AddSharedComponent(entity, new PhysicsWorldIndex());
-        }
-        
-        EntityManager.AddComponent<PhysicsColliderValid>(entity);
-        
-        vertices.Dispose();
-        triangles.Dispose();
-    }
-
-    /// <summary>
-    /// Creates collision filter based on LOD level and configuration.
-    /// Close tiles (full resolution) use closeTerrainPhysicsLayer.
-    /// Low-detail tiles (half/quarter resolution) use separate physics layer if enabled.
-    /// </summary>
-    private CollisionFilter CreateCollisionFilter(TerrainPhysicsLODLevel lodLevel, TerrainTileConfig config)
-    {
-        uint layerMask;
-        
-        if (config.usePhysicsLODLayers && lodLevel >= TerrainPhysicsLODLevel.HalfResolution)
-        {
-            // Use low-detail layer for distant tiles
-            layerMask = 1u << config.lowDetailPhysicsLayer;
-        }
-        else
-        {
-            // Use close terrain layer for nearby tiles
-            layerMask = 1u << config.closeTerrainPhysicsLayer;
-        }
-        
-        return new CollisionFilter
-        {
-            BelongsTo = layerMask,
-            CollidesWith = ~0u, // Collide with everything
-            GroupIndex = 0
-        };
-    }
-
-    /// <summary>
-    /// Evicts oldest cache entries until memory usage is below 75% of max.
-    /// </summary>
-    private void EvictLRUEntries(long maxMemoryBytes)
-    {
-#if UNITY_EDITOR
-        using (s_LRUEvictionMarker.Auto())
-#endif
-        {
-            long targetMemory = (long)(maxMemoryBytes * 0.75f);
-            
-            // Collect all cache entries with their keys
-            var entries = new NativeList<CacheEntryWithKey>(Allocator.Temp);
-            
-            foreach (var kvp in _colliderCache)
-            {
-                entries.Add(new CacheEntryWithKey
-                {
-                    key = kvp.Key,
-                    entry = kvp.Value
-                });
-            }
-            
-            // Sort by lastAccessFrame ascending (oldest first)
-            entries.Sort(new LRUComparer());
-            
-            // Evict oldest entries until below target
-            long memoryFreed = 0;
-            int entriesEvicted = 0;
-            
-            for (int i = 0; i < entries.Length && _totalCacheMemoryBytes > targetMemory; i++)
-            {
-                var entryWithKey = entries[i];
-                
-                // Dispose BlobAsset
-                if (entryWithKey.entry.blobAsset.IsCreated)
-                {
-                    entryWithKey.entry.blobAsset.Dispose();
-                }
-                
-                // Remove from cache
-                _colliderCache.Remove(entryWithKey.key);
-                
-                _totalCacheMemoryBytes -= entryWithKey.entry.estimatedMemoryBytes;
-                memoryFreed += entryWithKey.entry.estimatedMemoryBytes;
-                entriesEvicted++;
-            }
-            
-            entries.Dispose();
-            
-            // Log eviction results if debug logging is enabled
-            if (entriesEvicted > 0)
-            {
-                var lodConfig = SystemAPI.GetSingleton<TreeLODConfig>();
-                if (lodConfig.enableTreeLODDebug)
-                {
-                    Debug.Log($"[TerrainPhysics] LRU Eviction: Freed {memoryFreed / 1024}KB by evicting {entriesEvicted} cache entries");
-                }
-            }
-        }
-    }
-
-    protected override void OnDestroy()
-    {
-
-        // Dispose all cached BlobAssets
-        foreach (var kvp in _colliderCache)
-        {
-            if (kvp.Value.blobAsset.IsCreated)
-            {
-                kvp.Value.blobAsset.Dispose();
-            }
-        }
-        
-        _colliderCache.Dispose();
     }
 }
 
 /// <summary>
-/// Helper struct for sorting entities by priority.
+/// Burst job that copies terrain mesh buffers into flat native arrays for BVH construction.
 /// </summary>
-struct EntityWithPriority
+[BurstCompile]
+struct CopyTerrainMeshBuffersJob : IJobParallelFor
+{
+    [ReadOnly] public NativeArray<Entity> entities;
+    [ReadOnly] public BufferLookup<VertexElement> vertexLookup;
+    [ReadOnly] public BufferLookup<IndexElement> indexLookup;
+
+    [NativeDisableParallelForRestriction]
+    public NativeArray<float3> outVertices;
+
+    [NativeDisableParallelForRestriction]
+    public NativeArray<int> outIndices;
+
+    public NativeArray<int> outVertexCounts;
+    public NativeArray<int> outIndexCounts;
+    public int maxVerticesPerTile;
+    public int maxIndicesPerTile;
+
+    public void Execute(int index)
+    {
+        Entity entity = entities[index];
+
+        if (!vertexLookup.HasBuffer(entity) || !indexLookup.HasBuffer(entity))
+        {
+            outVertexCounts[index] = 0;
+            outIndexCounts[index] = 0;
+            return;
+        }
+
+        var vBuf = vertexLookup[entity];
+        var iBuf = indexLookup[entity];
+
+        int vCount = math.min(vBuf.Length, maxVerticesPerTile);
+        int iCount = math.min(iBuf.Length, maxIndicesPerTile);
+
+        outVertexCounts[index] = vCount;
+        outIndexCounts[index] = iCount;
+
+        int vOffset = index * maxVerticesPerTile;
+        int iOffset = index * maxIndicesPerTile;
+
+        for (int v = 0; v < vCount; v++)
+            outVertices[vOffset + v] = vBuf[v].value;
+
+        for (int j = 0; j < iCount; j++)
+            outIndices[iOffset + j] = iBuf[j].value;
+    }
+}
+
+/// <summary>
+/// Burst job that builds int3 triangles from flat mesh indices and constructs a MeshCollider BVH.
+/// </summary>
+[BurstCompile]
+struct BuildTerrainMeshColliderJob : IJobParallelFor
+{
+    [ReadOnly] public NativeArray<float3> sourceVertices;
+    [ReadOnly] public NativeArray<int> sourceIndices;
+    [ReadOnly] public NativeArray<int> vertexCounts;
+    [ReadOnly] public NativeArray<int> indexCounts;
+    public int maxVerticesPerTile;
+    public int maxIndicesPerTile;
+    public CollisionFilter filter;
+    public Unity.Physics.Material colliderMaterial;
+
+    [WriteOnly]
+    public NativeArray<BlobAssetReference<Unity.Physics.Collider>> results;
+
+    public void Execute(int index)
+    {
+        int vCount = vertexCounts[index];
+        int iCount = indexCounts[index];
+
+        if (vCount == 0 || iCount < 3)
+        {
+            results[index] = default;
+            return;
+        }
+
+        int tCount = iCount / 3;
+        var verts = sourceVertices.GetSubArray(index * maxVerticesPerTile, vCount);
+        int iOffset = index * maxIndicesPerTile;
+
+        var tris = new NativeArray<int3>(tCount, Allocator.Temp);
+        for (int t = 0; t < tCount; t++)
+        {
+            int io = iOffset + t * 3;
+            tris[t] = new int3(sourceIndices[io], sourceIndices[io + 1], sourceIndices[io + 2]);
+        }
+
+        results[index] = Unity.Physics.MeshCollider.Create(
+            verts, tris, filter, colliderMaterial);
+        tris.Dispose();
+    }
+}
+
+struct ColliderEntityWithPriority
 {
     public Entity entity;
     public int priority;
 }
 
-/// <summary>
-/// Comparer for sorting entities by priority (ascending - lower = higher priority).
-/// </summary>
-struct PriorityComparer : IComparer<EntityWithPriority>
+struct ColliderPriorityComparer : IComparer<ColliderEntityWithPriority>
 {
-    public int Compare(EntityWithPriority a, EntityWithPriority b)
-    {
-        return a.priority.CompareTo(b.priority);
-    }
+    public int Compare(ColliderEntityWithPriority a, ColliderEntityWithPriority b)
+        => a.priority.CompareTo(b.priority);
 }
-
-/// <summary>
-/// Helper struct for LRU eviction sorting.
-/// </summary>
-struct CacheEntryWithKey
-{
-    public ColliderCacheKey key;
-    public ColliderCacheEntry entry;
-}
-
-/// <summary>
-/// Comparer for sorting cache entries by last access frame (ascending - oldest first).
-/// </summary>
-struct LRUComparer : IComparer<CacheEntryWithKey>
-{
-    public int Compare(CacheEntryWithKey a, CacheEntryWithKey b)
-    {
-        return a.entry.lastAccessFrame.CompareTo(b.entry.lastAccessFrame);
-    }
-}
-
-
-
-
-
-

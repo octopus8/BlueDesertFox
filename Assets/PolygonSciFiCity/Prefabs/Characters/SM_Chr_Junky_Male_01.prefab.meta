@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 1a39e34459f70ba4c92c0686c2a674ab
+timeCreated: 1545087913
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 100100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 115950
+  packageName: POLYGON - Sci-Fi City Pack - Art by Synty
+  packageVersion: 1.3.2
+  assetPath: Assets/PolygonSciFiCity/Prefabs/Characters/SM_Chr_Junky_Male_01.prefab
+  uploadId: 939484

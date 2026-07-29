@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: a1c3ce9bba174b542b33dd77b017ac14
+timeCreated: 1519177912
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 100100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 112212
+  packageName: POLYGON - Western Pack - Art by Synty
+  packageVersion: 1.2.1
+  assetPath: Assets/PolygonWestern/Prefabs/Characters/SM_Chr_Woman_01.prefab
+  uploadId: 924224

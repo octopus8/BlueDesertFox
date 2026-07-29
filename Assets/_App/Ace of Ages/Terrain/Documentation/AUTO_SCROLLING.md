@@ -572,15 +572,17 @@ playerTransform.position += playerInput * moveSpeed * Time.deltaTime;
 
 ## Debugging Scrolling
 
-### Visual Indicators
+### Terrain Status Inspector
 
-Add `TerrainTileGizmoVisualizer` and enable "Draw Grid Coordinates":
-- Tile coordinate numbers should change as terrain scrolls
-- Grid (0, 0) moves relative to player
+In play mode, confirm `PlayerTransformReference` is valid and tile counts are non-zero.
 
-### Console Logging
+### Console
 
-Uncomment debug logging in `ScrollTerrainSystem.cs`:
+Watch for `[PlayerTrackingInitSystem]` and `[WorldOriginTrackingInitSystem]` warnings if scroll direction depends on player or world origin.
+
+### Optional: Temporary Scroll Logging
+
+Add temporary `#if UNITY_EDITOR` logging in `ScrollTerrainSystem.cs` if needed:
 
 ```csharp
 #if UNITY_EDITOR
@@ -963,9 +965,9 @@ public class VRComfortMode : MonoBehaviour
 4. Check console for ScrollTerrainSystem errors
 
 **Debug**:
-- Add TerrainTrackingDebugger, check if PlayerTransformReference is valid
-- Uncomment debug logs in ScrollTerrainSystem
-- Verify ScrollOffset is increasing each frame
+- Open **Terrain Status Inspector** in play mode; confirm `PlayerTransformReference` is valid
+- Add temporary `#if UNITY_EDITOR` logs in `ScrollTerrainSystem` if needed
+- Verify `ScrollOffset` is increasing each frame (Profiler or breakpoint)
 
 ### Terrain Scrolls Wrong Direction
 

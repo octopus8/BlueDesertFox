@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: fbf2d3329a324235a7dd935d9d28626c
+timeCreated: 1549333968
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: -1
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 138857
+  packageName: POLYGON - Sci-Fi Space Pack - Art by Synty
+  packageVersion: 1.14.0
+  assetPath: Assets/PolygonSciFiSpace/Materials/FX/FX_MuzzleFlash_01.mat
+  uploadId: 915402

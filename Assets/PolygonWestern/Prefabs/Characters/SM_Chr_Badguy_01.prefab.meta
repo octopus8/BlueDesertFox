@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 5a9f9f29c025f804db3dd92ac9bbc860
+timeCreated: 1519177779
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 100100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 112212
+  packageName: POLYGON - Western Pack - Art by Synty
+  packageVersion: 1.2.1
+  assetPath: Assets/PolygonWestern/Prefabs/Characters/SM_Chr_Badguy_01.prefab
+  uploadId: 924224

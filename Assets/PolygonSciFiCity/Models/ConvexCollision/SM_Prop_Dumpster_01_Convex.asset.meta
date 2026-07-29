@@ -3,14 +3,14 @@ guid: 519bd0b19243e6041bcc871bbbbba07c
 timeCreated: 1580692163
 licenseType: Store
 NativeFormatImporter:
-  mainObjectFileID: 11400000
+  mainObjectFileID: 43191247255528666
   userData: 
   assetBundleName: 
   assetBundleVariant: 
 AssetOrigin:
   serializedVersion: 1
   productId: 115950
-  packageName: POLYGON Sci-Fi City - Low Poly 3D Art by Synty
-  packageVersion: 1.2.4
+  packageName: POLYGON - Sci-Fi City Pack - Art by Synty
+  packageVersion: 1.3.2
   assetPath: Assets/PolygonSciFiCity/Models/ConvexCollision/SM_Prop_Dumpster_01_Convex.asset
-  uploadId: 756032
+  uploadId: 939484

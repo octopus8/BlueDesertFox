@@ -29,32 +29,13 @@ public class TransformFollowerExample : MonoBehaviour
     private EntityManager _entityManager;
     private Entity _entityToFollow;
     
+    /// <summary>Caches the <see cref="EntityManager"/> reference.</summary>
     void Start()
     {
-        // Get the entity manager from the default world
         _entityManager = World.DefaultGameObjectInjectionWorld.EntityManager;
-        
-        // Example: Find the entity associated with a GameObject in the subscene
-        // Note: This only works if the GameObject is converted to an entity
-        if (entityInSubscene != null)
-        {
-            // Try to get the entity from the GameObject
-            // This works if the GameObject has been baked into an entity
-            var entityGO = entityInSubscene;
-            
-            // In the current ECS version, you'd typically store entity references differently
-            // This is just an example - in practice, you might:
-            // 1. Use an authoring component to store the entity reference
-            // 2. Query for entities with specific components
-            // 3. Store the entity in a singleton component
-            
-            Debug.Log("To properly reference entities from MonoBehaviours, consider using:");
-            Debug.Log("1. Entity references stored during baking");
-            Debug.Log("2. Querying for entities with specific components");
-            Debug.Log("3. Singleton patterns");
-        }
     }
     
+    /// <summary>Checks for the <see cref="updateTargetKey"/> press and calls <see cref="UpdateFollowerTarget"/> when triggered.</summary>
     void Update()
     {
         if (Input.GetKeyDown(updateTargetKey))
@@ -68,29 +49,21 @@ public class TransformFollowerExample : MonoBehaviour
     /// </summary>
     void UpdateFollowerTarget()
     {
-        // Example of how to add/update components on an entity at runtime
-        
-        // Method 1: If you have the entity reference
         if (_entityManager.Exists(_entityToFollow))
         {
-            // Update the managed component
             _entityManager.SetComponentData(_entityToFollow, new TransformReference
             {
                 target = targetToFollow
             });
             
-            // Update settings
             _entityManager.SetComponentData(_entityToFollow, new TransformFollowerSettings
             {
                 offset = offset,
                 followRotation = followRotation,
                 smoothTime = smoothTime
             });
-            
-            Debug.Log($"Updated entity to follow: {targetToFollow.name}");
         }
         
-        // Method 2: Query for all entities with a specific component and update them
         var query = _entityManager.CreateEntityQuery(typeof(TransformFollowerSettings));
         var entities = query.ToEntityArray(Unity.Collections.Allocator.Temp);
         
@@ -102,8 +75,6 @@ public class TransformFollowerExample : MonoBehaviour
         }
         
         entities.Dispose();
-        
-        Debug.Log($"Updated {entities.Length} followers");
     }
     
     /// <summary>
@@ -117,17 +88,6 @@ public class TransformFollowerExample : MonoBehaviour
         );
         
         var entities = query.ToEntityArray(Unity.Collections.Allocator.Temp);
-        
-        Debug.Log($"Found {entities.Length} entities with TransformFollower components");
-        
-        foreach (var entity in entities)
-        {
-            var transformRef = _entityManager.GetComponentData<TransformReference>(entity);
-            var settings = _entityManager.GetComponentData<TransformFollowerSettings>(entity);
-            
-            Debug.Log($"Entity following: {(transformRef.target != null ? transformRef.target.name : "null")}");
-        }
-        
         entities.Dispose();
     }
     
@@ -136,13 +96,10 @@ public class TransformFollowerExample : MonoBehaviour
     /// </summary>
     public Entity CreateFollowerEntity(Transform target, Vector3 offset)
     {
-        // Create a new entity
         Entity newEntity = _entityManager.CreateEntity();
         
-        // Add required components
         _entityManager.AddComponentData(newEntity, Unity.Transforms.LocalTransform.Identity);
         
-        // Add follower components
         _entityManager.AddComponentData(newEntity, new TransformFollowerSettings
         {
             offset = offset,
@@ -155,12 +112,10 @@ public class TransformFollowerExample : MonoBehaviour
             target = target
         });
         
-        Debug.Log($"Created new follower entity for: {target.name}");
-        
         return newEntity;
     }
     
-    // Debug visualization
+    /// <summary>Draws Scene-view gizmos showing the target position and offset when this GameObject is selected.</summary>
     void OnDrawGizmosSelected()
     {
         if (targetToFollow != null)
@@ -177,4 +132,3 @@ public class TransformFollowerExample : MonoBehaviour
         }
     }
 }
-

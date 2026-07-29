@@ -24,6 +24,11 @@ public partial class TerrainRenderingSystem : SystemBase
     private Material[] _cachedMaterialArray;
     private Mesh[] _cachedMeshArray;
     
+    /// <summary>
+    /// Builds the tile entity query, allocates the pending-mesh queue and deduplication set,
+    /// initialises cached material/mesh arrays for zero-GC mesh creation, and registers the
+    /// <see cref="TerrainTileConfig"/> requirement.
+    /// </summary>
     protected override void OnCreate()
     {
         RequireForUpdate<TerrainTileConfig>();
@@ -42,6 +47,10 @@ public partial class TerrainRenderingSystem : SystemBase
         _cachedMeshArray = new Mesh[1];
     }
     
+    /// <summary>
+    /// Resolves the terrain material from the <c>TerrainMaterialReference</c> component on
+    /// first run, falling back to a Resources lookup and then to auto-generated materials.
+    /// </summary>
     protected override void OnStartRunning()
     {
         // Try to get material from TerrainMaterialReference component first
@@ -53,7 +62,6 @@ public partial class TerrainRenderingSystem : SystemBase
             if (materialRef != null && materialRef.material != null)
             {
                 _terrainMaterial = materialRef.material;
-                Debug.Log($"[TerrainRendering] Using material from TerrainConfigAuthoring: {_terrainMaterial.name}");
                 return;
             }
         }
@@ -61,7 +69,6 @@ public partial class TerrainRenderingSystem : SystemBase
         _terrainMaterial = Resources.Load<Material>("TerrainMaterial");
         if (_terrainMaterial != null)
         {
-            Debug.Log($"[TerrainRendering] Loaded material from Resources: {_terrainMaterial.name}");
             return;
         }
         // Last resort: create a debug material
@@ -102,9 +109,15 @@ public partial class TerrainRenderingSystem : SystemBase
             Debug.LogError("[TerrainRendering] Failed to find any suitable shader!");
         }
     }
+    /// <summary>
+    /// Queues tiles with generated vertex data but no <c>MeshReference</c>, then creates Unity
+    /// <see cref="Mesh"/> instances and assigns <c>RenderMeshArray</c> components within the
+    /// per-frame budget. Always processes <c>MeshReference</c> creation for tree-spawning
+    /// correctness even when visual rendering is disabled.
+    /// </summary>
     protected override void OnUpdate()
     {
-        // Always process tiles for MeshReference (needed for tree spawning)
+        // Always process tiles for MeshReference (needed for static object spawning)
         // But skip actual rendering setup if renderTerrain is disabled
         var config = SystemAPI.GetSingleton<TerrainTileConfig>();
         bool shouldRender = config.renderTerrain;
@@ -162,7 +175,7 @@ public partial class TerrainRenderingSystem : SystemBase
     }
     /// <summary>
     /// Creates a Unity Mesh from buffer data using NativeArray API to avoid GC allocations.
-    /// If shouldRender is false, only adds MeshReference (for tree spawning) but skips rendering setup.
+    /// If shouldRender is false, only adds MeshReference (for static object spawning) but skips rendering setup.
     /// </summary>
     private void CreateAndAssignMesh(
         Entity entity,
@@ -188,7 +201,7 @@ public partial class TerrainRenderingSystem : SystemBase
         mesh.SetIndices(indicesNative, MeshTopology.Triangles, 0);
         // Recalculate bounds
         mesh.RecalculateBounds();
-        // Always add MeshReference (needed for tree spawning system)
+        // Always add MeshReference (needed for static object spawning system)
         EntityManager.AddComponentData(entity, new MeshReference { mesh = mesh });
         // Skip rendering setup if terrain rendering is disabled
         if (!shouldRender)
@@ -243,6 +256,10 @@ public partial class TerrainRenderingSystem : SystemBase
             EntityManager.AddComponent<LocalToWorld>(entity);
         }
     }
+    /// <summary>
+    /// Disposes native collections and destroys all managed <see cref="Mesh"/> instances owned by
+    /// terrain tile entities to prevent Unity memory leaks on domain reload or scene teardown.
+    /// </summary>
     protected override void OnDestroy()
     {
         // Dispose queue and hash set

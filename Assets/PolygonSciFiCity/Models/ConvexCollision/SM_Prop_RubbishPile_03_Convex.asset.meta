@@ -3,14 +3,14 @@ guid: c576feb6a66df8a40a680e62f54d2da1
 timeCreated: 1580692199
 licenseType: Store
 NativeFormatImporter:
-  mainObjectFileID: 11400000
+  mainObjectFileID: 43907425343098582
   userData: 
   assetBundleName: 
   assetBundleVariant: 
 AssetOrigin:
   serializedVersion: 1
   productId: 115950
-  packageName: POLYGON Sci-Fi City - Low Poly 3D Art by Synty
-  packageVersion: 1.2.4
+  packageName: POLYGON - Sci-Fi City Pack - Art by Synty
+  packageVersion: 1.3.2
   assetPath: Assets/PolygonSciFiCity/Models/ConvexCollision/SM_Prop_RubbishPile_03_Convex.asset
-  uploadId: 756032
+  uploadId: 939484

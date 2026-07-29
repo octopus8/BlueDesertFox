@@ -1,6 +1,13 @@
 using UnityEngine;
 using UnityEngine.Splines;
 
+/// <summary>
+/// Lightweight MonoBehaviour that moves a Rigidbody along a Unity <see cref="SplineContainer"/>
+/// using physics-based steering. Each <c>FixedUpdate</c> the object advances its position ratio
+/// along the spline, steers its <see cref="Rigidbody.linearVelocity"/> toward the spline point, and
+/// orients itself using the spline's up vector. The spline loops continuously.
+/// <para>Used for prototyping spline movement without the ECS spline follower system.</para>
+/// </summary>
 public class SimpleSplineFollower : MonoBehaviour
 {
     [SerializeField] private SplineContainer splineContainer;
@@ -17,6 +24,11 @@ public class SimpleSplineFollower : MonoBehaviour
     private bool hasSetInitialVelocity = false;
     
     
+    /// <summary>
+    /// Advances <c>distanceRatio</c> along the spline proportional to <see cref="speed"/> and elapsed
+    /// fixed-delta time, wraps at 1.0 for continuous looping, evaluates the spline position/tangent/up,
+    /// updates the optional <c>splineLocation</c> marker, and steers the Rigidbody toward the target point.
+    /// </summary>
     void FixedUpdate()
     {
         // Calculate the new distance ratio based on speed and time

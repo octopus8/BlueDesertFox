@@ -3,14 +3,14 @@ guid: cad360fa1abc2bd4cb4ffb2cee749c31
 timeCreated: 1580692208
 licenseType: Store
 NativeFormatImporter:
-  mainObjectFileID: 11400000
+  mainObjectFileID: 43326404694936638
   userData: 
   assetBundleName: 
   assetBundleVariant: 
 AssetOrigin:
   serializedVersion: 1
   productId: 115950
-  packageName: POLYGON Sci-Fi City - Low Poly 3D Art by Synty
-  packageVersion: 1.2.4
+  packageName: POLYGON - Sci-Fi City Pack - Art by Synty
+  packageVersion: 1.3.2
   assetPath: Assets/PolygonSciFiCity/Models/ConvexCollision/SM_Prop_Window_03_Convex.asset
-  uploadId: 756032
+  uploadId: 939484

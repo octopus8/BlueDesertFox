@@ -186,20 +186,20 @@ namespace Autohand {
                 GrabbableChild hitGrabbableChild;
                 if(didHit) {
                     if(hit.transform.CanGetComponent(out hitGrabbable)) {
-                        if(targetingDistanceGrabbable == null || hitGrabbable.GetInstanceID() != targetingDistanceGrabbable.GetInstanceID())
+                        if(targetingDistanceGrabbable == null || hitGrabbable.GetEntityId() != targetingDistanceGrabbable.GetEntityId())
                         {
                             StartTargeting(hitGrabbable);
                         }
                     }
                     else if(hit.transform.CanGetComponent(out hitGrabbableChild)) {
                         if(hitGrabbableChild.grabParent.transform.CanGetComponent(out hitGrabbable)) {
-                            if(targetingDistanceGrabbable == null || hitGrabbable.GetInstanceID() != targetingDistanceGrabbable.GetInstanceID())
+                            if(targetingDistanceGrabbable == null || hitGrabbable.GetEntityId() != targetingDistanceGrabbable.GetEntityId())
                             {
                                 StartTargeting(hitGrabbable);
                             }
                         }
                     }
-                    else if(targetingDistanceGrabbable != null && hit.transform.gameObject.GetInstanceID() != targetingDistanceGrabbable.gameObject.GetInstanceID())
+                    else if(targetingDistanceGrabbable != null && hit.transform.gameObject.GetEntityId() != targetingDistanceGrabbable.gameObject.GetEntityId())
                     {
                         StopTargeting();
                     }

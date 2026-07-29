@@ -31,12 +31,16 @@ public partial struct TransformFollowerSystemOptimized : ISystem
     private EntityQuery _followerQuery;
     private NativeList<TransformData> _transformDataCache;
     
+    /// <summary>Cached world-space transform snapshot read from a managed <see cref="UnityEngine.Transform"/> on the main thread.</summary>
     struct TransformData
     {
+        /// <summary>World-space position of the target Transform this frame.</summary>
         public float3 position;
+        /// <summary>World-space rotation of the target Transform this frame.</summary>
         public quaternion rotation;
     }
     
+    /// <summary>Builds the follower entity query and allocates the persistent transform-data cache list.</summary>
     public void OnCreate(ref SystemState state)
     {
         _followerQuery = state.GetEntityQuery(
@@ -48,6 +52,7 @@ public partial struct TransformFollowerSystemOptimized : ISystem
         _transformDataCache = new NativeList<TransformData>(Allocator.Persistent);
     }
     
+    /// <summary>Disposes the persistent transform-data cache and frees native memory.</summary>
     public void OnDestroy(ref SystemState state)
     {
         if (_transformDataCache.IsCreated)
@@ -56,6 +61,12 @@ public partial struct TransformFollowerSystemOptimized : ISystem
         }
     }
     
+    /// <summary>
+    /// Step 1 (main thread): reads each managed <see cref="TransformReference"/>.target's world position and
+    /// rotation into the native <c>_transformDataCache</c> list.
+    /// Step 2: schedules the Burst-compiled <c>TransformFollowerJob</c> in parallel with proper dependency
+    /// chaining so rendering systems receive up-to-date <see cref="LocalTransform"/> values.
+    /// </summary>
     public void OnUpdate(ref SystemState state)
     {
         int entityCount = _followerQuery.CalculateEntityCount();
@@ -103,12 +114,23 @@ public partial struct TransformFollowerSystemOptimized : ISystem
         state.Dependency = job.ScheduleParallel(state.Dependency);
     }
     
+    /// <summary>
+    /// Burst-compiled parallel job that applies the pre-collected transform-data snapshot to each
+    /// follower entity's <see cref="LocalTransform"/>, respecting position offset and optional
+    /// rotation following with configurable smooth interpolation.
+    /// </summary>
     [BurstCompile]
     partial struct TransformFollowerJob : IJobEntity
     {
+        /// <summary>Read-only array of per-entity target transform snapshots collected on the main thread.</summary>
         [ReadOnly] public NativeArray<TransformData> transformData;
+        /// <summary>Elapsed time in seconds since the last frame, used for smooth interpolation.</summary>
         public float deltaTime;
         
+        /// <summary>
+        /// Reads the cached <see cref="TransformData"/> for this entity's index, computes the target
+        /// position with settings offset, and updates <see cref="LocalTransform"/> with optional smoothing.
+        /// </summary>
         public void Execute(
             [EntityIndexInQuery] int entityIndexInQuery,
             ref LocalTransform localTransform,

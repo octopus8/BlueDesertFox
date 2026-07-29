@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: e450f7c9afc1b8d419422965e667ac15
+timeCreated: 1519338058
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 112212
+  packageName: POLYGON - Western Pack - Art by Synty
+  packageVersion: 1.2.1
+  assetPath: Assets/PolygonWestern/Materials/Misc/Background_Card_03.mat
+  uploadId: 924224

@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 6964ac59acc20264988796a2902354b9
+timeCreated: 1508121579
+licenseType: Store
+NativeFormatImporter:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 115950
+  packageName: POLYGON - Sci-Fi City Pack - Art by Synty
+  packageVersion: 1.3.2
+  assetPath: Assets/PolygonSciFiCity/Prefabs/FX/FX_LightRayCube_01.prefab
+  uploadId: 939484

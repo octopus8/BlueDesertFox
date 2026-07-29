@@ -30,20 +30,29 @@ namespace Autohand {
 
 
 
+        WaitForSecondsRealtime _highlightWait;
+        WaitForSecondsRealtime _highlightStaggerWait;
+        static readonly WaitForEndOfFrame s_WaitEndOfFrame = new WaitForEndOfFrame();
+        static readonly WaitForFixedUpdate s_WaitFixedUpdate = new WaitForFixedUpdate();
+        int _cachedGrabbingLayer = -1;
+
         //Highlighting doesn't need to be called every update, it can be called every 4th update without causing any noticable differrences 
         IEnumerator HighlightUpdate(float timestep) {
-            yield return new WaitForEndOfFrame();
-            yield return new WaitForFixedUpdate();
+            _highlightWait ??= new WaitForSecondsRealtime(timestep);
+            _highlightStaggerWait ??= new WaitForSecondsRealtime(timestep / 2f);
+
+            yield return s_WaitEndOfFrame;
+            yield return s_WaitFixedUpdate;
 
             //This will smooth out the highlight calls to help prevent lag spikes
             if(hand.left)
-                yield return new WaitForSecondsRealtime(timestep / 2);
+                yield return _highlightStaggerWait;
 
             while(true) {
                 if(hand.usingHighlight) {
                     UpdateHighlight();
                 }
-                yield return new WaitForSecondsRealtime(timestep);
+                yield return _highlightWait;
             }
         }
 
@@ -92,8 +101,9 @@ namespace Autohand {
         public virtual void UpdateHighlight(bool overrideIgnoreHighlight = false, bool ignoreHighlightEvents = false) {
 
             if((overrideIgnoreHighlight || hand.usingHighlight) && hand.highlightLayers != 0 && (overrideIgnoreHighlight || hand.holdingObj == null && !hand.IsGrabbing())) {
-                int grabbingLayer = LayerMask.NameToLayer(Hand.grabbingLayerName);
-                int gabbingMask = LayerMask.GetMask(Hand.grabbingLayerName);
+                if(_cachedGrabbingLayer < 0)
+                    _cachedGrabbingLayer = LayerMask.NameToLayer(Hand.grabbingLayerName);
+                int grabbingLayer = _cachedGrabbingLayer;
                 highlightColliderNonAllocCount = Physics.OverlapSphereNonAlloc(hand.palmTransform.position + hand.palmTransform.forward * hand.reachDistance / 3f, hand.reachDistance, highlightCollidersNonAlloc, hand.highlightLayers & ~(hand.ignoreGrabCheckLayers.value), highlightQuery);
                 foundHighlightGrabbables.Clear();
 

@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: b72e3ff61dae03347b6d121f67fcacb3
+timeCreated: 1519351850
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 112212
+  packageName: POLYGON - Western Pack - Art by Synty
+  packageVersion: 1.2.1
+  assetPath: Assets/PolygonWestern/Materials/Misc/FX_Dust_01.mat
+  uploadId: 924224

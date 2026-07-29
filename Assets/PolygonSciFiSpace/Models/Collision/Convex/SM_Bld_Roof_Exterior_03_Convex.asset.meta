@@ -3,14 +3,14 @@ guid: b82e3f57edb27354798a1ca226a2cdaf
 timeCreated: 1585527208
 licenseType: Store
 NativeFormatImporter:
-  mainObjectFileID: 11400000
+  mainObjectFileID: 43878621131310444
   userData: 
   assetBundleName: 
   assetBundleVariant: 
 AssetOrigin:
   serializedVersion: 1
   productId: 138857
-  packageName: POLYGON Sci-Fi Space - Low Poly 3D Art by Synty
-  packageVersion: 1.13.1
+  packageName: POLYGON - Sci-Fi Space Pack - Art by Synty
+  packageVersion: 1.14.0
   assetPath: Assets/PolygonSciFiSpace/Models/Collision/Convex/SM_Bld_Roof_Exterior_03_Convex.asset
-  uploadId: 737404
+  uploadId: 915402

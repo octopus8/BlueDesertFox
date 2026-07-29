@@ -3,14 +3,14 @@ guid: faa6fd7f503007b41859fabbcbf17055
 timeCreated: 1580249525
 licenseType: Store
 NativeFormatImporter:
-  mainObjectFileID: 11400000
+  mainObjectFileID: 43281083799243694
   userData: 
   assetBundleName: 
   assetBundleVariant: 
 AssetOrigin:
   serializedVersion: 1
   productId: 112212
-  packageName: POLYGON Western - Low Poly 3D Art by Synty
-  packageVersion: 1.1.3
+  packageName: POLYGON - Western Pack - Art by Synty
+  packageVersion: 1.2.1
   assetPath: Assets/PolygonWestern/Models/CollisionConvex/SM_Bld_Saloon_01_Convex.asset
-  uploadId: 751513
+  uploadId: 924224

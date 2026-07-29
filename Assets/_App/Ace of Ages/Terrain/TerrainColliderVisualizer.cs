@@ -1,110 +1,227 @@
-using System;
+﻿using System.Collections.Generic;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
 using Unity.Physics;
 using Unity.Transforms;
 using UnityEngine;
+using UnityEngine.Rendering;
+using Material = UnityEngine.Material;
 
 /// <summary>
-/// Visualizes terrain physics colliders as colored wireframes in the Scene view.
-/// Colors represent LOD levels: Green (Full Resolution), Yellow (Half Resolution), Orange (Quarter Resolution).
-/// Draws the actual mesh geometry of each collider.
-/// Add this MonoBehaviour to any GameObject in your scene to enable visualization.
+/// Visualizes terrain physics colliders as colored wireframes during gameplay (VR compatible).
+/// Draws collider triangle edges using pooled MeshRenderer components with MeshTopology.Lines.
+/// Fully compatible with Quest 3 and all VR platforms.
 /// </summary>
 public class TerrainColliderVisualizer : MonoBehaviour
 {
+    private const float WireframeYOffset = 0.03f;
+
     [Header("Visualization Settings")]
     [Tooltip("Enable collider wireframe visualization")]
     public bool enableVisualization = true;
-    
-    [Header("LOD Colors")]
-    [Tooltip("Color for full-resolution colliders (all vertices)")]
-    public Color fullResolutionColor = Color.green;
-    
-    [Tooltip("Color for half-resolution colliders (every 2nd vertex)")]
-    public Color halfResolutionColor = Color.yellow;
-    
-    [Tooltip("Color for quarter-resolution colliders (every 4th vertex)")]
-    public Color quarterResolutionColor = new Color(1f, 0.5f, 0f); // Orange
-    
+
+    [Tooltip("Color for terrain collider wireframes")]
+    public Color colliderColor = Color.green;
+
+    [Header("Performance (Quest 3 Optimization)")]
+    [Tooltip("Maximum tiles to render per frame. Quest 2: 20, Quest 3: 40, Desktop VR: -1 (unlimited)")]
+    public int maxTilesToRenderPerFrame = 40;
+
+    [Tooltip("Maximum XZ distance from player to render collider visualization (meters). Matches physics collider distance. 0 = unlimited")]
+    public float maxVisualizationDistance = 500f;
+
     [Header("Info")]
     [SerializeField] private int _tilesWithColliders = 0;
-    [SerializeField] private int _fullResolutionCount = 0;
-    [SerializeField] private int _halfResolutionCount = 0;
-    [SerializeField] private int _quarterResolutionCount = 0;
-    
-    private EntityManager _entityManager;
+    [SerializeField] private int _tilesRenderedLastFrame = 0;
 
-    private void Awake()
+    private EntityManager _entityManager;
+    private GameObject _meshContainer;
+    private List<TileMeshEntry> _meshPool = new List<TileMeshEntry>();
+    private int _activeMeshes = 0;
+    private Material _meshMaterial;
+    private List<Vector3> _vertexScratch = new List<Vector3>();
+    private List<int> _lineIndexScratch = new List<int>();
+
+    private sealed class TileMeshEntry
     {
-        // If not Unity editor, then destroy this component.
-#if !UNITY_EDITOR
-        Destroy(this);
-#endif
+        public GameObject gameObject;
+        public MeshFilter meshFilter;
+        public MeshRenderer meshRenderer;
+        public Mesh mesh;
     }
 
+    /// <summary>Creates the world-origin mesh container and the visualization material.</summary>
+    private void Awake()
+    {
+        _meshContainer = new GameObject("ColliderVisualizationMeshes");
+        // Detach from this GameObject so the world-space vertices we build are not transformed
+        // again by the host transform (which may be offset from the world origin).
+        _meshContainer.transform.SetParent(null);
+        _meshContainer.transform.position = Vector3.zero;
+        _meshContainer.transform.rotation = Quaternion.identity;
+        _meshContainer.transform.localScale = Vector3.one;
+
+        CreateMeshMaterial();
+    }
+
+    /// <summary>Destroys the pooled visualization material and the mesh container to prevent memory leaks.</summary>
+    private void OnDestroy()
+    {
+        if (_meshMaterial != null)
+        {
+            if (Application.isPlaying)
+                Destroy(_meshMaterial);
+            else
+                DestroyImmediate(_meshMaterial);
+        }
+
+        if (_meshContainer != null)
+        {
+            if (Application.isPlaying)
+                Destroy(_meshContainer);
+            else
+                DestroyImmediate(_meshContainer);
+        }
+    }
+
+    /// <summary>Caches the <see cref="EntityManager"/> reference and refreshes Inspector tile counters each frame.</summary>
     void Update()
     {
         if (!Application.isPlaying)
             return;
-            
+
         if (World.DefaultGameObjectInjectionWorld == null)
             return;
-            
+
         _entityManager = World.DefaultGameObjectInjectionWorld.EntityManager;
-        
-        // Update counts for inspector display
         UpdateCounts();
     }
-    
+
+    /// <summary>Each frame, applies the current collider color to the material and calls <see cref="RenderColliderMeshes"/> to update pooled mesh renderers.</summary>
+    void LateUpdate()
+    {
+        if (!enableVisualization || !Application.isPlaying)
+        {
+            HideAllMeshes();
+            return;
+        }
+
+        if (_meshMaterial == null)
+            return;
+
+        if (World.DefaultGameObjectInjectionWorld == null)
+            return;
+
+        ApplyMaterialColor(colliderColor);
+        RenderColliderMeshes();
+    }
+
+    /// <summary>Queries the ECS world for tiles with physics collider data and updates the Inspector-visible <c>_tilesWithColliders</c> count.</summary>
     void UpdateCounts()
     {
         var query = _entityManager.CreateEntityQuery(
             typeof(PhysicsCollider),
-            typeof(TerrainTileDistanceToPlayer)
+            typeof(TerrainTileDistanceToPlayer),
+            typeof(VertexElement),
+            typeof(IndexElement)
         );
         _tilesWithColliders = query.CalculateEntityCount();
-        
-        // Count by LOD level
-        _fullResolutionCount = 0;
-        _halfResolutionCount = 0;
-        _quarterResolutionCount = 0;
-        
-        var entities = query.ToEntityArray(Allocator.Temp);
-        foreach (var entity in entities)
-        {
-            if (_entityManager.HasComponent<TerrainTileDistanceToPlayer>(entity))
-            {
-                var distanceData = _entityManager.GetComponentData<TerrainTileDistanceToPlayer>(entity);
-                switch (distanceData.lodLevel)
-                {
-                    case TerrainPhysicsLODLevel.FullResolution:
-                        _fullResolutionCount++;
-                        break;
-                    case TerrainPhysicsLODLevel.HalfResolution:
-                        _halfResolutionCount++;
-                        break;
-                    case TerrainPhysicsLODLevel.QuarterResolution:
-                        _quarterResolutionCount++;
-                        break;
-                }
-            }
-        }
-        entities.Dispose();
+        query.Dispose();
     }
-    
-    void OnDrawGizmos()
+
+    /// <summary>Creates a new URP Unlit (or fallback Unlit/Color) material for wireframe line rendering.</summary>
+    private void CreateMeshMaterial()
     {
-        if (!Application.isPlaying || !enableVisualization)
+        Shader shader = Shader.Find("Universal Render Pipeline/Unlit");
+
+        if (shader == null)
+            shader = Shader.Find("Unlit/Color");
+
+        if (shader == null)
+        {
+            Debug.LogError("[TerrainColliderVisualizer] Could not find shader for mesh rendering!");
             return;
-            
-        if (World.DefaultGameObjectInjectionWorld == null)
-            return;
-        
+        }
+
+        _meshMaterial = new Material(shader);
+        _meshMaterial.name = "TerrainColliderVisualizerMeshMaterial";
+        _meshMaterial.hideFlags = HideFlags.HideAndDontSave;
+        ApplyMaterialColor(colliderColor);
+        _meshMaterial.SetFloat("_Cull", (float)CullMode.Off);
+        _meshMaterial.SetFloat("_ZWrite", 0f);
+        if (_meshMaterial.HasProperty("_ZTest"))
+            _meshMaterial.SetFloat("_ZTest", (float)CompareFunction.LessEqual);
+    }
+
+    /// <summary>Sets the material's <c>_BaseColor</c> (URP) or <c>_Color</c> (legacy) property to <paramref name="color"/>.</summary>
+    private void ApplyMaterialColor(Color color)
+    {
+        if (_meshMaterial.HasProperty("_BaseColor"))
+            _meshMaterial.SetColor("_BaseColor", color);
+        else if (_meshMaterial.HasProperty("_Color"))
+            _meshMaterial.SetColor("_Color", color);
+    }
+
+    /// <summary>Returns the next available <see cref="TileMeshEntry"/> from the pool, activating it, or creates and adds a new one if the pool is exhausted.</summary>
+    private TileMeshEntry GetOrCreateMeshEntry()
+    {
+        if (_activeMeshes < _meshPool.Count)
+        {
+            var existing = _meshPool[_activeMeshes];
+            existing.gameObject.SetActive(true);
+            _activeMeshes++;
+            return existing;
+        }
+
+        var go = new GameObject($"TileMesh{_meshPool.Count}");
+        go.transform.SetParent(_meshContainer.transform);
+        go.transform.localPosition = Vector3.zero;
+
+        var meshFilter = go.AddComponent<MeshFilter>();
+        var meshRenderer = go.AddComponent<MeshRenderer>();
+        var mesh = new Mesh { name = $"ColliderVisMesh{_meshPool.Count}" };
+        mesh.hideFlags = HideFlags.HideAndDontSave;
+        mesh.MarkDynamic();
+
+        meshFilter.sharedMesh = mesh;
+        meshRenderer.sharedMaterial = _meshMaterial;
+        meshRenderer.shadowCastingMode = ShadowCastingMode.Off;
+        meshRenderer.receiveShadows = false;
+
+        var newEntry = new TileMeshEntry
+        {
+            gameObject = go,
+            meshFilter = meshFilter,
+            meshRenderer = meshRenderer,
+            mesh = mesh
+        };
+
+        _meshPool.Add(newEntry);
+        _activeMeshes++;
+        return newEntry;
+    }
+
+    /// <summary>Deactivates all pooled tile mesh GameObjects and resets the active-mesh counter to zero.</summary>
+    private void HideAllMeshes()
+    {
+        for (int i = 0; i < _meshPool.Count; i++)
+            _meshPool[i].gameObject.SetActive(false);
+
+        _activeMeshes = 0;
+    }
+
+    /// <summary>
+    /// Queries all terrain tiles with collider vertex/triangle data, filters by distance
+    /// (up to <see cref="maxVisualizationDistance"/>), and uploads wireframe line geometry to pooled
+    /// <see cref="MeshRenderer"/> GameObjects via <see cref="GetOrCreateMeshEntry"/>.
+    /// </summary>
+    private void RenderColliderMeshes()
+    {
+        _activeMeshes = 0;
+
         var em = World.DefaultGameObjectInjectionWorld.EntityManager;
-        
-        // Query entities with physics colliders
+
         var query = em.CreateEntityQuery(
             ComponentType.ReadOnly<PhysicsCollider>(),
             ComponentType.ReadOnly<TerrainTileDistanceToPlayer>(),
@@ -112,77 +229,96 @@ public class TerrainColliderVisualizer : MonoBehaviour
             ComponentType.ReadOnly<IndexElement>(),
             ComponentType.ReadOnly<LocalTransform>()
         );
-        
+
         var entities = query.ToEntityArray(Allocator.Temp);
-        
+
+        int tilesRendered = 0;
+
         foreach (var entity in entities)
         {
-            // Get LOD level to determine color
-            var distanceData = em.GetComponentData<TerrainTileDistanceToPlayer>(entity);
-            Color wireframeColor = GetColorForLOD(distanceData.lodLevel);
-            
-            // Get tile position
-            var transform = em.GetComponentData<LocalTransform>(entity);
-            float3 tilePosition = transform.Position;
-            
-            // Get mesh data
+            if (maxTilesToRenderPerFrame > 0 && tilesRendered >= maxTilesToRenderPerFrame)
+                break;
+
+            // Use the same XZ distance as physics collider culling so flying high
+            // above terrain does not exclude nearby tiles via 3D distance.
+            if (maxVisualizationDistance > 0)
+            {
+                float distToPlayer = em.GetComponentData<TerrainTileDistanceToPlayer>(entity).distance;
+                if (distToPlayer > maxVisualizationDistance)
+                    continue;
+            }
+
+            var tileTransform = em.GetComponentData<LocalTransform>(entity);
+            float3 tilePosition = tileTransform.Position;
+
             var vertexBuffer = em.GetBuffer<VertexElement>(entity);
             var indexBuffer = em.GetBuffer<IndexElement>(entity);
-            
-            DrawColliderWireframe(vertexBuffer, indexBuffer, tilePosition, wireframeColor);
+
+            var entry = GetOrCreateMeshEntry();
+            UpdateTileMesh(entry.mesh, vertexBuffer, indexBuffer, tilePosition);
+
+            tilesRendered++;
         }
-        
+
+        _tilesRenderedLastFrame = tilesRendered;
         entities.Dispose();
+        query.Dispose();
+
+        for (int i = _activeMeshes; i < _meshPool.Count; i++)
+            _meshPool[i].gameObject.SetActive(false);
     }
-    
-    private Color GetColorForLOD(TerrainPhysicsLODLevel lodLevel)
-    {
-        switch (lodLevel)
-        {
-            case TerrainPhysicsLODLevel.FullResolution:
-                return fullResolutionColor;
-            case TerrainPhysicsLODLevel.HalfResolution:
-                return halfResolutionColor;
-            case TerrainPhysicsLODLevel.QuarterResolution:
-                return quarterResolutionColor;
-            default:
-                return Color.gray;
-        }
-    }
-    
-    private void DrawColliderWireframe(
+
+    /// <summary>
+    /// Uploads collider vertices and expands triangle indices into line segments for
+    /// <see cref="MeshTopology.Lines"/> wireframe rendering, with a small Y offset to reduce z-fighting.
+    /// </summary>
+    private void UpdateTileMesh(
+        Mesh mesh,
         DynamicBuffer<VertexElement> vertices,
         DynamicBuffer<IndexElement> indices,
-        float3 tilePosition,
-        Color color)
+        float3 tilePosition)
     {
-        Gizmos.color = color;
-        
-        // Draw each triangle edge
-        // Indices are stored as sequential triplets: [0,1,2], [3,4,5], etc.
-        for (int i = 0; i < indices.Length; i += 3)
+        if (vertices.Length == 0 || indices.Length == 0)
         {
-            if (i + 2 >= indices.Length)
-                break;
-            
-            int idx0 = indices[i].value;
-            int idx1 = indices[i + 1].value;
-            int idx2 = indices[i + 2].value;
-            
-            // Safety check
-            if (idx0 >= vertices.Length || idx1 >= vertices.Length || idx2 >= vertices.Length)
-                continue;
-            
-            Vector3 v0 = (Vector3)(tilePosition + vertices[idx0].value);
-            Vector3 v1 = (Vector3)(tilePosition + vertices[idx1].value);
-            Vector3 v2 = (Vector3)(tilePosition + vertices[idx2].value);
-            
-            // Draw triangle edges
-            Gizmos.DrawLine(v0, v1);
-            Gizmos.DrawLine(v1, v2);
-            Gizmos.DrawLine(v2, v0);
+            mesh.Clear();
+            return;
         }
+
+        if (_vertexScratch.Capacity < vertices.Length)
+            _vertexScratch.Capacity = vertices.Length;
+
+        float3 yOffset = new float3(0f, WireframeYOffset, 0f);
+
+        _vertexScratch.Clear();
+        for (int i = 0; i < vertices.Length; i++)
+            _vertexScratch.Add((Vector3)(tilePosition + vertices[i].value + yOffset));
+
+        int triangleCount = indices.Length / 3;
+        int lineIndexCount = triangleCount * 6;
+        if (_lineIndexScratch.Capacity < lineIndexCount)
+            _lineIndexScratch.Capacity = lineIndexCount;
+
+        _lineIndexScratch.Clear();
+        for (int i = 0; i + 2 < indices.Length; i += 3)
+        {
+            int i0 = indices[i].value;
+            int i1 = indices[i + 1].value;
+            int i2 = indices[i + 2].value;
+
+            if (i0 >= vertices.Length || i1 >= vertices.Length || i2 >= vertices.Length)
+                continue;
+
+            _lineIndexScratch.Add(i0);
+            _lineIndexScratch.Add(i1);
+            _lineIndexScratch.Add(i1);
+            _lineIndexScratch.Add(i2);
+            _lineIndexScratch.Add(i2);
+            _lineIndexScratch.Add(i0);
+        }
+
+        mesh.Clear();
+        mesh.SetVertices(_vertexScratch);
+        mesh.SetIndices(_lineIndexScratch, MeshTopology.Lines, 0);
+        mesh.RecalculateBounds();
     }
 }
-
-

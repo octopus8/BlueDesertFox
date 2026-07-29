@@ -1,5 +1,7 @@
 # Quest 3 VR Tree Rendering Optimization - Implementation Summary
 
+> **Superseded (May 2026):** `GlobalTreeInstanceSystem` and its rename `GlobalStaticObjectInstanceSystem` were removed; static object rendering now uses Entities Graphics (BRG) via `MaterialMeshInfo`. The `maxUniqueBatches` config field has also been removed as unused.
+
 **Date**: May 2, 2026  
 **Status**: ✅ **IMPLEMENTATION COMPLETE**  
 **Files Modified**: 2  

@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: e9f7d1f31b6d8dd428a96ec05aabde65
+timeCreated: 1549333968
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: -1
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 138857
+  packageName: POLYGON - Sci-Fi Space Pack - Art by Synty
+  packageVersion: 1.14.0
+  assetPath: Assets/PolygonSciFiSpace/Materials/FX/FX_Trail_Streaks_01.mat
+  uploadId: 915402

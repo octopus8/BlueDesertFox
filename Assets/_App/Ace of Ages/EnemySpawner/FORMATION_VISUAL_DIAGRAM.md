@@ -77,58 +77,29 @@ Formation maintains shape while moving along the spline!
 
 ## Component Data Flow
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│ SPAWNING PHASE                                              │
-└─────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    subgraph SPAWN["Spawning Phase"]
+        AUTH["EnemySpawnerAuthoring\n• loopSpline: GameObject\n• formationCount: 10\n• formationSpacing: 2.0"]
+        COMP["EnemySpawner Component\n• splineEntity: Entity\n• formationCount: 10\n• formationSpacing: 2.0"]
+        SYS["EnemySpawnerSystem.OnUpdate()\nFor i = 0 to 9:\n① CalculateBowlingPinPosition(i, spacing)\n② Spawn entity\n③ Add SplineDataComponent\n④ Add FormationPosition\n⑤ Set LocalTransform to initial position"]
+        AUTH -->|"Bake"| COMP
+        COMP -->|"doSpawn = true"| SYS
+    end
 
-EnemySpawnerAuthoring (MonoBehaviour)
-    ├─ loopSpline: GameObject
-    ├─ formationCount: 10
-    └─ formationSpacing: 2.0
-          │
-          │ Bake
-          ▼
-EnemySpawner (Component)
-    ├─ splineEntity: Entity
-    ├─ formationCount: 10
-    └─ formationSpacing: 2.0
-          │
-          │ doSpawn = true
-          ▼
-EnemySpawnerSystem.OnUpdate()
-    │
-    │ For i = 0 to 9:
-    │   ├─ Calculate position: CalculateBowlingPinPosition(i, spacing)
-    │   ├─ Spawn entity
-    │   ├─ Add SplineDataComponent
-    │   ├─ Add FormationPosition
-    │   └─ Set LocalTransform to initial position
-    │
-    └─ Creates 10 enemies with formation data
+    subgraph MOVE["Movement Phase (Every Frame)"]
+        JOB["SplineFollowerJob (Burst-compiled)\nFor each entity with SplineFollower:"]
+        RATIO["Update base distanceRatio\ndistanceRatio += (speed × deltaTime) / totalLength"]
+        CHECK{"Has\nFormationPosition?"}
+        FP["adjustedRatio = distanceRatio + forwardOffset / totalLength\nsample = spline.Evaluate(adjustedRatio)\nrightVector = cross(up, tangent)\nposition = sample.position + rightVector × lateralOffset"]
+        ULT["Update LocalTransform.Position"]
 
-┌─────────────────────────────────────────────────────────────┐
-│ MOVEMENT PHASE (Every Frame)                               │
-└─────────────────────────────────────────────────────────────┘
+        JOB --> RATIO --> CHECK
+        CHECK -->|Yes| FP --> ULT
+        CHECK -->|No| ULT
+    end
 
-SplineFollowerJob (Burst-compiled)
-    │
-    ├─ For each entity with SplineFollower:
-    │   │
-    │   ├─ Update base distanceRatio
-    │   │   distanceRatio += (speed * deltaTime) / totalLength
-    │   │
-    │   ├─ Check if has FormationPosition
-    │   │   │
-    │   │   └─ YES:
-    │   │       ├─ adjustedRatio = distanceRatio + (forwardOffset / totalLength)
-    │   │       ├─ sample = spline.Evaluate(adjustedRatio)
-    │   │       ├─ rightVector = cross(up, tangent)
-    │   │       └─ position = sample.position + rightVector * lateralOffset
-    │   │
-    │   └─ Update LocalTransform.Position
-    │
-    └─ All enemies move in formation!
+    SYS -->|"Creates 10 enemies with formation data"| JOB
 ```
 
 ## Coordinate System
@@ -183,23 +154,19 @@ Result: Position 7 is:
 
 ## Performance Characteristics
 
-```
-┌────────────────────────────────────────────────┐
-│ Performance Metrics                            │
-├────────────────────────────────────────────────┤
-│ ✅ Burst Compiled        Ultra-fast SIMD      │
-│ ✅ Job System            Parallel processing   │
-│ ✅ Component Lookup      O(1) access           │
-│ ✅ Blob Assets           Zero GC allocations   │
-│ ✅ Cache Friendly        Contiguous memory     │
-└────────────────────────────────────────────────┘
+| Feature | Detail |
+|---------|--------|
+| ✅ Burst Compiled | Ultra-fast SIMD |
+| ✅ Job System | Parallel processing |
+| ✅ Component Lookup | O(1) access |
+| ✅ Blob Assets | Zero GC allocations |
+| ✅ Cache Friendly | Contiguous memory |
 
-Expected Performance:
+**Expected Performance:**
 - Can handle hundreds of formations simultaneously
 - No per-frame allocations
 - Minimal CPU overhead per entity
 - Scales linearly with entity count
-```
 
 ## Key Insights
 

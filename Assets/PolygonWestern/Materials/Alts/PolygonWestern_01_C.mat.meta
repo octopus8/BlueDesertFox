@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 0c35bba4670d8834c9d7fc08b7172c74
+timeCreated: 1518378830
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 112212
+  packageName: POLYGON - Western Pack - Art by Synty
+  packageVersion: 1.2.1
+  assetPath: Assets/PolygonWestern/Materials/Alts/PolygonWestern_01_C.mat
+  uploadId: 924224

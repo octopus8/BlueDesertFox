@@ -14,9 +14,12 @@ using Unity.Transforms;
 [BurstCompile]
 [UpdateInGroup(typeof(SimulationSystemGroup))]
 [UpdateAfter(typeof(ScrollTerrainSystem))]
+// After ground contact so Rideable casts see last-frame anchor poses (same timing as tiles).
+[UpdateAfter(typeof(PlayerFollowObjectGroundContactSystem))]
 [UpdateBefore(typeof(TransformSystemGroup))]
 public partial struct TerrainAnchorSystem : ISystem
 {
+    /// <summary>Registers <see cref="ScrollOffset"/> and <see cref="TerrainAnchorTag"/> requirements.</summary>
     [BurstCompile]
     public void OnCreate(ref SystemState state)
     {
@@ -24,6 +27,10 @@ public partial struct TerrainAnchorSystem : ISystem
         state.RequireForUpdate<TerrainAnchorTag>(); // Only run if anchor entities exist
     }
 
+    /// <summary>
+    /// Schedules <see cref="TerrainAnchorUpdateJob"/> in parallel to update all anchored entities'
+    /// world positions as <c>anchor.basePosition − scrollOffset</c> so they ride the scrolling terrain.
+    /// </summary>
     [BurstCompile]
     public void OnUpdate(ref SystemState state)
     {
@@ -45,9 +52,14 @@ public partial struct TerrainAnchorSystem : ISystem
     [BurstCompile]
     private partial struct TerrainAnchorUpdateJob : IJobEntity
     {
+        /// <summary>Current accumulated terrain scroll offset to subtract from each anchor's base position.</summary>
         [ReadOnly]
         public float3 scrollOffset;
         
+        /// <summary>
+        /// Sets the entity's world position to <c>anchor.basePosition − scrollOffset</c> so it
+        /// moves in unison with the scrolling terrain tiles.
+        /// </summary>
         private void Execute(
             in TerrainAnchorTag anchor,
             ref LocalTransform transform)

@@ -1,99 +1,145 @@
-# Physics System - LOD-Based Collider Generation
+# Physics System — Full-Resolution Collider Generation
 
-Complete guide to the terrain physics collider system with LOD, caching, and frame budgeting.
+Complete guide to the terrain physics collider system with distance culling and frame budgeting.
 
 ## Overview
 
 The physics system automatically generates Unity Physics mesh colliders for terrain tiles with:
-- **3-level LOD system** based on distance to player
-- **LRU caching** for collider reuse across tiles
-- **Frame budgeting** to prevent creation spikes
-- **Camera-aware prioritization** for visible tiles first
+- **Full-resolution geometry** matching the rendered mesh exactly
+- **Distance culling** to remove colliders beyond a configurable maximum distance
+- **Frame budgeting** split across two independent sliders to prevent creation spikes
+- **Camera-aware prioritization** for in-view tiles first
+- **Cross-frame async pipeline** so BVH construction runs on worker threads during XRUpdate
 
-## LOD System
+## Collider Resolution
 
-### Three LOD Levels
+All tiles within `maxColliderDistance` use **full-resolution** collider geometry — the same vertex and triangle data as the rendered mesh. There is no vertex-stride decimation or LOD tiering.
 
-**Full Resolution** (0 - 150m): Use all vertices (100%)  
-**Half Resolution** (150m - 300m): Use every 2nd vertex (25%)  
-**Quarter Resolution** (300m - 450m): Use every 4th vertex (6.25%)  
-**No Collider** (> 450m): No physics
+| Zone | Distance | Triangles (32×32 tile) |
+|------|----------|------------------------|
+| Full resolution | ≤ `maxColliderDistance` | ~2000 |
+| No collider | > `maxColliderDistance` | none |
 
-### Configuration
+For a 48×48 tile (Ace of Ages default), expect ~4600 triangles per collider.
 
-Set in TerrainConfigAuthoring:
-```
-LOD Full Resolution Distance:  150m
-LOD Half Resolution Distance:  300m
-LOD Quarter Resolution Distance: 450m
-```
+## Frame Budget
 
-## Collider Caching
+Collider work uses **split stage budgets** via `TerrainPhysicsBudget`:
 
-### Why Cache?
+| Field | Controls | Default |
+|-------|----------|---------|
+| `maxCollidersCreatedPerFrame` | Mesh generation + prep marking per frame | 6 |
+| `maxPhysicsCollidersCreatedPerFrame` | BVH `BuildTerrainMeshColliderJob` batch size per cross-frame cycle | 1 (Quest), up to 4 desktop |
+| `maxColliderCacheMemoryMB` | LRU grid-coordinate blob cache size | 53 MB |
 
-All tiles with same configuration generate identical collider shapes. Cache once, reuse everywhere.
+| Helper | Returns |
+|--------|---------|
+| `GetPrepMarkBudget()` | `maxCollidersCreatedPerFrame` |
+| `GetBvhCreationBudget()` | `maxPhysicsCollidersCreatedPerFrame` (clamped to 2 on mobile) |
+| `GetRegistrationBudget()` | Same as BVH budget |
 
-### Cache Performance
+**Priority sorting:** Closer tiles and tiles in the camera's forward direction are processed first (combined distance + view-angle score).
 
-**Cache Hit**: ~0.1ms (instant reuse)  
-**Cache Miss**: 2-5ms (create new collider)  
-**Hit Rate**: >90% typical
+## Pipeline (2-stage cross-frame)
 
-### Memory Management
+### Stage 1 — `TerrainPhysicsScheduleSystem` / `TerrainPhysicsCompleteSystem` (Burst BVH, cross-frame)
+1. Queries tiles with `PhysicsColliderNeedsPreparation` enabled and mesh buffers ready
+2. Checks grid-coordinate blob cache first (via `TerrainDistanceTrackingSystem` on mark)
+3. Copies `VertexElement` / `IndexElement` into Persistent NativeArrays
+4. Runs `BuildTerrainMeshColliderJob` (`MeshCollider.Create`) on worker threads (budget: `GetBvhCreationBudget()`)
+5. Writes `PhysicsColliderRegistrationPending`
 
-**Default Limit**: 50MB  
-**Eviction**: LRU (Least Recently Used)  
-**Tracking**: Per-frame access timestamps
+### Stage 2 — `TerrainPhysicsSystem` (main thread, lightweight)
+1. Attaches `PhysicsCollider` from pending blob
+2. Adds `PhysicsColliderValid` tag
 
-## Frame Budgeting
-
-**Max Colliders Per Frame**: 3 (default for VR)
-
-Prevents frame spikes by spreading collider creation across multiple frames.
-
-**Priority Sorting**: Closer + forward-facing tiles processed first.
+When tiles leave `maxColliderDistance`, collider blobs are **retired to an LRU cache** keyed by `TerrainTile.gridCoordinate` instead of being destroyed. Re-entering tiles reuse cached blobs with no BVH rebuild.
 
 ## Systems
 
-### TerrainDistanceTrackingSystem
-- Calculates distance to player
-- Determines LOD level
-- Marks tiles for collider preparation
+### `TerrainDistanceTrackingSystem`
+- Runs before `TerrainPhysicsSystem`
+- Updates `TerrainTileDistanceToPlayer.distance` for every tile
+- Checks grid-coordinate blob cache before marking tiles for BVH work
+- Marks tiles within `maxColliderDistance` with `PhysicsColliderNeedsPreparation` (budget: `GetPrepMarkBudget()`)
+- Retires collider blobs to cache when tiles exceed distance threshold
 
-### TerrainColliderPreparationSystem
-- Burst-compiled parallel jobs
-- Decimates vertices by LOD level
-- Fills prepared buffers
+### `TerrainColliderBlobCacheSystem`
+- LRU cache of `BlobAssetReference<Collider>` keyed by `int2` grid coordinate
+- Evicts oldest entries when `maxColliderCacheMemoryMB` exceeded
 
-### TerrainPhysicsSystem
-- Creates MeshColliders (main thread)
-- Manages cache with LRU eviction
-- Frame budgeting
+### `CameraDataUpdateSystem`
+- Runs at start of `PresentationSystemGroup`
+- Reads player Transform → writes `CameraDataSingleton` (position, forward)
+- Used for camera-aware BVH priority scoring
 
-## Configuration
+### `TerrainPhysicsScheduleSystem` / `TerrainPhysicsCompleteSystem`
+- Burst-compiled `BuildTerrainMeshColliderJob` for async BVH construction
+- Logs warning when `BvhComplete` waits > 8ms (Quest 90fps threshold)
 
-**Performance** (VR):
+### `TerrainPhysicsSystem`
+- Namespace: `_App.Ace_of_Ages.Terrain`
+- Lightweight registration step — attaches prepared collider blobs to entities
+
+## Configuration Reference
+
+### VR (Quest 2 / Quest 3, recommended)
 ```
-Max Colliders Per Frame: 2-3
-Full Res Distance: 100m
-Cache Memory: 25-50MB
+maxColliderDistance:                   220-450m
+maxCollidersCreatedPerFrame:           6
+maxPhysicsCollidersCreatedPerFrame:    1-2
+maxColliderCacheMemoryMB:              53
+verticesPerSide:                       48 (Ace of Ages — keep full-res)
 ```
 
-**Quality** (Desktop):
+### Desktop (high-end, RTX 4080+)
 ```
-Max Colliders Per Frame: 10
-Full Res Distance: 200m
-Cache Memory: 100MB
+maxColliderDistance:                   600m
+maxCollidersCreatedPerFrame:           12
+maxPhysicsCollidersCreatedPerFrame:    6-8
+maxColliderCacheMemoryMB:              53
 ```
+
+### Mobile / Quest 2 (conservative)
+```
+maxColliderDistance:                   300m
+maxCollidersCreatedPerFrame:           4
+maxPhysicsCollidersCreatedPerFrame:    1
+maxColliderCacheMemoryMB:              32
+```
+
+## Profiler Markers
+
+| Marker | System | What it covers |
+|--------|--------|----------------|
+| `TerrainPhysics.DistanceTracking` | TerrainDistanceTrackingSystem | Distance calc + cache lookup + prep marking |
+| `TerrainPhysics.BvhSchedule` | TerrainPhysicsScheduleSystem | BVH job schedule + ECS buffer copy |
+| `TerrainPhysics.BvhComplete` | TerrainPhysicsCompleteSystem | Harvest BVH results (warns if > 8ms) |
+| `BuildTerrainMeshColliderJob` | Worker threads | Per-tile MeshCollider.Create (Burst) |
+| `TerrainPhysics.RegisterCollider` | TerrainPhysicsSystem | Attach PhysicsCollider |
+
+## Common Issues
+
+**Colliders not generating:**
+- Check `enablePhysicsColliders = true` in TerrainConfigAuthoring
+- Verify player tracking is working (`[PlayerTrackingInitSystem] ✅ Found player` in console)
+- Confirm tiles have finished mesh generation (`meshGenerated = true`)
+
+**Physics spikes:**
+- Lower `maxPhysicsCollidersCreatedPerFrame` to **1–2** on Quest (most effective for `BuildTerrainMeshColliderJob` tail latency)
+- Keep `maxCollidersCreatedPerFrame` at 6 for mesh throughput — BVH budget is independent
+- Ensure grid cache is enabled (`maxColliderCacheMemoryMB > 0`) to avoid rebuilds when revisiting tiles during scroll
+
+**Distant terrain has no collider:**
+- Expected — tiles beyond `maxColliderDistance` have no physics
+- Increase `maxColliderDistance` if gameplay requires it (costs more memory and creation time)
 
 ## Related Documentation
 
-- **[Configuration Reference](CONFIGURATION.md)** - Physics parameters
-- **[Technical Details](TECHNICAL_DETAILS.md)** - LOD algorithms
-- **[Performance Optimization](PERFORMANCE.md)** - Optimization strategies
+- **[Configuration Reference](CONFIGURATION.md)** — All `TerrainConfigAuthoring` parameters
+- **[Technical Details](TECHNICAL_DETAILS.md)** — Noise algorithms, mesh generation details
+- **[Performance Optimization](PERFORMANCE.md)** — Tuning strategies
 
 ---
 
-**Back to**: [Documentation Hub](README.md)
-
+**Back to:** [Documentation Hub](README.md)

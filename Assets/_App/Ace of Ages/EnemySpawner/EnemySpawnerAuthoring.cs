@@ -29,8 +29,10 @@ public class EnemySpawnerAuthoring : MonoBehaviour
     [SerializeField] private float spawnDistance = 75f;
     
     
+    /// <summary>Bakes enemy spawner settings (speed, spline reference, formation config) into an <see cref="EnemySpawner"/> component.</summary>
     public class Baker : Baker<EnemySpawnerAuthoring>
     {
+        /// <inheritdoc/>
         public override void Bake(EnemySpawnerAuthoring authoring)
         {
             Entity entity = GetEntity(TransformUsageFlags.Dynamic);

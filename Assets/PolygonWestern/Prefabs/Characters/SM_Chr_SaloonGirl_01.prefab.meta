@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: c1f6b121dd6739c439f92a1605f4aed9
+timeCreated: 1519177935
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 100100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 112212
+  packageName: POLYGON - Western Pack - Art by Synty
+  packageVersion: 1.2.1
+  assetPath: Assets/PolygonWestern/Prefabs/Characters/SM_Chr_SaloonGirl_01.prefab
+  uploadId: 924224

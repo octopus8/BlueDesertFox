@@ -3,14 +3,14 @@ guid: c039cbca88973c747981c2d574121f27
 timeCreated: 1580086338
 licenseType: Store
 NativeFormatImporter:
-  mainObjectFileID: 11400000
+  mainObjectFileID: 43023179830343496
   userData: 
   assetBundleName: 
   assetBundleVariant: 
 AssetOrigin:
   serializedVersion: 1
   productId: 112212
-  packageName: POLYGON Western - Low Poly 3D Art by Synty
-  packageVersion: 1.1.3
+  packageName: POLYGON - Western Pack - Art by Synty
+  packageVersion: 1.2.1
   assetPath: Assets/PolygonWestern/Models/CollisionConvex/SM_Prop_Church_Door_01_Convex.asset
-  uploadId: 751513
+  uploadId: 924224

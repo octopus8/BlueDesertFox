@@ -21,6 +21,7 @@ Add multiple terrain types (grass, desert, snow) based on position or noise.
 ### Implementation Strategy
 
 **Step 1**: Add Biome Component
+
 ```csharp
 public enum BiomeType : byte
 {
@@ -39,6 +40,7 @@ public struct TerrainBiome : IComponentData
 ```
 
 **Step 2**: Determine Biome in Generation
+
 ```csharp
 // In mesh generation job
 BiomeType DetermineBiome(float2 worldPosition)
@@ -54,6 +56,7 @@ BiomeType DetermineBiome(float2 worldPosition)
 ```
 
 **Step 3**: Apply Biome to Generation
+
 ```csharp
 // Modify height based on biome
 switch (biome)
@@ -68,6 +71,7 @@ switch (biome)
 ```
 
 **Step 4**: Multi-Material Rendering
+
 ```csharp
 // In rendering system, assign material by biome
 Material GetMaterialForBiome(BiomeType biome)
@@ -94,6 +98,7 @@ Add mesh LOD system separate from physics LOD.
 ### Implementation Strategy
 
 **Step 1**: Add Rendering LOD Component
+
 ```csharp
 public enum RenderingLODLevel : byte
 {
@@ -111,6 +116,7 @@ public struct TerrainRenderingLOD : IComponentData
 ```
 
 **Step 2**: Create LOD System
+
 ```csharp
 [UpdateInGroup(typeof(SimulationSystemGroup))]
 [UpdateAfter(typeof(TerrainMeshGenerationSystem))]
@@ -139,6 +145,7 @@ public partial class TerrainRenderingLODSystem : SystemBase
 ```
 
 **Step 3**: Generate Different Mesh Resolutions
+
 ```csharp
 void RegenerateMeshWithLOD(Entity entity, RenderingLODLevel lod)
 {
@@ -165,6 +172,7 @@ Allow runtime height changes (explosions, deformation, etc.).
 ### Implementation Strategy
 
 **Step 1**: Add Modification Component
+
 ```csharp
 public struct TerrainModification : IComponentData
 {
@@ -176,6 +184,7 @@ public struct TerrainModification : IComponentData
 ```
 
 **Step 2**: Create Modification System
+
 ```csharp
 [UpdateInGroup(typeof(SimulationSystemGroup))]
 [UpdateAfter(typeof(TerrainMeshGenerationSystem))]
@@ -237,6 +246,7 @@ public partial class TerrainModificationSystem : SystemBase
 ```
 
 **Step 3**: Trigger Modifications
+
 ```csharp
 public void CreateExplosion(Vector3 position, float radius, float intensity)
 {
@@ -263,6 +273,7 @@ Spawn objects (rocks, trees, grass) on terrain tiles.
 ### Implementation Strategy
 
 **Step 1**: Add Object Spawning Component
+
 ```csharp
 public struct TerrainObjectSpawner : IComponentData
 {
@@ -274,6 +285,7 @@ public struct TerrainObjectSpawner : IComponentData
 ```
 
 **Step 2**: Create Spawning System
+
 ```csharp
 [UpdateInGroup(typeof(SimulationSystemGroup))]
 [UpdateAfter(typeof(TerrainRenderingSystem))]
@@ -378,6 +390,7 @@ Add water planes at specific height levels.
 ### Implementation
 
 **Step 1**: Create Water Component
+
 ```csharp
 public struct WaterPlane : IComponentData
 {
@@ -387,6 +400,7 @@ public struct WaterPlane : IComponentData
 ```
 
 **Step 2**: Spawn Water Tiles
+
 ```csharp
 // When spawning terrain tiles, also check for water
 foreach (var tile in newTiles)
@@ -412,6 +426,7 @@ bool TileNeedsWater(TerrainTile tile)
 ```
 
 **Step 3**: Water Material
+
 ```
 Shader: URP/Lit with transparency
 Alpha: 0.7
@@ -507,6 +522,7 @@ Spawn detail objects using GPU instancing.
 ### Implementation
 
 **Step 1**: Collect Spawn Points
+
 ```csharp
 public struct DetailSpawnPoint : IBufferElementData
 {
@@ -531,6 +547,7 @@ foreach (vertex at position with normal)
 ```
 
 **Step 2**: Render with GPU Instancing
+
 ```csharp
 public class DetailInstanceRenderer : MonoBehaviour
 {
@@ -572,6 +589,7 @@ Create holes in terrain (caves, tunnels).
 ### Implementation
 
 **Step 1**: Add Hole Data
+
 ```csharp
 public struct TerrainHole : IBufferElementData
 {
@@ -581,6 +599,7 @@ public struct TerrainHole : IBufferElementData
 ```
 
 **Step 2**: Modify Mesh Generation
+
 ```csharp
 // In mesh generation job
 bool IsVertexInHole(float3 vertex, DynamicBuffer<TerrainHole> holes)
@@ -602,6 +621,7 @@ if (!IsVertexInHole(v0, holes) && !IsVertexInHole(v1, holes) && !IsVertexInHole(
 ```
 
 **Step 3**: Update Colliders
+
 - Holes automatically reflected in mesh colliders
 - No additional physics work needed
 
@@ -614,6 +634,7 @@ Flatten terrain along paths for roads, rivers, etc.
 ### Implementation
 
 **Step 1**: Define Path
+
 ```csharp
 public struct TerrainPath : IBufferElementData
 {
@@ -629,6 +650,7 @@ public struct TerrainPathData : IComponentData
 ```
 
 **Step 2**: Modify Heights Along Path
+
 ```csharp
 // In mesh generation job
 float ModifyHeightForPath(float3 vertex, DynamicBuffer<TerrainPath> path, TerrainPathData pathData)
@@ -669,6 +691,7 @@ Add vertex colors for shader-based variation.
 ### Implementation
 
 **Step 1**: Add Color Buffer
+
 ```csharp
 public struct ColorElement : IBufferElementData
 {
@@ -677,6 +700,7 @@ public struct ColorElement : IBufferElementData
 ```
 
 **Step 2**: Generate Colors
+
 ```csharp
 // In mesh generation job
 foreach (vertex at height)
@@ -694,6 +718,7 @@ foreach (vertex at height)
 ```
 
 **Step 3**: Apply to Mesh
+
 ```csharp
 // In TerrainRenderingSystem
 var colors = EntityManager.GetBuffer<ColorElement>(entity);
@@ -702,6 +727,7 @@ mesh.SetColors(colorsNative);
 ```
 
 **Step 4**: Use in Shader
+
 ```hlsl
 v2f vert(appdata v)
 {
@@ -823,6 +849,7 @@ Store gameplay data per tile (temperature, resources, etc.).
 ### Implementation
 
 **Step 1**: Add Metadata Component
+
 ```csharp
 public struct TerrainMetadata : IComponentData
 {
@@ -833,6 +860,7 @@ public struct TerrainMetadata : IComponentData
 ```
 
 **Step 2**: Generate Metadata
+
 ```csharp
 // During tile spawning
 TerrainMetadata GenerateMetadata(int2 gridCoordinate)
@@ -849,6 +877,7 @@ TerrainMetadata GenerateMetadata(int2 gridCoordinate)
 ```
 
 **Step 3**: Use Metadata
+
 ```csharp
 // Query tiles by metadata
 foreach (var (tile, metadata) in 
@@ -870,6 +899,7 @@ For truly unlimited worlds, implement double-precision coordinates.
 ### Implementation Concept
 
 **Step 1**: Replace float3 with double3
+
 ```csharp
 public struct TerrainTileDouble : IComponentData
 {
@@ -879,6 +909,7 @@ public struct TerrainTileDouble : IComponentData
 ```
 
 **Step 2**: Floating Origin System
+
 ```csharp
 // When player exceeds threshold distance from origin
 if (math.length(playerPosition) > 10000.0)
@@ -903,4 +934,3 @@ if (math.length(playerPosition) > 10000.0)
 ---
 
 **Back to**: [Documentation Hub](README.md)
-

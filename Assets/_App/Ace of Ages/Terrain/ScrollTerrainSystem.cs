@@ -12,26 +12,32 @@ using Unity.Mathematics;
 [UpdateBefore(typeof(TileSpawningSystem))]
 public partial struct ScrollTerrainSystem : ISystem
 {
+    /// <summary>
+    /// Registers required singletons (<see cref="TerrainScrollVelocity"/> and <see cref="ScrollOffset"/>)
+    /// so the system only runs when auto-scrolling is configured.
+    /// </summary>
     public void OnCreate(ref SystemState state)
     {
         state.RequireForUpdate<TerrainScrollVelocity>();
         state.RequireForUpdate<ScrollOffset>();
     }
 
+    /// <summary>
+    /// Accumulates the scroll delta for this frame into <see cref="ScrollOffset.accumulatedOffset"/>
+    /// based on the current <see cref="TerrainScrollVelocity"/> direction and speed.
+    /// Does nothing if <see cref="TerrainScrollVelocity.speed"/> is zero.
+    /// </summary>
     [BurstCompile]
     public void OnUpdate(ref SystemState state)
     {
         var scrollVelocity = SystemAPI.GetSingleton<TerrainScrollVelocity>();
         
-        // Early return if speed is zero
-        if (scrollVelocity.speed == 0f)
+        if (scrollVelocity.speed == 0f && scrollVelocity.verticalSpeed == 0f)
             return;
         
-        // Get the scroll offset singleton
         RefRW<ScrollOffset> scrollOffset = SystemAPI.GetSingletonRW<ScrollOffset>();
         
-        // Accumulate scroll distance using provided direction and speed
-        float3 scrollDelta = scrollVelocity.direction * scrollVelocity.speed * SystemAPI.Time.DeltaTime;
+        float3 scrollDelta = scrollVelocity.WorldVelocity * SystemAPI.Time.DeltaTime;
         scrollOffset.ValueRW.accumulatedOffset += scrollDelta;
     }
 }

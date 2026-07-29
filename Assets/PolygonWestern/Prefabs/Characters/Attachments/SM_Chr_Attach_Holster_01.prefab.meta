@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: ed674e6f0cecd374bb3baa9a33f83e66
+timeCreated: 1519258944
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 100100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 112212
+  packageName: POLYGON - Western Pack - Art by Synty
+  packageVersion: 1.2.1
+  assetPath: Assets/PolygonWestern/Prefabs/Characters/Attachments/SM_Chr_Attach_Holster_01.prefab
+  uploadId: 924224

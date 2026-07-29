@@ -35,9 +35,9 @@ The Infinite Terrain System generates procedural terrain tiles around a player i
 ### Presentation Layer
 - `TerrainRenderingSystem` - Creates Unity Meshes, sets up rendering
 
-### Debug Layer
-- `TerrainTrackingDebugger` - Runtime diagnostics
-- `TerrainTileGizmoVisualizer` - Scene view visualization
+### Diagnostics
+- `StaticObjectCleanupDebugSystem` - Orphan static-object warnings at runtime
+- `TerrainStatusInspector` - Editor window for material, URP, and play-mode status
 
 ## Data Flow
 
@@ -70,10 +70,10 @@ Frame N:
 - Forward-facing tiles before backward
 - Distance-based sorting
 
-### LOD-Based Physics
-- Three LOD levels (full/half/quarter)
-- Distance determines resolution
-- Collider caching for reuse
+### Full-Resolution Physics
+- All in-range tiles use full mesh resolution for colliders
+- Distance culling via `maxColliderDistance`
+- Cross-frame async BVH construction with frame budgeting
 
 ### Zero GC Allocation
 - Use only NativeContainers
@@ -84,7 +84,7 @@ Frame N:
 
 **Memory**: ~50KB per tile (32×32 mesh)  
 **CPU**: 5-10ms mesh generation per tile (budgeted)  
-**Physics**: 2-5ms collider creation (budgeted, cached)  
+**Physics**: 2-5ms collider creation per tile (budgeted, full resolution)  
 **Scalability**: Handles 25-100 tiles efficiently
 
 ## Related Documentation

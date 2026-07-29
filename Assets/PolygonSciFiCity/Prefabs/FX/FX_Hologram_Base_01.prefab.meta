@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 0ccd871368fd877428c3625653d2925a
+timeCreated: 1524016373
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 100100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 115950
+  packageName: POLYGON - Sci-Fi City Pack - Art by Synty
+  packageVersion: 1.3.2
+  assetPath: Assets/PolygonSciFiCity/Prefabs/FX/FX_Hologram_Base_01.prefab
+  uploadId: 939484

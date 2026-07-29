@@ -1,6 +1,9 @@
+using System.Collections.Generic;
+using _App.Ace_of_Ages.Terrain;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
+using Unity.Physics;
 using Unity.Transforms;
 
 #if UNITY_EDITOR
@@ -8,7 +11,7 @@ using Unity.Profiling;
 #endif
 
 /// <summary>
-/// System that calculates distance from each terrain tile to the player and determines appropriate LOD level.
+/// System that calculates distance from each terrain tile to the player and manages collider lifecycle.
 /// Runs before TerrainPhysicsSystem to ensure distance data is up-to-date.
 /// </summary>
 [UpdateInGroup(typeof(SimulationSystemGroup))]
@@ -16,12 +19,13 @@ using Unity.Profiling;
 public partial class TerrainDistanceTrackingSystem : SystemBase
 {
 #if UNITY_EDITOR
-    private static readonly ProfilerMarker s_ProfilerMarker = new ProfilerMarker("TerrainPhysics.DistanceTracking");
+    static readonly ProfilerMarker s_ProfilerMarker = new ProfilerMarker("TerrainPhysics.DistanceTracking");
 #endif
 
     protected override void OnCreate()
     {
         RequireForUpdate<TerrainTileConfig>();
+        RequireForUpdate<CameraDataSingleton>();
     }
 
     protected override void OnUpdate()
@@ -31,133 +35,140 @@ public partial class TerrainDistanceTrackingSystem : SystemBase
 #endif
         {
             var config = SystemAPI.GetSingleton<TerrainTileConfig>();
-            
-            // Early exit if physics colliders are disabled
+
             if (!config.enablePhysicsColliders)
-            {
                 return;
-            }
-            
-            // Get player transform reference (managed component)
-            if (!SystemAPI.ManagedAPI.TryGetSingleton<PlayerTransformReference>(out var playerRef) ||
-                playerRef == null || 
-                playerRef.playerTransform == null)
-            {
-                return;
-            }
-            
-            float3 playerPosition = playerRef.playerTransform.position;
-            
-            // Use EntityCommandBuffer for structural changes
+
+            float3 playerPosition = SystemAPI.GetSingleton<CameraDataSingleton>().position;
+            int prepBudget = TerrainPhysicsBudget.GetPrepMarkBudget(config);
+            var world = World.Unmanaged;
+
             var ecb = new EntityCommandBuffer(Allocator.Temp);
-            
-            // Query all terrain tiles using SystemAPI.Query
+            var prepCandidates = new NativeList<PrepCandidate>(32, Allocator.Temp);
+
             foreach (var (transform, tile, entity) in SystemAPI.Query<RefRO<LocalTransform>, RefRO<TerrainTile>>().WithEntityAccess())
             {
-                // Calculate tile center in world space using its transform
                 float3 tileCenter = transform.ValueRO.Position;
-                
-                // Calculate 2D distance (XZ plane) from player to tile center
+
                 float2 playerPos2D = new float2(playerPosition.x, playerPosition.z);
                 float2 tileCenter2D = new float2(tileCenter.x, tileCenter.z);
                 float distance = math.distance(tileCenter2D, playerPos2D);
-                
-                // Determine LOD level based on distance thresholds
-                TerrainPhysicsLODLevel newLodLevel;
-                if (distance < config.lodFullResolutionDistance)
-                {
-                    newLodLevel = TerrainPhysicsLODLevel.FullResolution;
-                }
-                else if (distance < config.lodHalfResolutionDistance)
-                {
-                    newLodLevel = TerrainPhysicsLODLevel.HalfResolution;
-                }
-                else if (distance < config.lodQuarterResolutionDistance)
-                {
-                    newLodLevel = TerrainPhysicsLODLevel.QuarterResolution;
-                }
-                else
-                {
-                    newLodLevel = TerrainPhysicsLODLevel.NoCollider;
-                }
-                
-                // Check if we have existing distance data
-                bool hasDistanceData = SystemAPI.HasComponent<TerrainTileDistanceToPlayer>(entity);
-                TerrainPhysicsLODLevel oldLodLevel = TerrainPhysicsLODLevel.NoCollider;
-                
-                if (hasDistanceData)
-                {
-                    var oldDistanceData = SystemAPI.GetComponent<TerrainTileDistanceToPlayer>(entity);
-                    oldLodLevel = oldDistanceData.lodLevel;
-                }
-                
-                // Update or add distance component
-                var distanceData = new TerrainTileDistanceToPlayer
-                {
-                    distance = distance,
-                    lodLevel = newLodLevel
-                };
-                
-                if (hasDistanceData)
-                {
+
+                bool needsCollider = distance < config.maxColliderDistance;
+
+                var distanceData = new TerrainTileDistanceToPlayer { distance = distance };
+
+                if (SystemAPI.HasComponent<TerrainTileDistanceToPlayer>(entity))
                     ecb.SetComponent(entity, distanceData);
+                else
+                    ecb.AddComponent(entity, distanceData);
+
+                if (!tile.ValueRO.meshGenerated)
+                    continue;
+
+                if (!needsCollider)
+                {
+                    RetireColliderState(entity, tile.ValueRO.gridCoordinate, ecb, EntityManager, world, config);
+                    continue;
                 }
+
+                if (SystemAPI.HasComponent<PhysicsColliderValid>(entity))
+                    continue;
+
+                if (SystemAPI.HasComponent<PhysicsColliderRegistrationPending>(entity))
+                    continue;
+
+                if (SystemAPI.HasComponent<PhysicsColliderNeedsPreparation>(entity) &&
+                    SystemAPI.IsComponentEnabled<PhysicsColliderNeedsPreparation>(entity))
+                    continue;
+
+                prepCandidates.Add(new PrepCandidate
+                {
+                    entity = entity,
+                    gridCoordinate = tile.ValueRO.gridCoordinate,
+                    distance = distance
+                });
+            }
+
+            if (prepCandidates.Length > 1)
+                prepCandidates.Sort(new PrepCandidateComparer());
+
+            int prepMarksThisFrame = math.min(prepCandidates.Length, prepBudget);
+            for (int i = 0; i < prepMarksThisFrame; i++)
+            {
+                var candidate = prepCandidates[i];
+                Entity entity = candidate.entity;
+
+                if (TerrainColliderBlobCacheSystem.TryTakeCachedCollider(
+                        world, candidate.gridCoordinate, out var cachedCollider))
+                {
+                    ecb.AddComponent(entity, new PhysicsColliderRegistrationPending { collider = cachedCollider });
+                    continue;
+                }
+
+                if (SystemAPI.HasComponent<PhysicsColliderNeedsPreparation>(entity))
+                    ecb.SetComponentEnabled<PhysicsColliderNeedsPreparation>(entity, true);
                 else
                 {
-                    ecb.AddComponent(entity, distanceData);
-                }
-                
-                // If LOD level changed and tile has mesh, mark for preparation
-                if (oldLodLevel != newLodLevel && tile.ValueRO.meshGenerated)
-                {
-                    // Only create colliders for tiles that need them
-                    if (newLodLevel != TerrainPhysicsLODLevel.NoCollider)
-                    {
-                        var needsPrep = new PhysicsColliderNeedsPreparation
-                        {
-                            targetLOD = newLodLevel
-                        };
-                        
-                        // Add or set the needs preparation component
-                        if (SystemAPI.HasComponent<PhysicsColliderNeedsPreparation>(entity))
-                        {
-                            ecb.SetComponent(entity, needsPrep);
-                        }
-                        else
-                        {
-                            ecb.AddComponent(entity, needsPrep);
-                        }
-                        ecb.SetComponentEnabled<PhysicsColliderNeedsPreparation>(entity, true);
-                        
-                        // Remove valid tag since we're changing LOD (only if it exists)
-                        if (SystemAPI.HasComponent<PhysicsColliderValid>(entity))
-                        {
-                            ecb.RemoveComponent<PhysicsColliderValid>(entity);
-                        }
-                    }
-                    else
-                    {
-                        // Too far away - remove collider components if present
-                        if (SystemAPI.HasComponent<Unity.Physics.PhysicsCollider>(entity))
-                        {
-                            ecb.RemoveComponent<Unity.Physics.PhysicsCollider>(entity);
-                        }
-                        if (SystemAPI.HasComponent<PhysicsColliderValid>(entity))
-                        {
-                            ecb.RemoveComponent<PhysicsColliderValid>(entity);
-                        }
-                        if (EntityManager.HasComponent<Unity.Physics.PhysicsWorldIndex>(entity))
-                        {
-                            ecb.RemoveComponent<Unity.Physics.PhysicsWorldIndex>(entity);
-                        }
-                    }
+                    ecb.AddComponent<PhysicsColliderNeedsPreparation>(entity);
+                    ecb.SetComponentEnabled<PhysicsColliderNeedsPreparation>(entity, true);
                 }
             }
-            
+
+            prepCandidates.Dispose();
             ecb.Playback(EntityManager);
             ecb.Dispose();
         }
     }
+
+    static void RetireColliderState(
+        Entity entity,
+        int2 gridCoordinate,
+        EntityCommandBuffer ecb,
+        EntityManager entityManager,
+        WorldUnmanaged world,
+        in TerrainTileConfig config)
+    {
+        int vCount = config.verticesPerSide * config.verticesPerSide;
+        int tCount = (config.verticesPerSide - 1) * (config.verticesPerSide - 1) * 2;
+        int estimatedBytes = TerrainColliderBlobCacheSystem.EstimateColliderMemoryBytes(vCount, tCount);
+
+        if (entityManager.HasComponent<Unity.Physics.PhysicsCollider>(entity))
+        {
+            var pc = entityManager.GetComponentData<Unity.Physics.PhysicsCollider>(entity);
+            if (pc.Value.IsCreated)
+                TerrainColliderBlobCacheSystem.RetireToCache(world, gridCoordinate, pc.Value, estimatedBytes);
+            ecb.RemoveComponent<Unity.Physics.PhysicsCollider>(entity);
+        }
+
+        if (entityManager.HasComponent<PhysicsColliderValid>(entity))
+            ecb.RemoveComponent<PhysicsColliderValid>(entity);
+
+        if (entityManager.HasComponent<PhysicsWorldIndex>(entity))
+            ecb.RemoveComponent<PhysicsWorldIndex>(entity);
+
+        if (entityManager.HasComponent<PhysicsColliderRegistrationPending>(entity))
+        {
+            var pending = entityManager.GetComponentData<PhysicsColliderRegistrationPending>(entity);
+            if (pending.collider.IsCreated)
+                TerrainColliderBlobCacheSystem.RetireToCache(world, gridCoordinate, pending.collider, estimatedBytes);
+            ecb.RemoveComponent<PhysicsColliderRegistrationPending>(entity);
+        }
+
+        if (entityManager.HasComponent<PhysicsColliderNeedsPreparation>(entity))
+            ecb.SetComponentEnabled<PhysicsColliderNeedsPreparation>(entity, false);
+    }
+
+    struct PrepCandidate
+    {
+        public Entity entity;
+        public int2 gridCoordinate;
+        public float distance;
+    }
+
+    struct PrepCandidateComparer : IComparer<PrepCandidate>
+    {
+        public int Compare(PrepCandidate a, PrepCandidate b)
+            => a.distance.CompareTo(b.distance);
+    }
 }
-
-

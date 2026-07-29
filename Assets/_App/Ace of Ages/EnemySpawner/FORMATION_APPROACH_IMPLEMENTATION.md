@@ -1,3 +1,5 @@
+> **Archive Notice:** This is a development diary / implementation session summary. For current reference documentation see [FORMATION_APPROACH_SYSTEM.md](FORMATION_APPROACH_SYSTEM.md). See also [Archive/README.md](Archive/README.md).
+
 # Enemy Formation Approach System - Implementation Complete
 
 ## Summary
@@ -171,12 +173,9 @@ Spawn Behavior:
 
 ### Debug Visualization
 
-Add `TerrainTrackingDebugger` component to check player tracking:
-```
-Context Menu → Check Tracking Status
-```
+Use **Window → Terrain → Status Inspector** in play mode to verify player tracking.
 
-Create custom debugger (see docs) to visualize:
+For formation movement debugging, create a custom editor gizmo or use the Profiler to inspect:
 - Yellow spheres: Approaching enemies
 - Green spheres: Following enemies
 - Blue spheres: Leaving enemies
