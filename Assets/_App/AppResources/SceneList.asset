@@ -13,15 +13,6 @@ MonoBehaviour:
   m_Name: SceneList
   m_EditorClassIdentifier: Assembly-CSharp::SceneListSO
   scenes:
-  - sceneDisplayName: AutoHand Demo (Addressable)
-    isAddressable: 1
-    scene:
-      m_AssetGUID: c8c7e9452f8c702479dda69a148e809f
-      m_SubObjectName: 
-      m_SubObjectType: 
-      m_SubObjectGUID: 
-      m_EditorAssetChanged: 0
-    scenePath: 
   - sceneDisplayName: Ace of Ages
     isAddressable: 0
     scene:
@@ -31,6 +22,24 @@ MonoBehaviour:
       m_SubObjectGUID: 
       m_EditorAssetChanged: 0
     scenePath: Ace of Ages
+  - sceneDisplayName: Escape Mountain
+    isAddressable: 0
+    scene:
+      m_AssetGUID: 
+      m_SubObjectName: 
+      m_SubObjectType: 
+      m_SubObjectGUID: 
+      m_EditorAssetChanged: 0
+    scenePath: Escape Mountain
+  - sceneDisplayName: AutoHand Demo (Addressable)
+    isAddressable: 1
+    scene:
+      m_AssetGUID: c8c7e9452f8c702479dda69a148e809f
+      m_SubObjectName: 
+      m_SubObjectType: 
+      m_SubObjectGUID: 
+      m_EditorAssetChanged: 0
+    scenePath: 
   - sceneDisplayName: UI Interaction Test
     isAddressable: 0
     scene:

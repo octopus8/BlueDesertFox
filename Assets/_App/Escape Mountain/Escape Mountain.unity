@@ -134,7 +134,7 @@ GameObject:
   - component: {fileID: 132629399}
   - component: {fileID: 132629400}
   m_Layer: 0
-  m_Name: Escape Mountain
+  m_Name: Ace of Ages
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -565,15 +565,15 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 45a335734b1572644a6a5d09d87adc65, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Unity.Scenes::Unity.Scenes.SubScene
-  _SceneAsset: {fileID: 102900000, guid: 0c31e77f4008b5d4c99809617235b399, type: 3}
+  _SceneAsset: {fileID: 102900000, guid: 933f5b960d9be82409f26f02469dff38, type: 3}
   _HierarchyColor: {r: 0.5, g: 0.5, b: 0.5, a: 1}
   AutoLoadScene: 1
   _SceneGUID:
     Value:
-      x: 4152234944
-      y: 1297842180
-      z: 378571164
-      w: 2570801959
+      x: 1773531961
+      y: 1116649936
+      z: 553004944
+      w: 2214582628
 --- !u!4 &702503746
 Transform:
   m_ObjectHideFlags: 0
@@ -608,10 +608,6 @@ PrefabInstance:
     - target: {fileID: 133447640536366910, guid: 8920e0653a69d1348b1165f9ce857ba6, type: 3}
       propertyPath: m_Layer
       value: 8
-      objectReference: {fileID: 0}
-    - target: {fileID: 133447640536366910, guid: 8920e0653a69d1348b1165f9ce857ba6, type: 3}
-      propertyPath: m_IsActive
-      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 253348125042439281, guid: 8920e0653a69d1348b1165f9ce857ba6, type: 3}
       propertyPath: m_Layer
@@ -1017,7 +1013,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 6398742847350777855, guid: d6878e1999eb4b44a9f5a263af86c185, type: 3}
       propertyPath: m_IsActive
-      value: 1
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 8103703143137404302, guid: d6878e1999eb4b44a9f5a263af86c185, type: 3}
       propertyPath: m_IsActive
@@ -1025,7 +1021,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 8524822086086354612, guid: d6878e1999eb4b44a9f5a263af86c185, type: 3}
       propertyPath: m_IsActive
-      value: 1
+      value: 0
       objectReference: {fileID: 0}
     m_RemovedComponents:
     - {fileID: 6873022368256633593, guid: d6878e1999eb4b44a9f5a263af86c185, type: 3}
@@ -2027,10 +2023,6 @@ PrefabInstance:
     - target: {fileID: 8568162681135223878, guid: 2abfee86f783bb24b80d837fe4d0b10d, type: 3}
       propertyPath: m_Layer
       value: 8
-      objectReference: {fileID: 0}
-    - target: {fileID: 8568162681135223878, guid: 2abfee86f783bb24b80d837fe4d0b10d, type: 3}
-      propertyPath: m_IsActive
-      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 8612710936427001380, guid: 2abfee86f783bb24b80d837fe4d0b10d, type: 3}
       propertyPath: m_Layer
