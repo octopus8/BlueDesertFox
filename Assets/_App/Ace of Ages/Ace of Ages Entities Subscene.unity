@@ -318,13 +318,13 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 263055122}
-  m_Enabled: 0
+  m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 46022e0d621f433ca0845db4bd6d1982, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::TransformFollowerAuthoring
   targetMode: 0
-  targetName: Right Hand
+  targetName: Right Controller Stabilized Attach
   targetTag: 
   targetGameObject: {fileID: 0}
   offset: {x: 0, y: 0, z: 0}
