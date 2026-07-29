@@ -8,7 +8,7 @@ All systems have been created and integrated. Follow these steps to activate the
 
 ### 1. Add Pool Configuration to Scene ⚠️ REQUIRED
 
-1. Open the **Ace of Ages** scene
+1. Open the **Escape Mountain** scene
 2. Select the GameObject that has `TerrainConfigAuthoring` or `BulletPoolConfigAuthoring`
 3. **Add Component** → `DirtExplosionPoolConfigAuthoring`
 4. Configure in Inspector (or use defaults):
@@ -21,7 +21,7 @@ All systems have been created and integrated. Follow these steps to activate the
 The `PrefabEntitiesReferencesAuthoring` already has the `dirtExplosionSmallPrefab` field:
 - Check that **"Dirt Explosion Small Prefab"** is assigned
 - This should already be set to `DirtExplosionSmall.prefab`
-- If null, drag the prefab from `Assets/_App/Ace of Ages/AppResources/DirtExplosionSmall.prefab`
+- If null, drag the prefab from `Assets/_App/Escape Mountain/AppResources/DirtExplosionSmall.prefab`
 
 ### 3. Test in Play Mode
 
@@ -44,18 +44,18 @@ Expected console output:
 ## Files Created
 
 ### Components & Configuration
-- ✅ `Assets/_App/Ace of Ages/Effects/DirtExplosionComponents.cs`
-- ✅ `Assets/_App/Ace of Ages/Effects/DirtExplosionPoolConfigAuthoring.cs`
+- ✅ `Assets/_App/Escape Mountain/Effects/DirtExplosionComponents.cs`
+- ✅ `Assets/_App/Escape Mountain/Effects/DirtExplosionPoolConfigAuthoring.cs`
 
 ### Systems
-- ✅ `Assets/_App/Ace of Ages/Effects/DirtExplosionPoolSystem.cs`
-- ✅ `Assets/_App/Ace of Ages/Effects/DirtExplosionLifecycleSystem.cs`
+- ✅ `Assets/_App/Escape Mountain/Effects/DirtExplosionPoolSystem.cs`
+- ✅ `Assets/_App/Escape Mountain/Effects/DirtExplosionLifecycleSystem.cs`
 
 ### Modified Files
-- ✅ `Assets/_App/Ace of Ages/Shooting/BulletCollisionSystem.cs` (added terrain detection + explosion spawning)
+- ✅ `Assets/_App/Escape Mountain/Shooting/BulletCollisionSystem.cs` (added terrain detection + explosion spawning)
 
 ### Documentation
-- ✅ `Assets/_App/Ace of Ages/Effects/DIRT_EXPLOSION_SYSTEM_README.md` (full documentation)
+- ✅ `Assets/_App/Escape Mountain/Effects/DIRT_EXPLOSION_SYSTEM_README.md` (full documentation)
 - ✅ This file: `QUICK_SETUP_GUIDE.md`
 
 ## Troubleshooting

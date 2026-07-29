@@ -11,7 +11,7 @@ The enemy spawner now implements a **4-phase lifecycle**:
 ## Quick Start (5 Minutes)
 
 ### Step 1: Open Existing Scene
-Open `Assets/_App/Ace of Ages/Ace of Ages.unity`
+Open `Assets/_App/Escape Mountain/Escape Mountain.unity`
 
 ### Step 2: Inspect EnemySpawnerAuthoring
 Find `EnemySpawnerAuthoring` component in the scene hierarchy (likely in a SubScene).

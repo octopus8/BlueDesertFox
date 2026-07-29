@@ -93,7 +93,7 @@ Test with Unlit shader to isolate issue
 **Solution 1**: Create Material
 ```
 Assets/Create → Material → TerrainMaterial
-Location: Assets/_App/Ace of Ages/Terrain/Resources/
+Location: Assets/_App/Escape Mountain/Terrain/Resources/
 Shader: URP/Lit
 ```
 

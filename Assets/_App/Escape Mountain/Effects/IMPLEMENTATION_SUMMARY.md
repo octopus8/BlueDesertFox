@@ -92,7 +92,7 @@ Cleanup (every frame):
 **The user must do this to activate the system:**
 
 1. **Add DirtExplosionPoolConfigAuthoring to scene**
-   - Open `Ace of Ages.unity` scene
+   - Open `Escape Mountain.unity` scene
    - Select GameObject with `TerrainConfigAuthoring` 
    - Add Component → `DirtExplosionPoolConfigAuthoring`
    - Use default Inspector values (or customize)
@@ -204,15 +204,15 @@ Cleanup (every frame):
 ## 📚 Documentation Files
 
 1. **QUICK_SETUP_GUIDE.md** - Start here! 
-   - Location: `Assets/_App/Ace of Ages/Effects/`
+   - Location: `Assets/_App/Escape Mountain/Effects/`
    - Content: Step-by-step setup instructions
 
 2. **DIRT_EXPLOSION_SYSTEM_README.md** - Technical reference
-   - Location: `Assets/_App/Ace of Ages/Effects/`
+   - Location: `Assets/_App/Escape Mountain/Effects/`
    - Content: Architecture, API, troubleshooting, tuning
 
 3. **This file** - Implementation summary
-   - Location: `Assets/_App/Ace of Ages/Effects/`
+   - Location: `Assets/_App/Escape Mountain/Effects/`
    - Content: What was built, how it works, verification
 
 ---

@@ -165,7 +165,7 @@ See [TESTING_GUIDE.md](TESTING_GUIDE.md) for detailed debugging steps.
 ## File Locations
 
 ```
-Assets/_App/Ace of Ages/TransformFollower/
+Assets/_App/Escape Mountain/TransformFollower/
 ├── TransformFollowerAuthoring.cs           Add to entities in subscenes
 ├── TransformFollowerInitSystem.cs          Runtime target search initialization
 ├── TransformFollowerSystemOptimized.cs     Optimized system (active)

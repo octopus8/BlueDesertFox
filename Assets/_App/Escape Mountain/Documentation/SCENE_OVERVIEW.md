@@ -1,6 +1,8 @@
-# Ace of Ages — Scene Overview
+# Escape Mountain — Scene Overview
 
-Top-level architecture guide for the Ace of Ages scene.
+Top-level architecture guide for the Escape Mountain scene (VR snowboarding / hoverboard).
+
+**Related scene:** [Ace of Ages](../../Ace%20of%20Ages/) is the separate VR flying-shooter rebuild. Both scenes can use the shared DOTS systems under `Assets/_App/Escape Mountain/`.
 
 **Complete document listing:** [Table of Contents](TABLE_OF_CONTENTS.md)
 
@@ -8,16 +10,17 @@ Top-level architecture guide for the Ace of Ages scene.
 
 ## Architecture Summary
 
-Ace of Ages is a Unity 6 VR application using a hybrid ECS + MonoBehaviour architecture:
+Escape Mountain is a Unity 6 VR snowboarding game using a hybrid ECS + MonoBehaviour architecture (evolved from the original Ace of Ages project):
 
-- **ECS (DOTS):** All performance-critical runtime systems live in `Entities Subscene.unity` and run via Unity.Entities
-- **MonoBehaviour:** VR input (`PlayerShootingInput`), scene entry point (`AceOfAges.cs`)
+- **ECS (DOTS):** All performance-critical runtime systems live in `Escape Mountain Entities Subscene.unity` and run via Unity.Entities
+- **MonoBehaviour:** VR input (`PlayerShootingInput`), hoverboard / player follow (`TransformFollowTarget`, `PlayerHoverboardVisual`), scene entry
 - **Bridge:** `TransformFollowerSystem` and `PlayerTrackingInitSystem` connect the MonoBehaviour player rig to ECS entities
 
 ```mermaid
 flowchart TD
     subgraph MAIN["Main Scene — MonoBehaviour Layer"]
-        AOA["AceOfAges.cs\nEntry point — triggers enemy spawns"]
+        TFT["TransformFollowTarget\nXR Origin ↔ Player Follow Object"]
+        PHV["PlayerHoverboardVisual\nSnowboard / hoverboard presentation"]
         PSI["PlayerShootingInput.cs\nInput System → ECS doShoot flag"]
     end
 
@@ -26,9 +29,10 @@ flowchart TD
         SOS["Static Object Systems\nTrees, turrets, decorations"]
         ES["Enemy Spawner\nBowling-pin formations on splines"]
         SS["Shooting Systems\nBullet pool, collision, VFX"]
-        EFF["Effects\nDirt explosion pool"]
+        EFF["Effects\nDirt explosion pool / snow surround"]
         TF["TransformFollower\nECS entities → GameObject bridge"]
         SPL["Splines\nBlobAsset spline data"]
+        PFO["Player Follow Object\nGrounding, steering, sync"]
     end
 
     MAIN -->|"bridge"| ECS
@@ -118,19 +122,11 @@ flowchart TD
 
 ---
 
-## Entry Point: `AceOfAges.cs`
+## Scene Entry
 
-The `AceOfAges` MonoBehaviour on the main scene camera triggers a test enemy spawn after 3 seconds:
+Play **`Escape Mountain.unity`** (or `Escape Mountain Start.unity` for the start-scene flow). The Entities Subscene loads the DOTS world (terrain, player follow object, spawners).
 
-```csharp
-IEnumerator TestFunc()
-{
-    yield return new WaitForSeconds(3f);
-    DoTestSpawn(); // Sets EnemySpawner.doSpawn = true via EntityQuery
-}
-```
-
-For production use, replace this with gameplay-driven spawn triggers.
+For the separate flying-shooter rebuild, see **`Assets/_App/Ace of Ages/Ace of Ages.unity`** (`AceOfAges.cs` triggers a test enemy spawn after 3 seconds).
 
 ---
 

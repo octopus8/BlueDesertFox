@@ -2,7 +2,7 @@
 
 ## Overview
 
-A DOTS-based bullet shooting system for the player ship in Ace of Ages. Features entity pooling for performance, distance-based and collision-based cleanup, and Input System integration for VR controllers.
+A DOTS-based bullet shooting system for the player ship (Ace of Ages flying shooter; systems live under Escape Mountain and are shared). Features entity pooling for performance, distance-based and collision-based cleanup, and Input System integration for VR controllers.
 
 ## Architecture
 
@@ -168,7 +168,7 @@ A DOTS-based bullet shooting system for the player ship in Ace of Ages. Features
 ## Files Created
 
 ```
-Assets/_App/Ace of Ages/Shooting/
+Assets/_App/Escape Mountain/Shooting/
 ├── BulletComponents.cs             - Component definitions
 ├── BulletPoolSystem.cs             - Pool management system
 ├── BulletShooterSystem.cs          - Bullet spawning system
@@ -179,10 +179,10 @@ Assets/_App/Ace of Ages/Shooting/
 ├── BulletPoolConfigAuthoring.cs    - Authoring component for pool config
 └── SHOOTING_SYSTEM_README.md       - This file
 
-Assets/_App/Ace of Ages/Player/
+Assets/_App/Escape Mountain/Player/
 └── PlayerShipAuthoring.cs          - Modified to bake BulletSpawnPointReference
 
-Assets/_App/Ace of Ages/
+Assets/_App/DOTS/
 └── ResetEventsSystem.cs            - Modified to reset BulletShooter.doShoot flag
 ```
 

@@ -24,7 +24,7 @@ For immediate performance improvements:
 
 ### VR Optimization (90fps)
 ```
-✅ Vertices Per Side: 48 OK with low BVH budget (Ace of Ages full-res)
+✅ Vertices Per Side: 48 OK with low BVH budget (Escape Mountain full-res)
 ✅ View Distance: 300-400m (not 500m+)
 ✅ Noise Octaves: 3-4 (not 5+)
 ✅ Max Colliders Created Per Frame: 4-6 (mesh generation)

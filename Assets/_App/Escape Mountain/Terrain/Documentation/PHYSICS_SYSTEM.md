@@ -20,7 +20,7 @@ All tiles within `maxColliderDistance` use **full-resolution** collider geometry
 | Full resolution | ≤ `maxColliderDistance` | ~2000 |
 | No collider | > `maxColliderDistance` | none |
 
-For a 48×48 tile (Ace of Ages default), expect ~4600 triangles per collider.
+For a 48×48 tile (Escape Mountain default), expect ~4600 triangles per collider.
 
 ## Frame Budget
 
@@ -89,7 +89,7 @@ maxColliderDistance:                   220-450m
 maxCollidersCreatedPerFrame:           6
 maxPhysicsCollidersCreatedPerFrame:    1-2
 maxColliderCacheMemoryMB:              53
-verticesPerSide:                       48 (Ace of Ages — keep full-res)
+verticesPerSide:                       48 (Escape Mountain — keep full-res)
 ```
 
 ### Desktop (high-end, RTX 4080+)

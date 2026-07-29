@@ -1,8 +1,8 @@
 # Infinite Terrain System - Documentation Hub
 **Version:** 3.0  
-**Last Updated:** May 4, 2026
+**Last Updated:** July 2026
 
-Welcome to the comprehensive documentation for the DOTS-based infinite terrain system. This system provides high-performance procedural terrain generation with instanced tree rendering optimized for VR applications.
+Welcome to the comprehensive documentation for the DOTS-based infinite terrain system used by **Escape Mountain** (snowboarding) and the **Ace of Ages** flying-shooter rebuild. Code lives under `Assets/_App/Escape Mountain/Terrain/`. This system provides high-performance procedural terrain generation with instanced tree rendering optimized for VR applications.
 
 ---
 

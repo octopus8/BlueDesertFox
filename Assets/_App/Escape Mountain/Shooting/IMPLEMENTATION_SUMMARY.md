@@ -168,7 +168,7 @@
 ## File Structure
 
 ```
-Assets/_App/Ace of Ages/
+Assets/_App/Escape Mountain/
 ├── Shooting/                               ← NEW FOLDER
 │   ├── BulletComponents.cs                 ← Component definitions
 │   ├── BulletPoolSystem.cs                 ← Pool management

@@ -91,7 +91,7 @@ System tries to load material in this order:
 
 **Recommended Approach**:
 
-1. Create Material: `Assets/_App/Ace of Ages/Terrain/Resources/TerrainMaterial.mat`
+1. Create Material: `Assets/_App/Escape Mountain/Terrain/Resources/TerrainMaterial.mat`
 2. Set shader: `Universal Render Pipeline/Lit`
 3. Assign textures:
    - Base Map: Your terrain texture
@@ -415,7 +415,7 @@ Check Far Clip Plane > View Distance
 ```
 Assets/Create → Material
 Name: TerrainMaterial
-Location: Assets/_App/Ace of Ages/Terrain/Resources/
+Location: Assets/_App/Escape Mountain/Terrain/Resources/
 ```
 
 **Step 2**: Configure Shader

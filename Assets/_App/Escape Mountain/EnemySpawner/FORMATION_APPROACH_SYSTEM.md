@@ -434,7 +434,7 @@ float viewDistance = enemySpawner.customViewDistance > 0
 ## File Locations
 
 ```
-Assets/_App/Ace of Ages/EnemySpawner/
+Assets/_App/Escape Mountain/EnemySpawner/
 ├─ EnemySpawnerAuthoring.cs (modified)
 ├─ EnemySpawnerSystem.cs (modified)
 ├─ FormationMovementState.cs (new)
@@ -442,7 +442,7 @@ Assets/_App/Ace of Ages/EnemySpawner/
 ├─ FormationCleanupSystem.cs (new)
 └─ FormationPositionAuthoring.cs (unchanged)
 
-Assets/_App/Ace of Ages/Splines/
+Assets/_App/Escape Mountain/Splines/
 └─ SplineFollowerSystem.cs (modified)
 ```
 

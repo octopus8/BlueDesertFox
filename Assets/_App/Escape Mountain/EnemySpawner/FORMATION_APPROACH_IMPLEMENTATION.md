@@ -156,7 +156,7 @@ Spawn Behavior:
 
 ### Quick Test (Using AceOfAges Scene)
 
-1. Open `Assets/_App/Ace of Ages/Ace of Ages.unity`
+1. Open `Assets/_App/Escape Mountain/Escape Mountain.unity`
 2. Ensure `TerrainConfigAuthoring` has valid player search mode
 3. Enter Play mode
 4. After 3 seconds, formation spawns (via `AceOfAges.cs` test script)

@@ -1,7 +1,7 @@
 # Infinite Terrain System
 **Version:** 3.0 — Unity 6 (6000.3.10f1) · Unity.Entities 1.3.0+
 
-Production-ready DOTS infinite terrain with procedural mesh generation, physics colliders, instanced tree/static-object rendering, auto-scrolling, and VR optimization.
+Production-ready DOTS infinite terrain for **Escape Mountain** (snowboarding) and shared with the **Ace of Ages** flying-shooter scene. Procedural mesh generation, physics colliders, instanced tree/static-object rendering, auto-scrolling, and VR optimization.
 
 ## Documentation
 

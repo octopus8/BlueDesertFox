@@ -6,7 +6,7 @@ Complete guide to all configuration parameters in the TerrainConfigAuthoring com
 
 The terrain system is configured via the `TerrainConfigAuthoring` MonoBehaviour component, which must be placed on a GameObject inside an ECS SubScene.
 
-**File**: `Assets/_App/Ace of Ages/Terrain/TerrainConfigAuthoring.cs`
+**File**: `Assets/_App/Escape Mountain/Terrain/TerrainConfigAuthoring.cs`
 
 ## Configuration Sections
 

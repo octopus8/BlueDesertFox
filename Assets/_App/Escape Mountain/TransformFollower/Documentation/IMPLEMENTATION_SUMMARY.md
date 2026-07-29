@@ -8,22 +8,22 @@ A complete system for making DOTS entities follow GameObjects/Transforms outside
 
 #### Core Components
 1. **TransformFollowerAuthoring.cs** - Authoring component with baker
-   - Location: `Assets/_App/Ace of Ages/TransformFollower/`
+   - Location: `Assets/_App/Escape Mountain/TransformFollower/`
    - Purpose: Converts GameObject setup to ECS components
 
 2. **TransformFollowerSystemOptimized.cs** - Active system
-   - Location: `Assets/_App/Ace of Ages/TransformFollower/`
+   - Location: `Assets/_App/Escape Mountain/TransformFollower/`
    - Purpose: Batches Transform reads, updates entity positions via parallel Burst jobs
    - Performance: Used for all follower counts
 
 3. **TransformFollowerSystem.cs** - Simple system (`[DisableAutoCreation]`)
-   - Location: `Assets/_App/Ace of Ages/TransformFollower/`
+   - Location: `Assets/_App/Escape Mountain/TransformFollower/`
    - Purpose: Simpler single-threaded implementation (disabled by default)
    - Note: Add `[DisableAutoCreation]` to Optimized and remove from this file to swap
 
 #### Editor Tools
 4. **TransformFollowerAuthoringEditor.cs** - Custom inspector
-   - Location: `Assets/_App/Ace of Ages/TransformFollower/Editor/`
+   - Location: `Assets/_App/Escape Mountain/TransformFollower/Editor/`
    - Purpose: Improved editor experience with presets and validation
    - Features:
      - Visual gizmos in scene view
@@ -33,15 +33,15 @@ A complete system for making DOTS entities follow GameObjects/Transforms outside
 
 #### Examples & Documentation
 5. **TransformFollowerExample.cs** - Runtime usage examples
-   - Location: `Assets/_App/Ace of Ages/TransformFollower/`
+   - Location: `Assets/_App/Escape Mountain/TransformFollower/`
    - Purpose: Shows how to use the system from code
    
 6. **TransformFollowerREADME.md** - Full documentation
-   - Location: `Assets/_App/Ace of Ages/TransformFollower/Documentation/`
+   - Location: `Assets/_App/Escape Mountain/TransformFollower/Documentation/`
    - Purpose: In-depth technical documentation
    
 7. **QUICKSTART.md** - Quick setup guide
-   - Location: `Assets/_App/Ace of Ages/TransformFollower/Documentation/`
+   - Location: `Assets/_App/Escape Mountain/TransformFollower/Documentation/`
    - Purpose: Fast setup instructions and common use cases
 
 ## The Fundamental Limitation

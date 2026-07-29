@@ -1,8 +1,8 @@
-# Ace of Ages — Documentation Table of Contents
+# Escape Mountain — Documentation Table of Contents
 
-**Last Updated:** June 2026
+**Last Updated:** July 2026
 
-Complete index of all documentation across the Ace of Ages project.
+Complete index of documentation for Escape Mountain (VR snowboarding) and the shared DOTS systems also used by the Ace of Ages flying-shooter scene.
 
 ---
 

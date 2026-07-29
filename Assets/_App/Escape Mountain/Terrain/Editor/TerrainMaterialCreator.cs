@@ -90,10 +90,10 @@ public static class TerrainMaterialCreator
         EditorGUIUtility.PingObject(terrainMaterial);
     }
 
-    /// <summary>Creates the slope-blend terrain material at <c>Assets/_App/Ace of Ages/AppResources/Terrain-SlopeBlend.mat</c> if it does not already exist.</summary>
+    /// <summary>Creates the slope-blend terrain material at <c>Assets/_App/Escape Mountain/AppResources/Terrain-SlopeBlend.mat</c> if it does not already exist.</summary>
     private static void CreateSlopeBlendMaterial()
     {
-        const string assetPath = "Assets/_App/Ace of Ages/AppResources/Terrain-SlopeBlend.mat";
+        const string assetPath = "Assets/_App/Escape Mountain/AppResources/Terrain-SlopeBlend.mat";
         var existing = AssetDatabase.LoadAssetAtPath<Material>(assetPath);
         if (existing != null)
         {
@@ -108,7 +108,7 @@ public static class TerrainMaterialCreator
             return;
         }
 
-        string appResourcesPath = "Assets/_App/Ace of Ages/AppResources";
+        string appResourcesPath = "Assets/_App/Escape Mountain/AppResources";
         if (!AssetDatabase.IsValidFolder(appResourcesPath))
         {
             Debug.LogError("[TerrainMaterialCreator] AppResources folder not found at " + appResourcesPath);
@@ -118,8 +118,8 @@ public static class TerrainMaterialCreator
         var material = new Material(slopeShader);
         material.name = "Terrain-SlopeBlend";
 
-        var flatTexture = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/_App/Ace of Ages/AppResources/snow00.png");
-        var steepTexture = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/_App/Ace of Ages/AppResources/Concrete 0196.jpg");
+        var flatTexture = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/_App/Escape Mountain/AppResources/snow00.png");
+        var steepTexture = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/_App/Escape Mountain/AppResources/Concrete 0196.jpg");
         if (flatTexture != null)
             material.SetTexture("_FlatMap", flatTexture);
         if (steepTexture != null)

@@ -46,7 +46,7 @@ In the Inspector:
 1. Right-click `TerrainConfig` in Hierarchy
 2. Select `New SubScene From Selection`
 3. Name it `TerrainSubScene`
-4. Save in `Assets/_App/Ace of Ages/Terrain/`
+4. Save in `Assets/_App/Escape Mountain/Terrain/`
 
 ⚠️ **Important**: TerrainConfig MUST be in a SubScene!
 

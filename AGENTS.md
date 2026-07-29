@@ -9,7 +9,7 @@ Unity VR application combining traditional MonoBehaviour components with Unity D
 ### Hybrid Unity Architecture
 
 - **MonoBehaviour Layer**: VR interactions (AutoHand), UI, keyboard input, word prediction
-- **ECS Layer**: Performance-critical systems loaded via SubScenes (see `Assets/_App/Ace of Ages/` for DOTS systems)
+- **ECS Layer**: Performance-critical systems loaded via SubScenes (see `Assets/_App/Escape Mountain/` for DOTS systems; Ace of Ages flying-shooter scenes also use these shared systems)
 - **Scene Management**: `SceneStartup.cs` orchestrates initial setup, loading SubScenes via `SubSceneLoader` singleton and managing camera fade-ins, calls `DeviceTracking.Instance.UpdateImmediate()` after setting tracking origin
 - **UI System**: State machine pattern via `UIManager` with stack-based state management (`IUIState`, `UIState`)
 - **Input System**: Uses Unity Input System with `InputSystem.actions.FindAction("ActionName")` pattern for runtime action binding. Scenes using this pattern must include `InputSystemActionsInitializer` component to set the global `InputSystem.actions` reference, or configure Project-Wide Actions in Project Settings.
@@ -93,11 +93,24 @@ Located in `Assets/LiquidForce/TextureBlender/`:
 
 
 
-### Ace of Ages Game Systems
+### Ace of Ages & Escape Mountain
 
-Located in `Assets/_App/Ace of Ages/`:
+The original Ace of Ages project was split into two scenes:
 
-- **Terrain System** (`Terrain/`): DOTS-based infinite terrain with procedural generation using multi-octave Perlin noise, parallel Burst-compiled mesh generation, full-resolution physics colliders with distance culling, camera-aware prioritization, optional directional auto-scrolling, and procedural static object spawning (see `Terrain/ARCHITECTURE.md`, `Terrain/STATIC_OBJECT_SPAWNING_SYSTEM.md`)
+| Scene | Genre | Folder | Entry scenes |
+| ----- | ----- | ------ | ------------ |
+| **Ace of Ages** | VR flying shooter | `Assets/_App/Ace of Ages/` | `Ace of Ages.unity`, `Ace of Ages Start.unity`, `Ace of Ages Entities Subscene.unity` |
+| **Escape Mountain** | VR snowboarding / hoverboard | `Assets/_App/Escape Mountain/` | `Escape Mountain.unity`, `Escape Mountain Start.unity`, `Escape Mountain Entities Subscene.unity` |
+
+- **Ace of Ages**: Flying-shooter rebuild. Scene scripts live under `Assets/_App/Ace of Ages/` (`AceOfAges.cs` entry point, `PrefabEntitiesReferencesAuthoring`). Scene overview for the shared DOTS stack: `Assets/_App/Escape Mountain/Documentation/SCENE_OVERVIEW.md`.
+- **Escape Mountain**: Snowboarding game that owns the evolved DOTS codebase (terrain, static objects, shooting, enemy formations, transform follower, effects). Documentation hub: `Assets/_App/Escape Mountain/Documentation/TABLE_OF_CONTENTS.md`.
+- **Shared DOTS**: Systems under `Assets/_App/Escape Mountain/` are in the global assembly namespace and can be used by both scenes' SubScenes. A small shared helper also lives in `Assets/_App/DOTS/` (`ResetEventsSystem`).
+
+### Escape Mountain Game Systems (shared DOTS)
+
+Located in `Assets/_App/Escape Mountain/`:
+
+- **Terrain System** (`Terrain/`): DOTS-based infinite terrain with procedural generation using multi-octave Perlin noise, parallel Burst-compiled mesh generation, full-resolution physics colliders with distance culling, camera-aware prioritization, optional directional auto-scrolling, and procedural static object spawning (see `Terrain/Documentation/`, `Terrain/STATIC_OBJECT_SPAWNING_SYSTEM.md`)
 - **Terrain Core Systems**: 
   - `PlayerTrackingInitSystem`: Finds and assigns player Transform reference at runtime (runs in `InitializationSystemGroup`), searches via `PlayerTrackingSearch` component with modes: FindByName, FindByTag, FindAutoHandPlayer, FindMainCamera
   - `ScrollTerrainSystem`: Updates `ScrollOffset` each frame in player's forward direction (XZ plane projection) when auto-scroll enabled
@@ -143,7 +156,8 @@ Located in `Assets/_App/Ace of Ages/`:
 - **Authoring Components**: Co-located with systems in subdirectories - `TransformFollowerAuthoring`, `SplineFollowerAuthoring`, `EnemySpawnerAuthoring`, `PlayerTagAuthoring` (in `Player/`), `FormationPositionAuthoring`, `PrefabEntitiesReferencesAuthoring`, `StaticObjectSpawnerConfigAuthoring`, `TerrainAnchorTagAuthoring` (Terrain/)
 - **Cross-Subscene References**: `TransformFollowerAuthoring` uses `TransformFollowerTargetSearch` component with `FindByName`, `FindByTag`, or `DirectReference` modes to locate targets at runtime, initialized by `TransformFollowerInitSystem` since `MonoBehaviour.Start()` doesn't run in baked SubScenes
 - **Managed Components**: `TransformReference` is a managed `IComponentData` class (not struct) bridging GameObject/Transform references to ECS
-- Entry point: `AceOfAges.cs` test component triggers enemy spawns after 3-second delay using EntityQuery
+- Entry point (Ace of Ages scene): `AceOfAges.cs` test component triggers enemy spawns after 3-second delay using EntityQuery
+- Player / locomotion (Escape Mountain): hoverboard follow/grounding under `Player/` (`PlayerFollowObject*`, `PlayerHoverboardVisual`, `TransformFollowTarget`); flying-shooter ship authoring (`PlayerShipAuthoring`) remains for Ace of Ages–style ship gameplay
 
 
 
@@ -192,7 +206,8 @@ Three parallel systems:
 - VR: OpenXR (1.16.1), XR Hands (1.7.3), XR Interaction Toolkit (3.3.1)
 - Entry scene: `Assets/_App/Start Scene/Start Scene.unity`
 - Test scenes: `Assets/_App/Test Scenes/` (KeyboardTest.unity, UIManager Test/)
-- Ace of Ages scene: `Assets/_App/Ace of Ages/Ace of Ages.unity` (DOTS terrain demo with subscenes)
+- Ace of Ages (flying shooter): `Assets/_App/Ace of Ages/Ace of Ages.unity` (+ Entities Subscene)
+- Escape Mountain (snowboarding): `Assets/_App/Escape Mountain/Escape Mountain.unity` (+ Entities Subscene)
 
 
 
@@ -235,7 +250,7 @@ Three parallel systems:
 
 ### Working with Terrain System
 
-Located in `Assets/_App/Ace of Ages/Terrain/`:
+Located in `Assets/_App/Escape Mountain/Terrain/`:
 
 **Configuration** (`TerrainConfigAuthoring`):
 
@@ -251,7 +266,7 @@ Located in `Assets/_App/Ace of Ages/Terrain/`:
 - `StaticObjectCleanupDebugSystem`: Automatic `LogWarning` when orphaned static objects detected after tile despawn
 - Console: production systems emit warnings/errors only (no success-path spam); filter `[PlayerTracking`, `[Terrain`, `[StaticObjectCleanup`
 - Profiler markers: `TerrainMesh.Generation`, `TerrainPhysics.ColliderCreation`, `TerrainMesh.PrioritySort`, `TreeLOD.*` (monitor to ensure <5ms per frame)
-- See `Assets/_App/Ace of Ages/Terrain/Documentation/DEBUG_TOOLS.md` for full diagnostic guide
+- See `Assets/_App/Escape Mountain/Terrain/Documentation/DEBUG_TOOLS.md` for full diagnostic guide
 
 **Performance Tuning**:
 
