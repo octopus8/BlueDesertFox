@@ -96,7 +96,7 @@ namespace _App.Ace_of_Ages.Terrain
     /// <summary>
     /// Registers prepared physics colliders with the physics world.
     /// </summary>
-    [UpdateInGroup(typeof(SimulationSystemGroup))]
+    [UpdateInGroup(typeof(SimulationSystemGroup), OrderLast = true)]
     [UpdateAfter(typeof(EndSimulationEntityCommandBufferSystem))]
     public partial class TerrainPhysicsSystem : SystemBase
     {
@@ -169,7 +169,7 @@ namespace _App.Ace_of_Ages.Terrain
     /// Schedules cross-frame BVH construction directly from terrain mesh buffers,
     /// skipping the redundant intermediate prepared-buffer stage.
     /// </summary>
-    [UpdateInGroup(typeof(SimulationSystemGroup))]
+    [UpdateInGroup(typeof(SimulationSystemGroup), OrderLast = true)]
     [UpdateAfter(typeof(EndSimulationEntityCommandBufferSystem))]
     [UpdateAfter(typeof(TerrainPhysicsSystem))]
     public partial struct TerrainPhysicsScheduleSystem : ISystem

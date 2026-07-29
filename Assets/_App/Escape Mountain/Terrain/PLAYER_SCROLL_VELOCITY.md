@@ -32,8 +32,8 @@ Add to the same SubScene GameObject as `TerrainConfigAuthoring`. Only one veloci
 ### `PlayerScrollVelocitySystem`
 
 **Group:** `SimulationSystemGroup`  
-**Order:** Before `ScrollTerrainSystem` and `TransformFollowerSystem`  
-**Type:** `SystemBase` (managed — reads Transform)  
+**Order:** Before `ScrollTerrainSystem` and `TransformFollowerSystemOptimized`  
+**Type:** `SystemBase` (managed — writes world-origin Transform)  
 **Requires:** `TerrainScrollVelocity`, `PlayerTerrainScrollVelocityConfig`, `PlayerTransformReference`, `WorldOriginTransformReference`
 
 #### Speed Decomposition by Pitch

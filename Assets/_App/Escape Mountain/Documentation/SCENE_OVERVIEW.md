@@ -14,7 +14,7 @@ Escape Mountain is a Unity 6 VR snowboarding game using a hybrid ECS + MonoBehav
 
 - **ECS (DOTS):** All performance-critical runtime systems live in `Escape Mountain Entities Subscene.unity` and run via Unity.Entities
 - **MonoBehaviour:** VR input (`PlayerShootingInput`), hoverboard / player follow (`TransformFollowTarget`, `PlayerHoverboardVisual`), scene entry
-- **Bridge:** `TransformFollowerSystem` and `PlayerTrackingInitSystem` connect the MonoBehaviour player rig to ECS entities
+- **Bridge:** `TransformFollowerSystemOptimized` and `PlayerTrackingInitSystem` connect the MonoBehaviour player rig to ECS entities
 
 ```mermaid
 flowchart TD

@@ -5,24 +5,18 @@ using Unity.Collections;
 using Unity.Burst;
 
 /// <summary>
-/// OPTIMIZED VERSION: System that batches Transform data updates for better performance.
+/// Batches Transform data updates so entities can follow GameObject Transforms efficiently.
 /// </summary>
 /// <remarks>
-/// This optimized approach works around the fundamental limitation by:
-/// 1. Collecting all Transform data on the main thread ONCE per frame into a native container
-/// 2. Processing all entities in a Burst-compiled parallel job using the cached Transform data
+/// Approach:
+/// 1. Collect all Transform data on the main thread ONCE per frame into a native container
+/// 2. Process all entities in a Burst-compiled parallel job using the cached Transform data
 /// 
-/// This is much more efficient when you have many entities following Transforms,
-/// but still requires main thread access to read Transform data initially.
-/// 
-/// FIXED v2.0: Now uses ISystem with proper dependency chaining to prevent race conditions
-/// with rendering systems (e.g., GlobalTreeInstanceSystem frustum culling).
-/// 
-/// To use this instead of TransformFollowerSystem:
-/// 1. Disable TransformFollowerSystem (add [DisableAutoCreation] attribute)
-/// 2. Enable this system by removing [DisableAutoCreation] attribute below
+/// Efficient for many followers, but still requires main-thread access to read Transform data.
+/// Uses ISystem with proper dependency chaining to prevent race conditions with rendering
+/// systems (e.g., frustum culling). MUST use
+/// <c>state.Dependency = job.ScheduleParallel(state.Dependency)</c>.
 /// </remarks>
-//[DisableAutoCreation] // Remove this to use the optimized version
 [RequireMatchingQueriesForUpdate]
 [UpdateInGroup(typeof(SimulationSystemGroup))]
 [UpdateBefore(typeof(TransformSystemGroup))]

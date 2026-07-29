@@ -15,7 +15,7 @@ flowchart LR
     subgraph SS["DOTS SubScene"]
         E["Entity Components:\n• LocalTransform\n• TransformReference\n• Settings"]
     end
-    TFS["TransformFollowerSystem\n① Read Transform\n② Update Entity"]
+    TFS["TransformFollowerSystemOptimized\n① Cache Transforms (main thread)\n② Update Entities (Burst parallel)"]
 
     T -->|"reads position/rotation"| TFS
     TFS -->|"updates LocalTransform"| E
@@ -41,24 +41,7 @@ flowchart TD
     MA -->|"Baker converts"| LT
 ```
 
-## Update Flow (Simple System)
-
-```mermaid
-flowchart TD
-    FS["Frame Start"]
-    Q["TransformFollowerSystem.OnUpdate()\nFor each entity with:\n• LocalTransform (ref)\n• TransformFollowerSettings (in)\n• TransformReference (in)"]
-    RT["Read Transform.position\n⚠️ MAIN THREAD ONLY (Managed reference)"]
-    RR["Read Transform.rotation\n⚠️ MAIN THREAD ONLY"]
-    CP["Calculate target position\ntargetPos = Transform.position + offset"]
-    AS["Apply smoothing\nposition = lerp(current, target, smoothFactor)"]
-    ULT["Update LocalTransform.Position"]
-    ULR["Update LocalTransform.Rotation (if enabled)"]
-    FE["Continue to other systems"]
-
-    FS --> Q --> RT --> RR --> CP --> AS --> ULT --> ULR --> FE
-```
-
-## Update Flow (Optimized System)
+## Update Flow
 
 ```mermaid
 flowchart TD
@@ -109,7 +92,7 @@ void Update(TransformReference transformRef)
         float3 pos = transformRef.target.position; // OK
 }
 
-// ✅ WORKAROUND (Optimized):
+// ✅ WORKAROUND:
 // Step 1: Main thread — cache managed reads
 NativeArray<float3> positions;
 foreach (var t in transforms)
@@ -120,14 +103,11 @@ foreach (var t in transforms)
 void UpdateJob(NativeArray<float3> positions) { /* ... */ }
 ```
 
-## Performance Comparison
+## Performance Model
 
 ```mermaid
 flowchart TD
-    subgraph SIMPLE["Simple System — O(n)"]
-        MT1["Main Thread\n① Read Transforms\n② Update Entities"]
-    end
-    subgraph OPT["Optimized System — O(n) + O(n÷cores)"]
+    subgraph OPT["TransformFollowerSystemOptimized"]
         MT2["Main Thread\n① Read Transforms only"]
         WT["Worker Threads (Burst)\n② Update Entities — Parallel"]
         MT2 --> WT
@@ -141,19 +121,15 @@ flowchart TD
     Start(["Start"])
     Q1{"Need to follow\na GameObject?"}
     Q2{"Can the target\nbe converted\nto an Entity?"}
-    Q3{"How many\nfollowers?"}
     R1["Use regular\nECS systems"]
     R2["Use full ECS\n(Best performance)"]
-    R3["Simple System\n(Default — good for < 100)"]
-    R4["Optimized System\n(Enable it — 100+)"]
+    R3["Use TransformFollowerSystemOptimized"]
 
     Start --> Q1
     Q1 -->|Yes| Q2
     Q1 -->|No| R1
     Q2 -->|Yes| R2
-    Q2 -->|No| Q3
-    Q3 -->|"< 100"| R3
-    Q3 -->|"> 100"| R4
+    Q2 -->|No| R3
 ```
 
 ---

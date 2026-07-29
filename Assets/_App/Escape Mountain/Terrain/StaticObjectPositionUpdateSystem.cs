@@ -8,9 +8,10 @@ using Unity.Transforms;
 /// Burst-compiled system that updates tree positions when their owning terrain tiles move.
 /// Uses parallel IJobEntity to efficiently process thousands of trees across multiple CPU cores.
 /// This approach avoids the performance overhead of transform hierarchy while maintaining visual cohesion.
+/// Runs in <see cref="TransformSystemGroup"/>, which already updates after
+/// <see cref="TileScrollPositionSystem"/> (<see cref="SimulationSystemGroup"/>, UpdateBefore TransformSystemGroup).
 /// </summary>
 [UpdateInGroup(typeof(TransformSystemGroup))]
-[UpdateAfter(typeof(TileScrollPositionSystem))]
 [BurstCompile]
 public partial struct objectPositionUpdateSystem : ISystem
 {

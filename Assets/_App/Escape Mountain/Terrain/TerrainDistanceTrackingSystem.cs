@@ -12,10 +12,10 @@ using Unity.Profiling;
 
 /// <summary>
 /// System that calculates distance from each terrain tile to the player and manages collider lifecycle.
-/// Runs before TerrainPhysicsSystem to ensure distance data is up-to-date.
+/// Runs in the default SimulationSystemGroup bucket, which always updates before OrderLast systems
+/// such as <see cref="TerrainPhysicsSystem"/>.
 /// </summary>
 [UpdateInGroup(typeof(SimulationSystemGroup))]
-[UpdateBefore(typeof(TerrainPhysicsSystem))]
 public partial class TerrainDistanceTrackingSystem : SystemBase
 {
 #if UNITY_EDITOR

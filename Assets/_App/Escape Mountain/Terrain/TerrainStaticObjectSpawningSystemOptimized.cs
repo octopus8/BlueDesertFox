@@ -33,12 +33,12 @@ struct SpawnTileCandidate
 /// OPTIMIZED: Burst-compiled system that spawns static object entities on terrain tiles after mesh generation.
 /// Uses parallel jobs for position calculation and EntityCommandBuffer for batched structural changes.
 /// Designed for Quest 3 VR performance with scrolling terrain and high object density.
+/// OrderFirst (<see cref="CameraDataUpdateSystem"/>) and OrderLast (EndSimulation ECB) already bound
+/// the default SimulationSystemGroup bucket this system runs in — no cross-bucket UpdateAfter/Before needed.
 /// </summary>
 [RequireMatchingQueriesForUpdate]
 [UpdateInGroup(typeof(SimulationSystemGroup))]
-[UpdateAfter(typeof(CameraDataUpdateSystem))]
 [UpdateAfter(typeof(TileScrollPositionSystem))]
-[UpdateBefore(typeof(EndSimulationEntityCommandBufferSystem))]
 public partial struct TerrainStaticObjectSpawningSystemOptimized : ISystem
 {
     private bool _startupClearDone;

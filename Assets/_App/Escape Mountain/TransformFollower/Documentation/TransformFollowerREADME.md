@@ -5,8 +5,8 @@ This solution allows entities in a DOTS subscene to follow a Transform defined o
 ## Files Created
 
 1. **TransformFollowerAuthoring.cs** - Authoring component to set up the follower
-2. **TransformFollowerSystem.cs** - Simple system (enabled by default)
-3. **TransformFollowerSystemOptimized.cs** - Optimized system for many followers (disabled by default)
+2. **TransformFollowerSystemOptimized.cs** - Runtime system (batched Transform reads + parallel Burst updates)
+3. **TransformFollowerInitSystem.cs** - Runtime target search initialization
 
 ## Usage
 
@@ -40,8 +40,7 @@ This is because:
 
 ## How This Solution Works
 
-### Approach 1: Simple System (Default)
-The `TransformFollowerSystem` uses a **managed component** (`TransformReference`) to store the Transform reference:
+`TransformFollowerSystemOptimized` uses a **managed component** (`TransformReference`) to store the Transform reference, then batches reads and updates entities in parallel:
 
 ```csharp
 // Managed component - can hold GameObject references
@@ -51,35 +50,17 @@ public class TransformReference : IComponentData
 }
 ```
 
-**Pros:**
-- Simple and straightforward
-- Easy to understand and debug
-- Works well for a small number of followers
-
-**Cons:**
-- Cannot use Burst compilation (slower)
-- Cannot use Jobs (runs on main thread)
-- Performance scales linearly with number of followers
-
-### Approach 2: Optimized System (Optional)
-The `TransformFollowerSystemOptimized` batches Transform data collection:
-
 1. **Main Thread Phase**: Collect all Transform positions/rotations into a `NativeArray`
 2. **Job Phase**: Use Burst-compiled parallel job to update all entity positions
 
 **Pros:**
 - Uses Burst compilation for entity updates
 - Can process entities in parallel
-- Much better performance with many followers (100+)
+- Good performance across follower counts
 
 **Cons:**
 - Still requires main thread to read Transform data
-- More complex code
-- One frame of latency for Transform data
-
-**To use the optimized version:**
-1. Add `[DisableAutoCreation]` to `TransformFollowerSystem`
-2. Remove `[DisableAutoCreation]` from `TransformFollowerSystemOptimized`
+- Managed Transform references cannot be Burst-compiled directly
 
 ## Alternative Approaches
 

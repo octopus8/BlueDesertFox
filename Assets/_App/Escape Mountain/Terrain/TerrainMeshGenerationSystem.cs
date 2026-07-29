@@ -16,11 +16,10 @@ using Unity.Profiling;
 /// EarlyUpdate.XRUpdate of the next frame while the main thread is blocked waiting for tracking data.
 /// Pairs with <see cref="TerrainMeshCompleteSystem"/> which completes the jobs in
 /// InitializationSystemGroup (immediately after XRUpdate finishes).
-/// Runs after <see cref="CameraDataUpdateSystem"/> so it reads the freshly-written
-/// <see cref="CameraDataSingleton"/> for camera-aware tile priority sorting.
+/// Reads <see cref="CameraDataSingleton"/> written earlier in the frame by
+/// <see cref="CameraDataUpdateSystem"/> (<see cref="SimulationSystemGroup"/> runs before Presentation).
 /// </summary>
 [UpdateInGroup(typeof(PresentationSystemGroup))]
-[UpdateAfter(typeof(CameraDataUpdateSystem))]
 public partial struct TerrainMeshScheduleSystem : ISystem
 {
     private NativeQueue<Entity> _pendingTiles;

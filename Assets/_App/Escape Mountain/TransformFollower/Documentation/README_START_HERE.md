@@ -65,18 +65,9 @@ Press Play — the entity should follow the target.
 
 ---
 
-## System Variants
+## Runtime System
 
-| | `TransformFollowerSystemOptimized` | `TransformFollowerSystem` |
-|-|-------------------------------------|---------------------------|
-| **Status** | **Active** (default) | Disabled (`[DisableAutoCreation]`) |
-| **Best for** | All use cases | — |
-| **Burst** | Partial (entity updates only) | No |
-| **Jobs** | Yes (parallel entity update) | No |
-
-**To swap back to the simple system:**
-1. Remove `[DisableAutoCreation]` from `TransformFollowerSystem.cs`
-2. Add `[DisableAutoCreation]` to `TransformFollowerSystemOptimized.cs`
+`TransformFollowerSystemOptimized` is the sole follower system: main-thread Transform reads, then parallel Burst entity updates with proper job dependency chaining.
 
 ---
 
@@ -148,7 +139,7 @@ See `TransformFollowerExample.cs` for more patterns.
 |---------|-----|
 | Entity doesn't follow | Check target is assigned; verify subscene is loaded; ensure entity is in subscene, target is outside |
 | Jittery movement | Increase smooth time (try 0.2); ensure target moves smoothly |
-| Performance issues | Optimized system is already active — check profiler for hot spots |
+| Performance issues | Check profiler for hot spots in TransformFollower / Burst jobs |
 
 See [TESTING_GUIDE.md](TESTING_GUIDE.md) for detailed debugging steps.
 
@@ -168,8 +159,7 @@ See [TESTING_GUIDE.md](TESTING_GUIDE.md) for detailed debugging steps.
 Assets/_App/Escape Mountain/TransformFollower/
 ├── TransformFollowerAuthoring.cs           Add to entities in subscenes
 ├── TransformFollowerInitSystem.cs          Runtime target search initialization
-├── TransformFollowerSystemOptimized.cs     Optimized system (active)
-├── TransformFollowerSystem.cs              Simple system [DisableAutoCreation]
+├── TransformFollowerSystemOptimized.cs     Runtime follower system
 ├── TransformFollowerExample.cs             Code examples
 ├── Editor/
 │   └── TransformFollowerAuthoringEditor.cs Custom inspector with presets

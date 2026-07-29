@@ -132,7 +132,7 @@ Located in `Assets/_App/Escape Mountain/`:
   - `PlayerTargetVelocityEstimateSystem`: Finite-difference velocity estimate from player position with 0.45 lerp smoothing; feeds `PlayerTargetVelocity` singleton used by `TurretAimingSystem`
   - `CameraDataUpdateSystem`: Reads player Transform → writes `CameraDataSingleton` (position + forward) used by `TerrainColliderPreparationSystem` for camera-aware priority
 - **DOTS Systems**: ECS performance-critical systems including:
-  - `TransformFollowerSystem` (`TransformFollower/`): Makes DOTS entities follow GameObject Transforms outside subscenes using managed `TransformReference` component, runs on main thread via `.Run()` (cannot use Burst/Jobs due to managed references). **OPTIMIZED VERSION AVAILABLE**: `TransformFollowerSystemOptimized` (ISystem) batches Transform reads and uses parallel Burst jobs with proper dependency chaining for 5-10x speedup - see `TRANSFORM_FOLLOWER_OPTIMIZATION_FIX.md`
+  - `TransformFollowerSystemOptimized` (`TransformFollower/`): Makes DOTS entities follow GameObject Transforms outside subscenes using managed `TransformReference` component; batches Transform reads on the main thread then updates entities via parallel Burst jobs with proper dependency chaining - see `TRANSFORM_FOLLOWER_OPTIMIZATION_FIX.md`
   - `SplineFollowerSystem` (`Splines/`): Moves entities along Unity.Splines with formation support via Burst-compiled job, uses `SplineDataComponent` (with pre-sampled `BlobAssetReference<SplineDataBlob>`) and `FormationPosition`
   - `EnemySpawnerSystem` (`EnemySpawner/`): Spawns entities in bowling pin formations along splines via `EnemySpawner` component, uses `CalculateBowlingPinPosition()` for 10-pin layout with hexagonal lateral spacing
   - `ResetEventsSystem`: Resets event flags (e.g., `doSpawn`) each frame, runs before `EnemySpawnerSystem` via `[UpdateBefore]` attribute
@@ -361,7 +361,6 @@ Located in `Assets/_App/Escape Mountain/Terrain/`:
 - `DeviceTracking.Instance.UpdateImmediate()` must be called after tracking origin changes to sync head followers immediately
 - `ObjectFollower.UpdateImmediate()` forces instant snap without smoothing - call after Show()/position changes to prevent UI from being visible during transition
 - DOTS `TransformFollowerAuthoring` must be on entities inside SubScenes - runtime init won't work for non-baked entities
-- `TransformFollowerSystem` uses `.Run()` instead of `.Schedule()` because it accesses managed Transform references (Burst incompatible). For better performance, use `TransformFollowerSystemOptimized` (ISystem) which batches Transform reads and uses `.ScheduleParallel(state.Dependency)` for parallel execution with proper dependency chaining - critical for Quest 3 VR
 - **TransformFollowerSystemOptimized**: MUST use `state.Dependency = job.ScheduleParallel(state.Dependency)` to chain dependencies, otherwise rendering systems (like `StaticObjectLODUpdateSystem`) will read stale positions causing frustum culling failures. See `TRANSFORM_FOLLOWER_OPTIMIZATION_FIX.md` for details
 - `SplineDataComponent` stores pre-sampled spline data as BlobAsset - configure `sampleCount` in `SplineComponentAuthoring` for accuracy vs memory tradeoff
 - **Terrain System**: Floating origin system removed - player should stay within ~1000-2000m of world origin for best float precision

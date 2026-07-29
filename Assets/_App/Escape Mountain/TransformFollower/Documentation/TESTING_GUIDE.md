@@ -115,15 +115,14 @@ Press Space in play mode → Follower should catch up based on smooth time
 **Check:**
 - [ ] Is the subscene loaded? (Check SubScene component - should show "Loaded")
 - [ ] Is the target assigned in TransformFollowerAuthoring?
-- [ ] Is TransformFollowerSystem enabled?
-  - Open `TransformFollowerSystem.cs`
-  - Should NOT have `[DisableAutoCreation]` attribute
+- [ ] Is TransformFollowerSystemOptimized running?
+  - Open Entities → Systems and confirm it is in SimulationSystemGroup
 - [ ] Are you in Play Mode?
 - [ ] Does the target actually move?
 
 **Debug:**
 ```csharp
-// Add this to TransformFollowerSystem.cs OnUpdate:
+// Add this to TransformFollowerSystemOptimized OnUpdate:
 Debug.Log($"Processing {_followerQuery.CalculateEntityCount()} followers");
 ```
 
@@ -136,14 +135,14 @@ Debug.Log($"Processing {_followerQuery.CalculateEntityCount()} followers");
 
 **Debug:**
 ```csharp
-// In TransformFollowerSystem.cs, in the ForEach:
-Debug.Log($"Target: {transformRef.target.position}, Entity: {localTransform.Position}");
+// In TransformFollowerSystemOptimized, after reading a Transform:
+Debug.Log($"Target: {transformRef.target.position}");
 ```
 
 ### Problem: Performance is bad
 
 **Solutions:**
-1. How many followers? If >100, enable optimized system
+1. How many followers? Profile TransformFollower / Burst jobs
 2. Check profiler for main thread bottlenecks
 3. Reduce smooth time (less interpolation)
 4. Consider converting to full ECS
@@ -257,7 +256,7 @@ When working correctly, you should see:
 
 ```
 [Subscene] SubScene_Test loaded
-[TransformFollowerSystem] Processing 2 followers
+[TransformFollowerSystemOptimized] Processing 2 followers
 ```
 
 No errors or warnings.

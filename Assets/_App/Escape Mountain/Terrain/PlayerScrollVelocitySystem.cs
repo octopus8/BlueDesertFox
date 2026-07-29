@@ -10,7 +10,7 @@ using Unity.Mathematics;
 /// </summary>
 [UpdateInGroup(typeof(SimulationSystemGroup))]
 [UpdateBefore(typeof(ScrollTerrainSystem))]
-[UpdateBefore(typeof(TransformFollowerSystem))]
+[UpdateBefore(typeof(TransformFollowerSystemOptimized))]
 public partial class PlayerScrollVelocitySystem : SystemBase
 {
     /// <summary>Registers required singletons: scroll velocity, player config, player transform reference, world origin, and pose cache.</summary>

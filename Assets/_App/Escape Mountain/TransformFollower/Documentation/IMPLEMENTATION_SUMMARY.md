@@ -11,18 +11,13 @@ A complete system for making DOTS entities follow GameObjects/Transforms outside
    - Location: `Assets/_App/Escape Mountain/TransformFollower/`
    - Purpose: Converts GameObject setup to ECS components
 
-2. **TransformFollowerSystemOptimized.cs** - Active system
+2. **TransformFollowerSystemOptimized.cs** - Runtime system
    - Location: `Assets/_App/Escape Mountain/TransformFollower/`
    - Purpose: Batches Transform reads, updates entity positions via parallel Burst jobs
    - Performance: Used for all follower counts
 
-3. **TransformFollowerSystem.cs** - Simple system (`[DisableAutoCreation]`)
-   - Location: `Assets/_App/Escape Mountain/TransformFollower/`
-   - Purpose: Simpler single-threaded implementation (disabled by default)
-   - Note: Add `[DisableAutoCreation]` to Optimized and remove from this file to swap
-
 #### Editor Tools
-4. **TransformFollowerAuthoringEditor.cs** - Custom inspector
+3. **TransformFollowerAuthoringEditor.cs** - Custom inspector
    - Location: `Assets/_App/Escape Mountain/TransformFollower/Editor/`
    - Purpose: Improved editor experience with presets and validation
    - Features:
@@ -32,15 +27,15 @@ A complete system for making DOTS entities follow GameObjects/Transforms outside
      - Validation warnings
 
 #### Examples & Documentation
-5. **TransformFollowerExample.cs** - Runtime usage examples
+4. **TransformFollowerExample.cs** - Runtime usage examples
    - Location: `Assets/_App/Escape Mountain/TransformFollower/`
    - Purpose: Shows how to use the system from code
    
-6. **TransformFollowerREADME.md** - Full documentation
+5. **TransformFollowerREADME.md** - Full documentation
    - Location: `Assets/_App/Escape Mountain/TransformFollower/Documentation/`
    - Purpose: In-depth technical documentation
    
-7. **QUICKSTART.md** - Quick setup guide
+6. **QUICKSTART.md** - Quick setup guide
    - Location: `Assets/_App/Escape Mountain/TransformFollower/Documentation/`
    - Purpose: Fast setup instructions and common use cases
 
@@ -124,20 +119,10 @@ entityManager.AddComponentData(entity, new TransformReference
 - **Thread:** Main thread for Transform reads, parallel for entity updates
 - **Burst:** Yes (for entity updates only)
 
-### Simple System (Disabled — `[DisableAutoCreation]`)
-- **Best for:** N/A — disabled by default; useful for debugging or when Optimized causes issues
-- **Update cost:** O(n) where n = number of followers
-- **Thread:** Main thread only
-- **Burst:** No (accessing managed references)
-
-### Comparison
-- 10 followers: ~0.01ms per frame (either system)
-- 100 followers: 
-  - Simple: ~0.1ms per frame
-  - Optimized: ~0.05ms per frame
-- 1000 followers:
-  - Simple: ~1ms per frame
-  - Optimized: ~0.3ms per frame
+### Approximate Cost
+- 10 followers: ~0.01ms per frame
+- 100 followers: ~0.05ms per frame
+- 1000 followers: ~0.3ms per frame
 
 ## Alternative Approaches
 

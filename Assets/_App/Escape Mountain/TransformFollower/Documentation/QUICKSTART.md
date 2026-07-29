@@ -79,11 +79,9 @@ Smooth Time: 0.3 - Smooth formation movement
 ### Performance is slow
 
 **Solution:**
-- If you have more than 50 followers, enable the optimized system:
-  1. Open `TransformFollowerSystem.cs`
-  2. Add `[DisableAutoCreation]` above the class
-  3. Open `TransformFollowerSystemOptimized.cs`
-  4. Remove `[DisableAutoCreation]` from above the class
+- Check follower count in the Profiler
+- Ensure Burst is enabled
+- Prefer converting targets to entities when possible (fully Burst-compatible)
 
 ### Entity snaps instead of smoothing
 
