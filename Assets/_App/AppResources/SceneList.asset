@@ -21,7 +21,7 @@ MonoBehaviour:
       m_SubObjectType: 
       m_SubObjectGUID: 
       m_EditorAssetChanged: 0
-    scenePath: Ace of Ages
+    scenePath: _App/Ace of Ages/Ace of Ages
   - sceneDisplayName: Escape Mountain
     isAddressable: 0
     scene:
@@ -30,7 +30,7 @@ MonoBehaviour:
       m_SubObjectType: 
       m_SubObjectGUID: 
       m_EditorAssetChanged: 0
-    scenePath: Escape Mountain
+    scenePath: _App/Escape Mountain/Escape Mountain
   - sceneDisplayName: AutoHand Demo (Addressable)
     isAddressable: 1
     scene:
