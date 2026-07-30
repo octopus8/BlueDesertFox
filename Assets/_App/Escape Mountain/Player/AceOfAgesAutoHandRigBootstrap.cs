@@ -16,11 +16,9 @@ public class AceOfAgesAutoHandRigBootstrap : MonoBehaviour
     const string RightHandInstanceName = "RobotHand (R)";
     const string LeftHandTrackingInstanceName = "Left Hand Tracking";
     const string RightHandTrackingInstanceName = "Right Hand Tracking";
-    const string AutoHandPlayerInstanceName = "Auto Hand Player";
 
     [SerializeField] private GameObject robotHandLeftPrefab;
     [SerializeField] private GameObject robotHandRightPrefab;
-    [SerializeField] private GameObject autoHandPlayerPrefab;
     [SerializeField] private GameObject leftHandTrackingPrefab;
     [SerializeField] private GameObject rightHandTrackingPrefab;
 
@@ -67,9 +65,6 @@ public class AceOfAgesAutoHandRigBootstrap : MonoBehaviour
         WireHand(rightHand, rightOffset, isLeft: false);
 
         WireHandTracking(xrOrigin.transform, leftHand, rightHand);
-
-        GetOrCreateAutoHandPlayer(xrOrigin.transform, autoHandPlayerPrefab);
-        ConfigureAutoHandPlayer(xrOrigin.transform, leftHand, rightHand, mainCamera, cameraOffset);
 
         _initialized = true;
     }
@@ -308,52 +303,6 @@ public class AceOfAgesAutoHandRigBootstrap : MonoBehaviour
         var handFollow = handObject.GetComponentInChildren<HandFollow>(true);
         if (handFollow != null)
             handFollow.maxFollowDistance = handMaxFollowDistance;
-    }
-
-    static void GetOrCreateAutoHandPlayer(Transform xrOrigin, GameObject autoHandPlayerPrefab)
-    {
-        foreach (Transform child in xrOrigin)
-        {
-            if (child.name == AutoHandPlayerInstanceName)
-                return;
-        }
-
-        if (autoHandPlayerPrefab == null)
-            return;
-
-        var instance = Instantiate(autoHandPlayerPrefab, xrOrigin);
-        instance.name = AutoHandPlayerInstanceName;
-    }
-
-    static void ConfigureAutoHandPlayer(Transform xrOrigin, GameObject leftHand, GameObject rightHand,
-        Transform mainCamera, Transform cameraOffset)
-    {
-        AutoHandPlayer player = null;
-        foreach (Transform child in xrOrigin)
-        {
-            if (child.name != AutoHandPlayerInstanceName)
-                continue;
-
-            player = child.GetComponent<AutoHandPlayer>();
-            break;
-        }
-
-        if (player == null)
-            return;
-
-        player.useMovement = false;
-        player.useGrounding = false;
-        player.headCamera = mainCamera.GetComponent<Camera>();
-        player.forwardFollow = mainCamera;
-        player.trackingContainer = cameraOffset;
-        player.handLeft = leftHand?.GetComponentInChildren<Hand>(true);
-        player.handRight = rightHand?.GetComponentInChildren<Hand>(true);
-
-        foreach (var behaviour in player.GetComponentsInChildren<MonoBehaviour>(true))
-        {
-            if (behaviour != null && behaviour.GetType().Name == "OpenXRHandPlayerControllerLink")
-                behaviour.enabled = false;
-        }
     }
 
     static Transform FindChildRecursive(Transform parent, string name)

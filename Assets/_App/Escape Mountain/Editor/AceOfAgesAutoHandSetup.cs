@@ -16,7 +16,6 @@ public static class AceOfAgesAutoHandSetup
     const string SubScenePath = "Assets/_App/Ace of Ages/Entities Subscene.unity";
     const string RobotHandLeftPath = "Assets/AutoHand/Examples/Scenes/OpenXR/Prefabs/RobotHand (OpenXR)(L).prefab";
     const string RobotHandRightPath = "Assets/AutoHand/Examples/Scenes/OpenXR/Prefabs/RobotHand (OpenXR)(R).prefab";
-    const string AutoHandPlayerPath = "Assets/AutoHand/Examples/Prefabs/Attachments/Auto Hand Player.prefab";
     const string LeftHandTrackingPath = "Assets/Samples/XR Hands/1.8.0/HandVisualizer/Prefabs/Left Hand Tracking.prefab";
     const string RightHandTrackingPath = "Assets/Samples/XR Hands/1.8.0/HandVisualizer/Prefabs/Right Hand Tracking.prefab";
 
@@ -97,11 +96,6 @@ public static class AceOfAgesAutoHandSetup
         WireHand(rightHand, rightOffset, isLeft: false);
 
         WireHandTracking(xrOrigin.transform, leftHand, rightHand);
-
-        var autoHandPlayer = GetOrCreateAutoHandPlayer(xrOrigin.transform, leftHand, rightHand,
-            mainCamera, cameraOffset);
-
-        ConfigureAutoHandPlayer(autoHandPlayer, leftHand, rightHand, mainCamera, cameraOffset);
 
         EditorSceneManager.MarkSceneDirty(scene);
     }
@@ -306,56 +300,6 @@ public static class AceOfAgesAutoHandSetup
             handFollow.maxFollowDistance = 1.5f;
 
         EditorUtility.SetDirty(handObject);
-    }
-
-    static GameObject GetOrCreateAutoHandPlayer(Transform xrOrigin, GameObject leftHand, GameObject rightHand,
-        Transform mainCamera, Transform cameraOffset)
-    {
-        var existing = xrOrigin.Cast<Transform>().FirstOrDefault(t => t.name == "Auto Hand Player")?.gameObject;
-        if (existing != null)
-            return existing;
-
-        var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(AutoHandPlayerPath);
-        if (prefab == null)
-        {
-            Debug.LogError($"[AceOfAgesAutoHandSetup] Missing prefab: {AutoHandPlayerPath}");
-            return null;
-        }
-
-        var instance = (GameObject)PrefabUtility.InstantiatePrefab(prefab, xrOrigin);
-        Undo.RegisterCreatedObjectUndo(instance, "Add AutoHandPlayer");
-        instance.name = "Auto Hand Player";
-        return instance;
-    }
-
-    static void ConfigureAutoHandPlayer(GameObject playerObject, GameObject leftHand, GameObject rightHand,
-        Transform mainCamera, Transform cameraOffset)
-    {
-        if (playerObject == null)
-            return;
-
-        var player = playerObject.GetComponent<AutoHandPlayer>();
-        if (player == null)
-        {
-            Debug.LogError("[AceOfAgesAutoHandSetup] Auto Hand Player prefab missing AutoHandPlayer component.");
-            return;
-        }
-
-        player.useMovement = false;
-        player.useGrounding = false;
-        player.headCamera = mainCamera.GetComponent<Camera>();
-        player.forwardFollow = mainCamera;
-        player.trackingContainer = cameraOffset;
-        player.handLeft = leftHand?.GetComponentInChildren<Hand>(true);
-        player.handRight = rightHand?.GetComponentInChildren<Hand>(true);
-
-        foreach (var behaviour in playerObject.GetComponentsInChildren<MonoBehaviour>(true))
-        {
-            if (behaviour != null && behaviour.GetType().Name == "OpenXRHandPlayerControllerLink")
-                behaviour.enabled = false;
-        }
-
-        EditorUtility.SetDirty(playerObject);
     }
 
     static GameObject FindRootObject(Scene scene, string name)
