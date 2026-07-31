@@ -1,6 +1,7 @@
 using Unity.Scenes;
 using UnityEngine;
 using UnityEngine.Serialization;
+using UnityEngine.XR;
 
 /// <summary>
 /// Moves a main-scene Transform to follow a target. Main-scene targets use a Transform reference;
@@ -18,6 +19,7 @@ public class TransformFollowTarget : MonoBehaviour
     }
 
     const float MinDirectionSpeedSq = 0.0001f;
+    const float MinPlanarDirectionSq = 1e-6f;
 
     [Tooltip("Transform to move (main scene, e.g. XR Origin root).")]
     [SerializeField] private Transform follower;
@@ -44,6 +46,9 @@ public class TransformFollowTarget : MonoBehaviour
     [Tooltip("Optional camera transform to anchor over the target. If empty, a camera under the follower is auto-resolved.")]
     [SerializeField] private Transform trackedCamera;
 
+    [Tooltip("On first successful follow, offset the tracked camera parent (Camera Offset) so headset XZ and yaw match the follower. Same visual effect as a Meta menu-button recenter; OpenXR/Quest apps cannot trigger that system recenter via API.")]
+    [SerializeField] private bool recenterTrackedPoseOnStart = true;
+
     [Tooltip("Match the target object's rotation.")]
     [SerializeField] private bool followRotation;
 
@@ -57,6 +62,7 @@ public class TransformFollowTarget : MonoBehaviour
     [SerializeField] private float directionSmoothTime;
 
     private bool _snapOnNextUpdate = true;
+    private bool _pendingTrackedPoseRecenter;
     private bool _loggedWaitingForSubScene;
     private bool _loggedMissingTrackedCamera;
     private Vector3 _previousTargetPosition;
@@ -65,6 +71,7 @@ public class TransformFollowTarget : MonoBehaviour
     private void OnEnable()
     {
         _snapOnNextUpdate = true;
+        _pendingTrackedPoseRecenter = recenterTrackedPoseOnStart;
         _loggedWaitingForSubScene = false;
         _loggedMissingTrackedCamera = false;
         _hasPreviousTargetPosition = false;
@@ -102,11 +109,22 @@ public class TransformFollowTarget : MonoBehaviour
         ApplyFollowerRotation(targetRotation, targetVelocity, _snapOnNextUpdate);
 
         _snapOnNextUpdate = false;
+
+        if (_pendingTrackedPoseRecenter)
+            TryRecenterTrackedPose();
     }
-    
+
     public void SetAlignTrackedCameraXZToTarget(bool value)
     {
         alignTrackedCameraXZToTarget = value;
+    }
+
+    /// <summary>
+    /// Queues an app-level tracked-pose recenter on the next successful follow update.
+    /// </summary>
+    public void RequestTrackedPoseRecenter()
+    {
+        _pendingTrackedPoseRecenter = true;
     }
 
     private bool TryGetTrackedCameraOffset(out Vector3 offset)
@@ -139,6 +157,45 @@ public class TransformFollowTarget : MonoBehaviour
         _loggedMissingTrackedCamera = false;
         offset = trackedCamera.position - follower.position;
         return true;
+    }
+
+    /// <summary>
+    /// Compensates via the camera parent (Camera Offset) so current headset XZ/yaw map onto the
+    /// follower. Adjusting Camera Offset persists across follower pose updates; moving the XR Origin
+    /// would be overwritten each LateUpdate.
+    /// </summary>
+    private void TryRecenterTrackedPose()
+    {
+        if (!TryGetTrackedCameraOffset(out _))
+            return;
+
+        // Wait for a valid tracked head when an XR device is present; Editor/no-HMD proceeds immediately.
+        var headDevice = InputDevices.GetDeviceAtXRNode(XRNode.Head);
+        if (headDevice.isValid &&
+            headDevice.TryGetFeatureValue(CommonUsages.isTracked, out bool isTracked) &&
+            !isTracked)
+        {
+            return;
+        }
+
+        Transform cameraTransform = trackedCamera;
+        Transform trackingSpace = cameraTransform.parent != null ? cameraTransform.parent : follower;
+
+        Vector3 up = Vector3.up;
+        Vector3 cameraForward = Vector3.ProjectOnPlane(cameraTransform.forward, up);
+        Vector3 followerForward = Vector3.ProjectOnPlane(follower.forward, up);
+        if (cameraForward.sqrMagnitude > MinPlanarDirectionSq &&
+            followerForward.sqrMagnitude > MinPlanarDirectionSq)
+        {
+            float yawDegrees = Vector3.SignedAngle(cameraForward.normalized, followerForward.normalized, up);
+            trackingSpace.RotateAround(cameraTransform.position, up, yawDegrees);
+        }
+
+        Vector3 planarOffset = cameraTransform.position - follower.position;
+        planarOffset.y = 0f;
+        trackingSpace.position -= planarOffset;
+
+        _pendingTrackedPoseRecenter = false;
     }
 
     private void ApplyFollowerRotation(Quaternion targetRotation, Vector3 targetVelocity, bool snapOnEnable)

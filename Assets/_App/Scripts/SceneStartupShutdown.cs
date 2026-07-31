@@ -11,6 +11,7 @@ using UnityEngine;
 /// - Does a fade in effect.
 /// - Shows or hides the UI based on the <see cref="showUIOnStart"/> field.
 /// - Loads SubScenes that are not set to Auto Load Scene.
+/// Headset recenter (menu-button equivalent) is handled by <see cref="TransformFollowTarget"/> when present.
 /// </summary>
 /// <remarks>
 /// Do not unload SubScenes in <see cref="OnDestroy"/>. During Play Mode exit the SubScene GameObject
@@ -48,8 +49,11 @@ public class SceneStartupShutdown : MonoBehaviour
             Debug.LogWarning("No start transform assigned!");
         }
 
-        UnityEngine.XR.InputTracking.Recenter();
-        
+        // Do not call UnityEngine.XR.InputTracking.Recenter() or XRInputSubsystem.TryRecenter() here.
+        // Both are no-ops on OpenXR/Meta Quest — only the system menu-button hold recenters the
+        // runtime tracking space. Escape Mountain / Ace of Ages use TransformFollowTarget's
+        // recenterTrackedPoseOnStart for the equivalent app-level Camera Offset recenter.
+
         // Do fade in.
         StartCoroutine(FadeIn());
 

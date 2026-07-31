@@ -192,6 +192,7 @@ MonoBehaviour:
   positionOffset: {x: 0, y: -0.3, z: 0}
   alignTrackedCameraXZToTarget: 0
   trackedCamera: {fileID: 880413747}
+  recenterTrackedPoseOnStart: 1
   followRotation: 1
   followDirection: 0
   rotationSmoothTime: 0
