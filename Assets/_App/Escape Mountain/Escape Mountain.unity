@@ -201,11 +201,6 @@ GameObject:
   m_CorrespondingSourceObject: {fileID: 1000000010, guid: a7c3e91f4b2d5846a0e5c8d1f6b93420, type: 3}
   m_PrefabInstance: {fileID: 2100000001}
   m_PrefabAsset: {fileID: 0}
---- !u!114 &216626780 stripped
-MonoBehaviour:
-  m_CorrespondingSourceObject: {fileID: 1000000016, guid: a7c3e91f4b2d5846a0e5c8d1f6b93420, type: 3}
-  m_PrefabInstance: {fileID: 2100000001}
-  m_PrefabAsset: {fileID: 0}
 --- !u!136 &216626772
 CapsuleCollider:
   m_ObjectHideFlags: 0
@@ -229,6 +224,17 @@ CapsuleCollider:
   m_Height: 0.18
   m_Direction: 0
   m_Center: {x: -0.43697292, y: 1.26813, z: -0.20621616}
+--- !u!114 &216626780 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 1000000016, guid: a7c3e91f4b2d5846a0e5c8d1f6b93420, type: 3}
+  m_PrefabInstance: {fileID: 2100000001}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 216626765}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 822bc9090447b9c40833509c4a32e597, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: AutoHandAssembly::Autohand.Grabbable
 --- !u!1 &241762667
 GameObject:
   m_ObjectHideFlags: 0
@@ -528,11 +534,6 @@ GameObject:
   m_CorrespondingSourceObject: {fileID: 1000000020, guid: a7c3e91f4b2d5846a0e5c8d1f6b93420, type: 3}
   m_PrefabInstance: {fileID: 2100000001}
   m_PrefabAsset: {fileID: 0}
---- !u!114 &544782780 stripped
-MonoBehaviour:
-  m_CorrespondingSourceObject: {fileID: 1000000026, guid: a7c3e91f4b2d5846a0e5c8d1f6b93420, type: 3}
-  m_PrefabInstance: {fileID: 2100000001}
-  m_PrefabAsset: {fileID: 0}
 --- !u!136 &544782764
 CapsuleCollider:
   m_ObjectHideFlags: 0
@@ -556,6 +557,17 @@ CapsuleCollider:
   m_Height: 0.18
   m_Direction: 0
   m_Center: {x: 0.4, y: 1.26813, z: -0.20621616}
+--- !u!114 &544782780 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 1000000026, guid: a7c3e91f4b2d5846a0e5c8d1f6b93420, type: 3}
+  m_PrefabInstance: {fileID: 2100000001}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 544782757}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 822bc9090447b9c40833509c4a32e597, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: AutoHandAssembly::Autohand.Grabbable
 --- !u!1 &702503744
 GameObject:
   m_ObjectHideFlags: 0
