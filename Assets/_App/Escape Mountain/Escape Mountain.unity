@@ -201,6 +201,11 @@ GameObject:
   m_CorrespondingSourceObject: {fileID: 1000000010, guid: a7c3e91f4b2d5846a0e5c8d1f6b93420, type: 3}
   m_PrefabInstance: {fileID: 2100000001}
   m_PrefabAsset: {fileID: 0}
+--- !u!114 &216626780 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 1000000016, guid: a7c3e91f4b2d5846a0e5c8d1f6b93420, type: 3}
+  m_PrefabInstance: {fileID: 2100000001}
+  m_PrefabAsset: {fileID: 0}
 --- !u!136 &216626772
 CapsuleCollider:
   m_ObjectHideFlags: 0
@@ -521,6 +526,11 @@ Transform:
 --- !u!1 &544782757 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 1000000020, guid: a7c3e91f4b2d5846a0e5c8d1f6b93420, type: 3}
+  m_PrefabInstance: {fileID: 2100000001}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &544782780 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 1000000026, guid: a7c3e91f4b2d5846a0e5c8d1f6b93420, type: 3}
   m_PrefabInstance: {fileID: 2100000001}
   m_PrefabAsset: {fileID: 0}
 --- !u!136 &544782764
@@ -3392,7 +3402,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 1000000002, guid: c975192685b244eb970e606532f4d620, type: 3}
       propertyPath: m_AnchoredPosition.y
-      value: 1501.87
+      value: 1499.91
       objectReference: {fileID: 0}
     - target: {fileID: 1000000002, guid: c975192685b244eb970e606532f4d620, type: 3}
       propertyPath: m_LocalEulerAnglesHint.x
@@ -3410,6 +3420,14 @@ PrefabInstance:
       propertyPath: m_BlockingMask.m_Bits
       value: 65527
       objectReference: {fileID: 0}
+    - target: {fileID: 1000000006, guid: c975192685b244eb970e606532f4d620, type: 3}
+      propertyPath: leftHandHold
+      value: 
+      objectReference: {fileID: 216626780}
+    - target: {fileID: 1000000006, guid: c975192685b244eb970e606532f4d620, type: 3}
+      propertyPath: rightHandHold
+      value: 
+      objectReference: {fileID: 544782780}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []

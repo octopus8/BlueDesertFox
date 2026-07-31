@@ -1,4 +1,5 @@
 using System.Threading;
+using Autohand;
 using Cysharp.Threading.Tasks;
 using DG.Tweening;
 using TMPro;
@@ -6,8 +7,9 @@ using UnityEngine;
 using UnityEngine.Events;
 
 /// <summary>
-/// World-space race start countdown (3-2-1-GO!). Starts after a delay, then plays each value
-/// with a quick fade-in and a slower top-anchored shrink + fade-out.
+/// World-space race start countdown (3-2-1-GO!). Starts when both hand-hold Grabbables
+/// are held, then plays each value with a quick fade-in and a slower top-anchored
+/// shrink + fade-out.
 /// </summary>
 public class RaceCountdown : MonoBehaviour
 {
@@ -16,7 +18,9 @@ public class RaceCountdown : MonoBehaviour
     [SerializeField] private TextMeshProUGUI label;
     [SerializeField] private CanvasGroup canvasGroup;
 
-    [SerializeField] private float startDelaySeconds = 3f;
+    [SerializeField] private Grabbable leftHandHold;
+    [SerializeField] private Grabbable rightHandHold;
+
     [SerializeField] private float fadeInSeconds = 0.12f;
     [SerializeField] private float holdBeforeFadeOutSeconds = 0.15f;
     [SerializeField] private float fadeOutSeconds = 0.7f;
@@ -30,6 +34,7 @@ public class RaceCountdown : MonoBehaviour
     [SerializeField] private UnityEvent onCountdownComplete;
 
     CancellationTokenSource _runCts;
+    bool _started;
 
     void Awake()
     {
@@ -49,10 +54,17 @@ public class RaceCountdown : MonoBehaviour
             canvasGroup.alpha = 0f;
     }
 
-    void Start()
+    void OnEnable()
     {
-        _runCts = new CancellationTokenSource();
-        RunCountdownAsync(_runCts.Token).Forget();
+        Subscribe(leftHandHold);
+        Subscribe(rightHandHold);
+        TryStartCountdown();
+    }
+
+    void OnDisable()
+    {
+        Unsubscribe(leftHandHold);
+        Unsubscribe(rightHandHold);
     }
 
     void OnDestroy()
@@ -67,6 +79,38 @@ public class RaceCountdown : MonoBehaviour
             canvasGroup.DOKill();
     }
 
+    void Subscribe(Grabbable grabbable)
+    {
+        if (grabbable == null)
+            return;
+        grabbable.OnGrabEvent += OnGrabbed;
+        grabbable.OnReleaseEvent += OnReleased;
+    }
+
+    void Unsubscribe(Grabbable grabbable)
+    {
+        if (grabbable == null)
+            return;
+        grabbable.OnGrabEvent -= OnGrabbed;
+        grabbable.OnReleaseEvent -= OnReleased;
+    }
+
+    void OnGrabbed(Hand hand, Grabbable grab) => TryStartCountdown();
+
+    void OnReleased(Hand hand, Grabbable grab) { }
+
+    void TryStartCountdown()
+    {
+        if (_started || leftHandHold == null || rightHandHold == null)
+            return;
+        if (!leftHandHold.IsHeld() || !rightHandHold.IsHeld())
+            return;
+
+        _started = true;
+        _runCts = new CancellationTokenSource();
+        RunCountdownAsync(_runCts.Token).Forget();
+    }
+
     async UniTaskVoid RunCountdownAsync(CancellationToken ct)
     {
         if (label == null || canvasGroup == null)
@@ -77,8 +121,6 @@ public class RaceCountdown : MonoBehaviour
 
         canvasGroup.alpha = 0f;
         label.transform.localScale = Vector3.one;
-
-        await UniTask.Delay(System.TimeSpan.FromSeconds(startDelaySeconds), cancellationToken: ct);
 
         for (int i = 0; i < Steps.Length; i++)
         {
