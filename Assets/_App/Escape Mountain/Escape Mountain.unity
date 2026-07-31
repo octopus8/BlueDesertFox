@@ -734,6 +734,10 @@ PrefabInstance:
       propertyPath: m_Layer
       value: 8
       objectReference: {fileID: 0}
+    - target: {fileID: 5637781945935469219, guid: 8920e0653a69d1348b1165f9ce857ba6, type: 3}
+      propertyPath: m_IsActive
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 6233169201637272374, guid: 8920e0653a69d1348b1165f9ce857ba6, type: 3}
       propertyPath: m_Layer
       value: 8
@@ -1880,7 +1884,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SceneStartup
   startTransform: {fileID: 1869357994}
-  delayBeforeFadeInSeconds: 0
+  delayBeforeFadeInSeconds: 1
   fadeInDurationSeconds: 2
   ui: {fileID: 1279682837}
   showUIOnStart: 0
