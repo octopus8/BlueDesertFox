@@ -3440,6 +3440,42 @@ PrefabInstance:
       propertyPath: rightHandHold
       value: 
       objectReference: {fileID: 544782780}
+    - target: {fileID: 1000000006, guid: c975192685b244eb970e606532f4d620, type: 3}
+      propertyPath: onCountdownComplete.m_PersistentCalls.m_Calls.Array.size
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 1000000006, guid: c975192685b244eb970e606532f4d620, type: 3}
+      propertyPath: onCountdownComplete.m_PersistentCalls.m_Calls.Array.data[0].m_Mode
+      value: 6
+      objectReference: {fileID: 0}
+    - target: {fileID: 1000000006, guid: c975192685b244eb970e606532f4d620, type: 3}
+      propertyPath: onCountdownComplete.m_PersistentCalls.m_Calls.Array.data[0].m_Target
+      value: 
+      objectReference: {fileID: 132629399}
+    - target: {fileID: 1000000006, guid: c975192685b244eb970e606532f4d620, type: 3}
+      propertyPath: onCountdownComplete.m_PersistentCalls.m_Calls.Array.data[0].m_CallState
+      value: 2
+      objectReference: {fileID: 0}
+    - target: {fileID: 1000000006, guid: c975192685b244eb970e606532f4d620, type: 3}
+      propertyPath: onCountdownComplete.m_PersistentCalls.m_Calls.Array.data[0].m_MethodName
+      value: SetAlignTrackedCameraXZToTarget
+      objectReference: {fileID: 0}
+    - target: {fileID: 1000000006, guid: c975192685b244eb970e606532f4d620, type: 3}
+      propertyPath: onCountdownComplete.m_PersistentCalls.m_Calls.Array.data[0].m_TargetAssemblyTypeName
+      value: TransformFollowTarget, Assembly-CSharp
+      objectReference: {fileID: 0}
+    - target: {fileID: 1000000006, guid: c975192685b244eb970e606532f4d620, type: 3}
+      propertyPath: onCountdownComplete.m_PersistentCalls.m_Calls.Array.data[0].m_Arguments.m_BoolArgument
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 1000000006, guid: c975192685b244eb970e606532f4d620, type: 3}
+      propertyPath: onCountdownComplete.m_PersistentCalls.m_Calls.Array.data[0].m_Arguments.m_ObjectArgumentAssemblyTypeName
+      value: UnityEngine.Object, UnityEngine
+      objectReference: {fileID: 0}
+    - target: {fileID: 2000000004, guid: c975192685b244eb970e606532f4d620, type: 3}
+      propertyPath: m_fontColor32.rgba
+      value: 4294962119
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []

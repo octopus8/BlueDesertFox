@@ -103,6 +103,11 @@ public class TransformFollowTarget : MonoBehaviour
 
         _snapOnNextUpdate = false;
     }
+    
+    public void SetAlignTrackedCameraXZToTarget(bool value)
+    {
+        alignTrackedCameraXZToTarget = value;
+    }
 
     private bool TryGetTrackedCameraOffset(out Vector3 offset)
     {

@@ -48,6 +48,8 @@ public class SceneStartupShutdown : MonoBehaviour
             Debug.LogWarning("No start transform assigned!");
         }
 
+        UnityEngine.XR.InputTracking.Recenter();
+        
         // Do fade in.
         StartCoroutine(FadeIn());
 
