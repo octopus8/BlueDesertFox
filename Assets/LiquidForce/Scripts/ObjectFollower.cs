@@ -392,12 +392,6 @@ namespace LiquidForce
                     }
                 }
 
-                if ((targetPosition - source.position).sqrMagnitude > 10000)
-                {
-                    targetPosition = source.position;
-                    targetRotation = source.rotation.eulerAngles;
-                }
-                
                 target.SetPositionAndRotation(targetPosition, Quaternion.Euler(targetRotation));
             }
         }
