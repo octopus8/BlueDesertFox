@@ -5927,7 +5927,7 @@ MonoBehaviour:
   noisePersistence: 0.5
   continentalFrequency: 0.0008
   continentalExponent: 0.1
-  terrainMaterial: {fileID: 2100000, guid: 8072c60390eaa4f4e9c93ab354ee5e8b, type: 2}
+  terrainMaterial: {fileID: 2100000, guid: dc12ba763b59e3a4586cb235c2a074fc, type: 2}
   maxCollidersCreatedPerFrame: 1
   maxPhysicsCollidersCreatedPerFrame: 1
   maxColliderDistance: 220
@@ -5948,13 +5948,13 @@ MonoBehaviour:
   trail1Seed: 0
   trail1Frequency: 0.0015
   trail1Amplitude: 250
-  trail2Enabled: 1
+  trail2Enabled: 0
   trail2Width: 45
   trail2BlendWidth: 35
   trail2Seed: 100
   trail2Frequency: 0.001
   trail2Amplitude: 200
-  trail3Enabled: 1
+  trail3Enabled: 0
   trail3Width: 45
   trail3BlendWidth: 35
   trail3Seed: 200
@@ -6009,30 +6009,35 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::StaticObjectSpawnerConfigAuthoring
   objectLODSets:
   - lodSet: {fileID: 11400000, guid: 4101bf1351cde7442a780cfaa191badb, type: 2}
-    spawnWeight: 1
+    spawnWeight: 0.01
     maxScaleDelta: 0.5
     minSlopeDegrees: 0
     maxSlopeDegrees: 45
   - lodSet: {fileID: 11400000, guid: b77b000478ae3ac48b61b9af41161eba, type: 2}
-    spawnWeight: 0.1
+    spawnWeight: 1
     maxScaleDelta: 0.5
     minSlopeDegrees: 0
     maxSlopeDegrees: 45
   - lodSet: {fileID: 11400000, guid: e7de8a9f2d9ca814682cdfb9073cd20e, type: 2}
-    spawnWeight: 0.05
+    spawnWeight: 0.1
     maxScaleDelta: 0.25
     minSlopeDegrees: 0
     maxSlopeDegrees: 45
   - lodSet: {fileID: 11400000, guid: d47c3ee472c3bb2498b37658e653adbf, type: 2}
-    spawnWeight: 0.05
+    spawnWeight: 0.01
     maxScaleDelta: 0.5
     minSlopeDegrees: 0
     maxSlopeDegrees: 45
   - lodSet: {fileID: 11400000, guid: edc16788d2b932f448223bf869de3aeb, type: 2}
-    spawnWeight: 1
+    spawnWeight: 0.05
     maxScaleDelta: 0.25
     minSlopeDegrees: 45
     maxSlopeDegrees: 90
+  - lodSet: {fileID: 11400000, guid: d4d8140911406aa4084f758af61cd1bf, type: 2}
+    spawnWeight: 0.01
+    maxScaleDelta: 0
+    minSlopeDegrees: 0
+    maxSlopeDegrees: 45
   lod0Distance: 200
   lod1Distance: 400
   lod2Distance: 600
