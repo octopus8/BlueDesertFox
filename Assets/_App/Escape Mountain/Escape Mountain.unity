@@ -1137,11 +1137,11 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 2218496723442559053, guid: d6878e1999eb4b44a9f5a263af86c185, type: 3}
       propertyPath: m_LocalPosition.y
-      value: 1500
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 2218496723442559053, guid: d6878e1999eb4b44a9f5a263af86c185, type: 3}
       propertyPath: m_LocalPosition.z
-      value: -2900
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 2218496723442559053, guid: d6878e1999eb4b44a9f5a263af86c185, type: 3}
       propertyPath: m_LocalRotation.w
@@ -1963,7 +1963,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::SceneStartup
   startTransform: {fileID: 1869357994}
   delayBeforeFadeInSeconds: 0
-  fadeInDurationSeconds: 2
+  fadeInDurationSeconds: 5
   ui: {fileID: 1279682837}
   showUIOnStart: 0
   subScenes:
@@ -3157,7 +3157,7 @@ Transform:
   m_GameObject: {fileID: 1869357993}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0, y: 1000, z: -2000}
+  m_LocalPosition: {x: 0, y: 1500, z: -2900}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
