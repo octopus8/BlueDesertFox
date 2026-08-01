@@ -571,6 +571,9 @@ public struct PendingStaticObjectRendererStrip : IComponentData
 /// </summary>
 public struct GlobalStaticObjectInstanceData : IComponentData
 {
+    /// <summary>Sentinel for <see cref="pendingPrefabLOD"/> when no structural prefab swap is queued.</summary>
+    public const byte NoPendingPrefabLOD = 255;
+
     /// <summary>Index of the object prefab in the StaticObjectPrefabElement buffer (for debugging).</summary>
     public int prefabIndex;
     
@@ -588,6 +591,12 @@ public struct GlobalStaticObjectInstanceData : IComponentData
     
     /// <summary>Spawn scale relative to LOD0 prefab (base scale plus random delta).</summary>
     public float spawnScale;
+
+    /// <summary>
+    /// Target LOD for a pending structural prefab re-instantiation, or <see cref="NoPendingPrefabLOD"/> if none.
+    /// Mesh-only LOD types never set this; hierarchical types (e.g. turrets) use it for LOD0↔LOD1 swaps.
+    /// </summary>
+    public byte pendingPrefabLOD;
 }
 
 /// <summary>
@@ -613,6 +622,12 @@ public struct StaticObjectLODConfig : IComponentData
     
     /// <summary>Maximum number of spatial chunks to update per frame for LOD calculations.</summary>
     public int maxChunksUpdatedPerFrame;
+
+    /// <summary>
+    /// Maximum hierarchical prefab LOD re-instantiations per frame (e.g. turret LOD0↔LOD1).
+    /// Prevents spikes when many composite objects cross a structural LOD band at once.
+    /// </summary>
+    public int maxPrefabLODSwapsPerFrame;
     
     // QUEST 3 VR OPTIMIZATIONS
     
@@ -642,6 +657,16 @@ public struct StaticObjectChunkMembership : IComponentData
 public struct StaticObjectLODMaterialMeshInfoElement : IBufferElementData
 {
     public Unity.Rendering.MaterialMeshInfo materialMeshInfo;
+}
+
+/// <summary>
+/// Per-LOD-prefab hierarchical flag (same index order as <see cref="StaticObjectPrefabElement"/>).
+/// When true, that LOD slot was baked from a multi-entity prefab and LOD transitions involving
+/// it require prefab re-instantiation instead of a MaterialMeshInfo swap.
+/// </summary>
+public struct StaticObjectLODHierarchicalSlotElement : IBufferElementData
+{
+    public bool isHierarchical;
 }
 
 /// <summary>

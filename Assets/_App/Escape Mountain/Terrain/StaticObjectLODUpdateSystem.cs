@@ -240,6 +240,33 @@ public partial struct StaticObjectLODUpdateSystem : ISystem
             for (int i = 0; i < objectTypeCount; i++)
                 objectTypeScales[i] = defaultTypeScale;
         }
+
+        var hierarchicalSlots = new NativeArray<bool>(prefabBuffer.Length, Allocator.TempJob);
+        var prefabEntities = new NativeArray<Entity>(prefabBuffer.Length, Allocator.TempJob);
+        bool usedBakedHierarchical = state.EntityManager.HasBuffer<StaticObjectLODHierarchicalSlotElement>(configEntity)
+            && state.EntityManager.GetBuffer<StaticObjectLODHierarchicalSlotElement>(configEntity, isReadOnly: true).Length
+                == prefabBuffer.Length;
+        if (usedBakedHierarchical)
+        {
+            var hierarchicalBuffer = state.EntityManager.GetBuffer<StaticObjectLODHierarchicalSlotElement>(
+                configEntity, isReadOnly: true);
+            for (int i = 0; i < hierarchicalSlots.Length; i++)
+            {
+                hierarchicalSlots[i] = hierarchicalBuffer[i].isHierarchical;
+                prefabEntities[i] = prefabBuffer[i].prefabEntity;
+            }
+        }
+        else
+        {
+            // Pre-rebake fallback: match spawn-time hierarchical detection on live prefab entities.
+            for (int i = 0; i < hierarchicalSlots.Length; i++)
+            {
+                Entity prefabEntity = prefabBuffer[i].prefabEntity;
+                prefabEntities[i] = prefabEntity;
+                hierarchicalSlots[i] = state.EntityManager.Exists(prefabEntity)
+                    && state.EntityManager.HasComponent<PendingStaticObjectRendererStrip>(prefabEntity);
+            }
+        }
         
         // Schedule Burst-compiled job for LOD updates with distance-tiered filtering
         var updateJob = new StaticObjectLODUpdateJob
@@ -256,7 +283,9 @@ public partial struct StaticObjectLODUpdateSystem : ISystem
             maxUpdateDistance = skipDistantUpdate ? lodConfig.lod0Distance : 0f,
             lodMeshInfos = lodMeshInfos,
             lodRenderBounds = lodRenderBounds,
-            objectTypeScales = objectTypeScales
+            objectTypeScales = objectTypeScales,
+            hierarchicalSlots = hierarchicalSlots,
+            prefabEntities = prefabEntities
         };
         
         state.Dependency = updateJob.ScheduleParallel(state.Dependency);
@@ -264,6 +293,8 @@ public partial struct StaticObjectLODUpdateSystem : ISystem
         if (lodRenderBounds.IsCreated)
             lodRenderBounds.Dispose(state.Dependency);
         objectTypeScales.Dispose(state.Dependency);
+        hierarchicalSlots.Dispose(state.Dependency);
+        prefabEntities.Dispose(state.Dependency);
         
 #if UNITY_EDITOR
         s_ProfilerMarker.Data.End();
@@ -276,8 +307,8 @@ public partial struct StaticObjectLODUpdateSystem : ISystem
     
     /// <summary>
     /// Burst-compiled job that updates static object LOD levels in parallel.
-    /// On a LOD change, writes the correct <see cref="MaterialMeshInfo"/> directly to the entity
-    /// so Entities.Graphics (BRG) immediately switches the rendered mesh/material.
+    /// Mesh-only LOD types swap <see cref="MaterialMeshInfo"/> in place. Hierarchical slots
+    /// (e.g. turrets) queue a structural prefab swap via <see cref="GlobalStaticObjectInstanceData.pendingPrefabLOD"/>.
     /// OPTIMIZED v3.0: Added distance-tiered updates (4 tiers: 0-100m, 100-200m, 200-300m, 300m+).
     /// </summary>
     [BurstCompile]
@@ -298,11 +329,13 @@ public partial struct StaticObjectLODUpdateSystem : ISystem
         [ReadOnly] public NativeArray<MaterialMeshInfo> lodMeshInfos;
         [ReadOnly] public NativeArray<AABB> lodRenderBounds;
         [ReadOnly] public NativeArray<StaticObjectTypeScaleElement> objectTypeScales;
+        [ReadOnly] public NativeArray<bool> hierarchicalSlots;
+        [ReadOnly] public NativeArray<Entity> prefabEntities;
         
         /// <summary>
         /// Skips static objects outside the active chunk set, applies distance-tiered frame-budget skipping,
         /// calculates XZ distance to the player, selects the appropriate LOD slot with hysteresis,
-        /// and writes the correct <see cref="MaterialMeshInfo"/> BRG ID for the chosen LOD.
+        /// and either writes MaterialMeshInfo or queues a structural prefab swap.
         /// </summary>
         private void Execute(
             ref LocalTransform transform,
@@ -339,6 +372,34 @@ public partial struct StaticObjectLODUpdateSystem : ISystem
             byte newLOD = DetermineLODLevel(distance, currentLOD, lod0Distance, lod1Distance, lod2Distance, hysteresis);
 
             float spawnScale = instanceData.spawnScale > 0f ? instanceData.spawnScale : transform.Scale;
+            instanceData.lastDistanceToPlayer = distance;
+
+            if (newLOD == currentLOD)
+            {
+                // Hysteresis cancelled a pending structural swap — clear it.
+                instanceData.pendingPrefabLOD = GlobalStaticObjectInstanceData.NoPendingPrefabLOD;
+                if (instanceData.objectTypeIndex < objectTypeScales.Length)
+                {
+                    var typeScale = objectTypeScales[instanceData.objectTypeIndex];
+                    transform.Scale = spawnScale * typeScale.GetLodScaleMultiplier(currentLOD);
+                }
+                return;
+            }
+
+            int currentMeshIndex = (instanceData.objectTypeIndex * lodsPerObjectType) + currentLOD;
+            int newMeshIndex = (instanceData.objectTypeIndex * lodsPerObjectType) + newLOD;
+            bool structural = IsStructuralTransition(
+                currentMeshIndex, newMeshIndex, hierarchicalSlots, prefabEntities);
+
+            if (structural)
+            {
+                // Keep current mesh/scale until StaticObjectLODPrefabSwapSystem re-instantiates.
+                instanceData.pendingPrefabLOD = newLOD;
+                return;
+            }
+
+            instanceData.pendingPrefabLOD = GlobalStaticObjectInstanceData.NoPendingPrefabLOD;
+
             if (instanceData.objectTypeIndex < objectTypeScales.Length)
             {
                 var typeScale = objectTypeScales[instanceData.objectTypeIndex];
@@ -346,22 +407,43 @@ public partial struct StaticObjectLODUpdateSystem : ISystem
                 transform.Scale = spawnScale * typeScale.GetLodScaleMultiplier(newLOD);
             }
 
-            // Update if LOD changed — write MaterialMeshInfo after scale so BRG switches mesh/material.
-            if (newLOD != currentLOD)
+            if (lodMeshInfos.Length > newMeshIndex)
+                materialMeshInfo = lodMeshInfos[newMeshIndex];
+
+            if (lodRenderBounds.IsCreated && lodRenderBounds.Length > newMeshIndex)
+                renderBounds.Value = lodRenderBounds[newMeshIndex];
+
+            instanceData.currentLODLevel = newLOD;
+        }
+
+        /// <summary>
+        /// Structural when either LOD slot is hierarchical and the baked prefab entities differ.
+        /// Same-prefab LOD1/LOD2 (turret) only updates <see cref="GlobalStaticObjectInstanceData.currentLODLevel"/>.
+        /// </summary>
+        [BurstCompile]
+        private static bool IsStructuralTransition(
+            int currentMeshIndex,
+            int newMeshIndex,
+            in NativeArray<bool> hierarchicalSlots,
+            in NativeArray<Entity> prefabEntities)
+        {
+            bool currentHierarchical = currentMeshIndex >= 0
+                && currentMeshIndex < hierarchicalSlots.Length
+                && hierarchicalSlots[currentMeshIndex];
+            bool newHierarchical = newMeshIndex >= 0
+                && newMeshIndex < hierarchicalSlots.Length
+                && hierarchicalSlots[newMeshIndex];
+            if (!currentHierarchical && !newHierarchical)
+                return false;
+
+            if (currentMeshIndex >= 0 && currentMeshIndex < prefabEntities.Length
+                && newMeshIndex >= 0 && newMeshIndex < prefabEntities.Length
+                && prefabEntities[currentMeshIndex] == prefabEntities[newMeshIndex])
             {
-                int newMeshIndex = (instanceData.objectTypeIndex * lodsPerObjectType) + newLOD;
-
-                if (lodMeshInfos.Length > newMeshIndex)
-                    materialMeshInfo = lodMeshInfos[newMeshIndex];
-
-                if (lodRenderBounds.IsCreated && lodRenderBounds.Length > newMeshIndex)
-                    renderBounds.Value = lodRenderBounds[newMeshIndex];
-
-                instanceData.currentLODLevel = newLOD;
+                return false;
             }
-            
-            // Update distance for next frame's hysteresis calculation
-            instanceData.lastDistanceToPlayer = distance;
+
+            return true;
         }
         
         /// <summary>

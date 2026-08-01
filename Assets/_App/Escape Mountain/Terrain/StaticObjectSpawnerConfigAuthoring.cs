@@ -55,6 +55,10 @@ public class StaticObjectSpawnerConfigAuthoring : MonoBehaviour
     [Range(500, 50000)]
     public int maxPositionCalcAttemptsPerFrame = 4000;
 
+    [Tooltip("Maximum hierarchical prefab LOD re-instantiations per frame (e.g. turret LOD0↔LOD1). Default: 8.")]
+    [Range(1, 64)]
+    public int maxPrefabLODSwapsPerFrame = 8;
+
     [Header("Quest 3 VR Optimizations")]
     [Tooltip("Frame skip interval when player velocity exceeds threshold during terrain scrolling. Quest 3 @ 72Hz recommended: 3-4. Higher = more performance, less responsive LOD.")]
     [Range(1, 8)]
@@ -100,6 +104,7 @@ public class StaticObjectSpawnerConfigAuthoring : MonoBehaviour
                 hysteresisDelta = authoring.lodHysteresis,
                 lodsPerObjectType = 3, // Hardcoded to 3 LOD levels
                 maxChunksUpdatedPerFrame = 25,
+                maxPrefabLODSwapsPerFrame = authoring.maxPrefabLODSwapsPerFrame,
                 // Quest 3 VR Optimizations
                 vrFrameSkipScrolling = authoring.vrFrameSkipScrolling,
                 playerVelocityThreshold = authoring.playerVelocityThreshold
@@ -107,6 +112,7 @@ public class StaticObjectSpawnerConfigAuthoring : MonoBehaviour
 
             // Add buffer for object prefab entities
             var objectPrefabBuffer = AddBuffer<StaticObjectPrefabElement>(entity);
+            var hierarchicalSlotBuffer = AddBuffer<StaticObjectLODHierarchicalSlotElement>(entity);
             AddBuffer<StaticObjectLODMaterialMeshInfoElement>(entity);
             AddBuffer<StaticObjectLODRenderBoundsElement>(entity);
             AddBuffer<StaticObjectTypeMaxRenderBoundsElement>(entity);
@@ -247,6 +253,10 @@ public class StaticObjectSpawnerConfigAuthoring : MonoBehaviour
 
                         Entity prefabEntity = GetEntity(lodPrefab, TransformUsageFlags.Dynamic);
                         objectPrefabBuffer.Add(new StaticObjectPrefabElement { prefabEntity = prefabEntity });
+                        hierarchicalSlotBuffer.Add(new StaticObjectLODHierarchicalSlotElement
+                        {
+                            isHierarchical = IsHierarchicalLodPrefab(lodPrefab)
+                        });
                     }
                     else
                     {
@@ -263,6 +273,10 @@ public class StaticObjectSpawnerConfigAuthoring : MonoBehaviour
                         {
                             Entity prefabEntity = GetEntity(fallbackPrefab, TransformUsageFlags.Dynamic);
                             objectPrefabBuffer.Add(new StaticObjectPrefabElement { prefabEntity = prefabEntity });
+                            hierarchicalSlotBuffer.Add(new StaticObjectLODHierarchicalSlotElement
+                            {
+                                isHierarchical = IsHierarchicalLodPrefab(fallbackPrefab)
+                            });
                         }
                     }
                 }
@@ -274,6 +288,15 @@ public class StaticObjectSpawnerConfigAuthoring : MonoBehaviour
             {
                 Debug.LogError("[StaticObjectSpawner] No valid object prefabs were converted to entities!", authoring);
             }
+        }
+
+        /// <summary>
+        /// Matches <see cref="StaticObjectPrefabAuthoring"/>: multi-transform prefabs bake
+        /// <see cref="PendingStaticObjectRendererStrip"/> and need structural LOD swaps.
+        /// </summary>
+        static bool IsHierarchicalLodPrefab(GameObject lodPrefab)
+        {
+            return lodPrefab != null && lodPrefab.GetComponentsInChildren<Transform>(true).Length > 1;
         }
     }
 
@@ -287,6 +310,7 @@ public class StaticObjectSpawnerConfigAuthoring : MonoBehaviour
         maxObjectsSpawnedPerFrame = Mathf.Max(1, maxObjectsSpawnedPerFrame);
         maxNearObjectsSpawnedPerFrame = Mathf.Max(1, maxNearObjectsSpawnedPerFrame);
         maxPositionCalcAttemptsPerFrame = Mathf.Max(500, maxPositionCalcAttemptsPerFrame);
+        maxPrefabLODSwapsPerFrame = Mathf.Max(1, maxPrefabLODSwapsPerFrame);
 
         // Validate LOD distances are in increasing order
         lod0Distance = Mathf.Max(1f, lod0Distance);

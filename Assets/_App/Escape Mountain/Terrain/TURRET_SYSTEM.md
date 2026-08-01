@@ -16,6 +16,16 @@ ConcreteTurret prefab
 
 After the prefab is instantiated, `StaticObjectHierarchyFlattenUtility` removes the ECS parent-child hierarchy. All three entities end up with independent world-space `LocalTransform` components. The barrel and dome cross-reference each other via `TurretBarrelTag.domeEntity`.
 
+### Hierarchical LOD (prefab swap)
+
+Turret LOD0 is a multi-entity prefab (root + dome + barrel/shooter). LOD1/LOD2 are mesh-only. At spawn, distance picks the initial prefab. When the player later crosses a structural LOD band:
+
+1. `StaticObjectLODUpdateSystem` sets `GlobalStaticObjectInstanceData.pendingPrefabLOD` (does **not** mesh-swap hierarchical slots).
+2. `StaticObjectLODPrefabSwapSystem` destroys the old hierarchy and instantiates the target prefab (budgeted via `maxPrefabLODSwapsPerFrame`), preserving tile ownership.
+3. Combat (aim/shoot) exists **only** on LOD0 instances. Approaching a distant LOD1 turret upgrades it to LOD0 so it can fire; leaving LOD0 range downgrades back to the mesh-only prefab.
+
+Mesh-only object types (trees, rocks) still use in-place `MaterialMeshInfo` swaps.
+
 ---
 
 ## Authoring Setup
@@ -231,7 +241,8 @@ READY (bulletsRemainingInBurst > 0)
 - Verify `modelForwardAxis` is set correctly for the barrel mesh
 
 **Turret never fires:**
-- Confirm `maxFireDistance` covers typical turret-to-player distance
+- Confirm the instance is LOD0 (dome/barrel entities present). Distant spawns start as LOD1 until `StaticObjectLODPrefabSwapSystem` upgrades them inside `lod0Distance - hysteresis`.
+- Confirm `maxFireDistance` covers typical turret-to-player distance (often tighter than `lod0Distance`)
 - Check if terrain LOS always blocks (use scene gizmos to verify muzzle direction)
 - Verify bullet pool has capacity (`BulletPoolConfig.initialPoolSize`)
 

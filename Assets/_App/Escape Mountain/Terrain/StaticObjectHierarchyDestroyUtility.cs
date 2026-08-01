@@ -1,3 +1,4 @@
+using Unity.Collections;
 using Unity.Entities;
 
 /// <summary>
@@ -54,10 +55,16 @@ public static class StaticObjectHierarchyDestroyUtility
             return 1;
         }
 
+        // Copy before ECB playback isn't required here (no immediate structural change),
+        // but copying keeps this path consistent with DestroyHierarchyImmediate.
+        var toDestroy = new NativeArray<Entity>(linkedBuffer.Length, Allocator.Temp);
+        for (var i = 0; i < linkedBuffer.Length; i++)
+            toDestroy[i] = linkedBuffer[i].Value;
+
         var destroyed = 0;
-        for (var i = linkedBuffer.Length - 1; i >= 0; i--)
+        for (var i = toDestroy.Length - 1; i >= 0; i--)
         {
-            var e = linkedBuffer[i].Value;
+            var e = toDestroy[i];
             if (!entityManager.Exists(e))
                 continue;
 
@@ -65,11 +72,14 @@ public static class StaticObjectHierarchyDestroyUtility
             destroyed++;
         }
 
+        toDestroy.Dispose();
         return destroyed;
     }
 
     /// <summary>
     /// Immediately destroys every existing entity in the linked group, children first then root.
+    /// Linked entity IDs are copied before any destroy — immediate structural changes invalidate
+    /// live <see cref="LinkedEntityGroup"/> buffer handles.
     /// </summary>
     /// <returns>Number of entities destroyed.</returns>
     public static int DestroyHierarchyImmediate(Entity root, EntityManager entityManager)
@@ -90,10 +100,14 @@ public static class StaticObjectHierarchyDestroyUtility
             return 1;
         }
 
+        var toDestroy = new NativeArray<Entity>(linkedBuffer.Length, Allocator.Temp);
+        for (var i = 0; i < linkedBuffer.Length; i++)
+            toDestroy[i] = linkedBuffer[i].Value;
+
         var destroyed = 0;
-        for (var i = linkedBuffer.Length - 1; i >= 0; i--)
+        for (var i = toDestroy.Length - 1; i >= 0; i--)
         {
-            var e = linkedBuffer[i].Value;
+            var e = toDestroy[i];
             if (!entityManager.Exists(e))
                 continue;
 
@@ -101,6 +115,7 @@ public static class StaticObjectHierarchyDestroyUtility
             destroyed++;
         }
 
+        toDestroy.Dispose();
         return destroyed;
     }
 }

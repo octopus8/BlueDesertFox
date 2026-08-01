@@ -16,7 +16,10 @@ public class StaticObjectPrefabAuthoring : MonoBehaviour
             var entity = GetEntity(TransformUsageFlags.Dynamic);
 
             AddComponent<GlobalStaticObjectInstance>(entity);
-            AddComponent(entity, new GlobalStaticObjectInstanceData());
+            AddComponent(entity, new GlobalStaticObjectInstanceData
+            {
+                pendingPrefabLOD = GlobalStaticObjectInstanceData.NoPendingPrefabLOD
+            });
 
             if (authoring.GetComponentsInChildren<Transform>(true).Length > 1)
                 AddComponent<PendingStaticObjectRendererStrip>(entity);

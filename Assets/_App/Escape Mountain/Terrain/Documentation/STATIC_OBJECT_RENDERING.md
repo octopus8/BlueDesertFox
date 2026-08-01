@@ -6,19 +6,21 @@ Complete guide to how static objects (trees, turrets, decorations) are rendered 
 
 Static objects spawned onto terrain tiles are rendered using Unity's **Entities Graphics** package (BatchRendererGroup / BRG). This avoids per-object draw calls and achieves thousands of objects at <2ms on Quest 3.
 
-The rendering pipeline consists of four cooperating systems:
+The rendering pipeline consists of cooperating systems:
 
 ```
-StaticObjectLODMeshInfoInitSystem   (Initialization — one-shot)
+StaticObjectLODMeshInfoInitSystem   (Presentation — builds mesh/bounds lookup)
        ↓
-StaticObjectSpatialChunkingSystem   (Simulation — updates chunk membership)
+StaticObjectSpatialChunkingSystem   (Transform — updates chunk membership)
        ↓
-TreeLODUpdateSystem                 (Simulation — distance LOD with hysteresis)
+StaticObjectLODUpdateSystem         (Transform — distance LOD with hysteresis)
+       ↓
+StaticObjectLODPrefabSwapSystem     (Transform — structural hierarchical prefab swaps)
        ↓
 [Entities.Graphics / BRG]          (Presentation — automatic, reads MaterialMeshInfo)
 ```
 
-Note: the class names inside `StaticObjectSpatialChunkingSystem.cs` and `StaticObjectLODUpdateSystem.cs` are still `TreeSpatialChunkingSystem` and `TreeLODUpdateSystem` respectively — the rename was applied to the files only.
+Note: the class name inside `StaticObjectSpatialChunkingSystem.cs` is still `TreeSpatialChunkingSystem`.
 
 ---
 
@@ -86,7 +88,12 @@ Two parallel jobs per frame:
 
 ### Purpose
 
-Updates `MaterialMeshInfo` on each static object based on distance to the player, switching the BRG mesh/material for the appropriate LOD level. Applies hysteresis to prevent LOD flickering at distance boundaries.
+Updates LOD on each static object based on distance to the player, with hysteresis to prevent flickering.
+
+- **Mesh-only types** (trees, rocks): swap `MaterialMeshInfo` / `RenderBounds` / scale in place.
+- **Hierarchical types** (turrets): when either the current or target LOD slot is hierarchical, set `pendingPrefabLOD` and leave the current prefab intact. `StaticObjectLODPrefabSwapSystem` then destroy/re-instantiates the correct prefab (budgeted).
+
+Hierarchical slots are baked into `StaticObjectLODHierarchicalSlotElement` (same index order as `StaticObjectPrefabElement`), with a runtime fallback that checks `PendingStaticObjectRendererStrip` on prefab entities.
 
 ### LOD Levels
 
@@ -123,21 +130,38 @@ Rather than testing every object each frame, the system:
 
 ### LOD Change Mechanism
 
-When LOD level changes:
+**Mesh-only** when LOD level changes:
 ```csharp
 int newMeshIndex = (instanceData.objectTypeIndex * lodsPerObjectType) + newLOD;
-materialMeshInfo = lodMeshInfos[newMeshIndex]; // From the init-time buffer
+materialMeshInfo = lodMeshInfos[newMeshIndex];
 instanceData.currentLODLevel = newLOD;
+```
+
+**Hierarchical** (either current or target slot is hierarchical):
+```csharp
+instanceData.pendingPrefabLOD = newLOD; // StaticObjectLODPrefabSwapSystem re-instantiates
 ```
 
 Entities.Graphics (BRG) reads `MaterialMeshInfo` each frame and switches meshes/materials automatically — no Unity Object access, no managed allocations.
 
 ---
 
-## System 4: `StaticObjectLinkedRendererStripSystem`
+## System 4: `StaticObjectLODPrefabSwapSystem`
 
-**Group:** `SimulationSystemGroup`  
-**Order:** After `EndSimulationEntityCommandBufferSystem`  
+**File:** `StaticObjectLODPrefabSwapSystem.cs`  
+**Group:** `TransformSystemGroup`  
+**Order:** After `StaticObjectLODUpdateSystem`, before `TurretAimingSystem`  
+**Type:** `ISystem` (main-thread structural changes)
+
+### Purpose
+
+Completes structural LOD transitions for hierarchical prefabs (turrets). Destroys the old `LinkedEntityGroup` hierarchy, instantiates the target LOD prefab via `StaticObjectSpawnUtility.InstantiateOnTile`, and re-wires tile `SpawnedStaticObjectReference` / ownership. Upgrades (toward LOD0) are processed before downgrades within `maxPrefabLODSwapsPerFrame`.
+
+---
+
+## System 5: `StaticObjectLinkedRendererStripSystem`
+
+**Group:** `PresentationSystemGroup` (OrderFirst)  
 **Type:** `ISystem`
 
 ### Purpose
@@ -160,8 +184,12 @@ struct GlobalStaticObjectInstanceData : IComponentData
     public byte currentLODLevel;       // 0=high, 1=medium, 2=low
     public float lastDistanceToPlayer; // For hysteresis calculation
     public int objectTypeIndex;        // Which prefab type (for mesh lookup)
+    public byte pendingPrefabLOD;      // Target structural swap LOD, or 255 = none
 }
 ```
+
+### `StaticObjectLODHierarchicalSlotElement` (Buffer)
+On the config entity. Same index order as `StaticObjectPrefabElement`. When `isHierarchical` is true, LOD transitions involving that slot use prefab re-instantiation.
 
 ### `StaticObjectChunkMembership`
 ```csharp
@@ -193,6 +221,7 @@ Set via `StaticObjectSpawnerConfigAuthoring`:
 | `lod2Distance` | 200m | Within this: LOD2 (low detail) |
 | `hysteresisDelta` | 5m | Dead zone width at LOD boundaries |
 | `maxChunksUpdatedPerFrame` | 20 | Spatial chunks processed per LOD update pass |
+| `maxPrefabLODSwapsPerFrame` | 8 | Max hierarchical prefab re-instantiations per frame |
 | `vrFrameSkipScrolling` | 1 | Frame skip during fast scrolling (less = more responsive) |
 | `playerVelocityThreshold` | 10 m/s | Velocity above which scrolling frame skip applies |
 | `lodsPerObjectType` | 3 | Number of LOD levels per object type (LOD0/1/2) |
@@ -203,9 +232,10 @@ Set via `StaticObjectSpawnerConfigAuthoring`:
 
 | Marker | System |
 |--------|--------|
-| `TreeLOD.Update` | Main LOD update pass |
-| `TreeLOD.VelocityCalc` | Player velocity calculation |
-| `TreeLOD.ChunkFilter` | Active chunk set construction |
+| `StaticObjectLOD.Update` | Main LOD update pass |
+| `StaticObjectLOD.VelocityCalc` | Player velocity calculation |
+| `StaticObjectLOD.ChunkFilter` | Active chunk set construction |
+| `StaticObjectLOD.PrefabSwap` | Hierarchical prefab destroy/re-instantiate |
 
 ---
 

@@ -672,69 +672,15 @@ public partial struct TerrainStaticObjectSpawningSystemOptimized : ISystem
         var em = state.EntityManager;
         while (requests.TryDequeue(out var req))
         {
-            if (!em.Exists(req.prefab) || !em.Exists(req.tileEntity))
-                continue;
-
-            Entity objectEntity = em.Instantiate(req.prefab);
-
-            if (em.HasComponent<LocalTransform>(objectEntity))
-                em.SetComponentData(objectEntity, req.transform);
-            else
-                em.AddComponentData(objectEntity, req.transform);
-
-            if (em.HasComponent<LocalToWorld>(objectEntity))
-                em.SetComponentData(objectEntity, StaticObjectHierarchyFlattenUtility.LocalToWorldFromLocalTransform(req.transform));
-            else
-                em.AddComponentData(objectEntity, StaticObjectHierarchyFlattenUtility.LocalToWorldFromLocalTransform(req.transform));
-
-            if (req.addDisableRendering && !em.HasComponent<DisableRendering>(objectEntity))
-                em.AddComponent<DisableRendering>(objectEntity);
-
-            if (em.HasComponent<GlobalStaticObjectInstanceData>(objectEntity))
-                em.SetComponentData(objectEntity, req.instanceData);
-            else
-                em.AddComponentData(objectEntity, req.instanceData);
-
-            if (!em.HasComponent<GlobalStaticObjectInstance>(objectEntity))
-                em.AddComponent<GlobalStaticObjectInstance>(objectEntity);
-
-            if (!em.HasComponent<StaticObjectTileOwnership>(objectEntity))
-            {
-                em.AddComponentData(objectEntity, new StaticObjectTileOwnership
-                {
-                    tileEntity = req.tileEntity,
-                    localOffset = req.localOffset,
-                    localRotation = req.localRotation
-                });
-            }
-            else
-            {
-                em.SetComponentData(objectEntity, new StaticObjectTileOwnership
-                {
-                    tileEntity = req.tileEntity,
-                    localOffset = req.localOffset,
-                    localRotation = req.localRotation
-                });
-            }
-
-            if (!em.HasComponent<StaticObjectChunkMembership>(objectEntity))
-            {
-                em.AddComponentData(objectEntity, new StaticObjectChunkMembership
-                {
-                    chunkCoord = StaticObjectSpatialChunkUtility.GetChunkCoord(req.transform.Position)
-                });
-            }
-            else
-            {
-                em.SetComponentData(objectEntity, new StaticObjectChunkMembership
-                {
-                    chunkCoord = StaticObjectSpatialChunkUtility.GetChunkCoord(req.transform.Position)
-                });
-            }
-
-            if (em.HasBuffer<SpawnedStaticObjectReference>(req.tileEntity))
-                em.GetBuffer<SpawnedStaticObjectReference>(req.tileEntity).Add(
-                    new SpawnedStaticObjectReference { objectEntity = objectEntity });
+            StaticObjectSpawnUtility.InstantiateOnTile(
+                em,
+                req.prefab,
+                req.tileEntity,
+                req.transform,
+                req.instanceData,
+                req.localOffset,
+                req.localRotation,
+                req.addDisableRendering);
         }
     }
 
@@ -1186,7 +1132,8 @@ struct PrepareStaticObjectSpawnsJob : IJobParallelForDefer
                     currentLODLevel = spawnLod,
                     lastDistanceToPlayer = spawnDistance,
                     isBillboardType = isBillboard,
-                    spawnScale = spawnScale
+                    spawnScale = spawnScale,
+                    pendingPrefabLOD = GlobalStaticObjectInstanceData.NoPendingPrefabLOD
                 },
                 localOffset = spawnData.localPosition,
                 localRotation = spawnData.rotation,
