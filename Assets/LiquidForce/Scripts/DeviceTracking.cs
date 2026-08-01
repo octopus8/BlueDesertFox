@@ -34,6 +34,11 @@ namespace LiquidForce
         /// </remarks>
         public Transform TrackingOrigin => trackingOrigin;
 
+        /// <summary>
+        /// The tracked head / camera transform used as the ObjectFollower source.
+        /// </summary>
+        public Transform Head => head;
+
 
         private void Awake()
         {

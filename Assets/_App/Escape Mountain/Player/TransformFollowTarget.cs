@@ -1,3 +1,5 @@
+using LiquidForce;
+using Unity.Entities;
 using Unity.Scenes;
 using UnityEngine;
 using UnityEngine.Serialization;
@@ -20,6 +22,7 @@ public class TransformFollowTarget : MonoBehaviour
 
     const float MinDirectionSpeedSq = 0.0001f;
     const float MinPlanarDirectionSq = 1e-6f;
+    const float TeleportSnapDistanceSq = 0.25f; // 0.5m — snap head followers after large follower jumps
 
     [Tooltip("Transform to move (main scene, e.g. XR Origin root).")]
     [SerializeField] private Transform follower;
@@ -75,6 +78,15 @@ public class TransformFollowTarget : MonoBehaviour
         _loggedWaitingForSubScene = false;
         _loggedMissingTrackedCamera = false;
         _hasPreviousTargetPosition = false;
+
+        // Static bridge outlives scene reloads (ECS Default World persists). Drop any
+        // previous-session pose before the first LateUpdate can consume it.
+        PlayerFollowObjectPoseBridge.Clear();
+    }
+
+    private void OnDisable()
+    {
+        PlayerFollowObjectPoseBridge.Clear();
     }
 
     private void LateUpdate()
@@ -104,6 +116,10 @@ public class TransformFollowTarget : MonoBehaviour
             targetPosition.z -= cameraOffsetFromFollower.z;
         }
 
+        bool didInitialSnap = _snapOnNextUpdate;
+        bool wasPendingRecenter = _pendingTrackedPoseRecenter;
+        Vector3 previousFollowerPosition = follower.position;
+
         follower.position = targetPosition;
 
         ApplyFollowerRotation(targetRotation, targetVelocity, _snapOnNextUpdate);
@@ -112,6 +128,16 @@ public class TransformFollowTarget : MonoBehaviour
 
         if (_pendingTrackedPoseRecenter)
             TryRecenterTrackedPose();
+
+        // Snap head followers after XR Origin / Camera Offset teleports so they do not lerp
+        // from a stale or pre-teleport pose (e.g. leftover static bridge data on scene reload).
+        float followerDeltaSq = (follower.position - previousFollowerPosition).sqrMagnitude;
+        if (didInitialSnap ||
+            (wasPendingRecenter && !_pendingTrackedPoseRecenter) ||
+            followerDeltaSq >= TeleportSnapDistanceSq)
+        {
+            DeviceTracking.Instance?.UpdateImmediate();
+        }
     }
 
     public void SetAlignTrackedCameraXZToTarget(bool value)
@@ -268,6 +294,18 @@ public class TransformFollowTarget : MonoBehaviour
             return false;
         }
 
+        if (!IsEntitiesSubSceneLoaded())
+        {
+            if (!_loggedWaitingForSubScene)
+            {
+                string subSceneName = entitiesSubScene != null ? entitiesSubScene.name : "Entities subscene";
+                Debug.Log($"[TransformFollowTarget] Waiting for '{entitiesSubSceneTargetName}' in {subSceneName} to load.", this);
+                _loggedWaitingForSubScene = true;
+            }
+
+            return false;
+        }
+
         if (PlayerFollowObjectPoseBridge.IsValid)
         {
             position = PlayerFollowObjectPoseBridge.Position;
@@ -284,5 +322,18 @@ public class TransformFollowTarget : MonoBehaviour
         }
 
         return false;
+    }
+
+    private bool IsEntitiesSubSceneLoaded()
+    {
+        if (entitiesSubScene == null)
+            return true;
+
+        var world = World.DefaultGameObjectInjectionWorld;
+        if (world == null || !world.IsCreated)
+            return false;
+
+        Entity sceneEntity = SceneSystem.GetSceneEntity(world.Unmanaged, entitiesSubScene.SceneGUID);
+        return sceneEntity != Entity.Null && SceneSystem.IsSceneLoaded(world.Unmanaged, sceneEntity);
     }
 }

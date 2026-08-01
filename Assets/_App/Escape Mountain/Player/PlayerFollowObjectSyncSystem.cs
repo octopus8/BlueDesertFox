@@ -83,6 +83,13 @@ public partial struct PlayerFollowObjectSyncSystem : ISystem
         state.RequireForUpdate<PlayerFollowObjectTag>();
     }
 
+    public void OnDestroy(ref SystemState state)
+    {
+        // Static bridge survives world teardown; clear so a scene reload cannot
+        // briefly follow the previous session's pose.
+        PlayerFollowObjectPoseBridge.Clear();
+    }
+
     public void OnUpdate(ref SystemState state)
     {
         bool found = false;
