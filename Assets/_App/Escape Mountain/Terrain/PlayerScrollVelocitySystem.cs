@@ -32,6 +32,15 @@ public partial class PlayerScrollVelocitySystem : SystemBase
     /// </summary>
     protected override void OnUpdate()
     {
+        RefRW<TerrainScrollVelocity> scrollVelocity = SystemAPI.GetSingletonRW<TerrainScrollVelocity>();
+
+        if (SystemAPI.TryGetSingleton<PlayerLocomotionPaused>(out var paused) && paused.Value)
+        {
+            scrollVelocity.ValueRW.speed = 0f;
+            scrollVelocity.ValueRW.verticalSpeed = 0f;
+            return;
+        }
+
         var config = SystemAPI.GetSingleton<PlayerTerrainScrollVelocityConfig>();
         var worldOriginRef = SystemAPI.ManagedAPI.GetSingleton<WorldOriginTransformReference>();
         var cameraData = SystemAPI.GetSingleton<CameraDataSingleton>();
@@ -52,7 +61,6 @@ public partial class PlayerScrollVelocitySystem : SystemBase
         float sinPitch = fullFwd.y;
         float cosPitch = math.sqrt(1f - sinPitch * sinPitch);
 
-        RefRW<TerrainScrollVelocity> scrollVelocity = SystemAPI.GetSingletonRW<TerrainScrollVelocity>();
         scrollVelocity.ValueRW.direction = baseScrollDirection;
         scrollVelocity.ValueRW.speed = config.speed * cosPitch;
         scrollVelocity.ValueRW.verticalSpeed = config.speed * sinPitch;

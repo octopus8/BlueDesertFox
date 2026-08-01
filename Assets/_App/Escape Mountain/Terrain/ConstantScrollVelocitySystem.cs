@@ -25,8 +25,16 @@ public partial struct ConstantScrollVelocitySystem : ISystem
     [BurstCompile]
     public void OnUpdate(ref SystemState state)
     {
-        var config = SystemAPI.GetSingleton<ConstantTerrainScrollVelocityConfig>();
         RefRW<TerrainScrollVelocity> scrollVelocity = SystemAPI.GetSingletonRW<TerrainScrollVelocity>();
+
+        if (SystemAPI.TryGetSingleton<PlayerLocomotionPaused>(out var paused) && paused.Value)
+        {
+            scrollVelocity.ValueRW.speed = 0f;
+            scrollVelocity.ValueRW.verticalSpeed = 0f;
+            return;
+        }
+
+        var config = SystemAPI.GetSingleton<ConstantTerrainScrollVelocityConfig>();
         
         scrollVelocity.ValueRW.direction = config.direction;
         scrollVelocity.ValueRW.speed = config.speed;

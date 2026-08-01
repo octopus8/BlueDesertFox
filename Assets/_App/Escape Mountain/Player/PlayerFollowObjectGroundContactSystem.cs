@@ -194,6 +194,9 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
     [BurstCompile]
     public void OnUpdate(ref SystemState state)
     {
+        if (SystemAPI.TryGetSingleton<PlayerLocomotionPaused>(out var paused) && paused.Value)
+            return;
+
         float dt = SystemAPI.Time.DeltaTime;
         if (dt <= 0f)
             return;

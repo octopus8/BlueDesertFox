@@ -49,8 +49,12 @@ public class UIManager : MonoBehaviour
     private Stack<IUIState> stateStack = new Stack<IUIState>();
 
     private ObjectFollower objectFollower;
-    
 
+    /// <summary>Raised when the UI becomes visible (true) or hidden (false).</summary>
+    public event System.Action<bool> VisibilityChanged;
+
+    /// <summary>True while the UI is shown or animating in.</summary>
+    public bool IsVisible => currentAnimState is AnimState.on or AnimState.turningOn;
 
     /// <summary>
     /// Animation states.
@@ -238,6 +242,7 @@ public class UIManager : MonoBehaviour
     {
         CancelAnimations();
         currentAnimState = AnimState.turningOn;
+        VisibilityChanged?.Invoke(true);
         uiCamera?.OnUIVisible(true);
         uiContainer.gameObject.SetActive(true);
         uiContainer.DOFade(1, displaySpeed).WithCancellation(animCancelTokens[(int)AnimCancelToken.fade].Token);
@@ -256,6 +261,7 @@ public class UIManager : MonoBehaviour
     public void Hide()
     {
         CancelAnimations();
+        VisibilityChanged?.Invoke(false);
         uiCamera?.OnUIVisible(false);
         currentAnimState = AnimState.turningOff;
         uiContainer.DOFade(0, displaySpeed).WithCancellation(animCancelTokens[(int)AnimCancelToken.fade].Token);

@@ -27,6 +27,9 @@ public partial struct PlayerFollowObjectHeadSteeringSystem : ISystem
     [BurstCompile]
     public void OnUpdate(ref SystemState state)
     {
+        if (SystemAPI.TryGetSingleton<PlayerLocomotionPaused>(out var paused) && paused.Value)
+            return;
+
         var cameraData = SystemAPI.GetSingleton<CameraDataSingleton>();
         float3 scrollVelocity = SystemAPI.GetSingleton<TerrainScrollVelocity>().WorldVelocity;
         float dt = SystemAPI.Time.DeltaTime;
