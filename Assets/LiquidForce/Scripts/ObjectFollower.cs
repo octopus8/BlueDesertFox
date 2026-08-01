@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Unity.Mathematics.Geometry;
 using UnityEngine;
 using UnityEngine.Rendering;
 
@@ -390,7 +391,12 @@ namespace LiquidForce
                         targetRotation.z = Mathf.Lerp(targetRotation.z, source.rotation.eulerAngles.z, rotationSpeed * Time.deltaTime);
                     }
                 }
-                
+
+                if ((targetPosition - source.position).sqrMagnitude > 10000)
+                {
+                    targetPosition = source.position;
+                    targetRotation = source.rotation.eulerAngles;
+                }
                 
                 target.SetPositionAndRotation(targetPosition, Quaternion.Euler(targetRotation));
             }
