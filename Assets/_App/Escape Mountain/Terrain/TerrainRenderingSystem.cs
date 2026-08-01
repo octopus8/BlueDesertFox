@@ -20,14 +20,9 @@ public partial class TerrainRenderingSystem : SystemBase
     private NativeQueue<Entity> _pendingMeshCreation;
     private NativeHashSet<Entity> _queuedEntities;
     
-    // ✅ Cached arrays to avoid GC allocations in CreateAndAssignMesh
-    private Material[] _cachedMaterialArray;
-    private Mesh[] _cachedMeshArray;
-    
     /// <summary>
     /// Builds the tile entity query, allocates the pending-mesh queue and deduplication set,
-    /// initialises cached material/mesh arrays for zero-GC mesh creation, and registers the
-    /// <see cref="TerrainTileConfig"/> requirement.
+    /// and registers the <see cref="TerrainTileConfig"/> requirement.
     /// </summary>
     protected override void OnCreate()
     {
@@ -41,10 +36,6 @@ public partial class TerrainRenderingSystem : SystemBase
         );
         _pendingMeshCreation = new NativeQueue<Entity>(Allocator.Persistent);
         _queuedEntities = new NativeHashSet<Entity>(64, Allocator.Persistent);
-        
-        // ✅ Initialize cached arrays once - reused for all mesh creation (zero GC)
-        _cachedMaterialArray = new Material[1];
-        _cachedMeshArray = new Mesh[1];
     }
     
     /// <summary>
@@ -109,6 +100,22 @@ public partial class TerrainRenderingSystem : SystemBase
             Debug.LogError("[TerrainRendering] Failed to find any suitable shader!");
         }
     }
+
+    /// <summary>
+    /// Clears pending mesh queues when TerrainTileConfig disappears (SubScene unload / scene reload).
+    /// Does not destroy Mesh assets here — entities still hold RenderMeshArray references; destroying
+    /// meshes first leaves BRG with null MeshIDs. TileSpawningSystem destroys entities then meshes.
+    /// </summary>
+    protected override void OnStopRunning()
+    {
+        if (_pendingMeshCreation.IsCreated)
+            _pendingMeshCreation.Clear();
+        if (_queuedEntities.IsCreated)
+            _queuedEntities.Clear();
+
+        _terrainMaterial = null;
+    }
+
     /// <summary>
     /// Queues tiles with generated vertex data but no <c>MeshReference</c>, then creates Unity
     /// <see cref="Mesh"/> instances and assigns <c>RenderMeshArray</c> components within the
@@ -201,26 +208,16 @@ public partial class TerrainRenderingSystem : SystemBase
         mesh.SetIndices(indicesNative, MeshTopology.Triangles, 0);
         // Recalculate bounds
         mesh.RecalculateBounds();
-        // Always add MeshReference (needed for static object spawning system)
-        EntityManager.AddComponentData(entity, new MeshReference { mesh = mesh });
         // Skip rendering setup if terrain rendering is disabled
         if (!shouldRender)
         {
+            // Managed MeshReference after any structural work to avoid deferred-command asserts.
+            EntityManager.AddComponentData(entity, new MeshReference { mesh = mesh });
             return;
         }
-        // Register mesh and material with EntitiesGraphicsSystem
-        var entitiesGraphicsSystem = World.GetExistingSystemManaged<EntitiesGraphicsSystem>();
-        if (entitiesGraphicsSystem == null)
-        {
-            #if UNITY_EDITOR
-            Debug.LogError("[TerrainRendering] EntitiesGraphicsSystem not found!");
-            #endif
-            return;
-        }
-        // Register the mesh and material to get proper IDs
-        var registeredMesh = entitiesGraphicsSystem.RegisterMesh(mesh);
-        var registeredMaterial = entitiesGraphicsSystem.RegisterMaterial(_terrainMaterial);
-        // Add rendering components using RenderMeshUtility
+        // RenderMeshArray path: Entities Graphics registers/unregisters meshes automatically.
+        // Do not also call RegisterMesh/RegisterMaterial — those orphan BRG IDs that go invalid
+        // when the Mesh is destroyed on tile despawn/reload.
         var renderMeshDescription = new RenderMeshDescription(
             shadowCastingMode: ShadowCastingMode.On,
             receiveShadows: true,
@@ -229,11 +226,12 @@ public partial class TerrainRenderingSystem : SystemBase
         );
         try
         {
-            // ✅ Use cached arrays - ZERO GC allocations (arrays created once in OnCreate)
-            _cachedMaterialArray[0] = _terrainMaterial;
-            _cachedMeshArray[0] = mesh;
-            
-            var renderMeshArray = new RenderMeshArray(_cachedMaterialArray, _cachedMeshArray);
+            // Copy into new arrays so each RenderMeshArray owns its own references.
+            // Reusing _cachedMeshArray across tiles would share one Mesh[] and corrupt BRG on reload.
+            var materials = new Material[] { _terrainMaterial };
+            var meshes = new Mesh[] { mesh };
+
+            var renderMeshArray = new RenderMeshArray(materials, meshes);
             var materialMeshInfo = MaterialMeshInfo.FromRenderMeshArrayIndices(0, 0);
             RenderMeshUtility.AddComponents(
                 entity,
@@ -248,8 +246,11 @@ public partial class TerrainRenderingSystem : SystemBase
             #if UNITY_EDITOR
             Debug.LogError($"[TerrainRendering] Failed to add render components: {e.Message}\n{e.StackTrace}");
             #endif
+            Object.Destroy(mesh);
             return;
         }
+        // Always add MeshReference after structural RenderMeshUtility work (managed component).
+        EntityManager.AddComponentData(entity, new MeshReference { mesh = mesh });
         // Ensure LocalToWorld is present
         if (!EntityManager.HasComponent<LocalToWorld>(entity))
         {
@@ -257,28 +258,39 @@ public partial class TerrainRenderingSystem : SystemBase
         }
     }
     /// <summary>
-    /// Disposes native collections and destroys all managed <see cref="Mesh"/> instances owned by
-    /// terrain tile entities to prevent Unity memory leaks on domain reload or scene teardown.
+    /// Disposes native collections and destroys managed <see cref="Mesh"/> instances owned by
+    /// terrain tile entities. Entities are destroyed first so BRG drops mesh registrations.
     /// </summary>
     protected override void OnDestroy()
     {
-        // Dispose queue and hash set
         if (_pendingMeshCreation.IsCreated)
             _pendingMeshCreation.Dispose();
         if (_queuedEntities.IsCreated)
             _queuedEntities.Dispose();
-        
-        // Clean up meshes - OnDestroy called once per session, GC allocation acceptable here
+
+        if (World == null || !World.IsCreated)
+            return;
+
         var query = GetEntityQuery(ComponentType.ReadOnly<MeshReference>());
-        var entities = query.ToEntityArray(Unity.Collections.Allocator.Temp);
+        var entities = query.ToEntityArray(Allocator.Temp);
+        var meshes = new System.Collections.Generic.List<Mesh>(entities.Length);
+
         foreach (var entity in entities)
         {
-            var meshRef = EntityManager.GetComponentData<MeshReference>(entity);
-            if (meshRef.mesh != null)
+            var meshRef = EntityManager.GetComponentObject<MeshReference>(entity);
+            if (meshRef != null && meshRef.mesh != null)
             {
-                Object.Destroy(meshRef.mesh);
+                meshes.Add(meshRef.mesh);
+                meshRef.mesh = null;
             }
+            EntityManager.DestroyEntity(entity);
         }
         entities.Dispose();
+
+        for (int i = 0; i < meshes.Count; i++)
+        {
+            if (meshes[i] != null)
+                Object.Destroy(meshes[i]);
+        }
     }
 }

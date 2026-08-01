@@ -27,6 +27,8 @@ namespace _App.Ace_of_Ages.Terrain
 
         public void OnCreate(ref SystemState state)
         {
+            state.RequireForUpdate<TerrainTileConfig>();
+
             _cache = new NativeHashMap<int2, CacheEntry>(64, Allocator.Persistent);
             _totalMemoryBytes = 0;
             _maxCacheBytes = 53 * 1024 * 1024;
@@ -38,6 +40,22 @@ namespace _App.Ace_of_Ages.Terrain
 
         public void OnDestroy(ref SystemState state)
         {
+            ClearCache();
+            if (_cache.IsCreated)
+                _cache.Dispose();
+        }
+
+        /// <summary>
+        /// Disposes cached collider blobs when TerrainTileConfig disappears (SubScene unload).
+        /// Blobs are keyed by grid only and become invalid after heightOffset re-align on reload.
+        /// </summary>
+        public void OnStopRunning(ref SystemState state)
+        {
+            ClearCache();
+        }
+
+        void ClearCache()
+        {
             if (!_cache.IsCreated)
                 return;
 
@@ -47,7 +65,8 @@ namespace _App.Ace_of_Ages.Terrain
                     kv.Value.collider.Dispose();
             }
 
-            _cache.Dispose();
+            _cache.Clear();
+            _totalMemoryBytes = 0;
         }
 
         public void OnUpdate(ref SystemState state)

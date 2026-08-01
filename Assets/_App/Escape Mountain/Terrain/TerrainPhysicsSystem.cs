@@ -193,9 +193,43 @@ namespace _App.Ace_of_Ages.Terrain
         public void OnDestroy(ref SystemState state)
         {
             if (_hasInFlight)
+            {
                 _inFlightHandle.Complete();
+                DisposeInFlightResults();
+            }
 
             _bufferPool.Dispose();
+        }
+
+        /// <summary>
+        /// Completes in-flight BVH work and clears batch state when TerrainTileConfig disappears
+        /// (SubScene unload / scene reload).
+        /// </summary>
+        public void OnStopRunning(ref SystemState state)
+        {
+            if (_hasInFlight)
+            {
+                _inFlightHandle.Complete();
+                DisposeInFlightResults();
+                ReleaseBatch(ref this);
+            }
+            else if (_bufferPool.entities.IsCreated)
+            {
+                _bufferPool.ReleaseBatch();
+            }
+        }
+
+        void DisposeInFlightResults()
+        {
+            if (!_bufferPool.results.IsCreated || !_bufferPool.entities.IsCreated)
+                return;
+
+            for (int i = 0; i < _bufferPool.entities.Length; i++)
+            {
+                var result = _bufferPool.results[i];
+                if (result.IsCreated)
+                    result.Dispose();
+            }
         }
 
         public void OnUpdate(ref SystemState state)

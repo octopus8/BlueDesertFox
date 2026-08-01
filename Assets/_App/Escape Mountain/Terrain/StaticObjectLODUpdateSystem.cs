@@ -81,6 +81,21 @@ public partial struct StaticObjectLODUpdateSystem : ISystem
             _activeChunksSet.Dispose();
     }
 
+    /// <summary>
+    /// Clears chunk tracking when LOD config disappears (SubScene unload / scene reload).
+    /// </summary>
+    [BurstCompile]
+    public void OnStopRunning(ref SystemState state)
+    {
+        if (_activeChunks.IsCreated)
+            _activeChunks.Clear();
+        if (_activeChunksSet.IsCreated)
+            _activeChunksSet.Clear();
+        _frameCounter = 0;
+        _lastPlayerPosition = float3.zero;
+        _lastDeltaTime = 0f;
+    }
+
     // NOTE: Cannot use [BurstCompile] here because we access managed PlayerTransformReference component
     /// <summary>
     /// Reads the player world position (main thread), determines which spatial chunks are within
@@ -180,12 +195,20 @@ public partial struct StaticObjectLODUpdateSystem : ISystem
         s_ChunkFilterMarker.Data.End();
 #endif
         
-        // Read LOD MaterialMeshInfo lookup from config entity buffer (TempJob — disposed after job completes).
+        // Read LOD MaterialMeshInfo from live prefab entities (not the one-shot Ready cache).
+        // After SubScene reload, bake-time array indices in the cache are invalid until/unless refreshed.
         var configEntity = SystemAPI.GetSingletonEntity<StaticObjectLODConfig>();
-        var lodInfoBuffer = state.EntityManager.GetBuffer<StaticObjectLODMaterialMeshInfoElement>(configEntity, isReadOnly: true);
-        var lodMeshInfos = new NativeArray<MaterialMeshInfo>(lodInfoBuffer.Length, Allocator.TempJob);
-        for (int i = 0; i < lodInfoBuffer.Length; i++)
-            lodMeshInfos[i] = lodInfoBuffer[i].materialMeshInfo;
+        var prefabBuffer = SystemAPI.GetSingletonBuffer<StaticObjectPrefabElement>(true);
+        var lodMeshInfos = new NativeArray<MaterialMeshInfo>(prefabBuffer.Length, Allocator.TempJob);
+        for (int i = 0; i < prefabBuffer.Length; i++)
+        {
+            Entity prefabEntity = prefabBuffer[i].prefabEntity;
+            if (state.EntityManager.Exists(prefabEntity) &&
+                state.EntityManager.HasComponent<MaterialMeshInfo>(prefabEntity))
+            {
+                lodMeshInfos[i] = state.EntityManager.GetComponentData<MaterialMeshInfo>(prefabEntity);
+            }
+        }
 
         NativeArray<AABB> lodRenderBounds = default;
         if (state.EntityManager.HasBuffer<StaticObjectLODRenderBoundsElement>(configEntity))

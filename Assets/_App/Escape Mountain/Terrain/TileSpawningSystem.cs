@@ -3,6 +3,7 @@ using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
 using Unity.Transforms;
+using UnityEngine;
 
 /// <summary>
 /// System that spawns and despawns terrain tiles based on player position.
@@ -14,6 +15,12 @@ public partial struct TileSpawningSystem : ISystem
 {
     private NativeParallelHashMap<int2, Entity> _activeTiles;
     private NativeHashSet<int2> _despawningGridCoords;
+    /// <summary>
+    /// Tracks the SubScene-baked <see cref="TerrainTileConfig"/> singleton. When it changes
+    /// (scene reload with AutoLoad SubScene), OnStopRunning may never run — wipe Default-World
+    /// tiles here so stale <see cref="StaticObjectsSpawned"/> entities cannot block respawn.
+    /// </summary>
+    private Entity _trackedConfigEntity;
 
     public void OnCreate(ref SystemState state)
     {
@@ -25,6 +32,84 @@ public partial struct TileSpawningSystem : ISystem
 
         _activeTiles = new NativeParallelHashMap<int2, Entity>(256, Allocator.Persistent);
         _despawningGridCoords = new NativeHashSet<int2>(64, Allocator.Persistent);
+        _trackedConfigEntity = Entity.Null;
+    }
+
+    /// <summary>
+    /// Clears Persistent tile maps and destroys Default-World tile/static-object entities when
+    /// TerrainTileConfig disappears (SubScene unload / scene reload). Tiles are created at runtime
+    /// in the Default World, so SubScene.OnDisable does not destroy them — without this, stale tiles
+    /// marked StaticObjectsSpawned block respawn and Quest can show empty terrain after reload.
+    /// </summary>
+    public void OnStopRunning(ref SystemState state)
+    {
+        DestroyAllRuntimeTiles(ref state);
+
+        if (_activeTiles.IsCreated)
+            _activeTiles.Clear();
+        if (_despawningGridCoords.IsCreated)
+            _despawningGridCoords.Clear();
+        _trackedConfigEntity = Entity.Null;
+    }
+
+    private static void DestroyAllRuntimeTiles(ref SystemState state)
+    {
+        var em = state.EntityManager;
+        using var query = em.CreateEntityQuery(ComponentType.ReadOnly<TerrainTile>());
+        var tiles = query.ToEntityArray(Allocator.Temp);
+
+        for (int i = 0; i < tiles.Length; i++)
+        {
+            Entity tileEntity = tiles[i];
+            if (!em.Exists(tileEntity))
+                continue;
+
+            if (em.HasBuffer<SpawnedStaticObjectReference>(tileEntity))
+            {
+                var spawnedObjects = em.GetBuffer<SpawnedStaticObjectReference>(tileEntity);
+                // Copy entities out — DestroyHierarchyImmediate may invalidate the buffer.
+                var objectEntities = new NativeArray<Entity>(spawnedObjects.Length, Allocator.Temp);
+                for (int objIdx = 0; objIdx < spawnedObjects.Length; objIdx++)
+                    objectEntities[objIdx] = spawnedObjects[objIdx].objectEntity;
+
+                for (int objIdx = 0; objIdx < objectEntities.Length; objIdx++)
+                {
+                    StaticObjectHierarchyDestroyUtility.DestroyHierarchyImmediate(
+                        objectEntities[objIdx], em);
+                }
+                objectEntities.Dispose();
+            }
+
+            Mesh meshToDestroy = null;
+            if (em.HasComponent<MeshReference>(tileEntity))
+            {
+                var meshRef = em.GetComponentObject<MeshReference>(tileEntity);
+                if (meshRef != null)
+                {
+                    meshToDestroy = meshRef.mesh;
+                    meshRef.mesh = null;
+                }
+            }
+
+            // Destroy entity first so Entities Graphics drops RenderMeshArray / BRG registrations
+            // before the Mesh asset is destroyed (avoids null MeshID BatchDrawCommand errors).
+            em.DestroyEntity(tileEntity);
+
+            if (meshToDestroy != null)
+                Object.Destroy(meshToDestroy);
+        }
+
+        tiles.Dispose();
+
+        // Catch any static objects that lost their tile ownership link during an unclean unload.
+        using var ownedQuery = em.CreateEntityQuery(ComponentType.ReadOnly<StaticObjectTileOwnership>());
+        var owned = ownedQuery.ToEntityArray(Allocator.Temp);
+        for (int i = 0; i < owned.Length; i++)
+        {
+            if (em.Exists(owned[i]))
+                StaticObjectHierarchyDestroyUtility.DestroyHierarchyImmediate(owned[i], em);
+        }
+        owned.Dispose();
     }
 
     [BurstCompile]
@@ -38,6 +123,31 @@ public partial struct TileSpawningSystem : ISystem
 
     public void OnUpdate(ref SystemState state)
     {
+        var configEntity = SystemAPI.GetSingletonEntity<TerrainTileConfig>();
+        if (_trackedConfigEntity != configEntity)
+        {
+            // AutoLoad SubScene reload can replace config without an empty RequireForUpdate window,
+            // so OnStopRunning never runs. Destroy surviving Default-World tiles immediately.
+            if (_trackedConfigEntity != Entity.Null || !_activeTiles.IsEmpty)
+            {
+#if UNITY_EDITOR
+                UnityEngine.Debug.Log(
+                    $"[TileSpawning] TerrainTileConfig changed ({_trackedConfigEntity.Index}→{configEntity.Index}); " +
+                    "destroying cached runtime tiles");
+#endif
+                DestroyAllRuntimeTiles(ref state);
+                if (_activeTiles.IsCreated)
+                    _activeTiles.Clear();
+                if (_despawningGridCoords.IsCreated)
+                    _despawningGridCoords.Clear();
+            }
+            _trackedConfigEntity = configEntity;
+        }
+
+        // Always prune before the height-align gate so dead map entries cannot block respawn
+        // while TerrainHeightAlignState.aligned is still 0 after reload.
+        PruneDestroyedTileEntries(ref state);
+
         var config = SystemAPI.GetSingleton<TerrainTileConfig>();
 
         if (!config.renderTerrain && !config.enablePhysicsColliders)
@@ -189,6 +299,36 @@ public partial struct TileSpawningSystem : ISystem
 
         tilesToSpawn.Dispose();
         tilesToDespawn.Dispose();
+    }
+
+    /// <summary>
+    /// Removes map entries whose tile entities were destroyed without going through despawn
+    /// (e.g. SubScene unload race where OnStopRunning did not run first).
+    /// </summary>
+    private void PruneDestroyedTileEntries(ref SystemState state)
+    {
+        if (_activeTiles.IsEmpty)
+            return;
+
+        var em = state.EntityManager;
+        var keys = _activeTiles.GetKeyArray(Allocator.Temp);
+        bool foundDestroyed = false;
+        for (int i = 0; i < keys.Length; i++)
+        {
+            if (_activeTiles.TryGetValue(keys[i], out Entity tileEntity) && !em.Exists(tileEntity))
+            {
+                foundDestroyed = true;
+                break;
+            }
+        }
+        keys.Dispose();
+
+        // SubScene unload left stale keys — drop the whole cache so tiles can respawn.
+        if (foundDestroyed)
+        {
+            _activeTiles.Clear();
+            _despawningGridCoords.Clear();
+        }
     }
 
     private static void DestroyTileStaticObjectsImmediate(ref SystemState state, EntityCommandBuffer ecb, Entity tileEntity)

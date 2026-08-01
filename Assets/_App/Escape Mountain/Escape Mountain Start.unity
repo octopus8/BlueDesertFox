@@ -510,6 +510,10 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 0}
     m_Modifications:
+    - target: {fileID: 2564643032223820280, guid: 19c45aa24630ffb4b8216afc7fcdeadd, type: 3}
+      propertyPath: m_IsActive
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 7516906500437316299, guid: 19c45aa24630ffb4b8216afc7fcdeadd, type: 3}
       propertyPath: m_Name
       value: Auto Hand Player Container
@@ -552,10 +556,6 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 7939207109198390141, guid: 19c45aa24630ffb4b8216afc7fcdeadd, type: 3}
       propertyPath: m_LocalEulerAnglesHint.z
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 2564643032223820280, guid: 19c45aa24630ffb4b8216afc7fcdeadd, type: 3}
-      propertyPath: m_IsActive
       value: 0
       objectReference: {fileID: 0}
     m_RemovedComponents: []
@@ -777,7 +777,7 @@ MonoBehaviour:
       - m_Target: {fileID: 1968104345}
         m_TargetAssemblyTypeName: TestAction, Assembly-CSharp
         m_MethodName: LoadScene
-        m_Mode: 1
+        m_Mode: 3
         m_Arguments:
           m_ObjectArgument: {fileID: 0}
           m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine

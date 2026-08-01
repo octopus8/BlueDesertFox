@@ -13,6 +13,27 @@ public partial class CameraDataUpdateSystem : SystemBase
     {
         if (!SystemAPI.HasSingleton<CameraDataSingleton>())
             EntityManager.CreateEntity(typeof(CameraDataSingleton));
+
+        RequireForUpdate<PlayerTransformReference>();
+    }
+
+    /// <summary>
+    /// Resets cached pose when player tracking leaves the world (SubScene unload / scene reload)
+    /// so the next load does not briefly use a stale Quest/head pose for tile centering.
+    /// </summary>
+    protected override void OnStopRunning()
+    {
+        if (SystemAPI.HasSingleton<CameraDataSingleton>())
+        {
+            SystemAPI.SetSingleton(new CameraDataSingleton
+            {
+                position = float3.zero,
+                forward = new float3(0, 0, 1),
+                fullForward = new float3(0, 0, 1),
+                bankAngle = 0f,
+                headBankAngle = 0f
+            });
+        }
     }
 
     protected override void OnUpdate()

@@ -4,7 +4,7 @@ using Unity.Rendering;
 using UnityEngine;
 
 /// <summary>
-/// One-shot system that runs once at world startup to populate the
+/// One-shot-per-SubScene system that populates the
 /// <see cref="StaticObjectLODMaterialMeshInfoElement"/> buffer on the config entity.
 ///
 /// Each LOD prefab entity baked via Entities.Graphics already has a <see cref="MaterialMeshInfo"/>
@@ -16,15 +16,16 @@ using UnityEngine;
 /// Also populates per-LOD <see cref="RenderBounds"/> and per-type max bounds for frustum culling.
 ///
 /// After the buffer is populated, a <see cref="StaticObjectLODMeshInfoReady"/> tag is added to the
-/// config entity and this system disables itself.
+/// config entity. Mesh infos are refreshed every frame from live prefabs so SubScene reload picks up
+/// BRG-registered runtime IDs (Init in Initialization would snapshot bake-time array indices).
 /// </summary>
-[UpdateInGroup(typeof(InitializationSystemGroup))]
-[UpdateAfter(typeof(BeginInitializationEntityCommandBufferSystem))]
+[UpdateInGroup(typeof(PresentationSystemGroup), OrderLast = true)]
 public partial class StaticObjectLODMeshInfoInitSystem : SystemBase
 {
     private const int MaxEmptyBufferRetries = 120;
     private const int LodsPerObjectType = 3;
     private int _emptyBufferRetryCount;
+    private bool _gaveUp;
 
     /// <summary>Registers <see cref="StaticObjectSpawnerConfig"/> and <see cref="StaticObjectPrefabElement"/> requirements.</summary>
     protected override void OnCreate()
@@ -34,17 +35,30 @@ public partial class StaticObjectLODMeshInfoInitSystem : SystemBase
     }
 
     /// <summary>
-    /// On the first frame, reads the baked <see cref="MaterialMeshInfo"/> from each LOD prefab entity,
+    /// Re-arms init after SubScene unload so the next load can populate LOD buffers again.
+    /// </summary>
+    protected override void OnStopRunning()
+    {
+        _emptyBufferRetryCount = 0;
+        _gaveUp = false;
+    }
+
+    /// <summary>
+    /// Reads the baked <see cref="MaterialMeshInfo"/> from each LOD prefab entity,
     /// populates the <see cref="StaticObjectLODMaterialMeshInfoElement"/> buffer on the config entity,
-    /// adds the <see cref="StaticObjectLODMeshInfoReady"/> tag, and disables this system.
+    /// and adds the <see cref="StaticObjectLODMeshInfoReady"/> tag. Once Ready, refreshes mesh infos
+    /// from prefabs each frame so BRG registration after SubScene reload stays current.
     /// </summary>
     protected override void OnUpdate()
     {
+        if (_gaveUp)
+            return;
+
         var configEntity = SystemAPI.GetSingletonEntity<StaticObjectSpawnerConfig>();
 
         if (EntityManager.HasComponent<StaticObjectLODMeshInfoReady>(configEntity))
         {
-            Enabled = false;
+            RefreshMaterialMeshInfos(configEntity);
             return;
         }
 
@@ -152,7 +166,30 @@ public partial class StaticObjectLODMeshInfoInitSystem : SystemBase
         }
 
         EntityManager.AddComponent<StaticObjectLODMeshInfoReady>(configEntity);
-        Enabled = false;
+    }
+
+    private void RefreshMaterialMeshInfos(Entity configEntity)
+    {
+        if (!EntityManager.HasBuffer<StaticObjectPrefabElement>(configEntity) ||
+            !EntityManager.HasBuffer<StaticObjectLODMaterialMeshInfoElement>(configEntity))
+            return;
+
+        var prefabBuffer = EntityManager.GetBuffer<StaticObjectPrefabElement>(configEntity, isReadOnly: true);
+        var infoBuffer = EntityManager.GetBuffer<StaticObjectLODMaterialMeshInfoElement>(configEntity);
+        if (prefabBuffer.Length == 0 || infoBuffer.Length != prefabBuffer.Length)
+            return;
+
+        for (int i = 0; i < prefabBuffer.Length; i++)
+        {
+            var prefabEntity = prefabBuffer[i].prefabEntity;
+            if (!EntityManager.Exists(prefabEntity) || !EntityManager.HasComponent<MaterialMeshInfo>(prefabEntity))
+                return;
+
+            infoBuffer[i] = new StaticObjectLODMaterialMeshInfoElement
+            {
+                materialMeshInfo = EntityManager.GetComponentData<MaterialMeshInfo>(prefabEntity)
+            };
+        }
     }
 
     private static AABB EncapsulateAabb(AABB a, AABB b)
@@ -172,6 +209,6 @@ public partial class StaticObjectLODMeshInfoInitSystem : SystemBase
             $"[StaticObjectLODMeshInfoInit] {detail} " +
             "Open the Entities SubScene, verify StaticObjectSpawnerConfigAuthoring has valid object LOD sets, " +
             "then re-bake the SubScene. Static object spawning and LOD will not run until this is fixed.");
-        Enabled = false;
+        _gaveUp = true;
     }
 }
