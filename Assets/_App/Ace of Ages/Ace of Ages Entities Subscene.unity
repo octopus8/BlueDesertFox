@@ -414,7 +414,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 87f4999611a81074d84b81fdce75df7b, type: 3}
       propertyPath: m_LocalPosition.y
-      value: 12
+      value: -2
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 87f4999611a81074d84b81fdce75df7b, type: 3}
       propertyPath: m_LocalPosition.z
@@ -450,7 +450,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 87f4999611a81074d84b81fdce75df7b, type: 3}
       propertyPath: m_ConstrainProportionsScale
-      value: 0
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: -7511558181221131132, guid: 87f4999611a81074d84b81fdce75df7b, type: 3}
       propertyPath: 'm_Materials.Array.data[0]'
@@ -462,7 +462,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 919132149155446097, guid: 87f4999611a81074d84b81fdce75df7b, type: 3}
       propertyPath: m_IsActive
-      value: 0
+      value: 1
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -5809,7 +5809,7 @@ Light:
   m_Enabled: 1
   serializedVersion: 13
   m_Type: 1
-  m_Color: {r: 0.8301887, g: 0.6304735, b: 0.6719238, a: 1}
+  m_Color: {r: 1, g: 0.98664564, b: 0.84339625, a: 1}
   m_Intensity: 1
   m_Range: 10
   m_SpotAngle: 30
@@ -5872,13 +5872,13 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1527544356}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.04438329, y: -0.9550669, z: 0.18997459, w: 0.22312988}
+  m_LocalRotation: {x: 0.34640437, y: -0.39263913, z: 0.16263644, w: 0.8362942}
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 22.5, y: -153.7, z: 0}
+  m_LocalEulerAnglesHint: {x: 45, y: -50.3, z: 0}
 --- !u!1 &1528308289
 GameObject:
   m_ObjectHideFlags: 0
@@ -5914,9 +5914,9 @@ MonoBehaviour:
   playerName: Right Controller Stabilized Attach
   playerTag: Player
   tileSize: 256
-  viewDistance: 513
+  viewDistance: 878
   verticesPerSide: 48
-  initYOffset: -15
+  initYOffset: -50
   slopeAngleDegrees: 0
   slopeAngleVariation: 0
   slopeVariationBlendDistance: 128
@@ -5925,8 +5925,8 @@ MonoBehaviour:
   noiseOctaves: 2
   noiseLacunarity: 2
   noisePersistence: 0.5
-  continentalFrequency: 0.0008
-  continentalExponent: 0.1
+  continentalFrequency: 0.008
+  continentalExponent: 0.5
   terrainMaterial: {fileID: 2100000, guid: dc12ba763b59e3a4586cb235c2a074fc, type: 2}
   maxCollidersCreatedPerFrame: 1
   maxPhysicsCollidersCreatedPerFrame: 1
@@ -6009,27 +6009,27 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::StaticObjectSpawnerConfigAuthoring
   objectLODSets:
   - lodSet: {fileID: 11400000, guid: 4101bf1351cde7442a780cfaa191badb, type: 2}
-    spawnWeight: 0.01
+    spawnWeight: 0
     maxScaleDelta: 0.5
     minSlopeDegrees: 0
     maxSlopeDegrees: 45
   - lodSet: {fileID: 11400000, guid: b77b000478ae3ac48b61b9af41161eba, type: 2}
-    spawnWeight: 1
+    spawnWeight: 0
     maxScaleDelta: 0.5
     minSlopeDegrees: 0
     maxSlopeDegrees: 45
   - lodSet: {fileID: 11400000, guid: e7de8a9f2d9ca814682cdfb9073cd20e, type: 2}
-    spawnWeight: 0.1
+    spawnWeight: 0
     maxScaleDelta: 0.25
     minSlopeDegrees: 0
     maxSlopeDegrees: 45
   - lodSet: {fileID: 11400000, guid: d47c3ee472c3bb2498b37658e653adbf, type: 2}
-    spawnWeight: 0.01
+    spawnWeight: 0
     maxScaleDelta: 0.5
     minSlopeDegrees: 0
     maxSlopeDegrees: 45
   - lodSet: {fileID: 11400000, guid: edc16788d2b932f448223bf869de3aeb, type: 2}
-    spawnWeight: 0.05
+    spawnWeight: 0
     maxScaleDelta: 0.25
     minSlopeDegrees: 45
     maxSlopeDegrees: 90
@@ -6043,8 +6043,8 @@ MonoBehaviour:
   lod2Distance: 600
   lodHysteresis: 5
   randomSeed: 0
-  minObjectsPerTile: 150
-  maxObjectsPerTile: 150
+  minObjectsPerTile: 20
+  maxObjectsPerTile: 20
   trailSpawnDensityMultiplier: 0.2
   maxObjectsSpawnedPerFrame: 100
   maxNearObjectsSpawnedPerFrame: 300
