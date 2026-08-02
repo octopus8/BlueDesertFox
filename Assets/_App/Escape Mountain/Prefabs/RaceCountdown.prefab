@@ -119,6 +119,8 @@ MonoBehaviour:
   canvasGroup: {fileID: 2000000005}
   leftHandHold: {fileID: 0}
   rightHandHold: {fileID: 0}
+  leftGrabHint: {fileID: 0}
+  rightGrabHint: {fileID: 0}
   fadeInSeconds: 0.12
   holdBeforeFadeOutSeconds: 0.15
   fadeOutSeconds: 0.7

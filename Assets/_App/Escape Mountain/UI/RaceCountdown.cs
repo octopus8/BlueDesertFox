@@ -25,6 +25,9 @@ public class RaceCountdown : MonoBehaviour
     [SerializeField] private Grabbable leftHandHold;
     [SerializeField] private Grabbable rightHandHold;
 
+    [SerializeField] private GrabHintVisibility leftGrabHint;
+    [SerializeField] private GrabHintVisibility rightGrabHint;
+
     [SerializeField] private float fadeInSeconds = 0.12f;
     [SerializeField] private float holdBeforeFadeOutSeconds = 0.15f;
     [SerializeField] private float fadeOutSeconds = 0.7f;
@@ -140,6 +143,8 @@ public class RaceCountdown : MonoBehaviour
             return;
 
         _started = true;
+        leftGrabHint?.LockHidden();
+        rightGrabHint?.LockHidden();
         _runCts?.Cancel();
         _runCts?.Dispose();
         _runCts = new CancellationTokenSource();
