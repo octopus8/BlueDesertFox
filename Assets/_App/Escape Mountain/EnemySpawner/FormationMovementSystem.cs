@@ -34,6 +34,9 @@ partial struct FormationMovementSystem : ISystem
     [BurstCompile]
     public void OnUpdate(ref SystemState state)
     {
+        if (SystemAPI.TryGetSingleton<GamePaused>(out var paused) && paused.Value)
+            return;
+
         float3 playerPosition = SystemAPI.GetSingleton<CameraDataSingleton>().position;
         var config = SystemAPI.GetSingleton<TerrainTileConfig>();
         float viewDistance = config.viewDistance;

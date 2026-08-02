@@ -1979,7 +1979,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: a7c3e91f4b2d48a6b8e0f1c2d3a4b5c6, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::MenuLocomotionPauseBridge
+  m_EditorClassIdentifier: Assembly-CSharp::MenuGamePauseBridge
   uiManager: {fileID: 1279682837}
 --- !u!1001 &1183697212
 PrefabInstance:

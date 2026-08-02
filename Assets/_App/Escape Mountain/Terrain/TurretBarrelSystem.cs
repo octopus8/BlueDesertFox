@@ -53,6 +53,9 @@ public partial struct TurretBarrelSystem : ISystem
     [BurstCompile]
     public void OnUpdate(ref SystemState state)
     {
+        if (SystemAPI.TryGetSingleton<GamePaused>(out var paused) && paused.Value)
+            return;
+
         _domeTransformLookup.Update(ref state);
         _domeDataLookup.Update(ref state);
         _shooterLookup.Update(ref state);

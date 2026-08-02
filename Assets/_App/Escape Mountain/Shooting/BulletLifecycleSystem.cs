@@ -34,6 +34,9 @@ public partial struct BulletLifecycleSystem : ISystem
     /// </summary>
     public void OnUpdate(ref SystemState state)
     {
+        if (SystemAPI.TryGetSingleton<GamePaused>(out var gamePaused) && gamePaused.Value)
+            return;
+
         var poolSystemHandle = state.World.GetExistingSystem<BulletPoolSystem>();
         if (poolSystemHandle == SystemHandle.Null)
             return;
@@ -45,6 +48,8 @@ public partial struct BulletLifecycleSystem : ISystem
         _physicsVelocityLookup.Update(ref state);
 
         double currentTime = SystemAPI.Time.ElapsedTime;
+        if (SystemAPI.TryGetSingleton(out gamePaused))
+            currentTime = GamePausedUtility.GetGameplayElapsedTime(currentTime, gamePaused);
 
         foreach (var (bulletData, entity) in
             SystemAPI.Query<RefRO<BulletData>>()

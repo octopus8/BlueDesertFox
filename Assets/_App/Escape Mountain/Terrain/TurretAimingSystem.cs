@@ -42,6 +42,9 @@ public partial struct TurretAimingSystem : ISystem
     [BurstCompile]
     public void OnUpdate(ref SystemState state)
     {
+        if (SystemAPI.TryGetSingleton<GamePaused>(out var paused) && paused.Value)
+            return;
+
         float3 playerPos = SystemAPI.GetSingleton<CameraDataSingleton>().position;
 
         var scrollVel = SystemAPI.GetSingleton<TerrainScrollVelocity>();

@@ -44,6 +44,9 @@ public partial struct BulletCollisionSystem : ISystem
     /// </summary>
     public void OnUpdate(ref SystemState state)
     {
+        if (SystemAPI.TryGetSingleton<GamePaused>(out var gamePaused) && gamePaused.Value)
+            return;
+
         var poolSystemHandle = state.World.GetExistingSystem<BulletPoolSystem>();
         if (poolSystemHandle == SystemHandle.Null)
             return;
@@ -109,6 +112,8 @@ public partial struct BulletCollisionSystem : ISystem
                 : float3.zero;
 
             double spawnTime = SystemAPI.Time.ElapsedTime;
+            if (SystemAPI.TryGetSingleton(out gamePaused))
+                spawnTime = GamePausedUtility.GetGameplayElapsedTime(spawnTime, gamePaused);
 
             for (int i = 0; i < terrainCollisionPositions.Length; i++)
             {

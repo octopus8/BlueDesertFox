@@ -68,6 +68,9 @@ public class PlayerShootingInput : MonoBehaviour
     {
         if (!_initialized || _fireAction == null)
             return;
+
+        if (GamePausedUtility.IsPaused())
+            return;
         
         // Check if fire button was pressed this frame
         if (_fireAction.WasPressedThisFrame())
@@ -83,7 +86,7 @@ public class PlayerShootingInput : MonoBehaviour
             var shooter = _entityManager.GetComponentData<BulletShooter>(_playerShipEntity);
             
             // Check fire rate limiting
-            double currentTime = Time.timeAsDouble;
+            double currentTime = GamePausedUtility.GetGameplayElapsedTimeFromWorld();
             if (currentTime - shooter.lastFireTime >= shooter.fireRate)
             {
                 shooter.doShoot = true;

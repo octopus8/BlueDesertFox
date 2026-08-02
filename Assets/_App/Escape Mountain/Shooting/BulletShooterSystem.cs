@@ -29,6 +29,9 @@ public partial struct BulletShooterSystem : ISystem
     /// </summary>
     public void OnUpdate(ref SystemState state)
     {
+        if (SystemAPI.TryGetSingleton<GamePaused>(out var gamePaused) && gamePaused.Value)
+            return;
+
         // Get reference to pool system (non-Burst due to managed component access)
         var poolSystemHandle = state.World.GetExistingSystem<BulletPoolSystem>();
         if (poolSystemHandle == SystemHandle.Null)
@@ -38,6 +41,10 @@ public partial struct BulletShooterSystem : ISystem
         }
         
         ref var poolSystem = ref state.WorldUnmanaged.GetUnsafeSystemRef<BulletPoolSystem>(poolSystemHandle);
+
+        double currentTime = SystemAPI.Time.ElapsedTime;
+        if (SystemAPI.TryGetSingleton(out gamePaused))
+            currentTime = GamePausedUtility.GetGameplayElapsedTime(currentTime, gamePaused);
         
         // Process all bullet shooters that want to shoot
         foreach (var (shooter, transform, spawnPointRef) in 
@@ -103,13 +110,13 @@ public partial struct BulletShooterSystem : ISystem
             state.EntityManager.SetComponentData(bulletEntity, new BulletData
             {
                 spawnPosition = spawnPosition,
-                creationTime = SystemAPI.Time.ElapsedTime,
+                creationTime = currentTime,
                 active = true,
                 linearVelocityTerrainRelative = bulletVelocity + terrainVelocity
             });
             
             // Update last fire time
-            shooter.ValueRW.lastFireTime = SystemAPI.Time.ElapsedTime;
+            shooter.ValueRW.lastFireTime = currentTime;
         }
     }
 }

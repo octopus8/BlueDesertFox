@@ -34,6 +34,9 @@ partial struct EnemySpawnerSystem : ISystem
     [BurstCompile]
     public void OnUpdate(ref SystemState state)
     {
+        if (SystemAPI.TryGetSingleton<GamePaused>(out var paused) && paused.Value)
+            return;
+
         // Get the EntityCommandBuffer from the BeginSimulationEntityCommandBufferSystem
         var ecbSingleton = SystemAPI.GetSingleton<BeginSimulationEntityCommandBufferSystem.Singleton>();
         var ecb = ecbSingleton.CreateCommandBuffer(state.WorldUnmanaged);

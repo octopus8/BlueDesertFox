@@ -30,6 +30,9 @@ public partial struct ScrollTerrainSystem : ISystem
     [BurstCompile]
     public void OnUpdate(ref SystemState state)
     {
+        if (SystemAPI.TryGetSingleton<GamePaused>(out var paused) && paused.Value)
+            return;
+
         var scrollVelocity = SystemAPI.GetSingleton<TerrainScrollVelocity>();
         
         if (scrollVelocity.speed == 0f && scrollVelocity.verticalSpeed == 0f)

@@ -274,6 +274,7 @@ GameObject:
   m_Component:
   - component: {fileID: 391244924}
   - component: {fileID: 391244923}
+  - component: {fileID: 391244925}
   m_Layer: 0
   m_Name: Scene Startup
   m_TagString: Untagged
@@ -299,6 +300,19 @@ MonoBehaviour:
   ui: {fileID: 6557732031783972574}
   showUIOnStart: 1
   subScenes: []
+--- !u!114 &391244925
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 391244922}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a7c3e91f4b2d48a6b8e0f1c2d3a4b5c6, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::MenuGamePauseBridge
+  uiManager: {fileID: 6557732031783972574}
 --- !u!4 &391244924
 Transform:
   m_ObjectHideFlags: 0

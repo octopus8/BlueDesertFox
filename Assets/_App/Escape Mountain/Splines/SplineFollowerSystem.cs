@@ -26,6 +26,9 @@ partial struct SplineFollowerSystem : ISystem
     [BurstCompile]
     public void OnUpdate(ref SystemState state)
     {
+        if (SystemAPI.TryGetSingleton<GamePaused>(out var paused) && paused.Value)
+            return;
+
         if (useJobs)
         {
             // Get scroll velocity from terrain scrolling system

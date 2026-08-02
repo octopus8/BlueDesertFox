@@ -59,6 +59,9 @@ public partial struct TurretShooterSystem : ISystem
     /// </summary>
     public void OnUpdate(ref SystemState state)
     {
+        if (SystemAPI.TryGetSingleton<GamePaused>(out var gamePaused) && gamePaused.Value)
+            return;
+
         _domeLookup.Update(ref state);
 
         bool canCheckTerrain = SystemAPI.TryGetSingleton<TerrainTileConfig>(out var terrainConfig)
@@ -90,6 +93,8 @@ public partial struct TurretShooterSystem : ISystem
         }
 
         double currentTime = SystemAPI.Time.ElapsedTime;
+        if (SystemAPI.TryGetSingleton(out gamePaused))
+            currentTime = GamePausedUtility.GetGameplayElapsedTime(currentTime, gamePaused);
 
         // Phase 1: evaluate burst/cooldown state and collect shots to fire.
         // All writes go through RefRW — no structural changes, safe inside the iterator.

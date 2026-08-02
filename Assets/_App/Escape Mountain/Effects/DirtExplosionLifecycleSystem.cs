@@ -24,6 +24,9 @@ public partial struct DirtExplosionLifecycleSystem : ISystem
     /// </summary>
     public void OnUpdate(ref SystemState state)
     {
+        if (SystemAPI.TryGetSingleton<GamePaused>(out var gamePaused) && gamePaused.Value)
+            return;
+
         var poolSystemHandle = state.World.GetExistingSystem<DirtExplosionPoolSystem>();
         if (poolSystemHandle == SystemHandle.Null)
             return;
@@ -32,6 +35,8 @@ public partial struct DirtExplosionLifecycleSystem : ISystem
 
         var config = SystemAPI.GetSingleton<DirtExplosionConfig>();
         double currentTime = SystemAPI.Time.ElapsedTime;
+        if (SystemAPI.TryGetSingleton(out gamePaused))
+            currentTime = GamePausedUtility.GetGameplayElapsedTime(currentTime, gamePaused);
 
         foreach (var (explosionData, transform, anchor, entity) in
             SystemAPI.Query<RefRW<DirtExplosionData>, RefRW<LocalTransform>, RefRW<TerrainAnchorTag>>()

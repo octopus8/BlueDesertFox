@@ -34,7 +34,7 @@ public partial class PlayerScrollVelocitySystem : SystemBase
     {
         RefRW<TerrainScrollVelocity> scrollVelocity = SystemAPI.GetSingletonRW<TerrainScrollVelocity>();
 
-        if (SystemAPI.TryGetSingleton<PlayerLocomotionPaused>(out var paused) && paused.Value)
+        if (SystemAPI.TryGetSingleton<GamePaused>(out var paused) && paused.Value)
         {
             scrollVelocity.ValueRW.speed = 0f;
             scrollVelocity.ValueRW.verticalSpeed = 0f;

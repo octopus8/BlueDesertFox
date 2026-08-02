@@ -2,10 +2,10 @@ using Unity.Entities;
 using UnityEngine;
 
 /// <summary>
-/// Syncs <see cref="UIManager"/> visibility to the <see cref="PlayerLocomotionPaused"/> ECS singleton
-/// so Escape Mountain locomotion stops while the menu is open.
+/// Syncs <see cref="UIManager"/> visibility to the <see cref="GamePaused"/> ECS singleton
+/// so gameplay freezes while the menu is open (Ace of Ages and Escape Mountain).
 /// </summary>
-public class MenuLocomotionPauseBridge : MonoBehaviour
+public class MenuGamePauseBridge : MonoBehaviour
 {
     [SerializeField] private UIManager uiManager;
 
@@ -41,7 +41,7 @@ public class MenuLocomotionPauseBridge : MonoBehaviour
             && world.EntityManager == _entityManager
             && _entityManager.Exists(_pausedEntity))
         {
-            _entityManager.SetComponentData(_pausedEntity, new PlayerLocomotionPaused { Value = false });
+            ClearPauseKeepingAccumulated(world.Time.ElapsedTime);
         }
     }
 
@@ -81,15 +81,20 @@ public class MenuLocomotionPauseBridge : MonoBehaviour
 
         _entityManager = world.EntityManager;
 
-        using var query = _entityManager.CreateEntityQuery(ComponentType.ReadOnly<PlayerLocomotionPaused>());
-        if (query.TryGetSingletonEntity<PlayerLocomotionPaused>(out _pausedEntity))
+        using var query = _entityManager.CreateEntityQuery(ComponentType.ReadOnly<GamePaused>());
+        if (query.TryGetSingletonEntity<GamePaused>(out _pausedEntity))
         {
             _hasPausedEntity = true;
             return true;
         }
 
         _pausedEntity = _entityManager.CreateEntity();
-        _entityManager.AddComponentData(_pausedEntity, new PlayerLocomotionPaused { Value = false });
+        _entityManager.AddComponentData(_pausedEntity, new GamePaused
+        {
+            Value = false,
+            PauseStartedAt = -1.0,
+            AccumulatedPauseDuration = 0.0
+        });
         _hasPausedEntity = true;
         return true;
     }
@@ -109,6 +114,42 @@ public class MenuLocomotionPauseBridge : MonoBehaviour
                 return;
         }
 
-        _entityManager.SetComponentData(_pausedEntity, new PlayerLocomotionPaused { Value = paused });
+        var world = World.DefaultGameObjectInjectionWorld;
+        if (world == null || !world.IsCreated)
+            return;
+
+        double now = world.Time.ElapsedTime;
+        var current = _entityManager.GetComponentData<GamePaused>(_pausedEntity);
+
+        if (paused)
+        {
+            if (!current.Value)
+            {
+                current.Value = true;
+                current.PauseStartedAt = now;
+            }
+        }
+        else
+        {
+            if (current.Value)
+            {
+                if (current.PauseStartedAt >= 0.0)
+                    current.AccumulatedPauseDuration += now - current.PauseStartedAt;
+                current.Value = false;
+                current.PauseStartedAt = -1.0;
+            }
+        }
+
+        _entityManager.SetComponentData(_pausedEntity, current);
+    }
+
+    void ClearPauseKeepingAccumulated(double now)
+    {
+        var current = _entityManager.GetComponentData<GamePaused>(_pausedEntity);
+        if (current.Value && current.PauseStartedAt >= 0.0)
+            current.AccumulatedPauseDuration += now - current.PauseStartedAt;
+        current.Value = false;
+        current.PauseStartedAt = -1.0;
+        _entityManager.SetComponentData(_pausedEntity, current);
     }
 }

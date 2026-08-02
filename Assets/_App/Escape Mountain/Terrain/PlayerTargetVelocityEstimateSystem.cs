@@ -26,6 +26,9 @@ public partial struct PlayerTargetVelocityEstimateSystem : ISystem
     [BurstCompile]
     public void OnUpdate(ref SystemState state)
     {
+        if (SystemAPI.TryGetSingleton<GamePaused>(out var paused) && paused.Value)
+            return;
+
         var cameraData = SystemAPI.GetSingleton<CameraDataSingleton>();
         float3 pos = cameraData.position;
 

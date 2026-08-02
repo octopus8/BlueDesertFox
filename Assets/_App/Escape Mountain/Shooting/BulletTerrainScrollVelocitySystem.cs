@@ -29,8 +29,10 @@ public partial struct BulletTerrainScrollVelocitySystem : ISystem
     [BurstCompile]
     public void OnUpdate(ref SystemState state)
     {
+        bool isPaused = SystemAPI.TryGetSingleton<GamePaused>(out var paused) && paused.Value;
+
         float3 terrainVelocity = float3.zero;
-        if (SystemAPI.TryGetSingleton(out TerrainScrollVelocity sv))
+        if (!isPaused && SystemAPI.TryGetSingleton(out TerrainScrollVelocity sv))
             terrainVelocity = sv.WorldVelocity;
 
         foreach (var (velocityRw, bulletData) in SystemAPI.Query<RefRW<PhysicsVelocity>, RefRO<BulletData>>()
@@ -40,6 +42,16 @@ public partial struct BulletTerrainScrollVelocitySystem : ISystem
                 continue;
 
             var pv = velocityRw.ValueRO;
+            if (isPaused)
+            {
+                velocityRw.ValueRW = new PhysicsVelocity
+                {
+                    Linear = float3.zero,
+                    Angular = float3.zero
+                };
+                continue;
+            }
+
             velocityRw.ValueRW = new PhysicsVelocity
             {
                 Linear = bulletData.ValueRO.linearVelocityTerrainRelative - terrainVelocity,
