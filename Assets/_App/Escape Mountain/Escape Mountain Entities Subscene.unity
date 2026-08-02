@@ -888,11 +888,6 @@ MonoBehaviour:
     maxScaleDelta: 0.25
     minSlopeDegrees: 45
     maxSlopeDegrees: 90
-  - lodSet: {fileID: 11400000, guid: d4d8140911406aa4084f758af61cd1bf, type: 2}
-    spawnWeight: 0.01
-    maxScaleDelta: 0
-    minSlopeDegrees: 0
-    maxSlopeDegrees: 45
   lod0Distance: 200
   lod1Distance: 400
   lod2Distance: 600
@@ -904,6 +899,7 @@ MonoBehaviour:
   maxObjectsSpawnedPerFrame: 100
   maxNearObjectsSpawnedPerFrame: 300
   maxPositionCalcAttemptsPerFrame: 4000
+  maxPrefabLODSwapsPerFrame: 8
   vrFrameSkipScrolling: 1
   playerVelocityThreshold: 10
 --- !u!1001 &1837024808
