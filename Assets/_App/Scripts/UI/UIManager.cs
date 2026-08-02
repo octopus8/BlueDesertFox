@@ -49,8 +49,16 @@ public class UIManager : MonoBehaviour
     private Stack<IUIState> stateStack = new Stack<IUIState>();
 
     private ObjectFollower objectFollower;
-    
 
+    /// <summary>
+    /// Raised when the UI becomes visible or hidden.
+    /// First argument is visibility; second is whether gameplay should resume on hide
+    /// (ignored when becoming visible).
+    /// </summary>
+    public event System.Action<bool, bool> VisibilityChanged;
+
+    /// <summary>True while the UI is shown or animating in.</summary>
+    public bool IsVisible => currentAnimState is AnimState.on or AnimState.turningOn;
 
     /// <summary>
     /// Animation states.
@@ -106,6 +114,27 @@ public class UIManager : MonoBehaviour
         {
             menuToggleAction.Disable();
         }
+    }
+
+    private void OnApplicationPause(bool pauseStatus)
+    {
+        if (pauseStatus)
+            TryShowImmediateOnSystemMenu();
+    }
+
+    private void OnApplicationFocus(bool hasFocus)
+    {
+        if (!hasFocus)
+            TryShowImmediateOnSystemMenu();
+    }
+
+    /// <summary>
+    /// Opens the menu immediately when the Quest system menu (right Meta) interrupts the app.
+    /// </summary>
+    private void TryShowImmediateOnSystemMenu()
+    {
+        if (!IsVisible)
+            ShowImmediate();
     }
 
 
@@ -238,6 +267,7 @@ public class UIManager : MonoBehaviour
     {
         CancelAnimations();
         currentAnimState = AnimState.turningOn;
+        VisibilityChanged?.Invoke(true, false);
         uiCamera?.OnUIVisible(true);
         uiContainer.gameObject.SetActive(true);
         uiContainer.DOFade(1, displaySpeed).WithCancellation(animCancelTokens[(int)AnimCancelToken.fade].Token);
@@ -249,13 +279,33 @@ public class UIManager : MonoBehaviour
         objectFollower.UpdateImmediate();
     }
 
+    /// <summary>
+    /// Shows the UI immediately with no fade/scale animation.
+    /// </summary>
+    public void ShowImmediate()
+    {
+        CancelAnimations();
+        currentAnimState = AnimState.on;
+        VisibilityChanged?.Invoke(true, false);
+        uiCamera?.OnUIVisible(true);
+        uiContainer.gameObject.SetActive(true);
+        uiContainer.alpha = 1;
+        uiContainer.transform.localScale = Vector3.one;
+        objectFollower.UpdateImmediate();
+    }
+
     
     /// <summary>
     /// Hides the UI.
     /// </summary>
-    public void Hide()
+    /// <param name="resumeGameplay">
+    /// When true (default), subscribers may resume gameplay (e.g. menu dismissed via toggle).
+    /// When false, gameplay stays paused (e.g. scene select starting a load).
+    /// </param>
+    public void Hide(bool resumeGameplay = true)
     {
         CancelAnimations();
+        VisibilityChanged?.Invoke(false, resumeGameplay);
         uiCamera?.OnUIVisible(false);
         currentAnimState = AnimState.turningOff;
         uiContainer.DOFade(0, displaySpeed).WithCancellation(animCancelTokens[(int)AnimCancelToken.fade].Token);

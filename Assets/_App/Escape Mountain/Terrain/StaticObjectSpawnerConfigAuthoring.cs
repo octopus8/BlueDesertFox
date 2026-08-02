@@ -1,0 +1,357 @@
+using Unity.Entities;
+using Unity.Mathematics;
+using UnityEngine;
+
+/// <summary>
+/// Authoring component for static object spawning configuration.
+/// Place this on the same GameObject as TerrainConfigAuthoring to enable static object spawning on terrain tiles.
+/// </summary>
+public class StaticObjectSpawnerConfigAuthoring : MonoBehaviour
+{
+    [Header("Static Object LOD Sets")]
+    [Tooltip("Object types with LOD variants and relative spawn weights (normalized at bake time)")]
+    public StaticObjectLODSetEntry[] objectLODSets;
+
+    [Header("LOD Distance Thresholds")]
+    [Tooltip("Distance threshold for LOD0->LOD1 transition (meters)")]
+    public float lod0Distance = 50f;
+
+    [Tooltip("Distance threshold for LOD1->LOD2 transition (meters)")]
+    public float lod1Distance = 150f;
+
+    [Tooltip("Distance beyond which objects use LOD2 (meters)")]
+    public float lod2Distance = 300f;
+
+    [Tooltip("Hysteresis buffer to prevent LOD flickering (meters). Adds/subtracts from thresholds based on transition direction.")]
+    [Range(0f, 20f)]
+    public float lodHysteresis = 5f;
+
+    [Header("Spawn Density")]
+    [Tooltip("Random seed offset for deterministic object placement per tile. Change to get a different layout.")]
+    public int randomSeed = 12345;
+
+    [Tooltip("Minimum number of objects per tile")]
+    [Range(0, 800)]
+    public int minObjectsPerTile = 5;
+
+    [Tooltip("Maximum number of objects per tile")]
+    [Range(0, 800)]
+    public int maxObjectsPerTile = 15;
+
+    [Tooltip("Spawn acceptance at trail center (0 = no trail spawns, 1 = same density as open terrain). Blend shoulders interpolate to full density.")]
+    [Range(0f, 1f)]
+    public float trailSpawnDensityMultiplier = 0.25f;
+
+    [Header("Performance")]
+    [Tooltip("Maximum number of object entities to spawn or destroy per frame (prevents ECB playback stuttering)")]
+    [Range(1, 100)]
+    public int maxObjectsSpawnedPerFrame = 20;
+
+    [Tooltip("Maximum objects to spawn per frame for tiles within LOD0 distance (near-field). Default: 300.")]
+    [Range(1, 800)]
+    public int maxNearObjectsSpawnedPerFrame = 300;
+
+    [Tooltip("Maximum spawn-position rejection attempts per frame, divided across tiles calculating positions")]
+    [Range(500, 50000)]
+    public int maxPositionCalcAttemptsPerFrame = 4000;
+
+    [Tooltip("Maximum hierarchical prefab LOD re-instantiations per frame (e.g. turret LOD0↔LOD1). Default: 8.")]
+    [Range(1, 64)]
+    public int maxPrefabLODSwapsPerFrame = 8;
+
+    [Header("Quest 3 VR Optimizations")]
+    [Tooltip("Frame skip interval when player velocity exceeds threshold during terrain scrolling. Quest 3 @ 72Hz recommended: 3-4. Higher = more performance, less responsive LOD.")]
+    [Range(1, 8)]
+    public int vrFrameSkipScrolling = 4;
+
+    [Tooltip("Player velocity threshold (m/s) above which vrFrameSkipScrolling is used instead of base VR frame skip. Default: 0.5 m/s (walking speed).")]
+    [Range(0.1f, 10f)]
+    public float playerVelocityThreshold = 0.5f;
+
+    /// <summary>Bakes spawner settings and LOD prefab references into <see cref="StaticObjectSpawnerConfig"/> and <see cref="StaticObjectPrefabElement"/> buffer components.</summary>
+    public class Baker : Baker<StaticObjectSpawnerConfigAuthoring>
+    {
+        /// <inheritdoc/>
+        public override void Bake(StaticObjectSpawnerConfigAuthoring authoring)
+        {
+            // Validate that we have object LOD sets
+            if (authoring.objectLODSets == null || authoring.objectLODSets.Length == 0)
+            {
+                Debug.LogWarning("[StaticObjectSpawner] No object LOD sets assigned to StaticObjectSpawnerConfigAuthoring!", authoring);
+                return;
+            }
+
+            Entity entity = GetEntity(TransformUsageFlags.None);
+
+            // Create static object spawner config singleton
+            AddComponent(entity, new StaticObjectSpawnerConfig
+            {
+                randomSeed = authoring.randomSeed,
+                minObjectsPerTile = authoring.minObjectsPerTile,
+                maxObjectsPerTile = authoring.maxObjectsPerTile,
+                trailSpawnDensityMultiplier = authoring.trailSpawnDensityMultiplier,
+                maxObjectsSpawnedPerFrame = authoring.maxObjectsSpawnedPerFrame,
+                maxNearObjectsSpawnedPerFrame = authoring.maxNearObjectsSpawnedPerFrame,
+                maxPositionCalcAttemptsPerFrame = authoring.maxPositionCalcAttemptsPerFrame
+            });
+
+            // Create static object LOD config singleton
+            AddComponent(entity, new StaticObjectLODConfig
+            {
+                lod0Distance = authoring.lod0Distance,
+                lod1Distance = authoring.lod1Distance,
+                lod2Distance = authoring.lod2Distance,
+                hysteresisDelta = authoring.lodHysteresis,
+                lodsPerObjectType = 3, // Hardcoded to 3 LOD levels
+                maxChunksUpdatedPerFrame = 25,
+                maxPrefabLODSwapsPerFrame = authoring.maxPrefabLODSwapsPerFrame,
+                // Quest 3 VR Optimizations
+                vrFrameSkipScrolling = authoring.vrFrameSkipScrolling,
+                playerVelocityThreshold = authoring.playerVelocityThreshold
+            });
+
+            // Add buffer for object prefab entities
+            var objectPrefabBuffer = AddBuffer<StaticObjectPrefabElement>(entity);
+            var hierarchicalSlotBuffer = AddBuffer<StaticObjectLODHierarchicalSlotElement>(entity);
+            AddBuffer<StaticObjectLODMaterialMeshInfoElement>(entity);
+            AddBuffer<StaticObjectLODRenderBoundsElement>(entity);
+            AddBuffer<StaticObjectTypeMaxRenderBoundsElement>(entity);
+
+            // Add buffer for object type spawn weights
+            var typeSpawnWeightsBuffer = AddBuffer<StaticObjectTypeSpawnWeight>(entity);
+
+            // Add buffer for per-object-type billboard flags
+            var billboardBuffer = AddBuffer<StaticObjectBillboardTypeElement>(entity);
+
+            // Add buffer for per-object-type scale config
+            var typeScaleBuffer = AddBuffer<StaticObjectTypeScaleElement>(entity);
+
+            // Add buffer for per-object-type slope thresholds
+            var typeSlopeBuffer = AddBuffer<StaticObjectTypeSlopeElement>(entity);
+
+            int objectTypeCount = authoring.objectLODSets.Length;
+            int validObjectTypes = 0;
+
+            // Pre-compute total object type spawn weight for normalization
+            float totalTypeSpawnWeight = 0f;
+            int validTypeCount = 0;
+            for (int i = 0; i < objectTypeCount; i++)
+            {
+                var entry = authoring.objectLODSets[i];
+                var lodSet = entry.lodSet;
+                if (lodSet == null || lodSet.lod0 == null)
+                    continue;
+
+                totalTypeSpawnWeight += entry.spawnWeight;
+                validTypeCount++;
+            }
+
+            float defaultEqualTypeWeight = validTypeCount > 0 ? 1f / validTypeCount : 1f;
+            if (totalTypeSpawnWeight < 0.001f)
+            {
+                Debug.LogWarning("[StaticObjectSpawner] All object type spawn weights are zero! Using equal distribution.", authoring);
+            }
+
+            // Convert GameObject prefabs to entity prefabs for each LOD set.
+            // Entities.Graphics will bake MaterialMeshInfo onto each prefab entity automatically;
+            // StaticObjectLODMeshInfoInitSystem reads those IDs at runtime to build the lookup buffer.
+            for (int objectTypeIndex = 0; objectTypeIndex < objectTypeCount; objectTypeIndex++)
+            {
+                var entry = authoring.objectLODSets[objectTypeIndex];
+                var lodSet = entry.lodSet;
+
+                if (lodSet == null)
+                {
+                    Debug.LogWarning($"[StaticObjectSpawner] Null LOD set at index {objectTypeIndex}!", authoring);
+                    continue;
+                }
+
+                GameObject[] lodPrefabs = new GameObject[] { lodSet.lod0, lodSet.lod1, lodSet.lod2 };
+
+                if (lodPrefabs[0] == null)
+                {
+                    Debug.LogError($"[StaticObjectSpawner] Object type '{lodSet.name}' missing LOD0 (required)! Skipping this object type.", authoring);
+                    continue;
+                }
+
+                float normalizedTypeSpawnWeight = totalTypeSpawnWeight > 0.001f
+                    ? entry.spawnWeight / totalTypeSpawnWeight
+                    : defaultEqualTypeWeight;
+
+                typeSpawnWeightsBuffer.Add(new StaticObjectTypeSpawnWeight
+                {
+                    objectTypeIndex = validObjectTypes,
+                    weight = normalizedTypeSpawnWeight
+                });
+
+                billboardBuffer.Add(new StaticObjectBillboardTypeElement
+                {
+                    isBillboard = lodSet.lod2IsBillboard
+                });
+
+                float3 lossyScale = lodSet.lod0.transform.lossyScale;
+                float baseScale = math.cmax(lossyScale);
+                if (baseScale <= 0f)
+                    baseScale = 1f;
+
+                float lod1Scale = lodPrefabs[1] != null
+                    ? math.cmax(lodPrefabs[1].transform.lossyScale)
+                    : baseScale;
+                float lod2Scale = lodPrefabs[2] != null
+                    ? math.cmax(lodPrefabs[2].transform.lossyScale)
+                    : (lodPrefabs[1] != null ? lod1Scale : baseScale);
+                if (lod1Scale <= 0f)
+                    lod1Scale = baseScale;
+                if (lod2Scale <= 0f)
+                    lod2Scale = lod1Scale;
+
+                typeScaleBuffer.Add(new StaticObjectTypeScaleElement
+                {
+                    baseScale = baseScale,
+                    maxScaleDelta = math.max(0f, entry.maxScaleDelta),
+                    lod1ScaleMultiplier = lod1Scale / baseScale,
+                    lod2ScaleMultiplier = lod2Scale / baseScale
+                });
+
+                float minSlopeDegrees = math.clamp(entry.minSlopeDegrees, 0f, 90f);
+                float maxSlopeDegrees = math.clamp(entry.maxSlopeDegrees, 0f, 90f);
+                // Existing serialized entries get 0 for newly added fields; restore prior global default.
+                if (maxSlopeDegrees <= 0f && minSlopeDegrees <= 0f)
+                    maxSlopeDegrees = 45f;
+                if (minSlopeDegrees > maxSlopeDegrees)
+                    minSlopeDegrees = maxSlopeDegrees;
+
+                // Cosine thresholds: steeper → smaller normal.y. Accept when
+                // cos(maxDegrees) <= normal.y <= cos(minDegrees).
+                typeSlopeBuffer.Add(new StaticObjectTypeSlopeElement
+                {
+                    minSlopeThreshold = math.cos(math.radians(maxSlopeDegrees)),
+                    maxSlopeThreshold = math.cos(math.radians(minSlopeDegrees))
+                });
+
+                for (int lodLevel = 0; lodLevel < 3; lodLevel++)
+                {
+                    GameObject lodPrefab = lodPrefabs[lodLevel];
+
+                    if (lodPrefab != null)
+                    {
+                        // Ensure GPU instancing is enabled on every material — BRG requires this to
+                        // batch multiple instances into a single draw call.
+                        foreach (var renderer in lodPrefab.GetComponentsInChildren<MeshRenderer>(true))
+                        {
+                            foreach (var mat in renderer.sharedMaterials)
+                            {
+                                if (mat != null && !mat.enableInstancing)
+                                {
+                                    mat.enableInstancing = true;
+#if UNITY_EDITOR
+                                    UnityEditor.EditorUtility.SetDirty(mat);
+#endif
+                                }
+                            }
+                        }
+
+                        Entity prefabEntity = GetEntity(lodPrefab, TransformUsageFlags.Dynamic);
+                        objectPrefabBuffer.Add(new StaticObjectPrefabElement { prefabEntity = prefabEntity });
+                        hierarchicalSlotBuffer.Add(new StaticObjectLODHierarchicalSlotElement
+                        {
+                            isHierarchical = IsHierarchicalLodPrefab(lodPrefab)
+                        });
+                    }
+                    else
+                    {
+                        // Fallback: reuse best available lower LOD prefab.
+                        GameObject fallbackPrefab = lodLevel == 1 ? lodPrefabs[0]
+                            : (lodPrefabs[1] != null ? lodPrefabs[1] : lodPrefabs[0]);
+
+                        if (lodLevel == 1)
+                            Debug.LogWarning($"[StaticObjectSpawner] Object '{lodSet.name}' LOD1 missing, using LOD0 as fallback", authoring);
+                        else
+                            Debug.LogWarning($"[StaticObjectSpawner] Object '{lodSet.name}' LOD2 missing, using LOD{(lodPrefabs[1] != null ? "1" : "0")} as fallback", authoring);
+
+                        if (fallbackPrefab != null)
+                        {
+                            Entity prefabEntity = GetEntity(fallbackPrefab, TransformUsageFlags.Dynamic);
+                            objectPrefabBuffer.Add(new StaticObjectPrefabElement { prefabEntity = prefabEntity });
+                            hierarchicalSlotBuffer.Add(new StaticObjectLODHierarchicalSlotElement
+                            {
+                                isHierarchical = IsHierarchicalLodPrefab(fallbackPrefab)
+                            });
+                        }
+                    }
+                }
+
+                validObjectTypes++;
+            }
+
+            if (objectPrefabBuffer.Length == 0)
+            {
+                Debug.LogError("[StaticObjectSpawner] No valid object prefabs were converted to entities!", authoring);
+            }
+        }
+
+        /// <summary>
+        /// Matches <see cref="StaticObjectPrefabAuthoring"/>: multi-transform prefabs bake
+        /// <see cref="PendingStaticObjectRendererStrip"/> and need structural LOD swaps.
+        /// </summary>
+        static bool IsHierarchicalLodPrefab(GameObject lodPrefab)
+        {
+            return lodPrefab != null && lodPrefab.GetComponentsInChildren<Transform>(true).Length > 1;
+        }
+    }
+
+    /// <summary>Clamps all inspector values (densities, distances, spawn counts) to valid ranges when values change.</summary>
+    private void OnValidate()
+    {
+        // Ensure valid values
+        minObjectsPerTile = Mathf.Max(0, minObjectsPerTile);
+        maxObjectsPerTile = Mathf.Max(minObjectsPerTile, maxObjectsPerTile);
+        trailSpawnDensityMultiplier = Mathf.Clamp01(trailSpawnDensityMultiplier);
+        maxObjectsSpawnedPerFrame = Mathf.Max(1, maxObjectsSpawnedPerFrame);
+        maxNearObjectsSpawnedPerFrame = Mathf.Max(1, maxNearObjectsSpawnedPerFrame);
+        maxPositionCalcAttemptsPerFrame = Mathf.Max(500, maxPositionCalcAttemptsPerFrame);
+        maxPrefabLODSwapsPerFrame = Mathf.Max(1, maxPrefabLODSwapsPerFrame);
+
+        // Validate LOD distances are in increasing order
+        lod0Distance = Mathf.Max(1f, lod0Distance);
+        lod1Distance = Mathf.Max(lod0Distance + 1f, lod1Distance);
+        lod2Distance = Mathf.Max(lod1Distance + 1f, lod2Distance);
+        lodHysteresis = Mathf.Max(0f, lodHysteresis);
+
+        if (objectLODSets == null)
+            return;
+
+        float totalTypeSpawnWeight = 0f;
+        for (int i = 0; i < objectLODSets.Length; i++)
+        {
+            var entry = objectLODSets[i];
+            if (entry.lodSet == null)
+                continue;
+
+            entry.spawnWeight = Mathf.Max(0f, entry.spawnWeight);
+            entry.maxScaleDelta = Mathf.Max(0f, entry.maxScaleDelta);
+            entry.minSlopeDegrees = Mathf.Clamp(entry.minSlopeDegrees, 0f, 90f);
+            entry.maxSlopeDegrees = Mathf.Clamp(entry.maxSlopeDegrees, 0f, 90f);
+            // Existing serialized entries get 0 for newly added fields; restore prior global default.
+            if (entry.maxSlopeDegrees <= 0f && entry.minSlopeDegrees <= 0f)
+                entry.maxSlopeDegrees = 45f;
+            if (entry.minSlopeDegrees > entry.maxSlopeDegrees)
+                entry.minSlopeDegrees = entry.maxSlopeDegrees;
+            objectLODSets[i] = entry;
+            totalTypeSpawnWeight += entry.spawnWeight;
+        }
+
+        if (totalTypeSpawnWeight < 0.001f)
+        {
+            for (int i = 0; i < objectLODSets.Length; i++)
+            {
+                var entry = objectLODSets[i];
+                if (entry.lodSet == null)
+                    continue;
+
+                entry.spawnWeight = 1f;
+                objectLODSets[i] = entry;
+            }
+        }
+    }
+}

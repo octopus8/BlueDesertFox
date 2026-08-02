@@ -50,24 +50,29 @@ namespace LiquidForce {
         private void Start()
         {
             CreateGameObjects();
-            
-            // Set the object to follow the head.
-            if (DeviceTracking.Instance != null)
+
+            // Parent to the tracked head so the fade sphere stays on-camera through
+            // tracking-origin teleports and scene reloads (no ObjectFollower lerp lag).
+            if (DeviceTracking.Instance != null && DeviceTracking.Instance.Head != null)
             {
-                DeviceTracking.Instance.AddHeadFollower(cameraFaderRoot.transform);
+                cameraFaderRoot.transform.SetParent(DeviceTracking.Instance.Head, false);
+                cameraFaderRoot.transform.localPosition = Vector3.zero;
+                cameraFaderRoot.transform.localRotation = Quaternion.identity;
             }
             else
             {
-                Debug.LogError("DeviceTracking instance not found. CameraFader will not follow the head.");
+                Debug.LogError("DeviceTracking head not found. CameraFader will not follow the head.");
             }
         }
 
         private void OnDestroy()
         {
-            if (DeviceTracking.Instance != null)
-            {
-                DeviceTracking.Instance.RemoveHeadFollower(cameraFaderRoot.transform);
-            }
+            if (Instance == this)
+                Instance = null;
+
+            if (cameraFaderRoot != null)
+                Destroy(cameraFaderRoot);
+
             CancelAnimations();
         }
 

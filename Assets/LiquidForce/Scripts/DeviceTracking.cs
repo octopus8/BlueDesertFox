@@ -34,6 +34,11 @@ namespace LiquidForce
         /// </remarks>
         public Transform TrackingOrigin => trackingOrigin;
 
+        /// <summary>
+        /// The tracked head / camera transform used as the ObjectFollower source.
+        /// </summary>
+        public Transform Head => head;
+
 
         private void Awake()
         {
@@ -49,7 +54,7 @@ namespace LiquidForce
             
             // Add and initialize the head object follower component.
             headObjectFollower = gameObject.AddComponent<ObjectFollower>();
-            headObjectFollower.moment = ObjectFollower.Moment.OnFixedUpdate;
+            headObjectFollower.moment = ObjectFollower.Moment.OnPreRender;
 
             // Set the head object follower source.
             if (null == head)
@@ -77,6 +82,7 @@ namespace LiquidForce
         public void AddHeadFollower(Transform target)
         {
             headObjectFollower.AddTarget(target);
+            UpdateImmediate();
         }
 
         public void RemoveHeadFollower(Transform target)

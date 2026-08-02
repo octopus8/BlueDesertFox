@@ -175,25 +175,11 @@ Frame N:
 
 ## How to Enable
 
-**Step 1**: Disable original system
+`TransformFollowerSystemOptimized` is the sole follower system and is auto-created.
+The legacy main-thread `TransformFollowerSystem` has been removed.
 
-**File**: `TransformFollowerSystem.cs` (line 19)
-```csharp
-[DisableAutoCreation]  // <-- ADD THIS
-[RequireMatchingQueriesForUpdate]
-public partial class TransformFollowerSystem : SystemBase
-```
-
-**Step 2**: Enable optimized system
-
-**File**: `TransformFollowerSystemOptimized.cs` (line 24)
-```csharp
-//[DisableAutoCreation] // <-- COMMENT OUT OR REMOVE
-[RequireMatchingQueriesForUpdate]
-public partial struct TransformFollowerSystemOptimized : ISystem
-```
-
-**Step 3**: Test in Play Mode!
+Confirm in Play Mode via Entities → Systems that `TransformFollowerSystemOptimized`
+runs in `SimulationSystemGroup` before `TransformSystemGroup`.
 
 ---
 
@@ -271,7 +257,7 @@ This is a code style warning, not an error. The system works correctly without e
 
 ## Comparison with Tree Position Updates
 
-**Trees DON'T use TransformFollowerSystem**. They use a different, fully Burst-compiled approach:
+**Trees DON'T use TransformFollower**. They use a different, fully Burst-compiled approach:
 
 **TreePositionUpdateSystem** (already optimal):
 ```csharp

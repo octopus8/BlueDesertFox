@@ -31,11 +31,10 @@ public class TestAction : MonoBehaviour
     }
 
 
-    public void LoadScene()
+    public void LoadScene(int idx)
     {
-        
-        SceneSelectUIState sceneSelectUIState = FindFirstObjectByType<SceneSelectUIState>();
-        sceneSelectUIState.LoadScene(sceneList.scenes[1]);
+        SceneSelectUIState sceneSelectUIState = FindFirstObjectByType<SceneSelectUIState>(FindObjectsInactive.Include);
+        sceneSelectUIState.LoadScene(sceneList.scenes[idx]);
     }
     
     
