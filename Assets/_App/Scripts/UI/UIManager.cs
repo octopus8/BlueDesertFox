@@ -51,6 +51,12 @@ public class UIManager : MonoBehaviour
     private ObjectFollower objectFollower;
 
     /// <summary>
+    /// Set when the app pauses or loses focus (e.g. Quest system menu via right Meta button).
+    /// Consumed on resume to open the in-game menu once.
+    /// </summary>
+    private bool pendingOpenMenuAfterResume;
+
+    /// <summary>
     /// Raised when the UI becomes visible or hidden.
     /// First argument is visibility; second is whether gameplay should resume on hide
     /// (ignored when becoming visible).
@@ -114,6 +120,36 @@ public class UIManager : MonoBehaviour
         {
             menuToggleAction.Disable();
         }
+    }
+
+    private void OnApplicationPause(bool pauseStatus)
+    {
+        if (pauseStatus)
+            pendingOpenMenuAfterResume = true;
+        else
+            TryOpenMenuAfterResume();
+    }
+
+    private void OnApplicationFocus(bool hasFocus)
+    {
+        if (!hasFocus)
+            pendingOpenMenuAfterResume = true;
+        else
+            TryOpenMenuAfterResume();
+    }
+
+    /// <summary>
+    /// Opens the menu once after returning from a system interruption (Quest Meta menu, etc.).
+    /// </summary>
+    private void TryOpenMenuAfterResume()
+    {
+        if (!pendingOpenMenuAfterResume)
+            return;
+
+        pendingOpenMenuAfterResume = false;
+
+        if (!IsVisible)
+            Show();
     }
 
 
