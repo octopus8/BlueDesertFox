@@ -118,12 +118,18 @@ public class UIManager : MonoBehaviour
 
     private void OnApplicationPause(bool pauseStatus)
     {
+#if UNITY_EDITOR
+        return;
+#endif
         if (pauseStatus)
             TryShowImmediateOnSystemMenu();
     }
 
     private void OnApplicationFocus(bool hasFocus)
     {
+#if UNITY_EDITOR
+        return;
+#endif
         if (!hasFocus)
             TryShowImmediateOnSystemMenu();
     }
