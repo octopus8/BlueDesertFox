@@ -15,6 +15,7 @@ public partial struct BulletPoolSystem : ISystem
 {
     private NativeQueue<Entity> _pooledBullets;
     private bool _initialized;
+    private Entity _trackedConfigEntity;
     
     /// <summary>
     /// Allocates the pooled bullet queue and registers system requirements for
@@ -28,6 +29,7 @@ public partial struct BulletPoolSystem : ISystem
         
         _pooledBullets = new NativeQueue<Entity>(Allocator.Persistent);
         _initialized = false;
+        _trackedConfigEntity = Entity.Null;
     }
     
     /// <summary>Disposes the pooled bullet queue and frees all associated native memory.</summary>
@@ -39,15 +41,34 @@ public partial struct BulletPoolSystem : ISystem
             _pooledBullets.Dispose();
         }
     }
+
+    /// <summary>
+    /// Destroys pooled Default-World bullets when SubScene config disappears (scene reload).
+    /// </summary>
+    public void OnStopRunning(ref SystemState state)
+    {
+        ResetPool(ref state);
+        _trackedConfigEntity = Entity.Null;
+    }
     
     /// <summary>
     /// On the first frame, pre-instantiates <see cref="BulletPoolConfig.initialPoolSize"/> bullet
     /// entities from the <see cref="PrefabEntitiesReferences.bulletSimplePrefab"/>, initialises them
-    /// as inactive at off-screen positions, and enqueues them in the pool. Runs only once.
+    /// as inactive at off-screen positions, and enqueues them in the pool. Runs only once per
+    /// SubScene config lifetime (re-seeds after AutoLoad reload).
     /// </summary>
     public void OnUpdate(ref SystemState state)
     {
-        // Only initialize once
+        var configEntity = SystemAPI.GetSingletonEntity<BulletPoolConfig>();
+        if (_trackedConfigEntity != configEntity)
+        {
+            // AutoLoad SubScene reload can skip OnStopRunning; drop stale Default-World pool entities.
+            if (_trackedConfigEntity != Entity.Null || _initialized)
+                ResetPool(ref state);
+            _trackedConfigEntity = configEntity;
+        }
+
+        // Only initialize once per config
         if (_initialized)
             return;
         
@@ -112,6 +133,33 @@ public partial struct BulletPoolSystem : ISystem
         }
         
         _initialized = true;
+    }
+
+    void ResetPool(ref SystemState state)
+    {
+        var em = state.EntityManager;
+
+        // Destroy entities still sitting in the pool.
+        if (_pooledBullets.IsCreated)
+        {
+            while (_pooledBullets.TryDequeue(out Entity bullet))
+            {
+                if (em.Exists(bullet))
+                    em.DestroyEntity(bullet);
+            }
+        }
+
+        // Also destroy any active/orphan bullets left in the Default World from the previous scene.
+        using var query = em.CreateEntityQuery(ComponentType.ReadOnly<Bullet>());
+        var bullets = query.ToEntityArray(Allocator.Temp);
+        for (int i = 0; i < bullets.Length; i++)
+        {
+            if (em.Exists(bullets[i]))
+                em.DestroyEntity(bullets[i]);
+        }
+        bullets.Dispose();
+
+        _initialized = false;
     }
     
     /// <summary>
@@ -191,4 +239,3 @@ public partial struct BulletPoolSystem : ISystem
         }
     }
 }
-

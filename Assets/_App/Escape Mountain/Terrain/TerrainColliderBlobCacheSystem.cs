@@ -24,6 +24,7 @@ namespace _App.Ace_of_Ages.Terrain
         int _totalMemoryBytes;
         int _maxCacheBytes;
         uint _frameCounter;
+        Entity _trackedConfigEntity;
 
         public void OnCreate(ref SystemState state)
         {
@@ -33,6 +34,7 @@ namespace _App.Ace_of_Ages.Terrain
             _totalMemoryBytes = 0;
             _maxCacheBytes = 53 * 1024 * 1024;
             _frameCounter = 0;
+            _trackedConfigEntity = Entity.Null;
 
             if (!SystemAPI.HasSingleton<TerrainColliderCacheStats>())
                 state.EntityManager.CreateEntity(typeof(TerrainColliderCacheStats));
@@ -52,9 +54,13 @@ namespace _App.Ace_of_Ages.Terrain
         public void OnStopRunning(ref SystemState state)
         {
             ClearCache();
+            _trackedConfigEntity = Entity.Null;
         }
 
-        void ClearCache()
+        /// <summary>
+        /// Disposes all cached collider blobs. Idempotent; call before tile destroy on scene reload.
+        /// </summary>
+        public void ClearCache()
         {
             if (!_cache.IsCreated)
                 return;
@@ -71,6 +77,16 @@ namespace _App.Ace_of_Ages.Terrain
 
         public void OnUpdate(ref SystemState state)
         {
+            var configEntity = SystemAPI.GetSingletonEntity<TerrainTileConfig>();
+            if (_trackedConfigEntity != configEntity)
+            {
+                // AutoLoad SubScene reload can skip OnStopRunning; grid-keyed blobs are invalid
+                // after heightOffset re-align on the new config.
+                if (_trackedConfigEntity != Entity.Null)
+                    ClearCache();
+                _trackedConfigEntity = configEntity;
+            }
+
             _frameCounter++;
 
             if (SystemAPI.HasSingleton<TerrainTileConfig>())

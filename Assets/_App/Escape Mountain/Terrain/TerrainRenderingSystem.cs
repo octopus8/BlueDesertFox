@@ -19,6 +19,7 @@ public partial class TerrainRenderingSystem : SystemBase
     private EntityQuery _newTilesQuery;
     private NativeQueue<Entity> _pendingMeshCreation;
     private NativeHashSet<Entity> _queuedEntities;
+    private Entity _trackedConfigEntity;
     
     /// <summary>
     /// Builds the tile entity query, allocates the pending-mesh queue and deduplication set,
@@ -36,6 +37,7 @@ public partial class TerrainRenderingSystem : SystemBase
         );
         _pendingMeshCreation = new NativeQueue<Entity>(Allocator.Persistent);
         _queuedEntities = new NativeHashSet<Entity>(64, Allocator.Persistent);
+        _trackedConfigEntity = Entity.Null;
     }
     
     /// <summary>
@@ -43,6 +45,11 @@ public partial class TerrainRenderingSystem : SystemBase
     /// first run, falling back to a Resources lookup and then to auto-generated materials.
     /// </summary>
     protected override void OnStartRunning()
+    {
+        ResolveTerrainMaterial();
+    }
+
+    void ResolveTerrainMaterial()
     {
         // Try to get material from TerrainMaterialReference component first
         var configQuery = GetEntityQuery(typeof(TerrainMaterialReference));
@@ -108,6 +115,15 @@ public partial class TerrainRenderingSystem : SystemBase
     /// </summary>
     protected override void OnStopRunning()
     {
+        ClearPendingForReload();
+        _trackedConfigEntity = Entity.Null;
+    }
+
+    /// <summary>
+    /// Clears pending mesh queues and drops the cached material so the next SubScene load re-resolves it.
+    /// </summary>
+    public void ClearPendingForReload()
+    {
         if (_pendingMeshCreation.IsCreated)
             _pendingMeshCreation.Clear();
         if (_queuedEntities.IsCreated)
@@ -124,13 +140,25 @@ public partial class TerrainRenderingSystem : SystemBase
     /// </summary>
     protected override void OnUpdate()
     {
+        var configEntity = SystemAPI.GetSingletonEntity<TerrainTileConfig>();
+        if (_trackedConfigEntity != configEntity)
+        {
+            // AutoLoad SubScene reload can skip OnStopRunning; drop dead entity handles / material.
+            if (_trackedConfigEntity != Entity.Null)
+                ClearPendingForReload();
+            _trackedConfigEntity = configEntity;
+        }
+
         // Always process tiles for MeshReference (needed for static object spawning)
         // But skip actual rendering setup if renderTerrain is disabled
         var config = SystemAPI.GetSingleton<TerrainTileConfig>();
         bool shouldRender = config.renderTerrain;
         if (shouldRender && _terrainMaterial == null)
         {
-            return;
+            // OnStartRunning may not re-fire when AutoLoad swaps config without a RequireForUpdate gap.
+            ResolveTerrainMaterial();
+            if (_terrainMaterial == null)
+                return;
         }
         // Add new tiles to the queue
         foreach (var (tile, entity) in SystemAPI.Query<RefRO<TerrainTile>>()

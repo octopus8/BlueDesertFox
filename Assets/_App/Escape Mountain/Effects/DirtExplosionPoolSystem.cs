@@ -14,6 +14,7 @@ public partial struct DirtExplosionPoolSystem : ISystem
 {
     private NativeQueue<Entity> _pooledExplosions;
     private bool _initialized;
+    private Entity _trackedConfigEntity;
     
     /// <summary>
     /// Allocates the pooled explosion queue and registers system requirements for
@@ -27,6 +28,7 @@ public partial struct DirtExplosionPoolSystem : ISystem
         
         _pooledExplosions = new NativeQueue<Entity>(Allocator.Persistent);
         _initialized = false;
+        _trackedConfigEntity = Entity.Null;
     }
     
     /// <summary>Disposes the pooled explosion queue and frees all associated native memory.</summary>
@@ -38,16 +40,34 @@ public partial struct DirtExplosionPoolSystem : ISystem
             _pooledExplosions.Dispose();
         }
     }
+
+    /// <summary>
+    /// Destroys pooled Default-World explosions when SubScene config disappears (scene reload).
+    /// </summary>
+    public void OnStopRunning(ref SystemState state)
+    {
+        ResetPool(ref state);
+        _trackedConfigEntity = Entity.Null;
+    }
     
     /// <summary>
     /// On the first frame, pre-instantiates <see cref="DirtExplosionConfig.initialPoolSize"/> explosion
     /// entities from the <see cref="PrefabEntitiesReferences.dirtExplosionSmallPrefab"/>, initialises them
     /// as inactive at off-screen positions with a <see cref="TerrainAnchorTag"/>, and enqueues them.
-    /// Runs only once.
+    /// Runs only once per SubScene config lifetime (re-seeds after AutoLoad reload).
     /// </summary>
     public void OnUpdate(ref SystemState state)
     {
-        // Only initialize once
+        var configEntity = SystemAPI.GetSingletonEntity<DirtExplosionConfig>();
+        if (_trackedConfigEntity != configEntity)
+        {
+            // AutoLoad SubScene reload can skip OnStopRunning; drop stale Default-World pool entities.
+            if (_trackedConfigEntity != Entity.Null || _initialized)
+                ResetPool(ref state);
+            _trackedConfigEntity = configEntity;
+        }
+
+        // Only initialize once per config
         if (_initialized)
             return;
         
@@ -101,6 +121,32 @@ public partial struct DirtExplosionPoolSystem : ISystem
         }
         
         _initialized = true;
+    }
+
+    void ResetPool(ref SystemState state)
+    {
+        var em = state.EntityManager;
+
+        if (_pooledExplosions.IsCreated)
+        {
+            while (_pooledExplosions.TryDequeue(out Entity explosion))
+            {
+                if (em.Exists(explosion))
+                    em.DestroyEntity(explosion);
+            }
+        }
+
+        // Destroy active/orphan explosions left in the Default World from the previous scene.
+        using var query = em.CreateEntityQuery(ComponentType.ReadOnly<DirtExplosion>());
+        var explosions = query.ToEntityArray(Allocator.Temp);
+        for (int i = 0; i < explosions.Length; i++)
+        {
+            if (em.Exists(explosions[i]))
+                em.DestroyEntity(explosions[i]);
+        }
+        explosions.Dispose();
+
+        _initialized = false;
     }
     
     /// <summary>
@@ -178,4 +224,3 @@ public partial struct DirtExplosionPoolSystem : ISystem
         }
     }
 }
-

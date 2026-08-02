@@ -43,6 +43,8 @@ public partial struct TileSpawningSystem : ISystem
     /// </summary>
     public void OnStopRunning(ref SystemState state)
     {
+        // Complete in-flight mesh/physics jobs before destroying the entities they reference.
+        TerrainRuntimeReloadUtility.ScrubBeforeDestroyingRuntimeTiles(ref state);
         DestroyAllRuntimeTiles(ref state);
 
         if (_activeTiles.IsCreated)
@@ -127,14 +129,15 @@ public partial struct TileSpawningSystem : ISystem
         if (_trackedConfigEntity != configEntity)
         {
             // AutoLoad SubScene reload can replace config without an empty RequireForUpdate window,
-            // so OnStopRunning never runs. Destroy surviving Default-World tiles immediately.
+            // so OnStopRunning never runs. Cancel sibling in-flight work, then destroy surviving tiles.
             if (_trackedConfigEntity != Entity.Null || !_activeTiles.IsEmpty)
             {
 #if UNITY_EDITOR
                 UnityEngine.Debug.Log(
                     $"[TileSpawning] TerrainTileConfig changed ({_trackedConfigEntity.Index}→{configEntity.Index}); " +
-                    "destroying cached runtime tiles");
+                    "scrubbing in-flight terrain work and destroying cached runtime tiles");
 #endif
+                TerrainRuntimeReloadUtility.ScrubBeforeDestroyingRuntimeTiles(ref state);
                 DestroyAllRuntimeTiles(ref state);
                 if (_activeTiles.IsCreated)
                     _activeTiles.Clear();

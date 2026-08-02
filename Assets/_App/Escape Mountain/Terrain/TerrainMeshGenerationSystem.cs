@@ -44,6 +44,7 @@ public partial struct TerrainMeshScheduleSystem : ISystem
     // Shared triangle topology for a given verticesPerSide (copied into each tile on Complete).
     public NativeArray<int> _sharedIndexTemplate;
     private int _sharedIndexVerticesPerSide;
+    private Entity _trackedConfigEntity;
 
 #if UNITY_EDITOR
     private static readonly ProfilerMarker s_ProfilerMarker = new ProfilerMarker("TerrainMesh.Schedule");
@@ -60,6 +61,7 @@ public partial struct TerrainMeshScheduleSystem : ISystem
         _pendingTiles = new NativeQueue<Entity>(Allocator.Persistent);
         _queuedTiles = new NativeHashSet<Entity>(256, Allocator.Persistent);
         _sharedIndexVerticesPerSide = -1;
+        _trackedConfigEntity = Entity.Null;
     }
 
     public void OnDestroy(ref SystemState state)
@@ -82,6 +84,16 @@ public partial struct TerrainMeshScheduleSystem : ISystem
     /// (SubScene unload / scene reload). Prevents stale entity handles from blocking new tiles.
     /// </summary>
     public void OnStopRunning(ref SystemState state)
+    {
+        CancelInFlightAndClearQueues();
+        _trackedConfigEntity = Entity.Null;
+    }
+
+    /// <summary>
+    /// Completes any cross-frame mesh jobs and clears pending queues.
+    /// Safe to call before destroying Default-World tiles on AutoLoad SubScene reload.
+    /// </summary>
+    public void CancelInFlightAndClearQueues()
     {
         if (_hasInFlight)
         {
@@ -141,6 +153,18 @@ public partial struct TerrainMeshScheduleSystem : ISystem
 
     public void OnUpdate(ref SystemState state)
     {
+        var configEntity = SystemAPI.GetSingletonEntity<TerrainTileConfig>();
+        if (_trackedConfigEntity != configEntity)
+        {
+            // AutoLoad SubScene reload can skip OnStopRunning; drop stale in-flight entity handles.
+            if (_trackedConfigEntity != Entity.Null || _hasInFlight ||
+                (_queuedTiles.IsCreated && !_queuedTiles.IsEmpty))
+            {
+                CancelInFlightAndClearQueues();
+            }
+            _trackedConfigEntity = configEntity;
+        }
+
 #if UNITY_EDITOR
         using (s_ProfilerMarker.Auto())
 #endif

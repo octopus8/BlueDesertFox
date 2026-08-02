@@ -182,12 +182,14 @@ namespace _App.Ace_of_Ages.Terrain
         public TerrainPhysicsBufferPool _bufferPool;
         public JobHandle _inFlightHandle;
         public bool _hasInFlight;
+        Entity _trackedConfigEntity;
 
         public void OnCreate(ref SystemState state)
         {
             state.RequireForUpdate<TerrainTileConfig>();
             state.RequireForUpdate<CameraDataSingleton>();
             state.RequireForUpdate<ScrollOffset>();
+            _trackedConfigEntity = Entity.Null;
         }
 
         public void OnDestroy(ref SystemState state)
@@ -206,6 +208,16 @@ namespace _App.Ace_of_Ages.Terrain
         /// (SubScene unload / scene reload).
         /// </summary>
         public void OnStopRunning(ref SystemState state)
+        {
+            CancelInFlightAndClearBatch();
+            _trackedConfigEntity = Entity.Null;
+        }
+
+        /// <summary>
+        /// Completes any cross-frame BVH jobs, disposes orphaned result blobs, and clears the batch.
+        /// Safe to call before destroying Default-World tiles on AutoLoad SubScene reload.
+        /// </summary>
+        public void CancelInFlightAndClearBatch()
         {
             if (_hasInFlight)
             {
@@ -234,6 +246,15 @@ namespace _App.Ace_of_Ages.Terrain
 
         public void OnUpdate(ref SystemState state)
         {
+            var configEntity = SystemAPI.GetSingletonEntity<TerrainTileConfig>();
+            if (_trackedConfigEntity != configEntity)
+            {
+                // AutoLoad SubScene reload can skip OnStopRunning; cancel jobs holding old tile refs.
+                if (_trackedConfigEntity != Entity.Null || _hasInFlight)
+                    CancelInFlightAndClearBatch();
+                _trackedConfigEntity = configEntity;
+            }
+
             if (_hasInFlight)
             {
                 state.Dependency = JobHandle.CombineDependencies(state.Dependency, _inFlightHandle);
