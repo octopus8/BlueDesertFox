@@ -50,8 +50,12 @@ public class UIManager : MonoBehaviour
 
     private ObjectFollower objectFollower;
 
-    /// <summary>Raised when the UI becomes visible (true) or hidden (false).</summary>
-    public event System.Action<bool> VisibilityChanged;
+    /// <summary>
+    /// Raised when the UI becomes visible or hidden.
+    /// First argument is visibility; second is whether gameplay should resume on hide
+    /// (ignored when becoming visible).
+    /// </summary>
+    public event System.Action<bool, bool> VisibilityChanged;
 
     /// <summary>True while the UI is shown or animating in.</summary>
     public bool IsVisible => currentAnimState is AnimState.on or AnimState.turningOn;
@@ -242,7 +246,7 @@ public class UIManager : MonoBehaviour
     {
         CancelAnimations();
         currentAnimState = AnimState.turningOn;
-        VisibilityChanged?.Invoke(true);
+        VisibilityChanged?.Invoke(true, false);
         uiCamera?.OnUIVisible(true);
         uiContainer.gameObject.SetActive(true);
         uiContainer.DOFade(1, displaySpeed).WithCancellation(animCancelTokens[(int)AnimCancelToken.fade].Token);
@@ -258,10 +262,14 @@ public class UIManager : MonoBehaviour
     /// <summary>
     /// Hides the UI.
     /// </summary>
-    public void Hide()
+    /// <param name="resumeGameplay">
+    /// When true (default), subscribers may resume gameplay (e.g. menu dismissed via toggle).
+    /// When false, gameplay stays paused (e.g. scene select starting a load).
+    /// </param>
+    public void Hide(bool resumeGameplay = true)
     {
         CancelAnimations();
-        VisibilityChanged?.Invoke(false);
+        VisibilityChanged?.Invoke(false, resumeGameplay);
         uiCamera?.OnUIVisible(false);
         currentAnimState = AnimState.turningOff;
         uiContainer.DOFade(0, displaySpeed).WithCancellation(animCancelTokens[(int)AnimCancelToken.fade].Token);

@@ -45,9 +45,12 @@ public class MenuGamePauseBridge : MonoBehaviour
         }
     }
 
-    void OnVisibilityChanged(bool visible)
+    void OnVisibilityChanged(bool visible, bool resumeGameplay)
     {
-        SetPaused(visible);
+        if (visible)
+            SetPaused(true);
+        else if (resumeGameplay)
+            SetPaused(false);
     }
 
     void ResolveUiManager()

@@ -45,7 +45,7 @@ public class SceneSelectUIState : UIState {
     /// </summary>
     public void LoadScene(SceneListSO.SceneListScene scene)
     {
-        uiManager.Hide();
+        uiManager.Hide(resumeGameplay: false);
         _ = CameraFader.Instance.FadeCameraOut(1);
         sceneLoader.LoadScene(scene, true);
     }
