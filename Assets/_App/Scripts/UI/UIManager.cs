@@ -51,12 +51,6 @@ public class UIManager : MonoBehaviour
     private ObjectFollower objectFollower;
 
     /// <summary>
-    /// Set when the app pauses or loses focus (e.g. Quest system menu via right Meta button).
-    /// Consumed on resume to open the in-game menu once.
-    /// </summary>
-    private bool pendingOpenMenuAfterResume;
-
-    /// <summary>
     /// Raised when the UI becomes visible or hidden.
     /// First argument is visibility; second is whether gameplay should resume on hide
     /// (ignored when becoming visible).
@@ -125,31 +119,22 @@ public class UIManager : MonoBehaviour
     private void OnApplicationPause(bool pauseStatus)
     {
         if (pauseStatus)
-            pendingOpenMenuAfterResume = true;
-        else
-            TryOpenMenuAfterResume();
+            TryShowImmediateOnSystemMenu();
     }
 
     private void OnApplicationFocus(bool hasFocus)
     {
         if (!hasFocus)
-            pendingOpenMenuAfterResume = true;
-        else
-            TryOpenMenuAfterResume();
+            TryShowImmediateOnSystemMenu();
     }
 
     /// <summary>
-    /// Opens the menu once after returning from a system interruption (Quest Meta menu, etc.).
+    /// Opens the menu immediately when the Quest system menu (right Meta) interrupts the app.
     /// </summary>
-    private void TryOpenMenuAfterResume()
+    private void TryShowImmediateOnSystemMenu()
     {
-        if (!pendingOpenMenuAfterResume)
-            return;
-
-        pendingOpenMenuAfterResume = false;
-
         if (!IsVisible)
-            Show();
+            ShowImmediate();
     }
 
 
@@ -291,6 +276,21 @@ public class UIManager : MonoBehaviour
             {
                 currentAnimState =  AnimState.on;
             });
+        objectFollower.UpdateImmediate();
+    }
+
+    /// <summary>
+    /// Shows the UI immediately with no fade/scale animation.
+    /// </summary>
+    public void ShowImmediate()
+    {
+        CancelAnimations();
+        currentAnimState = AnimState.on;
+        VisibilityChanged?.Invoke(true, false);
+        uiCamera?.OnUIVisible(true);
+        uiContainer.gameObject.SetActive(true);
+        uiContainer.alpha = 1;
+        uiContainer.transform.localScale = Vector3.one;
         objectFollower.UpdateImmediate();
     }
 
