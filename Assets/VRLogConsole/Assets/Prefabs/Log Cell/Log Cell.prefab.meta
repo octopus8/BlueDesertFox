@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 6729dc7e0ec0b4852bd4aadf8eb07733
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 184410
+  packageName: VR Log
+  packageVersion: 1.0
+  assetPath: Assets/VRLogConsole/Assets/Prefabs/Log Cell/Log Cell.prefab
+  uploadId: 411864

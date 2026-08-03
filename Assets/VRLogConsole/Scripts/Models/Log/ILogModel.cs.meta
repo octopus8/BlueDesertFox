@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: 9e3b0fa53c74948c78999feeb78018d0
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 184410
+  packageName: VR Log
+  packageVersion: 1.0
+  assetPath: Assets/VRLogConsole/Scripts/Models/Log/ILogModel.cs
+  uploadId: 411864

@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: 47bf7a021cca04c67a9662a335339d9d
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 184410
+  packageName: VR Log
+  packageVersion: 1.0
+  assetPath: Assets/VRLogConsole/Scripts/Libraries/LogIcons/LogIconsLibrary.cs
+  uploadId: 411864

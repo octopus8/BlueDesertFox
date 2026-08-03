@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 1bc7af6e5fc584dd0b5434eafd11ed76
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 184410
+  packageName: VR Log
+  packageVersion: 1.0
+  assetPath: Assets/VRLogConsole/Example/Assets/Prefabs/XR Rig.prefab
+  uploadId: 411864

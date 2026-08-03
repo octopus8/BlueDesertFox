@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 06cc6666eae024f78a3a9d5e641cd664
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 0
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 184410
+  packageName: VR Log
+  packageVersion: 1.0
+  assetPath: Assets/VRLogConsole/Assets/Libraries/LogIcons/LogIconsLibrary.asset
+  uploadId: 411864

@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: 43ef015e71c0f459e8cf660f9a0da9b4
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 184410
+  packageName: VR Log
+  packageVersion: 1.0
+  assetPath: Assets/VRLogConsole/Scripts/Presenters/Config/ConfigurationPresenter.cs
+  uploadId: 411864

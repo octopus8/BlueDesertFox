@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: 5a394d4321fb54d5db6bcd90b5e577f7
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 184410
+  packageName: VR Log
+  packageVersion: 1.0
+  assetPath: Assets/VRLogConsole/Scripts/Components/Counter/Impl/CounterComponent.cs
+  uploadId: 411864

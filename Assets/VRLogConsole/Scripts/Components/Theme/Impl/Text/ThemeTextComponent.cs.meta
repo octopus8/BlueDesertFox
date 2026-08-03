@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: 21530f534b6ad40da978ff527fa69a63
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 184410
+  packageName: VR Log
+  packageVersion: 1.0
+  assetPath: Assets/VRLogConsole/Scripts/Components/Theme/Impl/Text/ThemeTextComponent.cs
+  uploadId: 411864

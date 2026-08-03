@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: d004666578e8a46159aabeb9675344f2
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 184410
+  packageName: VR Log
+  packageVersion: 1.0
+  assetPath: Assets/VRLogConsole/Assets/Prefabs/VR Debug Console.prefab
+  uploadId: 411864

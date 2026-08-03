@@ -221,6 +221,8 @@ public class RaceCountdown : MonoBehaviour
         float handPullExtra = goHandPullSpeedScale * math.max(0f, -avgLocalZ);
         float totalSpeed = goForwardSpeed + handPullExtra;
 
+        Debug.Log($"Hand pull extra: {handPullExtra}, Total speed: {totalSpeed}");
+        
         ForceReleaseHold(leftHandHold);
         ForceReleaseHold(rightHandHold);
 

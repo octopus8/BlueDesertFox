@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: 83680361ea7dd475cabc47e8dbda1069
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 184410
+  packageName: VR Log
+  packageVersion: 1.0
+  assetPath: Assets/VRLogConsole/Scripts/Services/RouterService/Impl/DataRouterService.cs
+  uploadId: 411864

@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 5d30285440107bd49876c1745701528f
+DefaultImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 184410
+  packageName: VR Log
+  packageVersion: 1.0
+  assetPath: Assets/VRLogConsole/Example/Scenes/Example.unity
+  uploadId: 411864
