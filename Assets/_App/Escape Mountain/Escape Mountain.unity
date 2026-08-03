@@ -4274,6 +4274,10 @@ PrefabInstance:
       value: 
       objectReference: {fileID: 544782780}
     - target: {fileID: 1000000006, guid: c975192685b244eb970e606532f4d620, type: 3}
+      propertyPath: goHandPullSpeedScale
+      value: 10
+      objectReference: {fileID: 0}
+    - target: {fileID: 1000000006, guid: c975192685b244eb970e606532f4d620, type: 3}
       propertyPath: onCountdownComplete.m_PersistentCalls.m_Calls.Array.size
       value: 1
       objectReference: {fileID: 0}

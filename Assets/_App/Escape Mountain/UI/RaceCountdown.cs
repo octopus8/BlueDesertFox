@@ -12,7 +12,8 @@ using UnityEngine.Events;
 /// <summary>
 /// World-space race start countdown (3-2-1-GO!). Starts when both hand-hold Grabbables
 /// are held, then plays each value with a quick fade-in and a slower top-anchored
-/// shrink + fade-out. On GO!, applies a forward push and releases the holds.
+/// shrink + fade-out. On GO!, applies a forward push (base + rearward hand-pull
+/// boost along player local Z) and releases the holds.
 /// In the Editor only, also auto-starts 3 seconds after the scene loads.
 /// </summary>
 public class RaceCountdown : MonoBehaviour
@@ -35,6 +36,9 @@ public class RaceCountdown : MonoBehaviour
 
     [Tooltip("Forward speed (m/s) added to the player follow object when GO! finishes.")]
     [SerializeField] private float goForwardSpeed = 4f;
+
+    [Tooltip("Scales average rearward hand speed along player local Z into extra m/s added on GO!.")]
+    [SerializeField] private float goHandPullSpeedScale = 1f;
 
     [SerializeField] private Color digitColor = new Color(0.78f, 0.92f, 1f, 1f);
     [SerializeField] private Color goColor = new Color(0.45f, 1f, 0.2f, 1f);
@@ -172,14 +176,14 @@ public class RaceCountdown : MonoBehaviour
 
     void ApplyGoImpulse()
     {
-        ForceReleaseHold(leftHandHold);
-        ForceReleaseHold(rightHandHold);
-
-        if (goForwardSpeed <= 0f)
-            return;
+        // Sample before release — ForceHandsRelease can zero hand velocities.
+        TryGetHandWorldVelocity(leftHandHold, isLeft: true, out Vector3 leftVel, out bool hasLeft);
+        TryGetHandWorldVelocity(rightHandHold, isLeft: false, out Vector3 rightVel, out bool hasRight);
 
         if (!TryGetFollowObject(out EntityManager em, out Entity entity))
         {
+            ForceReleaseHold(leftHandHold);
+            ForceReleaseHold(rightHandHold);
             Debug.LogWarning("[RaceCountdown] Player follow object not found; skipped GO! velocity.", this);
             return;
         }
@@ -190,14 +194,41 @@ public class RaceCountdown : MonoBehaviour
         float forwardLenSq = math.lengthsq(forward);
         if (forwardLenSq < 1e-8f)
         {
+            ForceReleaseHold(leftHandHold);
+            ForceReleaseHold(rightHandHold);
             Debug.LogWarning("[RaceCountdown] Player forward is degenerate; skipped GO! velocity.", this);
             return;
         }
 
         forward = math.normalize(forward);
 
+        float avgLocalZ = 0f;
+        int handCount = 0;
+        if (hasLeft)
+        {
+            avgLocalZ += math.dot((float3)leftVel, forward);
+            handCount++;
+        }
+        if (hasRight)
+        {
+            avgLocalZ += math.dot((float3)rightVel, forward);
+            handCount++;
+        }
+        if (handCount > 0)
+            avgLocalZ /= handCount;
+
+        // Rearward motion (negative local Z) boosts; forward motion adds nothing.
+        float handPullExtra = goHandPullSpeedScale * math.max(0f, -avgLocalZ);
+        float totalSpeed = goForwardSpeed + handPullExtra;
+
+        ForceReleaseHold(leftHandHold);
+        ForceReleaseHold(rightHandHold);
+
+        if (totalSpeed <= 0f)
+            return;
+
         var motion = em.GetComponentData<PlayerFollowObjectMotionState>(entity);
-        motion.terrainRelativeVelocity += forward * goForwardSpeed;
+        motion.terrainRelativeVelocity += forward * totalSpeed;
         em.SetComponentData(entity, motion);
     }
 
@@ -205,6 +236,33 @@ public class RaceCountdown : MonoBehaviour
     {
         if (hold != null && hold.IsHeld())
             hold.ForceHandsRelease();
+    }
+
+    static void TryGetHandWorldVelocity(Grabbable hold, bool isLeft, out Vector3 velocity, out bool hasVelocity)
+    {
+        velocity = Vector3.zero;
+        hasVelocity = false;
+
+        Hand hand = null;
+        if (hold != null)
+        {
+            var heldBy = hold.GetHeldBy();
+            if (heldBy != null && heldBy.Count > 0)
+                hand = heldBy[0];
+        }
+
+        if (hand == null)
+        {
+            var player = AutoHandPlayer.Instance;
+            if (player != null)
+                hand = isLeft ? player.handLeft : player.handRight;
+        }
+
+        if (hand == null || hand.body == null)
+            return;
+
+        velocity = hand.body.linearVelocity;
+        hasVelocity = true;
     }
 
     bool TryGetFollowObject(out EntityManager em, out Entity entity)
