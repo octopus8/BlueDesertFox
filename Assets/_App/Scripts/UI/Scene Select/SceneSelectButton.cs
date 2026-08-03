@@ -28,6 +28,7 @@ public class SceneSelectButton : MonoBehaviour
         this.sceneSelectUIState = sceneSelectUIState;
         buttonText.text = buttonScene.sceneDisplayName;
         button.onClick.AddListener(LoadScene);
+        gameObject.SetActive(true);
     }
 
     private void LoadScene()
