@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using LiquidForce;
 using Unity.Entities;
 using Unity.Scenes;
@@ -23,6 +24,8 @@ public class TransformFollowTarget : MonoBehaviour
     const float MinDirectionSpeedSq = 0.0001f;
     const float MinPlanarDirectionSq = 1e-6f;
     const float TeleportSnapDistanceSq = 0.25f; // 0.5m — snap head followers after large follower jumps
+
+    static readonly List<XRInputSubsystem> s_InputSubsystems = new List<XRInputSubsystem>();
 
     [Tooltip("Transform to move (main scene, e.g. XR Origin root).")]
     [SerializeField] private Transform follower;
@@ -70,6 +73,12 @@ public class TransformFollowTarget : MonoBehaviour
     private bool _loggedMissingTrackedCamera;
     private Vector3 _previousTargetPosition;
     private bool _hasPreviousTargetPosition;
+    /// <summary>
+    /// True after the first successful follow update and any pending start recenter has finished.
+    /// Suppresses Quest/OpenXR trackingOriginUpdated spam during scene load.
+    /// </summary>
+    private bool _acceptTrackingOriginRecenter;
+    private bool _subscribedTrackingOriginUpdated;
 
     private void OnEnable()
     {
@@ -78,19 +87,29 @@ public class TransformFollowTarget : MonoBehaviour
         _loggedWaitingForSubScene = false;
         _loggedMissingTrackedCamera = false;
         _hasPreviousTargetPosition = false;
+        _acceptTrackingOriginRecenter = false;
+        _subscribedTrackingOriginUpdated = false;
 
         // Static bridge outlives scene reloads (ECS Default World persists). Drop any
         // previous-session pose before the first LateUpdate can consume it.
         PlayerFollowObjectPoseBridge.Clear();
+
+        TrySubscribeTrackingOriginUpdated();
     }
 
     private void OnDisable()
     {
+        UnsubscribeTrackingOriginUpdated();
+        _acceptTrackingOriginRecenter = false;
+        _subscribedTrackingOriginUpdated = false;
         PlayerFollowObjectPoseBridge.Clear();
     }
 
     private void LateUpdate()
     {
+        if (!_subscribedTrackingOriginUpdated)
+            TrySubscribeTrackingOriginUpdated();
+
         if (follower == null)
         {
             Debug.LogWarning("[TransformFollowTarget] Follower transform is not assigned.", this);
@@ -129,6 +148,11 @@ public class TransformFollowTarget : MonoBehaviour
         if (_pendingTrackedPoseRecenter)
             TryRecenterTrackedPose();
 
+        // After the first successful follow (and any start recenter), OS tracking-origin
+        // updates may re-request a Camera Offset recenter.
+        if (!_acceptTrackingOriginRecenter && !_pendingTrackedPoseRecenter)
+            _acceptTrackingOriginRecenter = true;
+
         // Snap head followers after XR Origin / Camera Offset teleports so they do not lerp
         // from a stale or pre-teleport pose (e.g. leftover static bridge data on scene reload).
         float followerDeltaSq = (follower.position - previousFollowerPosition).sqrMagnitude;
@@ -151,6 +175,54 @@ public class TransformFollowTarget : MonoBehaviour
     public void RequestTrackedPoseRecenter()
     {
         _pendingTrackedPoseRecenter = true;
+    }
+
+    private void TrySubscribeTrackingOriginUpdated()
+    {
+        if (_subscribedTrackingOriginUpdated)
+            return;
+
+        s_InputSubsystems.Clear();
+        SubsystemManager.GetSubsystems(s_InputSubsystems);
+        if (s_InputSubsystems.Count == 0)
+            return;
+
+        for (int i = 0; i < s_InputSubsystems.Count; i++)
+        {
+            XRInputSubsystem subsystem = s_InputSubsystems[i];
+            if (subsystem != null)
+                subsystem.trackingOriginUpdated += OnTrackingOriginUpdated;
+        }
+
+        _subscribedTrackingOriginUpdated = true;
+    }
+
+    private void UnsubscribeTrackingOriginUpdated()
+    {
+        if (!_subscribedTrackingOriginUpdated)
+            return;
+
+        s_InputSubsystems.Clear();
+        SubsystemManager.GetSubsystems(s_InputSubsystems);
+        for (int i = 0; i < s_InputSubsystems.Count; i++)
+        {
+            XRInputSubsystem subsystem = s_InputSubsystems[i];
+            if (subsystem != null)
+                subsystem.trackingOriginUpdated -= OnTrackingOriginUpdated;
+        }
+    }
+
+    /// <summary>
+    /// Quest OS menu-button recenter updates the OpenXR tracking origin but leaves any Camera Offset
+    /// compensation from <see cref="TryRecenterTrackedPose"/>. Re-apply that compensation so the
+    /// headset maps back onto the follower (same pose as load-in).
+    /// </summary>
+    private void OnTrackingOriginUpdated(XRInputSubsystem _)
+    {
+        if (!_acceptTrackingOriginRecenter)
+            return;
+
+        RequestTrackedPoseRecenter();
     }
 
     private bool TryGetTrackedCameraOffset(out Vector3 offset)

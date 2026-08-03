@@ -2489,7 +2489,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SceneStartup
   startTransform: {fileID: 1869357994}
-  delayBeforeFadeInSeconds: 0
+  delayBeforeFadeInSeconds: 1
   fadeInDurationSeconds: 2
   ui: {fileID: 1279682837}
   showUIOnStart: 0
@@ -3938,7 +3938,7 @@ Transform:
   m_GameObject: {fileID: 1869357993}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0, y: 1500, z: -2900}
+  m_LocalPosition: {x: 0, y: 1499.25, z: -2900}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -4347,7 +4347,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 1000000002, guid: a7c3e91f4b2d5846a0e5c8d1f6b93420, type: 3}
       propertyPath: m_LocalPosition.z
-      value: -2899.204
+      value: -2899.361
       objectReference: {fileID: 0}
     - target: {fileID: 1000000002, guid: a7c3e91f4b2d5846a0e5c8d1f6b93420, type: 3}
       propertyPath: m_LocalRotation.w
