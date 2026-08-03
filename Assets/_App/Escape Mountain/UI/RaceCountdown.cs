@@ -8,6 +8,8 @@ using Unity.Mathematics;
 using Unity.Transforms;
 using UnityEngine;
 using UnityEngine.Events;
+using UnityEngine.XR;
+using Hand = Autohand.Hand;
 
 /// <summary>
 /// World-space race start countdown (3-2-1-GO!). Starts when both hand-hold Grabbables
@@ -52,6 +54,15 @@ public class RaceCountdown : MonoBehaviour
     EntityQuery _followObjectQuery;
     bool _hasFollowObjectQuery;
 
+    // Controller follow-pose velocity (body.linearVelocity is zero while holding on Quest).
+    Vector3 _leftControllerVelocity;
+    Vector3 _rightControllerVelocity;
+    Vector3 _leftFollowSamplePos;
+    Vector3 _rightFollowSamplePos;
+    float _controllerSampleTime;
+    bool _hasLeftFollowSample;
+    bool _hasRightFollowSample;
+
     void Awake()
     {
         if (label == null)
@@ -75,6 +86,12 @@ public class RaceCountdown : MonoBehaviour
         Subscribe(leftHandHold);
         Subscribe(rightHandHold);
         TryStartCountdown();
+    }
+
+    void Update()
+    {
+        if (_started)
+            UpdateControllerVelocitySamples();
     }
 
 #if UNITY_EDITOR
@@ -176,9 +193,10 @@ public class RaceCountdown : MonoBehaviour
 
     void ApplyGoImpulse()
     {
-        // Sample before release — ForceHandsRelease can zero hand velocities.
-        TryGetHandWorldVelocity(leftHandHold, isLeft: true, out Vector3 leftVel, out bool hasLeft);
-        TryGetHandWorldVelocity(rightHandHold, isLeft: false, out Vector3 rightVel, out bool hasRight);
+        // Fresh sample before release — held hands zero Rigidbody velocity on Quest.
+        UpdateControllerVelocitySamples();
+        TryGetControllerWorldVelocity(isLeft: true, out Vector3 leftVel, out bool hasLeft);
+        TryGetControllerWorldVelocity(isLeft: false, out Vector3 rightVel, out bool hasRight);
 
         if (!TryGetFollowObject(out EntityManager em, out Entity entity))
         {
@@ -220,9 +238,10 @@ public class RaceCountdown : MonoBehaviour
         // Rearward motion (negative local Z) boosts; forward motion adds nothing.
         float handPullExtra = goHandPullSpeedScale * math.max(0f, -avgLocalZ);
         float totalSpeed = goForwardSpeed + handPullExtra;
-
-        Debug.Log($"Hand pull extra: {handPullExtra}, Total speed: {totalSpeed}");
         
+        Debug.Log($"Hand pull extra: {handPullExtra}, Total speed: {totalSpeed}");
+        Debug.Log($"Left hand velocity: {leftVel}, Right hand velocity: {rightVel}");
+
         ForceReleaseHold(leftHandHold);
         ForceReleaseHold(rightHandHold);
 
@@ -240,12 +259,69 @@ public class RaceCountdown : MonoBehaviour
             hold.ForceHandsRelease();
     }
 
-    static void TryGetHandWorldVelocity(Grabbable hold, bool isLeft, out Vector3 velocity, out bool hasVelocity)
+    void UpdateControllerVelocitySamples()
+    {
+        float now = Time.time;
+        float dt = now - _controllerSampleTime;
+        if (_controllerSampleTime > 0f && dt <= 1e-6f)
+            return;
+
+        TryResolveHand(leftHandHold, isLeft: true, out Hand leftHand);
+        TryResolveHand(rightHandHold, isLeft: false, out Hand rightHand);
+
+        if (leftHand != null && TryGetFollowPosition(leftHand, out Vector3 leftPos))
+        {
+            if (_hasLeftFollowSample && dt > 1e-6f)
+                _leftControllerVelocity = (leftPos - _leftFollowSamplePos) / dt;
+            _leftFollowSamplePos = leftPos;
+            _hasLeftFollowSample = true;
+        }
+
+        if (rightHand != null && TryGetFollowPosition(rightHand, out Vector3 rightPos))
+        {
+            if (_hasRightFollowSample && dt > 1e-6f)
+                _rightControllerVelocity = (rightPos - _rightFollowSamplePos) / dt;
+            _rightFollowSamplePos = rightPos;
+            _hasRightFollowSample = true;
+        }
+
+        _controllerSampleTime = now;
+    }
+
+    void TryGetControllerWorldVelocity(bool isLeft, out Vector3 velocity, out bool hasVelocity)
     {
         velocity = Vector3.zero;
         hasVelocity = false;
 
-        Hand hand = null;
+        // Prefer follow-pose deltas sampled during the countdown. Hand Rigidbody
+        // velocity is zero while holding, and XR deviceVelocity is not always reliable.
+        if (isLeft && _hasLeftFollowSample)
+        {
+            velocity = _leftControllerVelocity;
+            hasVelocity = true;
+            return;
+        }
+
+        if (!isLeft && _hasRightFollowSample)
+        {
+            velocity = _rightControllerVelocity;
+            hasVelocity = true;
+            return;
+        }
+
+        var node = isLeft ? XRNode.LeftHand : XRNode.RightHand;
+        var device = InputDevices.GetDeviceAtXRNode(node);
+        if (device.isValid &&
+            device.TryGetFeatureValue(CommonUsages.deviceVelocity, out Vector3 deviceVel))
+        {
+            velocity = deviceVel;
+            hasVelocity = true;
+        }
+    }
+
+    static void TryResolveHand(Grabbable hold, bool isLeft, out Hand hand)
+    {
+        hand = null;
         if (hold != null)
         {
             var heldBy = hold.GetHeldBy();
@@ -253,18 +329,28 @@ public class RaceCountdown : MonoBehaviour
                 hand = heldBy[0];
         }
 
-        if (hand == null)
-        {
-            var player = AutoHandPlayer.Instance;
-            if (player != null)
-                hand = isLeft ? player.handLeft : player.handRight;
-        }
-
-        if (hand == null || hand.body == null)
+        if (hand != null)
             return;
 
-        velocity = hand.body.linearVelocity;
-        hasVelocity = true;
+        var player = AutoHandPlayer.Instance;
+        if (player != null)
+            hand = isLeft ? player.handLeft : player.handRight;
+    }
+
+    static bool TryGetFollowPosition(Hand hand, out Vector3 position)
+    {
+        position = Vector3.zero;
+        if (hand == null)
+            return false;
+
+        if (hand.follow != null)
+        {
+            position = hand.follow.position;
+            return true;
+        }
+
+        position = hand.transform.position;
+        return true;
     }
 
     bool TryGetFollowObject(out EntityManager em, out Entity entity)
