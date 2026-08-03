@@ -82,8 +82,8 @@ public class UIManager : MonoBehaviour
 
     private void Awake()
     {
-        // Initialize references.
-        uiCamera = FindAnyObjectByType(typeof(UICamera), FindObjectsInactive.Include) as UICamera;
+        // Prefer an authored UICamera (e.g. Auto Hand Player); otherwise create Overlay under Camera.main.
+        uiCamera = UICamera.EnsureExists();
         objectFollower = GetComponent<ObjectFollower>();
         
         SetHiddenImmediate();
@@ -274,7 +274,7 @@ public class UIManager : MonoBehaviour
         CancelAnimations();
         currentAnimState = AnimState.turningOn;
         VisibilityChanged?.Invoke(true, false);
-        uiCamera?.OnUIVisible(true);
+        EnsureUICamera()?.OnUIVisible(true);
         uiContainer.gameObject.SetActive(true);
         uiContainer.DOFade(1, displaySpeed).WithCancellation(animCancelTokens[(int)AnimCancelToken.fade].Token);
         uiContainer.transform.DOScale(new Vector3(1, 1, 1), displaySpeed)
@@ -293,7 +293,7 @@ public class UIManager : MonoBehaviour
         CancelAnimations();
         currentAnimState = AnimState.on;
         VisibilityChanged?.Invoke(true, false);
-        uiCamera?.OnUIVisible(true);
+        EnsureUICamera()?.OnUIVisible(true);
         uiContainer.gameObject.SetActive(true);
         uiContainer.alpha = 1;
         uiContainer.transform.localScale = Vector3.one;
@@ -312,7 +312,7 @@ public class UIManager : MonoBehaviour
     {
         CancelAnimations();
         VisibilityChanged?.Invoke(false, resumeGameplay);
-        uiCamera?.OnUIVisible(false);
+        EnsureUICamera()?.OnUIVisible(false);
         currentAnimState = AnimState.turningOff;
         uiContainer.DOFade(0, displaySpeed).WithCancellation(animCancelTokens[(int)AnimCancelToken.fade].Token);
         uiContainer.transform.DOScale(new Vector3(0, 0, 1), displaySpeed)
@@ -371,10 +371,21 @@ public class UIManager : MonoBehaviour
     private void SetHiddenImmediate()
     {
         CancelAnimations();
+        uiCamera?.OnUIVisible(false);
         uiContainer.transform.localScale = new Vector3(0, 0, 1);
         uiContainer.alpha = 0;
         uiContainer.gameObject.SetActive(false);
         currentAnimState = AnimState.off;
+    }
+
+    /// <summary>
+    /// Resolves or creates the Overlay UI camera. Retries if Awake ran before Camera.main existed.
+    /// </summary>
+    private UICamera EnsureUICamera()
+    {
+        if (uiCamera == null)
+            uiCamera = UICamera.EnsureExists();
+        return uiCamera;
     }
 }
 

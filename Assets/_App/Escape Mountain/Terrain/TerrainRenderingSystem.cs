@@ -246,10 +246,14 @@ public partial class TerrainRenderingSystem : SystemBase
         // RenderMeshArray path: Entities Graphics registers/unregisters meshes automatically.
         // Do not also call RegisterMesh/RegisterMaterial — those orphan BRG IDs that go invalid
         // when the Mesh is destroyed on tile despawn/reload.
+        int terrainLayer = LayerMask.NameToLayer("Terrain");
+        if (terrainLayer < 0)
+            terrainLayer = 0;
+
         var renderMeshDescription = new RenderMeshDescription(
             shadowCastingMode: ShadowCastingMode.On,
             receiveShadows: true,
-            layer: 0,
+            layer: terrainLayer,
             renderingLayerMask: 1
         );
         try
