@@ -385,12 +385,15 @@ public class RaceCountdown : MonoBehaviour
 
     void DisposeFollowObjectQuery()
     {
-        if (_hasFollowObjectQuery && _followObjectQuery != default)
-        {
-            _followObjectQuery.Dispose();
-            _followObjectQuery = default;
-        }
+        // On editor stop the Default World is torn down before MonoBehaviour cleanup;
+        // disposing a query against a dead world NRE's inside EntityQueryImpl.Dispose.
+        var world = World.DefaultGameObjectInjectionWorld;
+        bool worldOk = world != null && world.IsCreated;
 
+        if (_hasFollowObjectQuery && worldOk && _followObjectQuery != default)
+            _followObjectQuery.Dispose();
+
+        _followObjectQuery = default;
         _hasFollowObjectQuery = false;
     }
 
