@@ -170,6 +170,13 @@ public class PlayerFollowObjectAuthoring : MonoBehaviour
                 steeringSensitivity = authoring.steeringSensitivity,
                 turnDrag = authoring.turnDrag
             });
+
+            AddComponent(entity, new PlayerFollowObjectBrakeState
+            {
+                active = 0,
+                deceleration = 0f,
+                holdAfterStop = 0
+            });
         }
     }
 }
@@ -179,6 +186,17 @@ public struct PlayerFollowObjectSteeringConfig : IComponentData
 {
     public float steeringSensitivity;
     public float turnDrag;
+}
+
+/// <summary>
+/// Finish-line / stop-volume brake. When <see cref="active"/> is set, locomotion decelerates
+/// terrain-relative velocity toward zero and (when <see cref="holdAfterStop"/> is set) keeps it zero.
+/// </summary>
+public struct PlayerFollowObjectBrakeState : IComponentData
+{
+    public byte active;
+    public float deceleration;
+    public byte holdAfterStop;
 }
 
 /// <summary>Tag component that identifies the Player Follow Object entity in the ECS world.</summary>

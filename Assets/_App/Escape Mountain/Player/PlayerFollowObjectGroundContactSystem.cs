@@ -187,6 +187,7 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
         state.RequireForUpdate<PlayerFollowObjectTag>();
         state.RequireForUpdate<PlayerFollowObjectGroundConfig>();
         state.RequireForUpdate<PlayerFollowObjectMotionState>();
+        state.RequireForUpdate<PlayerFollowObjectBrakeState>();
         state.RequireForUpdate<TerrainTileConfig>();
         state.RequireForUpdate<TerrainScrollVelocity>();
     }
@@ -246,10 +247,13 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
             }
         }
 
-        foreach (var (config, motionState, localTransform) in SystemAPI
-                     .Query<RefRO<PlayerFollowObjectGroundConfig>, RefRW<PlayerFollowObjectMotionState>, RefRW<LocalTransform>>()
+        foreach (var (config, motionState, localTransform, brakeState) in SystemAPI
+                     .Query<RefRO<PlayerFollowObjectGroundConfig>, RefRW<PlayerFollowObjectMotionState>,
+                         RefRW<LocalTransform>, RefRW<PlayerFollowObjectBrakeState>>()
                      .WithAll<PlayerFollowObjectTag>())
         {
+            bool braking = brakeState.ValueRO.active != 0;
+
             float3 gravity = config.ValueRO.gravity;
             if (math.lengthsq(gravity) < 1e-8f)
                 gravity = DefaultGravity;
@@ -688,18 +692,22 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
                 }
 
                 // The leg carries the normal component of weight, so only the tangent drives sliding.
-                worldVelocity += GetTangentComponent(gravity, contactNormal) * dt;
+                // Finish-line brake suppresses slope gravity so deceleration can win and hold at rest.
+                if (!braking)
+                {
+                    worldVelocity += GetTangentComponent(gravity, contactNormal) * dt;
 
-                // Keep terrain-frame friction on Rideable too. World-space friction (scroll=0) made the
-                // player stop in world on the pipe, then terrain re-sync yanked them to -scroll on exit
-                // (capture 131335 downhill slingshot). Pipe props in a scrolling world should share the
-                // terrain frame; prefer TerrainAnchor on the mesh so it moves with the slab.
-                ApplyGroundFriction(
-                    ref worldVelocity,
-                    scrollVelocity,
-                    contactNormal,
-                    config.ValueRO.groundFriction,
-                    dt);
+                    // Keep terrain-frame friction on Rideable too. World-space friction (scroll=0) made the
+                    // player stop in world on the pipe, then terrain re-sync yanked them to -scroll on exit
+                    // (capture 131335 downhill slingshot). Pipe props in a scrolling world should share the
+                    // terrain frame; prefer TerrainAnchor on the mesh so it moves with the slab.
+                    ApplyGroundFriction(
+                        ref worldVelocity,
+                        scrollVelocity,
+                        contactNormal,
+                        config.ValueRO.groundFriction,
+                        dt);
+                }
 
                 // Steep pipe: kill horizontal peel along the plumb wall normal when actually separating
                 // from the face. Do NOT subtract XZ from (n * dot(v,n)) while leaving vy — on a tilted
@@ -772,9 +780,25 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
 
                 contactLiftSpeed = worldVelocity.y - entryUpwardSpeed;
             }
-            else
+            else if (!braking)
             {
                 worldVelocity += gravity * dt;
+            }
+
+            if (braking)
+            {
+                ApplyBrakeDeceleration(
+                    ref worldVelocity,
+                    scrollVelocity,
+                    brakeState.ValueRO.deceleration,
+                    dt);
+
+                if (brakeState.ValueRO.holdAfterStop == 0
+                    && math.lengthsq(TerrainScrollVelocityMath.TerrainRelativeFromWorld(
+                        worldVelocity, scrollVelocity)) < MinSlideSpeed * MinSlideSpeed)
+                {
+                    brakeState.ValueRW.active = 0;
+                }
             }
 
             terrainRelativeVelocity = TerrainScrollVelocityMath.TerrainRelativeFromWorld(worldVelocity, scrollVelocity);
@@ -2127,6 +2151,37 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
         float damping = math.max(0f, 1f - groundFriction * dt);
         surfaceRelative = normal * math.dot(surfaceRelative, normal) + tangent * damping;
         worldVelocity = TerrainScrollVelocityMath.WorldVelocityFromTerrainRelative(surfaceRelative, scrollVelocity);
+    }
+
+    /// <summary>
+    /// Linearly reduces terrain-relative speed toward zero for finish-line / stop-volume braking.
+    /// </summary>
+    private static void ApplyBrakeDeceleration(
+        ref float3 worldVelocity,
+        float3 scrollVelocity,
+        float deceleration,
+        float dt)
+    {
+        // deceleration <= 0 means "no brake force" (coast). Gravity/steering are already
+        // suppressed while brake is active; do not treat 0 as an instant hard stop.
+        if (deceleration <= 0f)
+            return;
+
+        float3 terrainRelative = TerrainScrollVelocityMath.TerrainRelativeFromWorld(worldVelocity, scrollVelocity);
+        float speed = math.length(terrainRelative);
+        if (speed <= MinSlideSpeed)
+        {
+            worldVelocity = TerrainScrollVelocityMath.WorldVelocityFromTerrainRelative(float3.zero, scrollVelocity);
+            return;
+        }
+
+        float newSpeed = math.max(0f, speed - deceleration * dt);
+        if (newSpeed <= MinSlideSpeed)
+            terrainRelative = float3.zero;
+        else
+            terrainRelative *= newSpeed / speed;
+
+        worldVelocity = TerrainScrollVelocityMath.WorldVelocityFromTerrainRelative(terrainRelative, scrollVelocity);
     }
 
     private static void UpdateSmoothedYaw(

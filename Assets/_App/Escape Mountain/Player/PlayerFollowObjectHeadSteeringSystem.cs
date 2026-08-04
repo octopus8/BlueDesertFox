@@ -20,6 +20,7 @@ public partial struct PlayerFollowObjectHeadSteeringSystem : ISystem
         state.RequireForUpdate<PlayerFollowObjectTag>();
         state.RequireForUpdate<PlayerFollowObjectSteeringConfig>();
         state.RequireForUpdate<PlayerFollowObjectMotionState>();
+        state.RequireForUpdate<PlayerFollowObjectBrakeState>();
         state.RequireForUpdate<CameraDataSingleton>();
         state.RequireForUpdate<TerrainScrollVelocity>();
     }
@@ -34,10 +35,14 @@ public partial struct PlayerFollowObjectHeadSteeringSystem : ISystem
         float3 scrollVelocity = SystemAPI.GetSingleton<TerrainScrollVelocity>().WorldVelocity;
         float dt = SystemAPI.Time.DeltaTime;
 
-        foreach (var (steeringConfig, motionState) in SystemAPI
-                     .Query<RefRO<PlayerFollowObjectSteeringConfig>, RefRW<PlayerFollowObjectMotionState>>()
+        foreach (var (steeringConfig, motionState, brakeState) in SystemAPI
+                     .Query<RefRO<PlayerFollowObjectSteeringConfig>, RefRW<PlayerFollowObjectMotionState>,
+                         RefRO<PlayerFollowObjectBrakeState>>()
                      .WithAll<PlayerFollowObjectTag>())
         {
+            if (brakeState.ValueRO.active != 0)
+                continue;
+
             if (motionState.ValueRO.inContact == 0)
                 continue;
 
