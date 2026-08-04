@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 0094f62af6e728d43b6ba37a53464155
+DefaultImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 279219
+  packageName: AC_Traffic_signs
+  packageVersion: 1.0
+  assetPath: Assets/AC_Traffic_Signs/Scenes/SampleScene.unity
+  uploadId: 650948

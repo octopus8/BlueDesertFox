@@ -1,0 +1,50 @@
+Introducing the 239 traffic signs package!
+Complete Traffic Signs Pack
+239 High-Quality Assets for Realistic Driving Simulations
+Traffic Signs - Enhance the Driving Experience in Your Game
+----
+Looking for a way to improve the realism and engagement of your driving game? Our Traffic Signs Pack with 239 high-quality assets provides everything you need to simulate realistic driving.
+This pack includes:
+
+    All common traffic signs
+    Highly detailed 3D models
+    High-quality textures
+    Easy to set up
+
+With this pack, you can:
+
+    Create realistic and engaging driving environments
+    Add variety and challenge to your gameplay
+    Provide a more realistic driving experience for your players
+
+Who is this pack for?
+
+    Driving game developers
+    Level designers
+    Game content creators
+----
+
+Technical details:
+
+Number of Unique Meshes: 73.
+
+Number of prefab: 239
+
+Collision: Yes, custom.
+
+average Tris Count: 1950 (316-12472).
+
+LODs: yes(LOD0-LOD1-LOD2_LOD3).
+
+Number of Materials: 82
+
+Number of Textures: 328
+
+Texture Resolutions: 2048px x 2048px.
+
+uv:  non overlabed
+
+Supported Development Platforms:
+
+Windows: Yes.    Mac: Yes.    Android: Yes.    iOS: Yes.
+

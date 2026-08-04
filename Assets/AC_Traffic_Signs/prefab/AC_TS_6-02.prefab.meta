@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 42b3135d888db854ca08e281edeede25
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 279219
+  packageName: AC_Traffic_signs
+  packageVersion: 1.0
+  assetPath: Assets/AC_Traffic_Signs/prefab/AC_TS_6-02.prefab
+  uploadId: 650948

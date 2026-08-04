@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 318baa5ece816374eb8ae00b3cc8a69c
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 279219
+  packageName: AC_Traffic_signs
+  packageVersion: 1.0
+  assetPath: Assets/AC_Traffic_Signs/material/AC_TS_04.mat
+  uploadId: 650948
