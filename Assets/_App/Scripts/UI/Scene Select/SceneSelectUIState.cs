@@ -1,5 +1,6 @@
 using LiquidForce;
 using UnityEngine;
+using UnityEngine.UI;
 
 public class SceneSelectUIState : UIState {
 
@@ -22,7 +23,7 @@ public class SceneSelectUIState : UIState {
 
     void Start()
     {
-        // Create and initialize scene list buttons.
+        // Create and initialize scene list buttons from the inactive prototype template.
         foreach (SceneListSO.SceneListScene scene in sceneList.scenes)
         {
             SceneSelectButton sceneSelectButton = Instantiate(prototypeButton.gameObject, sceneListContainer.transform)
@@ -30,13 +31,33 @@ public class SceneSelectUIState : UIState {
             sceneSelectButton.Init(scene, this);
         }
 
-        prototypeButton.gameObject.SetActive(false);
+        // Remove the template so it can never reappear in the layout.
+        Destroy(prototypeButton.gameObject);
+
+        // ScrollRect AutoHide previously expanded the viewport at runtime. With scrollbars
+        // removed, force the viewport to fill so baked collapsed anchors cannot hide the list.
+        EnsureViewportFillsScrollView();
         
         
         if (sceneLoader == null) 
         {
             Debug.LogError("SceneLoader is null");
         }
+    }
+
+    private void EnsureViewportFillsScrollView()
+    {
+        ScrollRect scrollRect = sceneListContainer != null
+            ? sceneListContainer.GetComponentInParent<ScrollRect>(true)
+            : null;
+        if (scrollRect == null || scrollRect.viewport == null)
+            return;
+
+        RectTransform viewport = scrollRect.viewport;
+        viewport.anchorMin = Vector2.zero;
+        viewport.anchorMax = Vector2.one;
+        viewport.offsetMin = Vector2.zero;
+        viewport.offsetMax = Vector2.zero;
     }
     
     

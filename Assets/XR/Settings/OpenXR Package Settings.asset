@@ -122,7 +122,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 12d3bf61b014a48a2b7564c61da9d7ad, type: 3}
-  m_Name: AndroidXRPerformanceMetrics Standalone
+  m_Name: AndroidXRPerformanceMetrics Android
   m_EditorClassIdentifier: Unity.XR.AndroidOpenXR::UnityEngine.XR.OpenXR.Features.Android.AndroidXRPerformanceMetrics
   m_enabled: 0
   nameUi: Android XR Performance Metrics
@@ -1922,8 +1922,8 @@ MonoBehaviour:
   features:
   - {fileID: 2109802480353105152}
   - {fileID: 499411497412270085}
-  - {fileID: -4891972232736710316}
-  - {fileID: -7641012262446660888}
+  - {fileID: -7828989676464481003}
+  - {fileID: 9065961746706279159}
   - {fileID: -4954635989753619146}
   - {fileID: 1495916417283297876}
   - {fileID: 8023257435433845108}
@@ -1934,7 +1934,7 @@ MonoBehaviour:
   - {fileID: -1961218999851505051}
   - {fileID: -7340524804024996456}
   - {fileID: 274347273564094617}
-  - {fileID: 3852004837827841608}
+  - {fileID: 8816807149611444645}
   - {fileID: 7531838459244302620}
   - {fileID: -6839944763462888537}
   - {fileID: -5224114686126867084}
@@ -2394,7 +2394,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 90ae1e8c3c7a542bba339faf2e771c5a, type: 3}
-  m_Name: AndroidXRSupportFeature Standalone
+  m_Name: AndroidXRSupportFeature Android
   m_EditorClassIdentifier: Unity.XR.AndroidOpenXR::UnityEngine.XR.OpenXR.Features.Android.AndroidXRSupportFeature
   m_enabled: 0
   nameUi: Android XR Support
