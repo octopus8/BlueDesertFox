@@ -300,19 +300,6 @@ MonoBehaviour:
   ui: {fileID: 6557732031783972574}
   showUIOnStart: 1
   subScenes: []
---- !u!114 &391244925
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 391244922}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: a7c3e91f4b2d48a6b8e0f1c2d3a4b5c6, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::MenuGamePauseBridge
-  uiManager: {fileID: 6557732031783972574}
 --- !u!4 &391244924
 Transform:
   m_ObjectHideFlags: 0
@@ -329,6 +316,19 @@ Transform:
   - {fileID: 201260497}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &391244925
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 391244922}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a7c3e91f4b2d48a6b8e0f1c2d3a4b5c6, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::MenuGamePauseBridge
+  uiManager: {fileID: 6557732031783972574}
 --- !u!1 &547122507
 GameObject:
   m_ObjectHideFlags: 0
@@ -1165,6 +1165,18 @@ PrefabInstance:
     - target: {fileID: 4889411660643954387, guid: 0f9784479579e73438a60e9f742085d6, type: 3}
       propertyPath: m_BlockingMask.m_Bits
       value: 65527
+      objectReference: {fileID: 0}
+    - target: {fileID: 6282956232578990589, guid: 0f9784479579e73438a60e9f742085d6, type: 3}
+      propertyPath: m_fontAsset
+      value: 
+      objectReference: {fileID: 11400000, guid: b99bbdee04c263640aef0728f2b0ac00, type: 2}
+    - target: {fileID: 6282956232578990589, guid: 0f9784479579e73438a60e9f742085d6, type: 3}
+      propertyPath: m_sharedMaterial
+      value: 
+      objectReference: {fileID: 21455636308066148, guid: b99bbdee04c263640aef0728f2b0ac00, type: 2}
+    - target: {fileID: 6282956232578990589, guid: 0f9784479579e73438a60e9f742085d6, type: 3}
+      propertyPath: m_hasFontAssetChanged
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 7105047295739956867, guid: 0f9784479579e73438a60e9f742085d6, type: 3}
       propertyPath: m_Name

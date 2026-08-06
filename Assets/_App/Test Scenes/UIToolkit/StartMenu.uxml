@@ -1,0 +1,8 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" xmlns:uie="UnityEditor.UIElements" editor-extension-mode="False">
+    <Style src="project://database/Assets/_App/Test%20Scenes/UIToolkit/StartMenu.uss?fileID=7433441132597879392&amp;guid=19c0e1a8b4c8db94891c5b1c7acd67cd&amp;type=3#StartMenu"/>
+    <ui:VisualElement name="Panel" class="panel" style="flex-grow: 1;">
+        <ui:VisualElement name="Container" class="menu" style="flex-grow: 1;">
+            <ui:Button text="Start" style="align-self: center; position: absolute; top: 319px; left: auto;"/>
+        </ui:VisualElement>
+    </ui:VisualElement>
+</ui:UXML>
