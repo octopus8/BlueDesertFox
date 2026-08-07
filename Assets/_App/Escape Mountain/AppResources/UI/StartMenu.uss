@@ -1,0 +1,41 @@
+.panel {
+    background-color: rgba(0, 235, 255, 0.176);
+    align-items: auto;
+    align-content: auto;
+    align-self: auto;
+    justify-content: center;
+}
+
+.menu {
+    background-color: rgb(120, 21, 21);
+    align-items: auto;
+    width: auto;
+    min-width: 500px;
+    max-height: 500px;
+    align-self: center;
+    justify-content: flex-start;
+    align-content: center;
+    height: auto;
+    min-height: auto;
+}
+
+.unity-button {
+    background-color: rgb(158, 19, 78);
+    color: rgb(255, 255, 255);
+}
+
+.unity-button:hover {
+    background-color: rgb(0, 255, 255);
+    scale: 1.1 1.1 1.1;
+    transition-property: scale;
+    transition-duration: 0.25s;
+    transition-timing-function: ease-in-out;
+}
+
+.unity-button-start {
+    background-color: rgb(158, 19, 78);
+}
+
+.unity-text-element {
+    -unity-font-definition: url("project://database/Assets/_App/Escape%20Mountain/AppResources/moonhouse.ttf?fileID=12800000&guid=051f928e74336d04e8da67ce1bcc68ac&type=3#moonhouse");
+}
