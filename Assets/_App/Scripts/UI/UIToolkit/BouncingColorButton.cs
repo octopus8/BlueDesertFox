@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.UIElements;
 
+
 /// <summary>
 /// Button that continuously ping-pongs its background between the stylesheet
 /// base color and a dimmed version (default 25% brightness). Retargets when
