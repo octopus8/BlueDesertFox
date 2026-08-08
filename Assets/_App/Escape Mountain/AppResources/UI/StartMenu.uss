@@ -25,7 +25,8 @@
 }
 
 .unity-button:hover {
-    background-color: rgb(0, 255, 255);
+    /* Color is driven by BouncingColorButton inline styles — only scale on hover here
+       so USS never paints full-bright cyan when inline styles update on leave. */
     scale: 1.1 1.1 1.1;
     transition-property: scale;
     transition-duration: 0.25s;
