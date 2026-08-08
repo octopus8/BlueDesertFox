@@ -13,6 +13,7 @@ public partial class BouncingColorButton : Button
     const int DefaultBounceDurationMs = 800;
     const float DefaultBrightnessFactor = 0.25f;
     const float MinSampleAlpha = 0.01f;
+    const int MaxStaleSampleTicks = 30;
 
     int _bounceDurationMs = DefaultBounceDurationMs;
     float _brightnessFactor = DefaultBrightnessFactor;
@@ -23,6 +24,9 @@ public partial class BouncingColorButton : Button
     bool _hasBaseColor;
     bool _needsResample = true;
     bool _awaitingUssSample;
+    bool _wasHovering;
+    bool _hoverTrackingInitialized;
+    int _staleSampleTicks;
     long _elapsedMs;
 
     [UxmlAttribute("bounce-duration-ms")]
@@ -55,6 +59,7 @@ public partial class BouncingColorButton : Button
     void OnAttachToPanel(AttachToPanelEvent evt)
     {
         _elapsedMs = 0;
+        _hoverTrackingInitialized = false;
         RequestResample();
         _tick?.Pause();
         _tick = schedule.Execute(OnTick).Every(16);
@@ -67,20 +72,25 @@ public partial class BouncingColorButton : Button
         style.backgroundColor = StyleKeyword.Null;
         _hasBaseColor = false;
         _awaitingUssSample = false;
+        _hoverTrackingInitialized = false;
+        _staleSampleTicks = 0;
     }
 
     void RequestResample()
     {
         _needsResample = true;
         _awaitingUssSample = false;
+        _staleSampleTicks = 0;
     }
 
     void OnTick(TimerState timer)
     {
+        SyncHoverResample();
+
         if (_needsResample)
             ResampleBaseColor();
 
-        // Don't overwrite the cleared/USS color while waiting for a valid sample.
+        // Freeze on the last bounce color while waiting for a valid USS sample.
         if (!_hasBaseColor || _needsResample)
             return;
 
@@ -93,31 +103,87 @@ public partial class BouncingColorButton : Button
         style.backgroundColor = Color.Lerp(_baseColor, _dimColor, t);
     }
 
+    void SyncHoverResample()
+    {
+        bool hovering = (pseudoStates & PseudoStates.Hover) != 0;
+        if (!_hoverTrackingInitialized)
+        {
+            _wasHovering = hovering;
+            _hoverTrackingInitialized = true;
+            return;
+        }
+
+        if (hovering == _wasHovering)
+            return;
+
+        _wasHovering = hovering;
+        RequestResample();
+    }
+
     void ResampleBaseColor()
     {
-        // Phase 1: clear inline override so USS can recompute (including :hover).
+        bool hadBaseColor = _hasBaseColor;
+        Color previousDisplay = hadBaseColor
+            ? Color.Lerp(_baseColor, _dimColor, CurrentBounceT())
+            : default;
+
+        // Wait one tick after the request so :hover / leave pseudo-classes apply.
+        // Same-frame sampling often reads the pre-hover color with XR pointers.
         if (!_awaitingUssSample)
         {
-            style.backgroundColor = StyleKeyword.Null;
             _awaitingUssSample = true;
             return;
         }
 
-        // Phase 2: read resolved USS color after a tick.
+        style.backgroundColor = StyleKeyword.Null;
         Color sampled = resolvedStyle.backgroundColor;
-        if (sampled.a < MinSampleAlpha)
+
+        if (!TryFinishResample(sampled, retargetFromDim: hadBaseColor))
         {
-            // Styles not ready yet — keep retrying without locking in transparent.
-            return;
+            if (hadBaseColor)
+                style.backgroundColor = previousDisplay;
+        }
+    }
+
+    bool TryFinishResample(Color sampled, bool retargetFromDim)
+    {
+        if (sampled.a < MinSampleAlpha)
+            return false;
+
+        // Pseudo-class colors can lag enter/leave by a few ticks; keep trying.
+        if (_hasBaseColor && ColorsApproximatelyEqual(sampled, _baseColor))
+        {
+            if (retargetFromDim && _staleSampleTicks < MaxStaleSampleTicks)
+            {
+                _staleSampleTicks++;
+                return false;
+            }
+
+            _needsResample = false;
+            _awaitingUssSample = false;
+            _staleSampleTicks = 0;
+            return true;
         }
 
         _needsResample = false;
         _awaitingUssSample = false;
-
-        if (_hasBaseColor && ColorsApproximatelyEqual(sampled, _baseColor))
-            return;
+        _staleSampleTicks = 0;
 
         ApplyBaseColor(sampled);
+
+        // On hover/leave retarget, start from the dim end so we don't flash full base.
+        if (retargetFromDim)
+            _elapsedMs = _bounceDurationMs;
+
+        return true;
+    }
+
+    float CurrentBounceT()
+    {
+        float duration = _bounceDurationMs;
+        float cycle = (_elapsedMs % (duration * 2)) / duration;
+        float linearT = cycle <= 1f ? cycle : 2f - cycle;
+        return EaseInOut(linearT);
     }
 
     void ApplyBaseColor(Color baseColor)
