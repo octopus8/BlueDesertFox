@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Autohand;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -9,6 +10,7 @@ using UnityEngine.XR.Interaction.Toolkit.Interactors;
 /// Keeps AutoHand hand meshes, disables AutoHand uGUI lasers, and attaches XRI UI rays
 /// under each RobotHand (same parent as the old UIPointer) for UI Toolkit world-space panels.
 /// Rays use the Hand layer so <see cref="LiquidForce.UICamera"/> draws them over the environment.
+/// Rays are shown only while the UI is visible (hidden as soon as <see cref="UIManager.Hide"/> starts).
 /// </summary>
 [DefaultExecutionOrder(-1000)]
 public class AutoHandXriUiBridge : MonoBehaviour
@@ -25,6 +27,10 @@ public class AutoHandXriUiBridge : MonoBehaviour
     [SerializeField] InputActionAsset xriInputActions;
     [SerializeField] GameObject uiHitReticlePrefab;
 
+    readonly List<GameObject> _uiRays = new();
+    UIManager _uiManager;
+    bool _subscribed;
+
     void Awake()
     {
         if (xriInputActions != null)
@@ -36,6 +42,66 @@ public class AutoHandXriUiBridge : MonoBehaviour
         DisableHandCanvasPointers(pointers);
         EnsureInteractionManager();
         SetupRaysFromPointers(pointers);
+    }
+
+    void OnEnable()
+    {
+        TrySubscribeUiVisibility();
+        SyncRaysToUiVisibility();
+    }
+
+    void Start()
+    {
+        // UIManager may not exist yet during OnEnable in some load orders.
+        TrySubscribeUiVisibility();
+        SyncRaysToUiVisibility();
+    }
+
+    void OnDisable()
+    {
+        if (_subscribed && _uiManager != null)
+        {
+            _uiManager.VisibilityChanged -= OnUiVisibilityChanged;
+            _subscribed = false;
+        }
+    }
+
+    void TrySubscribeUiVisibility()
+    {
+        if (_subscribed)
+            return;
+
+        if (_uiManager == null)
+            _uiManager = FindFirstObjectByType<UIManager>(FindObjectsInactive.Include);
+
+        if (_uiManager == null)
+            return;
+
+        _uiManager.VisibilityChanged += OnUiVisibilityChanged;
+        _subscribed = true;
+    }
+
+    void OnUiVisibilityChanged(bool visible, bool resumeGameplay)
+    {
+        SetRaysVisible(visible);
+    }
+
+    void SyncRaysToUiVisibility()
+    {
+        if (_uiManager == null)
+            return;
+
+        SetRaysVisible(_uiManager.IsVisible);
+    }
+
+    void SetRaysVisible(bool visible)
+    {
+        for (int i = 0; i < _uiRays.Count; i++)
+        {
+            GameObject ray = _uiRays[i];
+            if (ray != null && ray.activeSelf != visible)
+                ray.SetActive(visible);
+        }
     }
 
     static void DisableHandCanvasPointers(HandCanvasPointer[] pointers)
@@ -113,6 +179,7 @@ public class AutoHandXriUiBridge : MonoBehaviour
             WireButton(ray.uiPressInput, actionMapName, "UI Press", "UI Press Value");
 
             AssignUiHitReticle(rayGo, handLayer);
+            _uiRays.Add(rayGo);
         }
     }
 

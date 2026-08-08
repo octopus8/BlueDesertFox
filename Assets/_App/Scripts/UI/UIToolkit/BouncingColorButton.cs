@@ -24,8 +24,6 @@ public partial class BouncingColorButton : Button
     bool _hasBaseColor;
     bool _needsResample = true;
     bool _awaitingUssSample;
-    bool _wasHovering;
-    bool _hoverTrackingInitialized;
     int _staleSampleTicks;
     long _elapsedMs;
 
@@ -54,12 +52,14 @@ public partial class BouncingColorButton : Button
         RegisterCallback<DetachFromPanelEvent>(OnDetachFromPanel);
         RegisterCallback<PointerEnterEvent>(_ => RequestResample());
         RegisterCallback<PointerLeaveEvent>(_ => RequestResample());
+        // Over/Out are more reliable than Enter/Leave with some XR UI Toolkit setups.
+        RegisterCallback<PointerOverEvent>(_ => RequestResample());
+        RegisterCallback<PointerOutEvent>(_ => RequestResample());
     }
 
     void OnAttachToPanel(AttachToPanelEvent evt)
     {
         _elapsedMs = 0;
-        _hoverTrackingInitialized = false;
         RequestResample();
         _tick?.Pause();
         _tick = schedule.Execute(OnTick).Every(16);
@@ -72,7 +72,6 @@ public partial class BouncingColorButton : Button
         style.backgroundColor = StyleKeyword.Null;
         _hasBaseColor = false;
         _awaitingUssSample = false;
-        _hoverTrackingInitialized = false;
         _staleSampleTicks = 0;
     }
 
@@ -85,8 +84,6 @@ public partial class BouncingColorButton : Button
 
     void OnTick(TimerState timer)
     {
-        SyncHoverResample();
-
         if (_needsResample)
             ResampleBaseColor();
 
@@ -101,23 +98,6 @@ public partial class BouncingColorButton : Button
         float t = EaseInOut(linearT);
 
         style.backgroundColor = Color.Lerp(_baseColor, _dimColor, t);
-    }
-
-    void SyncHoverResample()
-    {
-        bool hovering = (pseudoStates & PseudoStates.Hover) != 0;
-        if (!_hoverTrackingInitialized)
-        {
-            _wasHovering = hovering;
-            _hoverTrackingInitialized = true;
-            return;
-        }
-
-        if (hovering == _wasHovering)
-            return;
-
-        _wasHovering = hovering;
-        RequestResample();
     }
 
     void ResampleBaseColor()
