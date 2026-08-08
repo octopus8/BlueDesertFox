@@ -23,6 +23,7 @@ public class AutoHandXriUiBridge : MonoBehaviour
 
     [SerializeField] GameObject rayInteractorPrefab;
     [SerializeField] InputActionAsset xriInputActions;
+    [SerializeField] GameObject uiHitReticlePrefab;
 
     void Awake()
     {
@@ -110,7 +111,26 @@ public class AutoHandXriUiBridge : MonoBehaviour
             ray.enableUIInteraction = true;
             WireButton(ray.selectInput, actionMapName, "Select", "Select Value");
             WireButton(ray.uiPressInput, actionMapName, "UI Press", "UI Press Value");
+
+            AssignUiHitReticle(rayGo, handLayer);
         }
+    }
+
+    void AssignUiHitReticle(GameObject rayGo, int handLayer)
+    {
+        if (uiHitReticlePrefab == null)
+        {
+            Debug.LogWarning("AutoHandXriUiBridge: uiHitReticlePrefab is not assigned; UI hit ring will not show.");
+            return;
+        }
+
+        // Do not use XRInteractorLineVisual.reticle — it only shows for valid XR interactable
+        // targets, and UITK world-space panels fail that check (trigger collider, not hovered).
+        UiRayHitRingVisual ringVisual = rayGo.GetComponent<UiRayHitRingVisual>();
+        if (ringVisual == null)
+            ringVisual = rayGo.AddComponent<UiRayHitRingVisual>();
+
+        ringVisual.Initialize(uiHitReticlePrefab, scale: 0.012f, layer: handLayer);
     }
 
     static bool ResolveIsLeftHand(Transform handRoot)

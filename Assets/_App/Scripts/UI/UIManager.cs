@@ -156,7 +156,7 @@ public class UIManager : MonoBehaviour
         }
         else
         {
-            Debug.LogError("No start state set for UI.");
+            Debug.LogWarning("No start state set for UI.");
         }
     }
     

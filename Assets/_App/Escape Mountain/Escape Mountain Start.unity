@@ -1078,6 +1078,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::AutoHandXriUiBridge
   rayInteractorPrefab: {fileID: 1787346994484839025, guid: ad818c36731146e994540a1896ad8f24, type: 3}
   xriInputActions: {fileID: -944628639613478452, guid: c348712bda248c246b8c49b3db54643f, type: 3}
+  uiHitReticlePrefab: {fileID: 1000000001, guid: 7c4e9a2b8f1d4e6a9b0c3d5e7f8a1b2c, type: 3}
 --- !u!1 &1968104344
 GameObject:
   m_ObjectHideFlags: 0
