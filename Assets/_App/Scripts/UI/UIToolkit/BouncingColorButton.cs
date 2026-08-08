@@ -12,6 +12,7 @@ public partial class BouncingColorButton : Button
 {
     const int DefaultBounceDurationMs = 800;
     const float DefaultBrightnessFactor = 0.25f;
+    const float MinSampleAlpha = 0.01f;
 
     int _bounceDurationMs = DefaultBounceDurationMs;
     float _brightnessFactor = DefaultBrightnessFactor;
@@ -21,6 +22,7 @@ public partial class BouncingColorButton : Button
     Color _dimColor;
     bool _hasBaseColor;
     bool _needsResample = true;
+    bool _awaitingUssSample;
     long _elapsedMs;
 
     [UxmlAttribute("bounce-duration-ms")]
@@ -46,14 +48,14 @@ public partial class BouncingColorButton : Button
     {
         RegisterCallback<AttachToPanelEvent>(OnAttachToPanel);
         RegisterCallback<DetachFromPanelEvent>(OnDetachFromPanel);
-        RegisterCallback<PointerEnterEvent>(_ => _needsResample = true);
-        RegisterCallback<PointerLeaveEvent>(_ => _needsResample = true);
+        RegisterCallback<PointerEnterEvent>(_ => RequestResample());
+        RegisterCallback<PointerLeaveEvent>(_ => RequestResample());
     }
 
     void OnAttachToPanel(AttachToPanelEvent evt)
     {
         _elapsedMs = 0;
-        _needsResample = true;
+        RequestResample();
         _tick?.Pause();
         _tick = schedule.Execute(OnTick).Every(16);
     }
@@ -64,6 +66,13 @@ public partial class BouncingColorButton : Button
         _tick = null;
         style.backgroundColor = StyleKeyword.Null;
         _hasBaseColor = false;
+        _awaitingUssSample = false;
+    }
+
+    void RequestResample()
+    {
+        _needsResample = true;
+        _awaitingUssSample = false;
     }
 
     void OnTick(TimerState timer)
@@ -71,7 +80,8 @@ public partial class BouncingColorButton : Button
         if (_needsResample)
             ResampleBaseColor();
 
-        if (!_hasBaseColor)
+        // Don't overwrite the cleared/USS color while waiting for a valid sample.
+        if (!_hasBaseColor || _needsResample)
             return;
 
         _elapsedMs += timer.deltaTime;
@@ -85,11 +95,24 @@ public partial class BouncingColorButton : Button
 
     void ResampleBaseColor()
     {
-        _needsResample = false;
+        // Phase 1: clear inline override so USS can recompute (including :hover).
+        if (!_awaitingUssSample)
+        {
+            style.backgroundColor = StyleKeyword.Null;
+            _awaitingUssSample = true;
+            return;
+        }
 
-        // Clear inline override so resolvedStyle picks up USS (including :hover).
-        style.backgroundColor = StyleKeyword.Null;
+        // Phase 2: read resolved USS color after a tick.
         Color sampled = resolvedStyle.backgroundColor;
+        if (sampled.a < MinSampleAlpha)
+        {
+            // Styles not ready yet — keep retrying without locking in transparent.
+            return;
+        }
+
+        _needsResample = false;
+        _awaitingUssSample = false;
 
         if (_hasBaseColor && ColorsApproximatelyEqual(sampled, _baseColor))
             return;
