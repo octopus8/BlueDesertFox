@@ -7,15 +7,19 @@ using UnityEngine.XR.Interaction.Toolkit.Interactors;
 
 /// <summary>
 /// Keeps AutoHand hand meshes, disables AutoHand uGUI lasers, and attaches XRI UI rays
-/// under AutoHand Controller (left)/(right) for UI Toolkit world-space panels.
+/// under each RobotHand (same parent as the old UIPointer) for UI Toolkit world-space panels.
+/// Rays use the Hand layer so <see cref="LiquidForce.UICamera"/> draws them over the environment.
 /// </summary>
 [DefaultExecutionOrder(-1000)]
 public class AutoHandXriUiBridge : MonoBehaviour
 {
-    const string LeftControllerName = "Controller (left)";
-    const string RightControllerName = "Controller (right)";
     const string LeftInteractionMap = "XRI Left Interaction";
     const string RightInteractionMap = "XRI Right Interaction";
+    const string HandLayerName = "Hand";
+
+    // Matches AutoHand UIPointer.prefab local pose under the RobotHand.
+    static readonly Vector3 UiPointerLocalPosition = new Vector3(0f, 0.04f, 0f);
+    static readonly Quaternion UiPointerLocalRotation = Quaternion.Euler(-9f, 0f, 0f);
 
     [SerializeField] GameObject rayInteractorPrefab;
     [SerializeField] InputActionAsset xriInputActions;
@@ -25,16 +29,16 @@ public class AutoHandXriUiBridge : MonoBehaviour
         if (xriInputActions != null)
             xriInputActions.Enable();
 
-        DisableHandCanvasPointers();
-        EnsureInteractionManager();
-        SetupRay(LeftControllerName, LeftInteractionMap, InteractorHandedness.Left);
-        SetupRay(RightControllerName, RightInteractionMap, InteractorHandedness.Right);
-    }
-
-    static void DisableHandCanvasPointers()
-    {
         HandCanvasPointer[] pointers = FindObjectsByType<HandCanvasPointer>(
             FindObjectsInactive.Include, FindObjectsSortMode.None);
+
+        DisableHandCanvasPointers(pointers);
+        EnsureInteractionManager();
+        SetupRaysFromPointers(pointers);
+    }
+
+    static void DisableHandCanvasPointers(HandCanvasPointer[] pointers)
+    {
         for (int i = 0; i < pointers.Length; i++)
         {
             if (pointers[i] != null)
@@ -51,7 +55,7 @@ public class AutoHandXriUiBridge : MonoBehaviour
         go.AddComponent<XRInteractionManager>();
     }
 
-    void SetupRay(string controllerName, string actionMapName, InteractorHandedness handedness)
+    void SetupRaysFromPointers(HandCanvasPointer[] pointers)
     {
         if (rayInteractorPrefab == null || xriInputActions == null)
         {
@@ -59,29 +63,81 @@ public class AutoHandXriUiBridge : MonoBehaviour
             return;
         }
 
-        Transform controller = FindNamedChild(controllerName);
-        if (controller == null)
+        if (pointers == null || pointers.Length == 0)
         {
-            Debug.LogError($"AutoHandXriUiBridge: '{controllerName}' not found.");
+            Debug.LogError("AutoHandXriUiBridge: no HandCanvasPointer instances found to attach rays.");
             return;
         }
 
-        GameObject rayGo = Instantiate(rayInteractorPrefab, controller);
-        rayGo.name = $"XRI UI Ray ({handedness})";
-        rayGo.transform.localPosition = Vector3.zero;
-        rayGo.transform.localRotation = Quaternion.identity;
+        int handLayer = LayerMask.NameToLayer(HandLayerName);
+        if (handLayer < 0)
+            Debug.LogWarning($"AutoHandXriUiBridge: layer '{HandLayerName}' not found; rays may be occluded by the environment.");
 
-        XRRayInteractor ray = rayGo.GetComponent<XRRayInteractor>();
-        if (ray == null)
+        for (int i = 0; i < pointers.Length; i++)
         {
-            Debug.LogError("AutoHandXriUiBridge: Ray Interactor prefab missing XRRayInteractor.");
-            return;
-        }
+            HandCanvasPointer pointer = pointers[i];
+            if (pointer == null)
+                continue;
 
-        ray.handedness = handedness;
-        ray.enableUIInteraction = true;
-        WireButton(ray.selectInput, actionMapName, "Select", "Select Value");
-        WireButton(ray.uiPressInput, actionMapName, "UI Press", "UI Press Value");
+            Transform handRoot = pointer.transform.parent;
+            if (handRoot == null)
+            {
+                Debug.LogError("AutoHandXriUiBridge: HandCanvasPointer has no parent (expected RobotHand).");
+                continue;
+            }
+
+            bool isLeft = ResolveIsLeftHand(handRoot);
+            InteractorHandedness handedness = isLeft ? InteractorHandedness.Left : InteractorHandedness.Right;
+            string actionMapName = isLeft ? LeftInteractionMap : RightInteractionMap;
+
+            GameObject rayGo = Instantiate(rayInteractorPrefab, handRoot);
+            rayGo.name = $"XRI UI Ray ({handedness})";
+            rayGo.transform.localPosition = UiPointerLocalPosition;
+            rayGo.transform.localRotation = UiPointerLocalRotation;
+            rayGo.transform.localScale = Vector3.one;
+
+            if (handLayer >= 0)
+                SetLayerRecursive(rayGo.transform, handLayer);
+
+            XRRayInteractor ray = rayGo.GetComponent<XRRayInteractor>();
+            if (ray == null)
+            {
+                Debug.LogError("AutoHandXriUiBridge: Ray Interactor prefab missing XRRayInteractor.");
+                continue;
+            }
+
+            ray.handedness = handedness;
+            ray.enableUIInteraction = true;
+            WireButton(ray.selectInput, actionMapName, "Select", "Select Value");
+            WireButton(ray.uiPressInput, actionMapName, "UI Press", "UI Press Value");
+        }
+    }
+
+    static bool ResolveIsLeftHand(Transform handRoot)
+    {
+        Hand hand = handRoot.GetComponentInParent<Hand>();
+        if (hand != null)
+            return hand.left;
+
+        string name = handRoot.name;
+        if (name.IndexOf("(L)", System.StringComparison.OrdinalIgnoreCase) >= 0
+            || name.IndexOf("Left", System.StringComparison.OrdinalIgnoreCase) >= 0)
+            return true;
+
+        if (name.IndexOf("(R)", System.StringComparison.OrdinalIgnoreCase) >= 0
+            || name.IndexOf("Right", System.StringComparison.OrdinalIgnoreCase) >= 0)
+            return false;
+
+        // Default: treat first unresolved as left is unsafe; prefer right only if marked.
+        Debug.LogWarning($"AutoHandXriUiBridge: could not resolve handedness for '{name}', defaulting to Left.");
+        return true;
+    }
+
+    static void SetLayerRecursive(Transform root, int layer)
+    {
+        root.gameObject.layer = layer;
+        for (int i = 0; i < root.childCount; i++)
+            SetLayerRecursive(root.GetChild(i), layer);
     }
 
     void WireButton(XRInputButtonReader reader, string mapName, string performedName, string valueName)
@@ -99,17 +155,5 @@ public class AutoHandXriUiBridge : MonoBehaviour
         reader.inputActionReferenceValue = InputActionReference.Create(value);
         performed.Enable();
         value.Enable();
-    }
-
-    static Transform FindNamedChild(string objectName)
-    {
-        Transform[] all = FindObjectsByType<Transform>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
-        for (int i = 0; i < all.Length; i++)
-        {
-            if (all[i] != null && all[i].name == objectName)
-                return all[i];
-        }
-
-        return null;
     }
 }
