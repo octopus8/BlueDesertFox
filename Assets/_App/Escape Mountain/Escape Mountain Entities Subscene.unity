@@ -742,7 +742,7 @@ MonoBehaviour:
   trail2Enabled: 1
   trail2Width: 45
   trail2BlendWidth: 35
-  trail2PathImage: {fileID: 2800000, guid: a164e94f7739d8b4bbb1d85bb94d853c, type: 3}
+  trail2PathImage: {fileID: 2800000, guid: 6e185882168361e41af40f678e59d21a, type: 3}
   trail2MetersPerPixel: 1
   trail2Seed: 100
   trail2Frequency: 0.001
