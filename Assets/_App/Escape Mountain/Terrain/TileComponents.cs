@@ -103,6 +103,8 @@ public struct TerrainHeightAlignState : IComponentData
 /// After the shared straight run, each trail weaves via
 /// centerX(Z) = startX + amplitude * fade(Z) * (snoise(Z) - snoise(edgeZ)),
 /// guaranteeing the path always advances in the +Z direction (cannot turn past 90°).
+/// When a <see cref="TrailImagePathBlob"/> is assigned, that X(Z) table replaces noise weave
+/// (straight-run and seed/frequency/amplitude are ignored for that trail).
 /// Trail cross-section is level (ski-trail style): grade uses world +Z at the nearest centerline sample.
 /// </summary>
 public struct TrailInstanceConfig
@@ -180,6 +182,39 @@ public struct TrailPathConfig : IComponentData
 
     /// <summary>1 = snap <see cref="startX"/>/<see cref="startZ"/> to the player once at startup.</summary>
     public byte snapStartToPlayer;
+}
+
+/// <summary>
+/// Baked X-offset-vs-Z samples for one image-authored trail, relative to the red start dot.
+/// Invalid (gap) samples are <see cref="float.NaN"/>.
+/// </summary>
+public struct TrailImagePathBlob
+{
+    /// <summary>World-Z of the first sample, relative to <see cref="TrailPathConfig.startZ"/>.</summary>
+    public float zMin;
+
+    /// <summary>Meters between consecutive samples (image meters-per-pixel).</summary>
+    public float zStep;
+
+    /// <summary>Centerline X relative to <see cref="TrailPathConfig.startX"/>; NaN = no trail at that Z.</summary>
+    public BlobArray<float> xOffset;
+
+    /// <summary>Minimum valid relative X (AABB).</summary>
+    public float xMin;
+
+    /// <summary>Maximum valid relative X (AABB).</summary>
+    public float xMax;
+}
+
+/// <summary>
+/// Optional per-trail image paths. An uncreated blob means that trail uses noise weave.
+/// Separate from <see cref="TrailConfig"/> so existing baked trail instance layouts stay stable.
+/// </summary>
+public struct TrailImagePaths : IComponentData
+{
+    public BlobAssetReference<TrailImagePathBlob> trail1;
+    public BlobAssetReference<TrailImagePathBlob> trail2;
+    public BlobAssetReference<TrailImagePathBlob> trail3;
 }
 
 /// <summary>

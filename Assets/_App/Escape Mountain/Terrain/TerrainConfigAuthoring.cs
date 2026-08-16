@@ -149,14 +149,23 @@ public class TerrainConfigAuthoring : MonoBehaviour
     public float trail1BlendWidth = 8f;
 
     [ShowIf("trail1Enabled")]
+    [Tooltip("Optional path image: black line on white, red dot = start. When set, seed/frequency/amplitude are ignored.")]
+    public Texture2D trail1PathImage;
+
+    [ShowIf("@trail1Enabled && trail1PathImage != null")]
+    [Tooltip("World meters represented by one image pixel. A 1024px image at 2 m/px covers 2048×2048 m.")]
+    [Min(0.001f)]
+    public float trail1MetersPerPixel = 1f;
+
+    [ShowIf("@trail1Enabled && trail1PathImage == null")]
     [Tooltip("Random seed — change to get a different weave pattern for Trail 1")]
     public float trail1Seed = 0f;
 
-    [ShowIf("trail1Enabled")]
+    [ShowIf("@trail1Enabled && trail1PathImage == null")]
     [Tooltip("How rapidly Trail 1 weaves along Z (higher = tighter turns)")]
     public float trail1Frequency = 0.003f;
 
-    [ShowIf("trail1Enabled")]
+    [ShowIf("@trail1Enabled && trail1PathImage == null")]
     [Tooltip("Maximum left/right deviation of Trail 1 centerline in meters")]
     public float trail1Amplitude = 40f;
 
@@ -173,14 +182,23 @@ public class TerrainConfigAuthoring : MonoBehaviour
     public float trail2BlendWidth = 8f;
 
     [ShowIf("trail2Enabled")]
+    [Tooltip("Optional path image: black line on white, red dot = start. When set, seed/frequency/amplitude are ignored.")]
+    public Texture2D trail2PathImage;
+
+    [ShowIf("@trail2Enabled && trail2PathImage != null")]
+    [Tooltip("World meters represented by one image pixel. A 1024px image at 2 m/px covers 2048×2048 m.")]
+    [Min(0.001f)]
+    public float trail2MetersPerPixel = 1f;
+
+    [ShowIf("@trail2Enabled && trail2PathImage == null")]
     [Tooltip("Random seed — change to get a different weave pattern for Trail 2")]
     public float trail2Seed = 100f;
 
-    [ShowIf("trail2Enabled")]
+    [ShowIf("@trail2Enabled && trail2PathImage == null")]
     [Tooltip("How rapidly Trail 2 weaves along Z (higher = tighter turns)")]
     public float trail2Frequency = 0.003f;
 
-    [ShowIf("trail2Enabled")]
+    [ShowIf("@trail2Enabled && trail2PathImage == null")]
     [Tooltip("Maximum left/right deviation of Trail 2 centerline in meters")]
     public float trail2Amplitude = 40f;
 
@@ -197,16 +215,42 @@ public class TerrainConfigAuthoring : MonoBehaviour
     public float trail3BlendWidth = 8f;
 
     [ShowIf("trail3Enabled")]
+    [Tooltip("Optional path image: black line on white, red dot = start. When set, seed/frequency/amplitude are ignored.")]
+    public Texture2D trail3PathImage;
+
+    [ShowIf("@trail3Enabled && trail3PathImage != null")]
+    [Tooltip("World meters represented by one image pixel. A 1024px image at 2 m/px covers 2048×2048 m.")]
+    [Min(0.001f)]
+    public float trail3MetersPerPixel = 1f;
+
+    [ShowIf("@trail3Enabled && trail3PathImage == null")]
     [Tooltip("Random seed — change to get a different weave pattern for Trail 3")]
     public float trail3Seed = 200f;
 
-    [ShowIf("trail3Enabled")]
+    [ShowIf("@trail3Enabled && trail3PathImage == null")]
     [Tooltip("How rapidly Trail 3 weaves along Z (higher = tighter turns)")]
     public float trail3Frequency = 0.003f;
 
-    [ShowIf("trail3Enabled")]
+    [ShowIf("@trail3Enabled && trail3PathImage == null")]
     [Tooltip("Maximum left/right deviation of Trail 3 centerline in meters")]
     public float trail3Amplitude = 40f;
+
+    bool Trail1UsesPathImage => trail1Enabled && trail1PathImage != null;
+    bool Trail1UsesNoisePath => trail1Enabled && trail1PathImage == null;
+    bool Trail2UsesPathImage => trail2Enabled && trail2PathImage != null;
+    bool Trail2UsesNoisePath => trail2Enabled && trail2PathImage == null;
+    bool Trail3UsesPathImage => trail3Enabled && trail3PathImage != null;
+    bool Trail3UsesNoisePath => trail3Enabled && trail3PathImage == null;
+
+    [System.NonSerialized] TrailImagePathUtility.ExtractResult _trail1GizmoPath;
+    [System.NonSerialized] Texture2D _trail1GizmoPathTexture;
+    [System.NonSerialized] float _trail1GizmoPathMeters;
+    [System.NonSerialized] TrailImagePathUtility.ExtractResult _trail2GizmoPath;
+    [System.NonSerialized] Texture2D _trail2GizmoPathTexture;
+    [System.NonSerialized] float _trail2GizmoPathMeters;
+    [System.NonSerialized] TrailImagePathUtility.ExtractResult _trail3GizmoPath;
+    [System.NonSerialized] Texture2D _trail3GizmoPathTexture;
+    [System.NonSerialized] float _trail3GizmoPathMeters;
 
     [Header("Debug/Testing")]
     [Tooltip("Enable terrain tile rendering (disable to test tree rendering only)")]
@@ -362,6 +406,41 @@ public class TerrainConfigAuthoring : MonoBehaviour
                 startAligned = 0,
                 snapStartToPlayer = authoring.trailSnapStartToPlayer ? (byte)1 : (byte)0
             });
+
+            AddComponent(entity, BakeTrailImagePaths(authoring));
+        }
+
+        TrailImagePaths BakeTrailImagePaths(TerrainConfigAuthoring authoring)
+        {
+            var paths = new TrailImagePaths
+            {
+                trail1 = BakeTrailImagePath(authoring.trail1Enabled, authoring.trail1PathImage, authoring.trail1MetersPerPixel, "Trail 1"),
+                trail2 = BakeTrailImagePath(authoring.trail2Enabled, authoring.trail2PathImage, authoring.trail2MetersPerPixel, "Trail 2"),
+                trail3 = BakeTrailImagePath(authoring.trail3Enabled, authoring.trail3PathImage, authoring.trail3MetersPerPixel, "Trail 3")
+            };
+            return paths;
+        }
+
+        BlobAssetReference<TrailImagePathBlob> BakeTrailImagePath(
+            bool enabled,
+            Texture2D texture,
+            float metersPerPixel,
+            string trailLabel)
+        {
+            if (!enabled || texture == null)
+                return default;
+
+            DependsOn(texture);
+
+            if (!TrailImagePathUtility.TryExtract(texture, metersPerPixel, out var extracted, out string error))
+            {
+                Debug.LogError($"[TerrainConfig] {trailLabel} path image: {error}", texture);
+                return default;
+            }
+
+            var blob = TrailImagePathUtility.CreateBlob(extracted);
+            AddBlobAsset(ref blob, out _);
+            return blob;
         }
     }
 
@@ -420,7 +499,7 @@ public class TerrainConfigAuthoring : MonoBehaviour
     }
 
     /// <summary>
-    /// Draws the shared straight run (yellow) and weave preview (cyan) for enabled trails.
+    /// Draws the shared start (yellow), image polylines, and noise weave preview for enabled trails.
     /// </summary>
     private void DrawTrailPathGizmos()
     {
@@ -470,9 +549,64 @@ public class TerrainConfigAuthoring : MonoBehaviour
             }
         }
 
-        DrawWeave(trail1Enabled, trail1Seed, trail1Frequency, trail1Amplitude, new Color(1f, 0.4f, 0.2f));
-        DrawWeave(trail2Enabled, trail2Seed, trail2Frequency, trail2Amplitude, new Color(0.2f, 0.8f, 1f));
-        DrawWeave(trail3Enabled, trail3Seed, trail3Frequency, trail3Amplitude, new Color(0.4f, 1f, 0.4f));
+        if (Trail1UsesPathImage)
+            DrawImagePathGizmo(trail1PathImage, trail1MetersPerPixel, new Color(1f, 0.4f, 0.2f), y,
+                ref _trail1GizmoPath, ref _trail1GizmoPathTexture, ref _trail1GizmoPathMeters);
+        else
+            DrawWeave(trail1Enabled, trail1Seed, trail1Frequency, trail1Amplitude, new Color(1f, 0.4f, 0.2f));
+
+        if (Trail2UsesPathImage)
+            DrawImagePathGizmo(trail2PathImage, trail2MetersPerPixel, new Color(0.2f, 0.8f, 1f), y,
+                ref _trail2GizmoPath, ref _trail2GizmoPathTexture, ref _trail2GizmoPathMeters);
+        else
+            DrawWeave(trail2Enabled, trail2Seed, trail2Frequency, trail2Amplitude, new Color(0.2f, 0.8f, 1f));
+
+        if (Trail3UsesPathImage)
+            DrawImagePathGizmo(trail3PathImage, trail3MetersPerPixel, new Color(0.4f, 1f, 0.4f), y,
+                ref _trail3GizmoPath, ref _trail3GizmoPathTexture, ref _trail3GizmoPathMeters);
+        else
+            DrawWeave(trail3Enabled, trail3Seed, trail3Frequency, trail3Amplitude, new Color(0.4f, 1f, 0.4f));
+    }
+
+    void DrawImagePathGizmo(
+        Texture2D image,
+        float metersPerPixel,
+        Color color,
+        float y,
+        ref TrailImagePathUtility.ExtractResult cache,
+        ref Texture2D cacheTexture,
+        ref float cacheMeters)
+    {
+        if (cache == null || cacheTexture != image || !Mathf.Approximately(cacheMeters, metersPerPixel))
+        {
+            if (!TrailImagePathUtility.TryExtract(image, metersPerPixel, out cache, out _))
+                return;
+
+            cacheTexture = image;
+            cacheMeters = metersPerPixel;
+        }
+
+        if (cache?.xOffset == null || cache.xOffset.Length == 0)
+            return;
+
+        Gizmos.color = color;
+        Vector3 prev = Vector3.zero;
+        bool hasPrev = false;
+        for (int i = 0; i < cache.xOffset.Length; i++)
+        {
+            float ox = cache.xOffset[i];
+            if (float.IsNaN(ox))
+            {
+                hasPrev = false;
+                continue;
+            }
+
+            Vector3 p = new Vector3(trailStartX + ox, y, trailStartZ + cache.zMin + i * cache.zStep);
+            if (hasPrev)
+                Gizmos.DrawLine(prev, p);
+            prev = p;
+            hasPrev = true;
+        }
     }
     
     /// <summary>Attempts to locate the player <see cref="Transform"/> at edit time for gizmo visualization using the configured <see cref="playerSearchMode"/>.</summary>
@@ -535,14 +669,21 @@ public class TerrainConfigAuthoring : MonoBehaviour
         trail1BlendWidth= Mathf.Max(0f, trail1BlendWidth);
         trail1Frequency = Mathf.Max(0f, trail1Frequency);
         trail1Amplitude = Mathf.Max(0f, trail1Amplitude);
+        trail1MetersPerPixel = trail1MetersPerPixel > 0f ? trail1MetersPerPixel : 1f;
         trail2Width     = Mathf.Max(0f, trail2Width);
         trail2BlendWidth= Mathf.Max(0f, trail2BlendWidth);
         trail2Frequency = Mathf.Max(0f, trail2Frequency);
         trail2Amplitude = Mathf.Max(0f, trail2Amplitude);
+        trail2MetersPerPixel = trail2MetersPerPixel > 0f ? trail2MetersPerPixel : 1f;
         trail3Width     = Mathf.Max(0f, trail3Width);
         trail3BlendWidth= Mathf.Max(0f, trail3BlendWidth);
         trail3Frequency = Mathf.Max(0f, trail3Frequency);
         trail3Amplitude = Mathf.Max(0f, trail3Amplitude);
+        trail3MetersPerPixel = trail3MetersPerPixel > 0f ? trail3MetersPerPixel : 1f;
+
+        WarnIfPathImageNotReadable(trail1Enabled, trail1PathImage, "Trail 1");
+        WarnIfPathImageNotReadable(trail2Enabled, trail2PathImage, "Trail 2");
+        WarnIfPathImageNotReadable(trail3Enabled, trail3PathImage, "Trail 3");
         
         // Set default search string if empty
         if (playerSearchMode == PlayerSearchMode.FindByName && string.IsNullOrEmpty(playerName))
@@ -553,5 +694,15 @@ public class TerrainConfigAuthoring : MonoBehaviour
         {
             playerTag = "Player";
         }
+    }
+
+    static void WarnIfPathImageNotReadable(bool enabled, Texture2D texture, string trailLabel)
+    {
+        if (!enabled || texture == null || texture.isReadable)
+            return;
+
+        Debug.LogWarning(
+            $"[TerrainConfig] {trailLabel} path image '{texture.name}' is not readable. Enable Read/Write in the texture import settings.",
+            texture);
     }
 }
