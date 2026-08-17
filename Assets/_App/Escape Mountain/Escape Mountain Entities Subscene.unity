@@ -739,8 +739,8 @@ MonoBehaviour:
   trail1Spline: {fileID: 0}
   trail1Seed: 0
   trail1Frequency: 0.0015
-  trail1Amplitude: 250
-  trail2Enabled: 1
+  trail1Amplitude: 0.01
+  trail2Enabled: 0
   trail2Width: 45
   trail2BlendWidth: 35
   trail2Spline: {fileID: 4035485277886579078, guid: 7624048fa48b1af439747c314ea091fa, type: 3}
