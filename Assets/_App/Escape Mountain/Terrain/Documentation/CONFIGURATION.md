@@ -122,6 +122,46 @@ Number of vertices along each edge of the tile mesh. Total vertices = `verticesP
 - Desktop High Quality: 64
 - Desktop Ultra: 128
 
+#### Slope Angle Degrees
+
+**Type**: Float  
+**Default**: `0`  
+**Units**: Degrees  
+**Range**: -60 to 60
+
+Constant terrain grade along world +Z. `0` is flat. Positive values rise as Z increases; negative values descend (downhill snowboarding).
+
+Height is path-integrated from `tan(angle)` along Z so the surface stays continuous.
+
+#### Slope Variation Seed
+
+**Type**: Int  
+**Default**: `0`
+
+Offsets the per-vertex slope noise domain. Change this to pick a different grade undulation pattern without moving the player.
+
+#### Slope Variation Frequency
+
+**Type**: Float  
+**Default**: `0.005`  
+**Units**: 1 / meters  
+**Range**: ≥ 0
+
+World-space frequency of the 2D simplex field that varies grade per vertex. Lower values undulate over hundreds of meters; higher values change grade more quickly across a tile. `0` samples a constant (seed-only) grade.
+
+This is independent of the detail-noise frequency used for hills and bumps.
+
+#### Slope Variation Amplitude
+
+**Type**: Float  
+**Default**: `0`  
+**Units**: Degrees  
+**Range**: 0 to 30 (also clamped so base angle minus amplitude stays ≥ -60)
+
+Per-vertex grade spread subtracted from Slope Angle Degrees. Example: `-35°` with amplitude `10` produces local grades between `-45°` and `-35°`. `0` keeps a uniform grade.
+
+Each vertex samples continuous XZ noise, then grade is path-integrated along Z at that X. Adjacent tiles share the same noise field, so no blend-distance seam fix is required. Ski trails stay level by sampling grade at the trail centerline rather than the vertex X.
+
 ---
 
 ### Auto-Scrolling

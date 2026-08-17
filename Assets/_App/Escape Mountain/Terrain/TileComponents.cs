@@ -20,11 +20,14 @@ public struct TerrainTileConfig : IComponentData
     /// <summary>Constant terrain grade along world +Z in degrees. Positive = uphill as Z increases.</summary>
     public float slopeAngleDegrees;
 
-    /// <summary>Per-tile grade variation in degrees subtracted from <see cref="slopeAngleDegrees"/>. 0 = uniform grade.</summary>
-    public float slopeAngleVariation;
+    /// <summary>Integer seed offset for per-vertex slope noise.</summary>
+    public int slopeVariationSeed;
 
-    /// <summary>Meters of blend zone centered on each tile Z-boundary where adjacent tile grades crossfade.</summary>
-    public float slopeVariationBlendDistance;
+    /// <summary>World-space frequency of per-vertex slope noise. Lower values undulate over longer distances.</summary>
+    public float slopeVariationFrequency;
+
+    /// <summary>Per-vertex grade variation in degrees subtracted from <see cref="slopeAngleDegrees"/>. 0 = uniform grade.</summary>
+    public float slopeVariationAmplitude;
     
     /// <summary>Base frequency of the Perlin noise used for height generation (e.g. 0.01). Higher values = smaller terrain features.</summary>
     public float noiseFrequency;
@@ -105,7 +108,7 @@ public struct TerrainHeightAlignState : IComponentData
 /// guaranteeing the path always advances in the +Z direction (cannot turn past 90°).
 /// When a <see cref="TrailPathBlob"/> is assigned (baked from a spline),
 /// that X(Z) table replaces noise weave (straight-run and seed/frequency/amplitude are ignored).
-/// Trail cross-section is level (ski-trail style): grade uses world +Z at the nearest centerline sample.
+/// Trail cross-section is level (ski-trail style): grade uses the nearest centerline XZ sample.
 /// </summary>
 public struct TrailInstanceConfig
 {

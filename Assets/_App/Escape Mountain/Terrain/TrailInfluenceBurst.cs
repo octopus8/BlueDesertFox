@@ -14,11 +14,12 @@ public static class TrailMask
 }
 
 /// <summary>
-/// Trail carve influence at a world XZ point plus the nearest centerline sample Z used for slope.
+/// Trail carve influence at a world XZ point plus the nearest centerline sample used for slope.
 /// </summary>
 public struct TrailInfluenceResult
 {
     public float influence;
+    public float centerlineX;
     public float centerlineZ;
 }
 
@@ -396,17 +397,26 @@ public static class TrailInfluenceBurst
         if (minDist2D == float.MaxValue)
             return default;
 
+        float centerlineXAtSample = centerlineX[lut.offset + bestIndex];
         float centerlineZ = lut.zOrigin + bestIndex * lut.zStep;
         float minDist = math.sqrt(minDist2D);
 
         if (minDist < halfWidth)
-            return new TrailInfluenceResult { influence = 1f, centerlineZ = centerlineZ };
+        {
+            return new TrailInfluenceResult
+            {
+                influence = 1f,
+                centerlineX = centerlineXAtSample,
+                centerlineZ = centerlineZ
+            };
+        }
 
         if (minDist < halfWidth + trail.blendWidth)
         {
             return new TrailInfluenceResult
             {
                 influence = 1f - math.smoothstep(halfWidth, halfWidth + trail.blendWidth, minDist),
+                centerlineX = centerlineXAtSample,
                 centerlineZ = centerlineZ
             };
         }

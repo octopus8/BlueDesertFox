@@ -707,8 +707,10 @@ MonoBehaviour:
   verticesPerSide: 48
   initYOffset: -2.4
   slopeAngleDegrees: -20
-  slopeAngleVariation: 0
-  slopeVariationBlendDistance: 128
+  slopeVariationSeed: 0
+  slopeVariationFrequency: 0.005
+  slopeVariationAmplitude: 10
+  slopeVariationSettingsInitialized: 1
   noiseFrequency: 0.005
   noiseAmplitude: 40
   noiseOctaves: 2
@@ -731,7 +733,7 @@ MonoBehaviour:
   trailWeaveFadeLength: 30
   trailSnapStartToPlayer: 1
   trailPathSettingsInitialized: 1
-  trail1Enabled: 0
+  trail1Enabled: 1
   trail1Width: 45
   trail1BlendWidth: 0
   trail1Spline: {fileID: 0}
@@ -1117,7 +1119,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!23 &1711813855318661804
 MeshRenderer:
   m_ObjectHideFlags: 0

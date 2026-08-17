@@ -2,6 +2,7 @@ using Sirenix.OdinInspector;
 using Unity.Entities;
 using Unity.Mathematics;
 using UnityEngine;
+using UnityEngine.Serialization;
 using UnityEngine.Splines;
 
 /// <summary>
@@ -48,13 +49,20 @@ public class TerrainConfigAuthoring : MonoBehaviour
     [Range(-60f, 60f)]
     public float slopeAngleDegrees = 0f;
 
-    [Tooltip("Per-tile grade variation in degrees subtracted from slopeAngleDegrees (e.g. -35° with 10 = tiles between -45° and -35°). 0 = uniform grade.")]
-    [Range(0f, 30f)]
-    public float slopeAngleVariation = 0f;
+    [Tooltip("Integer seed for per-vertex slope noise. Change to get a different grade undulation pattern.")]
+    public int slopeVariationSeed = 0;
 
-    [Tooltip("Meters of blend zone centered on each tile Z-boundary where adjacent tile grades crossfade. 0 = hard step at seams.")]
+    [Tooltip("World-space frequency of per-vertex slope noise. Lower values undulate over longer distances.")]
     [Min(0f)]
-    public float slopeVariationBlendDistance = 20f;
+    public float slopeVariationFrequency = 0.005f;
+
+    [FormerlySerializedAs("slopeAngleVariation")]
+    [Tooltip("Per-vertex grade variation in degrees subtracted from slopeAngleDegrees (e.g. -35° with 10 = local grade between -45° and -35°). 0 = uniform grade.")]
+    [Range(0f, 30f)]
+    public float slopeVariationAmplitude = 0f;
+
+    [SerializeField, HideInInspector]
+    bool slopeVariationSettingsInitialized;
     
     [Header("Procedural Noise Settings")]
     [Tooltip("Base frequency of the noise (higher = more variation)")]
@@ -257,8 +265,9 @@ public class TerrainConfigAuthoring : MonoBehaviour
                 viewDistance = authoring.viewDistance,
                 verticesPerSide = authoring.verticesPerSide,
                 slopeAngleDegrees = authoring.slopeAngleDegrees,
-                slopeAngleVariation = authoring.slopeAngleVariation,
-                slopeVariationBlendDistance = authoring.slopeVariationBlendDistance,
+                slopeVariationSeed = authoring.slopeVariationSeed,
+                slopeVariationFrequency = authoring.slopeVariationFrequency,
+                slopeVariationAmplitude = authoring.slopeVariationAmplitude,
                 noiseFrequency = authoring.noiseFrequency,
                 noiseAmplitude = authoring.noiseAmplitude,
                 noiseOctaves = authoring.noiseOctaves,
@@ -638,14 +647,21 @@ public class TerrainConfigAuthoring : MonoBehaviour
             trailPathSettingsInitialized = true;
         }
 
+        if (!slopeVariationSettingsInitialized)
+        {
+            if (slopeVariationFrequency <= 0f)
+                slopeVariationFrequency = 0.005f;
+            slopeVariationSettingsInitialized = true;
+        }
+
         // Ensure valid values
         tileSize = Mathf.Max(1f, tileSize);
         viewDistance = Mathf.Max(tileSize, viewDistance);
         verticesPerSide = Mathf.Max(2, verticesPerSide);
         slopeAngleDegrees = Mathf.Clamp(slopeAngleDegrees, -60f, 60f);
-        slopeAngleVariation = Mathf.Clamp(slopeAngleVariation, 0f, 30f);
-        slopeAngleVariation = Mathf.Min(slopeAngleVariation, slopeAngleDegrees + 60f);
-        slopeVariationBlendDistance = Mathf.Clamp(slopeVariationBlendDistance, 0f, tileSize);
+        slopeVariationAmplitude = Mathf.Clamp(slopeVariationAmplitude, 0f, 30f);
+        slopeVariationAmplitude = Mathf.Min(slopeVariationAmplitude, slopeAngleDegrees + 60f);
+        slopeVariationFrequency = Mathf.Max(0f, slopeVariationFrequency);
         noiseFrequency = Mathf.Max(0.0001f, noiseFrequency);
         noiseAmplitude = Mathf.Max(0f, noiseAmplitude);
         noiseLacunarity = Mathf.Max(1f, noiseLacunarity);
