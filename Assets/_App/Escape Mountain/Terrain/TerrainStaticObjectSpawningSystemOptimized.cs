@@ -324,9 +324,9 @@ public partial struct TerrainStaticObjectSpawningSystemOptimized : ISystem
         if (SystemAPI.HasSingleton<TrailPathConfig>())
             trailPath = TrailInfluenceBurst.NormalizeTrailPathSettings(
                 SystemAPI.GetSingleton<TrailPathConfig>());
-        TrailImagePaths trailImagePaths = default;
-        if (SystemAPI.HasSingleton<TrailImagePaths>())
-            trailImagePaths = SystemAPI.GetSingleton<TrailImagePaths>();
+        TrailPaths trailPaths = default;
+        if (SystemAPI.HasSingleton<TrailPaths>())
+            trailPaths = SystemAPI.GetSingleton<TrailPaths>();
 
         int maxPositionCalcAttemptsPerFrame = config.maxPositionCalcAttemptsPerFrame > 0
             ? config.maxPositionCalcAttemptsPerFrame
@@ -355,7 +355,7 @@ public partial struct TerrainStaticObjectSpawningSystemOptimized : ISystem
                     objectTypeWeightPrefixSum = objectTypeWeightPrefixSum,
                     trailConfig = trailConfig,
                     trailPath = trailPath,
-                    trailImagePaths = trailImagePaths,
+                    trailPaths = trailPaths,
                     hasTrailConfig = hasTrailConfig,
                     attemptBudgetPerTile = attemptBudgetPerTile
                 };
@@ -766,7 +766,7 @@ partial struct CalculateStaticObjectSpawnPositionsJob : IJobEntity
     [ReadOnly] public NativeArray<float> objectTypeWeightPrefixSum;
     [ReadOnly] public TrailConfig trailConfig;
     [ReadOnly] public TrailPathConfig trailPath;
-    [ReadOnly] public TrailImagePaths trailImagePaths;
+    [ReadOnly] public TrailPaths trailPaths;
     [ReadOnly] public bool hasTrailConfig;
     [ReadOnly] public int attemptBudgetPerTile;
 
@@ -831,7 +831,7 @@ partial struct CalculateStaticObjectSpawnPositionsJob : IJobEntity
             if (activeTrailMask != 0)
             {
                 tileTrailMask = TrailInfluenceBurst.ComputeTileTrailMask(
-                    tileWorldX, tileWorldZ, tileSize, trailConfig, trailPath, trailImagePaths, activeTrailMask);
+                    tileWorldX, tileWorldZ, tileSize, trailConfig, trailPath, trailPaths, activeTrailMask);
 
                 if (tileTrailMask != 0)
                 {
@@ -846,21 +846,21 @@ partial struct CalculateStaticObjectSpawnPositionsJob : IJobEntity
                     {
                         TrailInfluenceBurst.BuildTrailCenterlineLUT(
                             trailCenterlineLuts, 0, lutZOrigin, lutStep, lutLength,
-                            trailConfig.trail1, trailPath, trailImagePaths.trail1);
+                            trailConfig.trail1, trailPath, trailPaths.trail1);
                     }
 
                     if ((tileTrailMask & TrailMask.Trail2) != 0)
                     {
                         TrailInfluenceBurst.BuildTrailCenterlineLUT(
                             trailCenterlineLuts, lutLength, lutZOrigin, lutStep, lutLength,
-                            trailConfig.trail2, trailPath, trailImagePaths.trail2);
+                            trailConfig.trail2, trailPath, trailPaths.trail2);
                     }
 
                     if ((tileTrailMask & TrailMask.Trail3) != 0)
                     {
                         TrailInfluenceBurst.BuildTrailCenterlineLUT(
                             trailCenterlineLuts, lutLength * 2, lutZOrigin, lutStep, lutLength,
-                            trailConfig.trail3, trailPath, trailImagePaths.trail3);
+                            trailConfig.trail3, trailPath, trailPaths.trail3);
                     }
                 }
             }

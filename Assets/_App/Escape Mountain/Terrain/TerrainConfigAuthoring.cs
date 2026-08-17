@@ -2,6 +2,7 @@ using Sirenix.OdinInspector;
 using Unity.Entities;
 using Unity.Mathematics;
 using UnityEngine;
+using UnityEngine.Splines;
 
 /// <summary>
 /// Authoring component for terrain system configuration.
@@ -149,23 +150,18 @@ public class TerrainConfigAuthoring : MonoBehaviour
     public float trail1BlendWidth = 8f;
 
     [ShowIf("trail1Enabled")]
-    [Tooltip("Optional path image: black line on white, red dot = start. When set, seed/frequency/amplitude are ignored.")]
-    public Texture2D trail1PathImage;
+    [Tooltip("Optional SplineContainer prefab. Knot 0 is placed at Start X/Z (or the player if snap is on). When set, noise weave is ignored.")]
+    public SplineContainer trail1Spline;
 
-    [ShowIf("@trail1Enabled && trail1PathImage != null")]
-    [Tooltip("World meters represented by one image pixel. A 1024px image at 2 m/px covers 2048×2048 m.")]
-    [Min(0.001f)]
-    public float trail1MetersPerPixel = 1f;
-
-    [ShowIf("@trail1Enabled && trail1PathImage == null")]
+    [ShowIf("@trail1Enabled && trail1Spline == null")]
     [Tooltip("Random seed — change to get a different weave pattern for Trail 1")]
     public float trail1Seed = 0f;
 
-    [ShowIf("@trail1Enabled && trail1PathImage == null")]
+    [ShowIf("@trail1Enabled && trail1Spline == null")]
     [Tooltip("How rapidly Trail 1 weaves along Z (higher = tighter turns)")]
     public float trail1Frequency = 0.003f;
 
-    [ShowIf("@trail1Enabled && trail1PathImage == null")]
+    [ShowIf("@trail1Enabled && trail1Spline == null")]
     [Tooltip("Maximum left/right deviation of Trail 1 centerline in meters")]
     public float trail1Amplitude = 40f;
 
@@ -182,23 +178,18 @@ public class TerrainConfigAuthoring : MonoBehaviour
     public float trail2BlendWidth = 8f;
 
     [ShowIf("trail2Enabled")]
-    [Tooltip("Optional path image: black line on white, red dot = start. When set, seed/frequency/amplitude are ignored.")]
-    public Texture2D trail2PathImage;
+    [Tooltip("Optional SplineContainer prefab. Knot 0 is placed at Start X/Z (or the player if snap is on). When set, noise weave is ignored.")]
+    public SplineContainer trail2Spline;
 
-    [ShowIf("@trail2Enabled && trail2PathImage != null")]
-    [Tooltip("World meters represented by one image pixel. A 1024px image at 2 m/px covers 2048×2048 m.")]
-    [Min(0.001f)]
-    public float trail2MetersPerPixel = 1f;
-
-    [ShowIf("@trail2Enabled && trail2PathImage == null")]
+    [ShowIf("@trail2Enabled && trail2Spline == null")]
     [Tooltip("Random seed — change to get a different weave pattern for Trail 2")]
     public float trail2Seed = 100f;
 
-    [ShowIf("@trail2Enabled && trail2PathImage == null")]
+    [ShowIf("@trail2Enabled && trail2Spline == null")]
     [Tooltip("How rapidly Trail 2 weaves along Z (higher = tighter turns)")]
     public float trail2Frequency = 0.003f;
 
-    [ShowIf("@trail2Enabled && trail2PathImage == null")]
+    [ShowIf("@trail2Enabled && trail2Spline == null")]
     [Tooltip("Maximum left/right deviation of Trail 2 centerline in meters")]
     public float trail2Amplitude = 40f;
 
@@ -215,42 +206,34 @@ public class TerrainConfigAuthoring : MonoBehaviour
     public float trail3BlendWidth = 8f;
 
     [ShowIf("trail3Enabled")]
-    [Tooltip("Optional path image: black line on white, red dot = start. When set, seed/frequency/amplitude are ignored.")]
-    public Texture2D trail3PathImage;
+    [Tooltip("Optional SplineContainer prefab. Knot 0 is placed at Start X/Z (or the player if snap is on). When set, noise weave is ignored.")]
+    public SplineContainer trail3Spline;
 
-    [ShowIf("@trail3Enabled && trail3PathImage != null")]
-    [Tooltip("World meters represented by one image pixel. A 1024px image at 2 m/px covers 2048×2048 m.")]
-    [Min(0.001f)]
-    public float trail3MetersPerPixel = 1f;
-
-    [ShowIf("@trail3Enabled && trail3PathImage == null")]
+    [ShowIf("@trail3Enabled && trail3Spline == null")]
     [Tooltip("Random seed — change to get a different weave pattern for Trail 3")]
     public float trail3Seed = 200f;
 
-    [ShowIf("@trail3Enabled && trail3PathImage == null")]
+    [ShowIf("@trail3Enabled && trail3Spline == null")]
     [Tooltip("How rapidly Trail 3 weaves along Z (higher = tighter turns)")]
     public float trail3Frequency = 0.003f;
 
-    [ShowIf("@trail3Enabled && trail3PathImage == null")]
+    [ShowIf("@trail3Enabled && trail3Spline == null")]
     [Tooltip("Maximum left/right deviation of Trail 3 centerline in meters")]
     public float trail3Amplitude = 40f;
 
-    bool Trail1UsesPathImage => trail1Enabled && trail1PathImage != null;
-    bool Trail1UsesNoisePath => trail1Enabled && trail1PathImage == null;
-    bool Trail2UsesPathImage => trail2Enabled && trail2PathImage != null;
-    bool Trail2UsesNoisePath => trail2Enabled && trail2PathImage == null;
-    bool Trail3UsesPathImage => trail3Enabled && trail3PathImage != null;
-    bool Trail3UsesNoisePath => trail3Enabled && trail3PathImage == null;
+    bool Trail1UsesSpline => trail1Enabled && trail1Spline != null;
+    bool Trail2UsesSpline => trail2Enabled && trail2Spline != null;
+    bool Trail3UsesSpline => trail3Enabled && trail3Spline != null;
 
-    [System.NonSerialized] TrailImagePathUtility.ExtractResult _trail1GizmoPath;
-    [System.NonSerialized] Texture2D _trail1GizmoPathTexture;
-    [System.NonSerialized] float _trail1GizmoPathMeters;
-    [System.NonSerialized] TrailImagePathUtility.ExtractResult _trail2GizmoPath;
-    [System.NonSerialized] Texture2D _trail2GizmoPathTexture;
-    [System.NonSerialized] float _trail2GizmoPathMeters;
-    [System.NonSerialized] TrailImagePathUtility.ExtractResult _trail3GizmoPath;
-    [System.NonSerialized] Texture2D _trail3GizmoPathTexture;
-    [System.NonSerialized] float _trail3GizmoPathMeters;
+    [System.NonSerialized] TrailSplinePathUtility.ExtractResult _trail1GizmoSplinePath;
+    [System.NonSerialized] SplineContainer _trail1GizmoSpline;
+    [System.NonSerialized] float _trail1GizmoSplineStep;
+    [System.NonSerialized] TrailSplinePathUtility.ExtractResult _trail2GizmoSplinePath;
+    [System.NonSerialized] SplineContainer _trail2GizmoSpline;
+    [System.NonSerialized] float _trail2GizmoSplineStep;
+    [System.NonSerialized] TrailSplinePathUtility.ExtractResult _trail3GizmoSplinePath;
+    [System.NonSerialized] SplineContainer _trail3GizmoSpline;
+    [System.NonSerialized] float _trail3GizmoSplineStep;
 
     [Header("Debug/Testing")]
     [Tooltip("Enable terrain tile rendering (disable to test tree rendering only)")]
@@ -407,38 +390,39 @@ public class TerrainConfigAuthoring : MonoBehaviour
                 snapStartToPlayer = authoring.trailSnapStartToPlayer ? (byte)1 : (byte)0
             });
 
-            AddComponent(entity, BakeTrailImagePaths(authoring));
+            AddComponent(entity, BakeTrailSplinePaths(authoring));
         }
 
-        TrailImagePaths BakeTrailImagePaths(TerrainConfigAuthoring authoring)
+        TrailPaths BakeTrailSplinePaths(TerrainConfigAuthoring authoring)
         {
-            var paths = new TrailImagePaths
+            float lutStep = authoring.trailLutStepMeters > 0f ? authoring.trailLutStepMeters : 1f;
+            return new TrailPaths
             {
-                trail1 = BakeTrailImagePath(authoring.trail1Enabled, authoring.trail1PathImage, authoring.trail1MetersPerPixel, "Trail 1"),
-                trail2 = BakeTrailImagePath(authoring.trail2Enabled, authoring.trail2PathImage, authoring.trail2MetersPerPixel, "Trail 2"),
-                trail3 = BakeTrailImagePath(authoring.trail3Enabled, authoring.trail3PathImage, authoring.trail3MetersPerPixel, "Trail 3")
+                trail1 = BakeTrailSplinePath(authoring.trail1Enabled, authoring.trail1Spline, lutStep, "Trail 1"),
+                trail2 = BakeTrailSplinePath(authoring.trail2Enabled, authoring.trail2Spline, lutStep, "Trail 2"),
+                trail3 = BakeTrailSplinePath(authoring.trail3Enabled, authoring.trail3Spline, lutStep, "Trail 3")
             };
-            return paths;
         }
 
-        BlobAssetReference<TrailImagePathBlob> BakeTrailImagePath(
+        BlobAssetReference<TrailPathBlob> BakeTrailSplinePath(
             bool enabled,
-            Texture2D texture,
-            float metersPerPixel,
+            SplineContainer spline,
+            float lutStepMeters,
             string trailLabel)
         {
-            if (!enabled || texture == null)
+            if (!enabled || spline == null)
                 return default;
 
-            DependsOn(texture);
+            DependsOn(spline);
+            DependsOn(spline.gameObject);
 
-            if (!TrailImagePathUtility.TryExtract(texture, metersPerPixel, out var extracted, out string error))
+            if (!TrailSplinePathUtility.TryExtract(spline, lutStepMeters, out var extracted, out string error))
             {
-                Debug.LogError($"[TerrainConfig] {trailLabel} path image: {error}", texture);
+                Debug.LogError($"[TerrainConfig] {trailLabel} spline: {error}", spline);
                 return default;
             }
 
-            var blob = TrailImagePathUtility.CreateBlob(extracted);
+            var blob = TrailSplinePathUtility.CreateBlob(extracted);
             AddBlobAsset(ref blob, out _);
             return blob;
         }
@@ -499,7 +483,7 @@ public class TerrainConfigAuthoring : MonoBehaviour
     }
 
     /// <summary>
-    /// Draws the shared start (yellow), image polylines, and noise weave preview for enabled trails.
+    /// Draws the shared start (yellow), spline polylines, and noise weave preview for enabled trails.
     /// </summary>
     private void DrawTrailPathGizmos()
     {
@@ -549,43 +533,48 @@ public class TerrainConfigAuthoring : MonoBehaviour
             }
         }
 
-        if (Trail1UsesPathImage)
-            DrawImagePathGizmo(trail1PathImage, trail1MetersPerPixel, new Color(1f, 0.4f, 0.2f), y,
-                ref _trail1GizmoPath, ref _trail1GizmoPathTexture, ref _trail1GizmoPathMeters);
+        if (Trail1UsesSpline)
+            DrawSplinePathGizmo(trail1Spline, new Color(1f, 0.4f, 0.2f), y,
+                ref _trail1GizmoSplinePath, ref _trail1GizmoSpline, ref _trail1GizmoSplineStep);
         else
             DrawWeave(trail1Enabled, trail1Seed, trail1Frequency, trail1Amplitude, new Color(1f, 0.4f, 0.2f));
 
-        if (Trail2UsesPathImage)
-            DrawImagePathGizmo(trail2PathImage, trail2MetersPerPixel, new Color(0.2f, 0.8f, 1f), y,
-                ref _trail2GizmoPath, ref _trail2GizmoPathTexture, ref _trail2GizmoPathMeters);
+        if (Trail2UsesSpline)
+            DrawSplinePathGizmo(trail2Spline, new Color(0.2f, 0.8f, 1f), y,
+                ref _trail2GizmoSplinePath, ref _trail2GizmoSpline, ref _trail2GizmoSplineStep);
         else
             DrawWeave(trail2Enabled, trail2Seed, trail2Frequency, trail2Amplitude, new Color(0.2f, 0.8f, 1f));
 
-        if (Trail3UsesPathImage)
-            DrawImagePathGizmo(trail3PathImage, trail3MetersPerPixel, new Color(0.4f, 1f, 0.4f), y,
-                ref _trail3GizmoPath, ref _trail3GizmoPathTexture, ref _trail3GizmoPathMeters);
+        if (Trail3UsesSpline)
+            DrawSplinePathGizmo(trail3Spline, new Color(0.4f, 1f, 0.4f), y,
+                ref _trail3GizmoSplinePath, ref _trail3GizmoSpline, ref _trail3GizmoSplineStep);
         else
             DrawWeave(trail3Enabled, trail3Seed, trail3Frequency, trail3Amplitude, new Color(0.4f, 1f, 0.4f));
     }
 
-    void DrawImagePathGizmo(
-        Texture2D image,
-        float metersPerPixel,
+    void DrawSplinePathGizmo(
+        SplineContainer spline,
         Color color,
         float y,
-        ref TrailImagePathUtility.ExtractResult cache,
-        ref Texture2D cacheTexture,
-        ref float cacheMeters)
+        ref TrailSplinePathUtility.ExtractResult cache,
+        ref SplineContainer cacheSpline,
+        ref float cacheStep)
     {
-        if (cache == null || cacheTexture != image || !Mathf.Approximately(cacheMeters, metersPerPixel))
+        float lutStep = trailLutStepMeters > 0f ? trailLutStepMeters : 1f;
+        if (cache == null || cacheSpline != spline || !Mathf.Approximately(cacheStep, lutStep))
         {
-            if (!TrailImagePathUtility.TryExtract(image, metersPerPixel, out cache, out _))
+            if (!TrailSplinePathUtility.TryExtract(spline, lutStep, out cache, out _))
                 return;
 
-            cacheTexture = image;
-            cacheMeters = metersPerPixel;
+            cacheSpline = spline;
+            cacheStep = lutStep;
         }
 
+        DrawExtractedPathGizmo(cache, color, y);
+    }
+
+    void DrawExtractedPathGizmo(TrailSplinePathUtility.ExtractResult cache, Color color, float y)
+    {
         if (cache?.xOffset == null || cache.xOffset.Length == 0)
             return;
 
@@ -669,21 +658,14 @@ public class TerrainConfigAuthoring : MonoBehaviour
         trail1BlendWidth= Mathf.Max(0f, trail1BlendWidth);
         trail1Frequency = Mathf.Max(0f, trail1Frequency);
         trail1Amplitude = Mathf.Max(0f, trail1Amplitude);
-        trail1MetersPerPixel = trail1MetersPerPixel > 0f ? trail1MetersPerPixel : 1f;
         trail2Width     = Mathf.Max(0f, trail2Width);
         trail2BlendWidth= Mathf.Max(0f, trail2BlendWidth);
         trail2Frequency = Mathf.Max(0f, trail2Frequency);
         trail2Amplitude = Mathf.Max(0f, trail2Amplitude);
-        trail2MetersPerPixel = trail2MetersPerPixel > 0f ? trail2MetersPerPixel : 1f;
         trail3Width     = Mathf.Max(0f, trail3Width);
         trail3BlendWidth= Mathf.Max(0f, trail3BlendWidth);
         trail3Frequency = Mathf.Max(0f, trail3Frequency);
         trail3Amplitude = Mathf.Max(0f, trail3Amplitude);
-        trail3MetersPerPixel = trail3MetersPerPixel > 0f ? trail3MetersPerPixel : 1f;
-
-        WarnIfPathImageNotReadable(trail1Enabled, trail1PathImage, "Trail 1");
-        WarnIfPathImageNotReadable(trail2Enabled, trail2PathImage, "Trail 2");
-        WarnIfPathImageNotReadable(trail3Enabled, trail3PathImage, "Trail 3");
         
         // Set default search string if empty
         if (playerSearchMode == PlayerSearchMode.FindByName && string.IsNullOrEmpty(playerName))
@@ -694,15 +676,5 @@ public class TerrainConfigAuthoring : MonoBehaviour
         {
             playerTag = "Player";
         }
-    }
-
-    static void WarnIfPathImageNotReadable(bool enabled, Texture2D texture, string trailLabel)
-    {
-        if (!enabled || texture == null || texture.isReadable)
-            return;
-
-        Debug.LogWarning(
-            $"[TerrainConfig] {trailLabel} path image '{texture.name}' is not readable. Enable Read/Write in the texture import settings.",
-            texture);
     }
 }

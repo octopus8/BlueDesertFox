@@ -734,24 +734,21 @@ MonoBehaviour:
   trail1Enabled: 0
   trail1Width: 45
   trail1BlendWidth: 0
-  trail1PathImage: {fileID: 0}
-  trail1MetersPerPixel: 1
+  trail1Spline: {fileID: 0}
   trail1Seed: 0
   trail1Frequency: 0.0015
   trail1Amplitude: 250
   trail2Enabled: 1
   trail2Width: 45
   trail2BlendWidth: 35
-  trail2PathImage: {fileID: 2800000, guid: a164e94f7739d8b4bbb1d85bb94d853c, type: 3}
-  trail2MetersPerPixel: 1
+  trail2Spline: {fileID: 4035485277886579078, guid: 7624048fa48b1af439747c314ea091fa, type: 3}
   trail2Seed: 100
   trail2Frequency: 0.001
   trail2Amplitude: 200
   trail3Enabled: 0
   trail3Width: 45
   trail3BlendWidth: 35
-  trail3PathImage: {fileID: 0}
-  trail3MetersPerPixel: 1
+  trail3Spline: {fileID: 0}
   trail3Seed: 200
   trail3Frequency: 0.0015
   trail3Amplitude: 150

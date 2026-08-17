@@ -103,8 +103,8 @@ public struct TerrainHeightAlignState : IComponentData
 /// After the shared straight run, each trail weaves via
 /// centerX(Z) = startX + amplitude * fade(Z) * (snoise(Z) - snoise(edgeZ)),
 /// guaranteeing the path always advances in the +Z direction (cannot turn past 90°).
-/// When a <see cref="TrailImagePathBlob"/> is assigned, that X(Z) table replaces noise weave
-/// (straight-run and seed/frequency/amplitude are ignored for that trail).
+/// When a <see cref="TrailPathBlob"/> is assigned (baked from a spline),
+/// that X(Z) table replaces noise weave (straight-run and seed/frequency/amplitude are ignored).
 /// Trail cross-section is level (ski-trail style): grade uses world +Z at the nearest centerline sample.
 /// </summary>
 public struct TrailInstanceConfig
@@ -185,15 +185,15 @@ public struct TrailPathConfig : IComponentData
 }
 
 /// <summary>
-/// Baked X-offset-vs-Z samples for one image-authored trail, relative to the red start dot.
+/// Baked X-offset-vs-Z samples for one spline-authored trail, relative to knot 0.
 /// Invalid (gap) samples are <see cref="float.NaN"/>.
 /// </summary>
-public struct TrailImagePathBlob
+public struct TrailPathBlob
 {
     /// <summary>World-Z of the first sample, relative to <see cref="TrailPathConfig.startZ"/>.</summary>
     public float zMin;
 
-    /// <summary>Meters between consecutive samples (image meters-per-pixel).</summary>
+    /// <summary>Meters between consecutive samples (trail LUT step).</summary>
     public float zStep;
 
     /// <summary>Centerline X relative to <see cref="TrailPathConfig.startX"/>; NaN = no trail at that Z.</summary>
@@ -207,14 +207,15 @@ public struct TrailImagePathBlob
 }
 
 /// <summary>
-/// Optional per-trail image paths. An uncreated blob means that trail uses noise weave.
+/// Optional per-trail spline paths baked into X(Z) blobs.
+/// An uncreated blob means that trail uses noise weave.
 /// Separate from <see cref="TrailConfig"/> so existing baked trail instance layouts stay stable.
 /// </summary>
-public struct TrailImagePaths : IComponentData
+public struct TrailPaths : IComponentData
 {
-    public BlobAssetReference<TrailImagePathBlob> trail1;
-    public BlobAssetReference<TrailImagePathBlob> trail2;
-    public BlobAssetReference<TrailImagePathBlob> trail3;
+    public BlobAssetReference<TrailPathBlob> trail1;
+    public BlobAssetReference<TrailPathBlob> trail2;
+    public BlobAssetReference<TrailPathBlob> trail3;
 }
 
 /// <summary>

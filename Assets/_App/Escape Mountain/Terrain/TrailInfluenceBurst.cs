@@ -112,18 +112,18 @@ public static class TrailInfluenceBurst
 
     /// <summary>
     /// Samples trail centerline X at world Z using shared path fields from <see cref="TrailPathConfig"/>.
-    /// Image paths ignore straight-run / noise. Returns <see cref="float.NaN"/> when the image has
-    /// no centerline at this Z (out of range or a gap).
+    /// Spline-authored blobs ignore straight-run / noise. Returns <see cref="float.NaN"/> when the
+    /// spline path has no centerline at this Z (out of range or a gap).
     /// </summary>
     public static float SampleCenterlineX(
         float worldZ,
         in TrailInstanceConfig trail,
         in TrailPathConfig path,
-        BlobAssetReference<TrailImagePathBlob> imagePath)
+        BlobAssetReference<TrailPathBlob> pathBlob)
     {
-        if (imagePath.IsCreated)
+        if (pathBlob.IsCreated)
         {
-            if (TrySampleImageCenterlineX(worldZ, path.startX, path.startZ, imagePath, out float x))
+            if (TrySampleAuthoredCenterlineX(worldZ, path.startX, path.startZ, pathBlob, out float x))
                 return x;
             return float.NaN;
         }
@@ -134,7 +134,7 @@ public static class TrailInfluenceBurst
 
     /// <summary>
     /// Samples trail centerline X at world Z using shared path fields from <see cref="TrailPathConfig"/>.
-    /// Noise-weave overload (no image path).
+    /// Noise-weave overload (no authored path blob).
     /// </summary>
     public static float SampleCenterlineX(float worldZ, in TrailInstanceConfig trail, in TrailPathConfig path)
     {
@@ -143,20 +143,20 @@ public static class TrailInfluenceBurst
     }
 
     /// <summary>
-    /// Interpolates an image-authored centerline. Both adjacent samples must be valid; gaps do not lerp.
+    /// Interpolates a spline-authored centerline. Both adjacent samples must be valid; gaps do not lerp.
     /// </summary>
-    public static bool TrySampleImageCenterlineX(
+    public static bool TrySampleAuthoredCenterlineX(
         float worldZ,
         float startX,
         float startZ,
-        BlobAssetReference<TrailImagePathBlob> imagePath,
+        BlobAssetReference<TrailPathBlob> pathBlob,
         out float centerX)
     {
         centerX = 0f;
-        if (!imagePath.IsCreated)
+        if (!pathBlob.IsCreated)
             return false;
 
-        ref var blob = ref imagePath.Value;
+        ref var blob = ref pathBlob.Value;
         int count = blob.xOffset.Length;
         if (count <= 0)
             return false;
@@ -220,18 +220,18 @@ public static class TrailInfluenceBurst
         float tileSize,
         in TrailConfig config,
         in TrailPathConfig path,
-        in TrailImagePaths imagePaths,
+        in TrailPaths trailPaths,
         byte activeMask)
     {
         byte mask = 0;
         if ((activeMask & TrailMask.Trail1) != 0 &&
-            TileIntersectsTrailCorridor(tileWorldX, tileWorldZ, tileSize, config.trail1, path, imagePaths.trail1))
+            TileIntersectsTrailCorridor(tileWorldX, tileWorldZ, tileSize, config.trail1, path, trailPaths.trail1))
             mask |= TrailMask.Trail1;
         if ((activeMask & TrailMask.Trail2) != 0 &&
-            TileIntersectsTrailCorridor(tileWorldX, tileWorldZ, tileSize, config.trail2, path, imagePaths.trail2))
+            TileIntersectsTrailCorridor(tileWorldX, tileWorldZ, tileSize, config.trail2, path, trailPaths.trail2))
             mask |= TrailMask.Trail2;
         if ((activeMask & TrailMask.Trail3) != 0 &&
-            TileIntersectsTrailCorridor(tileWorldX, tileWorldZ, tileSize, config.trail3, path, imagePaths.trail3))
+            TileIntersectsTrailCorridor(tileWorldX, tileWorldZ, tileSize, config.trail3, path, trailPaths.trail3))
             mask |= TrailMask.Trail3;
         return mask;
     }
@@ -242,13 +242,13 @@ public static class TrailInfluenceBurst
         float tileSize,
         in TrailInstanceConfig trail,
         in TrailPathConfig path,
-        BlobAssetReference<TrailImagePathBlob> imagePath)
+        BlobAssetReference<TrailPathBlob> pathBlob)
     {
         if (!trail.enabled)
             return false;
 
-        if (imagePath.IsCreated)
-            return TileIntersectsImageTrailCorridor(tileWorldX, tileWorldZ, tileSize, trail, path, imagePath);
+        if (pathBlob.IsCreated)
+            return TileIntersectsAuthoredTrailCorridor(tileWorldX, tileWorldZ, tileSize, trail, path, pathBlob);
 
         float searchRange = GetTrailMaxSearchRange(trail);
         float tileXMin = tileWorldX;
@@ -268,15 +268,15 @@ public static class TrailInfluenceBurst
         return false;
     }
 
-    private static bool TileIntersectsImageTrailCorridor(
+    private static bool TileIntersectsAuthoredTrailCorridor(
         float tileWorldX,
         float tileWorldZ,
         float tileSize,
         in TrailInstanceConfig trail,
         in TrailPathConfig path,
-        BlobAssetReference<TrailImagePathBlob> imagePath)
+        BlobAssetReference<TrailPathBlob> pathBlob)
     {
-        ref var blob = ref imagePath.Value;
+        ref var blob = ref pathBlob.Value;
         int count = blob.xOffset.Length;
         if (count <= 0)
             return false;
@@ -336,12 +336,12 @@ public static class TrailInfluenceBurst
         int length,
         in TrailInstanceConfig trail,
         in TrailPathConfig path,
-        BlobAssetReference<TrailImagePathBlob> imagePath)
+        BlobAssetReference<TrailPathBlob> pathBlob)
     {
         for (int i = 0; i < length; i++)
         {
             float sz = zOrigin + i * zStep;
-            centerlineX[offset + i] = SampleCenterlineX(sz, trail, path, imagePath);
+            centerlineX[offset + i] = SampleCenterlineX(sz, trail, path, pathBlob);
         }
     }
 
@@ -489,7 +489,7 @@ public static class TrailInfluenceBurst
         float fZ,
         in TrailInstanceConfig trail,
         in TrailPathConfig path,
-        BlobAssetReference<TrailImagePathBlob> imagePath,
+        BlobAssetReference<TrailPathBlob> pathBlob,
         float lutStep)
     {
         if (!trail.enabled)
@@ -505,7 +505,7 @@ public static class TrailInfluenceBurst
         for (int i = 0; i < count; i++)
         {
             float sz = zStart + i * step;
-            float scx = SampleCenterlineX(sz, trail, path, imagePath);
+            float scx = SampleCenterlineX(sz, trail, path, pathBlob);
             if (math.isnan(scx))
                 continue;
 
@@ -527,13 +527,13 @@ public static class TrailInfluenceBurst
         float fZ,
         in TrailInstanceConfig trail,
         in TrailPathConfig path,
-        BlobAssetReference<TrailImagePathBlob> imagePath,
+        BlobAssetReference<TrailPathBlob> pathBlob,
         float lutStep)
     {
         if (!trail.enabled)
             return false;
 
         float exclusionRadius = GetTrailFlatCoreRadius(trail);
-        return ComputeMinDistanceToTrail(fX, fZ, trail, path, imagePath, lutStep) < exclusionRadius;
+        return ComputeMinDistanceToTrail(fX, fZ, trail, path, pathBlob, lutStep) < exclusionRadius;
     }
 }

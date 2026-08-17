@@ -304,37 +304,29 @@ Physics layer index for all terrain colliders.
 
 ### Trails
 
-Up to three flat ski-style trails carved into the terrain. All share one Y height, start X/Z, LUT step, and optional snap-to-player. Each trail has its own width, blend width, and either a noise weave (seed / frequency / amplitude) or an optional path image.
+Up to three flat ski-style trails carved into the terrain. All share one Y height, start X/Z, LUT step, and optional snap-to-player. Each trail has its own width, blend width, and a centerline from **spline** or **noise weave** (spline wins when assigned).
 
-#### Path Image (per trail)
+#### Spline (per trail)
 
-**Type**: `Texture2D` (optional)  
+**Type**: `SplineContainer` (optional prefab or scene instance)  
 **Default**: none
 
-Black line on a white background defines the trail centerline as a function of world Z. A red dot marks the start, which is placed at the shared Start X/Z (or the player, when snap-to-player is on).
+Assign a Unity Splines `SplineContainer` (for example `Trail Spline 00`) to define the trail centerline in XZ. Knot 0 is placed at the shared Start X/Z (or the player, when snap-to-player is on). Spline Y is ignored; trail height stays `trailHeight`.
 
-**Image convention**:
+**Spline convention**:
 
-- Image up (Unity `GetPixels` +Y, texture bottom-left origin) = world **+Z**
-- Image right = world **+X**
-- Red pixel centroid = relative `(0, 0)` on the path
-- One X sample per image row (paths must not double back in Z; horizontal runs collapse to a single X)
+- Knot 0 = relative `(0, 0)` on the path
+- Path must not double back in Z (Z of sampled points must be non-decreasing)
+- Closed splines are rejected
+- Sample spacing uses the shared **Trail LUT Step Meters**
 
-When a path image is assigned, that trail ignores seed, frequency, amplitude, and the shared straight-run / weave-fade. The trail exists only for the Z range covered by the image.
+When a spline is assigned, that trail ignores seed, frequency, amplitude, and the shared straight-run / weave-fade. The trail exists only for the Z range covered by the spline.
 
-**Texture import**: enable Read/Write. Point filter and no mipmaps are recommended so the line stays 1–3 px.
-
-#### Meters Per Pixel (per trail)
-
-**Type**: Float  
-**Default**: `1`  
-**Units**: Meters / pixel
-
-Uniform scale from image pixels to world meters. A 1024 px image at `2` covers 2048×2048 m.
+Do not add `SplineComponentAuthoring` and do not instance the spline into the SubScene — the baker reads the prefab at bake time.
 
 #### Shared Start / Snap
 
-Red-dot-relative samples are added to `trailStartX` / `trailStartZ`. If **Snap Start To Player** is enabled, a startup system overwrites those with the player content XZ so the red dot sits under the rider.
+Spline knot-0 samples are added to `trailStartX` / `trailStartZ`. If **Snap Start To Player** is enabled, a startup system overwrites those with the player content XZ so knot 0 sits under the rider.
 
 ---
 
@@ -588,7 +580,7 @@ When `TerrainConfigAuthoring` GameObject is selected in the Scene view:
 **Green Sphere**: View distance (wireframe)  
 **Cyan Box**: Example tile at player position  
 **Yellow line / sphere**: Shared trail start and straight run  
-**Orange / cyan / green polylines**: Enabled trail centerlines (image path or noise-weave preview)
+**Orange / cyan / green polylines**: Enabled trail centerlines (spline or noise-weave preview)
 
 This helps visualize the configuration before running the scene.
 

@@ -67,8 +67,8 @@ public partial struct TerrainHeightAlignSystem : ISystem
         TrailPathConfig trailPath = SystemAPI.HasSingleton<TrailPathConfig>()
             ? SystemAPI.GetSingleton<TrailPathConfig>()
             : new TrailPathConfig { straightLength = 80f, weaveFadeLength = 30f, snapStartToPlayer = 1 };
-        TrailImagePaths trailImagePaths = SystemAPI.HasSingleton<TrailImagePaths>()
-            ? SystemAPI.GetSingleton<TrailImagePaths>()
+        TrailPaths trailPaths = SystemAPI.HasSingleton<TrailPaths>()
+            ? SystemAPI.GetSingleton<TrailPaths>()
             : default;
 
         float unalignedHeight = TerrainMeshNoise.SampleUnalignedHeightAt(
@@ -78,7 +78,7 @@ public partial struct TerrainHeightAlignSystem : ISystem
             hasTrailConfig,
             trailConfig,
             trailPath,
-            trailImagePaths);
+            trailPaths);
 
         // The board hangs a full leg below the sprung body, so drop the surface by the neutral ride
         // height too. Without this the suspension would start fully compressed and push the rider up

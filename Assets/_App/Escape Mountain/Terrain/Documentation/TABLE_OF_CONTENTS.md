@@ -70,6 +70,7 @@ Complete index of all Terrain system documentation.
 | File | Purpose |
 |------|---------|
 | `TerrainConfigAuthoring.cs` | Main authoring/baker — all config |
+| `TrailSplinePathUtility.cs` | Bake SplineContainer → X(Z) trail path blob |
 | `TileComponents.cs` | All terrain + static object ECS types |
 | `TerrainPhysicsComponents.cs` | Physics collider types + budget helper |
 | `PlayerTrackingInitSystem.cs` | Runtime player GO search |

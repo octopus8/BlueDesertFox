@@ -259,7 +259,7 @@ Located in `Assets/_App/Escape Mountain/Terrain/`:
 - Auto-scroll: Enable via `scrollEnabled`, set `scrollSpeed` (5.0 m/s), scrolls in player's facing direction (XZ plane)
 - Noise params: `noiseFrequency` (0.01), `noiseAmplitude` (20), `noiseOctaves` (4), `noiseLacunarity` (2.0), `noisePersistence` (0.5)
 - Physics: `maxCollidersCreatedPerFrame` (6), `maxPhysicsCollidersCreatedPerFrame` (4), `maxColliderDistance` (450m)
-- Trails: optional per-trail path image (black line on white, red start dot) with `metersPerPixel`; otherwise seed/frequency/amplitude noise weave. Image up = world +Z; red dot maps to shared start X/Z (or player if snap is on)
+- Trails: optional per-trail spline (`SplineContainer` prefab, knot 0 at start); otherwise seed/frequency/amplitude noise weave. Spline paths must not double back in Z. Knot 0 maps to shared start X/Z (or player if snap is on)
 
 **Debugging Tools**:
 
