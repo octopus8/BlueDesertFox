@@ -706,13 +706,13 @@ MonoBehaviour:
   viewDistance: 513
   verticesPerSide: 48
   initYOffset: -2.4
-  slopeAngleDegrees: -20
+  slopeAngleDegrees: -10
   slopeVariationSeed: 0
-  slopeVariationFrequency: 0.005
+  slopeVariationFrequency: 0.02
   slopeVariationAmplitude: 10
   slopeVariationSettingsInitialized: 1
   noiseFrequency: 0.005
-  noiseAmplitude: 40
+  noiseAmplitude: 0.0001
   noiseOctaves: 2
   noiseLacunarity: 2
   noisePersistence: 0.5
@@ -725,7 +725,7 @@ MonoBehaviour:
   maxColliderCacheMemoryMB: 53
   terrainPhysicsLayer: 11
   terrainPhysicsMaterial: {fileID: 13400000, guid: 6ca36172f3540ad4b8bb526b8c406034, type: 2}
-  trailHeight: -25
+  trailHeight: -10
   trailLutStepMeters: 0.25
   trailStartX: 0
   trailStartZ: -2900
@@ -735,8 +735,8 @@ MonoBehaviour:
   trailPathSettingsInitialized: 1
   trail1Enabled: 1
   trail1Width: 45
-  trail1BlendWidth: 0
-  trail1Spline: {fileID: 0}
+  trail1BlendWidth: 35
+  trail1Spline: {fileID: 4035485277886579078, guid: 7624048fa48b1af439747c314ea091fa, type: 3}
   trail1Seed: 0
   trail1Frequency: 0.0015
   trail1Amplitude: 0.01

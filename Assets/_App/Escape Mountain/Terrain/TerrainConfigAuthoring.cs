@@ -49,15 +49,15 @@ public class TerrainConfigAuthoring : MonoBehaviour
     [Range(-60f, 60f)]
     public float slopeAngleDegrees = 0f;
 
-    [Tooltip("Integer seed for per-vertex slope noise. Change to get a different grade undulation pattern.")]
+    [Tooltip("Integer seed for slope noise along world +Z. Change to get a different grade undulation pattern.")]
     public int slopeVariationSeed = 0;
 
-    [Tooltip("World-space frequency of per-vertex slope noise. Lower values undulate over longer distances.")]
+    [Tooltip("World-space frequency of slope noise along +Z. Lower values undulate over longer distances down the grade.")]
     [Min(0f)]
     public float slopeVariationFrequency = 0.005f;
 
     [FormerlySerializedAs("slopeAngleVariation")]
-    [Tooltip("Per-vertex grade variation in degrees subtracted from slopeAngleDegrees (e.g. -35° with 10 = local grade between -45° and -35°). 0 = uniform grade.")]
+    [Tooltip("Grade variation along +Z in degrees subtracted from slopeAngleDegrees (e.g. -35° with 10 = local grade between -45° and -35°). 0 = uniform grade.")]
     [Range(0f, 30f)]
     public float slopeVariationAmplitude = 0f;
 

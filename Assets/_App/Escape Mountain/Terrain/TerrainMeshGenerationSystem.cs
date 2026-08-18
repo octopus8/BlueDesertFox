@@ -283,7 +283,7 @@ public partial struct TerrainMeshScheduleSystem : ISystem
             float baseSlopeTan = math.tan(math.radians(config.slopeAngleDegrees));
             float minSlopeTan = math.tan(math.radians(config.slopeAngleDegrees - config.slopeVariationAmplitude));
             float maxSlopeTan = baseSlopeTan;
-            float2 slopeVariationSeedOffset = TerrainMeshNoise.SlopeVariationSeedOffset(config.slopeVariationSeed);
+            float slopeVariationSeedOffset = TerrainMeshNoise.SlopeVariationSeedOffset(config.slopeVariationSeed);
 
             TrailConfig trailConfig = default;
             TrailPathConfig trailPath = new TrailPathConfig
@@ -594,7 +594,7 @@ public struct TileMeshJobData
     public float maxSlopeTan;
     public float slopeVariationAmplitude;
     public float slopeVariationFrequency;
-    public float2 slopeVariationSeedOffset;
+    public float slopeVariationSeedOffset;
     public float noiseFrequency;
     public float noiseAmplitude;
     public int noiseOctaves;
@@ -834,7 +834,6 @@ public static class TerrainMeshNoise
         TerrainMeshProfiler.Begin(TerrainMeshProfiler.TrailInfluence);
 #endif
         float maxInfluence = 0f;
-        float trailSlopeX = 0f;
         float trailSlopeZ = 0f;
 
         if ((data.tileTrailMask & TrailMask.Trail1) != 0)
@@ -844,7 +843,6 @@ public static class TerrainMeshNoise
             if (result.influence > maxInfluence)
             {
                 maxInfluence = result.influence;
-                trailSlopeX = result.centerlineX;
                 trailSlopeZ = result.centerlineZ;
             }
         }
@@ -856,7 +854,6 @@ public static class TerrainMeshNoise
             if (result.influence > maxInfluence)
             {
                 maxInfluence = result.influence;
-                trailSlopeX = result.centerlineX;
                 trailSlopeZ = result.centerlineZ;
             }
         }
@@ -868,7 +865,6 @@ public static class TerrainMeshNoise
             if (result.influence > maxInfluence)
             {
                 maxInfluence = result.influence;
-                trailSlopeX = result.centerlineX;
                 trailSlopeZ = result.centerlineZ;
             }
         }
@@ -878,7 +874,7 @@ public static class TerrainMeshNoise
 
         if (maxInfluence > 0f)
         {
-            float slopedTrailHeight = data.trailConfig.height + SampleGradeHeight(trailSlopeX, trailSlopeZ, data);
+            float slopedTrailHeight = data.trailConfig.height + SampleGradeHeight(trailSlopeZ, data);
             return math.lerp(terrainHeight, slopedTrailHeight, maxInfluence) + data.heightOffset;
         }
 
@@ -902,7 +898,7 @@ public static class TerrainMeshNoise
         float baseSlopeTan = math.tan(math.radians(config.slopeAngleDegrees));
         float minSlopeTan = math.tan(math.radians(config.slopeAngleDegrees - config.slopeVariationAmplitude));
         float maxSlopeTan = baseSlopeTan;
-        float2 slopeVariationSeedOffset = SlopeVariationSeedOffset(config.slopeVariationSeed);
+        float slopeVariationSeedOffset = SlopeVariationSeedOffset(config.slopeVariationSeed);
 
         float trailLutStep = 1f;
         TrailConfig normalizedTrail = trailConfig;
@@ -1022,23 +1018,23 @@ public static class TerrainMeshNoise
     }
 
     /// <summary>
-    /// Stable 2D domain offset so changing <paramref name="seed"/> selects a different slope-noise pattern.
+    /// Stable 1D domain offset so changing <paramref name="seed"/> selects a different slope-noise pattern along +Z.
     /// </summary>
-    public static float2 SlopeVariationSeedOffset(int seed)
+    public static float SlopeVariationSeedOffset(int seed)
     {
-        return new float2(seed * 17.31f, seed * 91.17f);
+        return seed * 17.31f;
     }
 
-    private static float GetSlopeTanAt(float worldX, float worldZ, in TileMeshJobData data)
+    private static float GetSlopeTanAt(float worldZ, in TileMeshJobData data)
     {
         if (data.slopeVariationAmplitude <= 0f)
             return data.baseSlopeTan;
 
-        float t = noise.snoise(new float2(worldX, worldZ) * data.slopeVariationFrequency + data.slopeVariationSeedOffset) * 0.5f + 0.5f;
+        float t = noise.snoise(new float2(worldZ * data.slopeVariationFrequency + data.slopeVariationSeedOffset, 0f)) * 0.5f + 0.5f;
         return math.lerp(data.minSlopeTan, data.maxSlopeTan, t);
     }
 
-    private static float SampleGradeHeight(float worldX, float worldZ, in TileMeshJobData data)
+    private static float SampleGradeHeight(float worldZ, in TileMeshJobData data)
     {
         if (data.slopeVariationAmplitude <= 0f)
             return worldZ * data.baseSlopeTan;
@@ -1056,7 +1052,7 @@ public static class TerrainMeshNoise
             {
                 float segStart = t * tileSize;
                 float segEnd = t == endTile ? worldZ : (t + 1) * tileSize;
-                height += IntegrateGradeSegment(worldX, segStart, segEnd, data);
+                height += IntegrateGradeSegment(segStart, segEnd, data);
             }
         }
         else
@@ -1069,7 +1065,7 @@ public static class TerrainMeshNoise
             {
                 float segStart = t == startTile ? worldZ : t * tileSize;
                 float segEnd = (t + 1) * tileSize;
-                height += IntegrateGradeSegment(worldX, segStart, segEnd, data);
+                height += IntegrateGradeSegment(segStart, segEnd, data);
             }
             return -height;
         }
@@ -1077,7 +1073,7 @@ public static class TerrainMeshNoise
         return height;
     }
 
-    private static float IntegrateGradeSegment(float worldX, float segStart, float segEnd, in TileMeshJobData data)
+    private static float IntegrateGradeSegment(float segStart, float segEnd, in TileMeshJobData data)
     {
         if (segEnd <= segStart)
             return 0f;
@@ -1088,7 +1084,7 @@ public static class TerrainMeshNoise
         for (int i = 0; i < steps; i++)
         {
             float midZ = segStart + (i + 0.5f) * dz;
-            height += GetSlopeTanAt(worldX, midZ, data) * dz;
+            height += GetSlopeTanAt(midZ, data) * dz;
         }
 
         return height;
@@ -1122,7 +1118,7 @@ public static class TerrainMeshNoise
         }
 
         return total / maxValue * data.noiseAmplitude * continentalMask
-            + SampleGradeHeight((float)worldX, (float)worldZ, data);
+            + SampleGradeHeight((float)worldZ, data);
     }
 }
 

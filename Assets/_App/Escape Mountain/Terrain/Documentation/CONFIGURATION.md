@@ -138,7 +138,7 @@ Height is path-integrated from `tan(angle)` along Z so the surface stays continu
 **Type**: Int  
 **Default**: `0`
 
-Offsets the per-vertex slope noise domain. Change this to pick a different grade undulation pattern without moving the player.
+Offsets the 1D slope noise domain along world +Z. Change this to pick a different grade undulation pattern without moving the player.
 
 #### Slope Variation Frequency
 
@@ -147,9 +147,9 @@ Offsets the per-vertex slope noise domain. Change this to pick a different grade
 **Units**: 1 / meters  
 **Range**: ≥ 0
 
-World-space frequency of the 2D simplex field that varies grade per vertex. Lower values undulate over hundreds of meters; higher values change grade more quickly across a tile. `0` samples a constant (seed-only) grade.
+World-space frequency of the 1D simplex field that varies grade along +Z (the sloping axis). Lower values undulate over hundreds of meters down the mountain; higher values change grade more quickly along Z. `0` samples a constant (seed-only) grade.
 
-This is independent of the detail-noise frequency used for hills and bumps.
+This is independent of the detail-noise frequency used for hills and bumps. Grade does not vary with X: a given Z has the same slope across the tile.
 
 #### Slope Variation Amplitude
 
@@ -158,9 +158,9 @@ This is independent of the detail-noise frequency used for hills and bumps.
 **Units**: Degrees  
 **Range**: 0 to 30 (also clamped so base angle minus amplitude stays ≥ -60)
 
-Per-vertex grade spread subtracted from Slope Angle Degrees. Example: `-35°` with amplitude `10` produces local grades between `-45°` and `-35°`. `0` keeps a uniform grade.
+Grade spread along +Z subtracted from Slope Angle Degrees. Example: `-35°` with amplitude `10` produces local grades between `-45°` and `-35°`. `0` keeps a uniform grade.
 
-Each vertex samples continuous XZ noise, then grade is path-integrated along Z at that X. Adjacent tiles share the same noise field, so no blend-distance seam fix is required. Ski trails stay level by sampling grade at the trail centerline rather than the vertex X.
+Each height sample looks up continuous 1D noise at world Z, then path-integrates that grade from the origin. Adjacent tiles share the same Z noise field, so no blend-distance seam fix is required.
 
 ---
 
