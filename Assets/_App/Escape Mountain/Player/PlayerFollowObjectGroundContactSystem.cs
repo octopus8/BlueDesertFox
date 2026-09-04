@@ -330,6 +330,8 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
 
             bool hasContact = false;
             bool onRideable = false;
+            // Angled halfpipe lip: drop contact this frame and skip sustain/sweep/depen re-arm.
+            bool lipLaunch = false;
             float3 contactNormal = previousGroundNormal;
             float legLength = config.ValueRO.rideHeight;
             float supportHeight = position.y;
@@ -365,6 +367,13 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
                     bool walkableInReach = probedLegLength <= config.ValueRO.MaxLegLength;
                     bool separatingFromWall =
                         math.dot(terrainRelativeVelocity, previousGroundNormal) > 0f;
+                    bool pressingIntoPreviousWall =
+                        math.dot(terrainRelativeVelocity, previousGroundNormal) < 0f;
+                    float3 previousWallUp = math.normalizesafe(
+                        RemoveNormalComponent(math.up(), previousGroundNormal),
+                        float3.zero);
+                    bool climbingPreviousWall = math.lengthsq(previousWallUp) > 0.5f
+                        && math.dot(terrainRelativeVelocity, previousWallUp) > 0f;
 
                     if (TryCastRideableWall(
                             collisionWorld,
@@ -383,6 +392,8 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
                             float3.zero);
                         bool descendingWall = math.lengthsq(wallUp) > 0.5f
                             && math.dot(terrainRelativeVelocity, wallUp) < 0f;
+                        bool pressingIntoWall =
+                            math.dot(terrainRelativeVelocity, stickyWallNormal) < 0f;
 
                         // Lip/deck above the body is not the floor we are sliding onto — releasing onto
                         // that crest pins BoardContactPosition to the lip while the rider continues down.
@@ -392,6 +403,18 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
                             previousGroundNormal = probedNormal;
                             legLength = probedLegLength;
                             hasContact = true;
+                        }
+                        else if (!pressingIntoWall
+                            && ((walkableInReach && !descendingWall) || walkableIsLipCrest))
+                        {
+                            // Angled halfpipe: still beside the inner face at the rim / pipe-body top.
+                            // Keep wall-ride while pressing in so a mid-climb side-column deck hit
+                            // cannot launch early. Otherwise go ballistic with retained speed.
+                            // Keep the steep previous normal so the next frames still see "leaving
+                            // the face" — adopting the deck would re-stick within MaxLegLength.
+                            lipLaunch = true;
+                            hasContact = false;
+                            onRideable = false;
                         }
                         else
                         {
@@ -407,9 +430,9 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
                     {
                         // Leaving the face (lip launch or bounce-off). Do not require walkable-in-reach —
                         // at the top the floor is still distant while velocity already separates.
+                        lipLaunch = true;
                         hasContact = false;
                         onRideable = false;
-                        previousGroundNormal = probedNormal;
                     }
                     else if (walkableInReach && supportHeight <= position.y + LipCrestAboveBodyMargin)
                     {
@@ -421,7 +444,27 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
                     }
                     else if (walkableInReach)
                     {
-                        // Walkable probe is the lip/deck above us; keep wall-ride until the floor is underfoot.
+                        // Walkable probe is the lip/deck above us. Launch unless still driving into
+                        // the face (mid-climb false deck). Do not keep wall-ride — that glues the
+                        // rider to the top of the pipe body on an angled climb.
+                        if (pressingIntoPreviousWall)
+                        {
+                            contactNormal = previousGroundNormal;
+                            legLength = config.ValueRO.rideHeight;
+                            supportHeight = position.y;
+                            hasContact = true;
+                        }
+                        else
+                        {
+                            lipLaunch = true;
+                            hasContact = false;
+                            onRideable = false;
+                        }
+                    }
+                    else if (pressingIntoPreviousWall || climbingPreviousWall)
+                    {
+                        // Distant floor under a steep previous face, still pressing in or climbing.
+                        // Keep wall-ride so upward travel parallel to the face cannot tunnel through.
                         contactNormal = previousGroundNormal;
                         legLength = config.ValueRO.rideHeight;
                         supportHeight = position.y;
@@ -429,12 +472,9 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
                     }
                     else
                     {
-                        // Distant floor under a steep previous face, still pressing in, cast missed.
-                        // Keep wall-ride so upward travel parallel to the face cannot tunnel through.
-                        contactNormal = previousGroundNormal;
-                        legLength = config.ValueRO.rideHeight;
-                        supportHeight = position.y;
-                        hasContact = true;
+                        lipLaunch = true;
+                        hasContact = false;
+                        onRideable = false;
                     }
                 }
                 else
@@ -450,10 +490,12 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
 
             // Vertical quarterpipe: downward probes miss the face (or see a distant floor without
             // valid contact). If we were on steep rideable and the wall is still beside us, sustain
-            // wall-ride. Do not do this when the probe already found terrain support.
+            // wall-ride. Do not do this when the probe already found terrain support, or when this
+            // frame already chose a lip launch (angled halfpipe: inner face is still in range).
             bool wallRide = false;
             bool onTerrain = hasContact && !onRideable;
             if (hasPhysicsWorld
+                && !lipLaunch
                 && !onTerrain
                 && !hasContact
                 && previousOnRideable
@@ -713,7 +755,10 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
                 // from the face. Do NOT subtract XZ from (n * dot(v,n)) while leaving vy — on a tilted
                 // face that invents outward horizontal speed (energy gain) and reads as a downhill
                 // slingshot at the lip. Gating on dot(v,n) > 0 avoids eating along-face descent speed.
-                if (steepRideable && math.dot(worldVelocity, contactNormal) > 0f)
+                // Skip on lip launch — that leftover XZ is the hop off an angled rim.
+                if (!lipLaunch
+                    && steepRideable
+                    && math.dot(worldVelocity, contactNormal) > 0f)
                 {
                     float3 barrierNormal = math.normalizesafe(
                         new float3(contactNormal.x, 0f, contactNormal.z),
@@ -848,7 +893,8 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
                 // Exit: probes already on mountain and not enter-arming — do not run the rim sweep;
                 // truncating velocity then ignoring the re-arm was the hard stop at the mouth.
                 bool skipRideableRim =
-                    (probeOnTerrain && !allowEnterRideableArm)
+                    lipLaunch
+                    || (probeOnTerrain && !allowEnterRideableArm)
                     || (allowEnterRideableArm
                         && (walkableRideableAhead
                             || TryProbeWalkableRideableUnderfoot(
@@ -918,6 +964,7 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
 
             // CapsuleCast can miss when already overlapping a thin mesh; pull back out against anchors.
             // Same exit gate as the rim sweep: do not mutate when probes already locked onto mountain.
+            // Lip launch still depens if overlapping, but must not re-arm Rideable contact.
             if (hasPhysicsWorld
                 && anchoredBodies.IsCreated
                 && anchoredBodies.Length > 0
@@ -929,7 +976,8 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
                         anchoredBodies,
                         config.ValueRO,
                         dt,
-                        out float3 depenNormal))
+                        out float3 depenNormal)
+                    && !lipLaunch)
                 {
                     previousGroundNormal = depenNormal;
                     onRideable = true;
