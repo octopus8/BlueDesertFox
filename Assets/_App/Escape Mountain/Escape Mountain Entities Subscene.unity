@@ -706,10 +706,10 @@ MonoBehaviour:
   viewDistance: 513
   verticesPerSide: 48
   initYOffset: -2.4
-  slopeAngleDegrees: -10
+  slopeAngleDegrees: -20
   slopeVariationSeed: 0
   slopeVariationFrequency: 0.02
-  slopeVariationAmplitude: 10
+  slopeVariationAmplitude: 0
   slopeVariationSettingsInitialized: 1
   noiseFrequency: 0.005
   noiseAmplitude: 0.0001
@@ -733,20 +733,20 @@ MonoBehaviour:
   trailWeaveFadeLength: 30
   trailSnapStartToPlayer: 1
   trailPathSettingsInitialized: 1
-  trail1Enabled: 1
+  trail1Enabled: 0
   trail1Width: 45
   trail1BlendWidth: 35
   trail1Spline: {fileID: 4035485277886579078, guid: 7624048fa48b1af439747c314ea091fa, type: 3}
   trail1Seed: 0
   trail1Frequency: 0.0015
   trail1Amplitude: 0.01
-  trail2Enabled: 0
+  trail2Enabled: 1
   trail2Width: 45
   trail2BlendWidth: 35
-  trail2Spline: {fileID: 4035485277886579078, guid: 7624048fa48b1af439747c314ea091fa, type: 3}
+  trail2Spline: {fileID: 0}
   trail2Seed: 100
   trail2Frequency: 0.001
-  trail2Amplitude: 200
+  trail2Amplitude: 0.00001
   trail3Enabled: 0
   trail3Width: 45
   trail3BlendWidth: 35
@@ -1023,7 +1023,7 @@ Transform:
   m_GameObject: {fileID: 919132147635452793}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -0.5, y: 1402.78, z: -2712}
+  m_LocalPosition: {x: -0.5, y: 1428.57, z: -2712}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -1080,7 +1080,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!1 &919132149053966448
 GameObject:
   m_ObjectHideFlags: 0
@@ -1295,8 +1295,8 @@ MeshFilter:
 SceneRoots:
   m_ObjectHideFlags: 0
   m_Roots:
-  - {fileID: 543450652726039242}
   - {fileID: 543450651905204675}
+  - {fileID: 543450652726039242}
   - {fileID: 543450653556981251}
   - {fileID: 488271556}
   - {fileID: 582652031}
