@@ -16,7 +16,7 @@ public class PlayerFollowObjectAuthoring : MonoBehaviour
     [SerializeField] private float rayHeightAbove = 2f;
     [Tooltip("Length of the ground raycast below the player.")]
     [SerializeField] private float rayLengthBelow = 50f;
-    [Tooltip("Physics layer for ramps/halfpipes. Used for ground contact and steep-wall capsule sweeps during movement.")]
+    [Tooltip("Additional ground layer (ramps, pipes). Walkable hits use the same snowboard contact as terrain; steep faces block like cliffs.")]
     [ValueDropdown(nameof(GetUnityLayerDropdown))]
     [SerializeField] private int rideablePhysicsLayer = 15;
 
@@ -54,22 +54,20 @@ public class PlayerFollowObjectAuthoring : MonoBehaviour
     [Min(0f)]
     [SerializeField] private float rideHeight = 0.35f;
 
-    [Tooltip("Extra reach (m) below neutral before the leg runs out and contact is lost. This is the " +
-             "bump-versus-ledge threshold: drops shallower than this are swallowed by the leg extending, " +
-             "deeper drops launch the rider ballistically.")]
+    [Tooltip("How far (m) the legs can extend past neutral to stay on snow that is falling away. " +
+             "This is the air-time control: remaining extension vs. the rider's separating momentum " +
+             "decides when the board leaves the surface. Larger values stay stuck longer over rollers; " +
+             "smaller values catch air sooner.")]
     [Min(0f)]
     [SerializeField] private float maxLegExtension = 0.5f;
 
     [Tooltip("Squash (m) available above neutral before the suspension bottoms out against its hard stop. " +
-             "Clamped to Ride Height. Bottoming out kills the approach rate, which is what makes hard " +
-             "landings feel hard and ramp lips launch correctly.")]
+             "Clamped to Ride Height. Bottoming out kills the closing rate along the snow so the rider " +
+             "follows the slope; leftover momentum then spends remaining extension and can take air.")]
     [Min(0f)]
     [SerializeField] private float maxLegCompression = 0.3f;
 
-    [Tooltip("Maximum upward speed (m/s) the contact step may add in one frame. Caps pops from the hard " +
-             "stop and damper so a probe discontinuity cannot launch the rider. Ledge launches keep their " +
-             "existing upward speed because only the increase is clamped. ~5 m/s is about a 1.3 m pop.")]
-    [Min(0f)]
+    [HideInInspector]
     [SerializeField] private float maxGroundLiftSpeed = 5f;
 
     [Tooltip("Metres per second the body may be pushed back out of the ground while bottomed out. Fast " +
@@ -160,9 +158,7 @@ public class PlayerFollowObjectAuthoring : MonoBehaviour
                 lastSurfaceVerticalRate = 0f,
                 lastContactLiftSpeed = 0f,
                 lastLiftWasClamped = 0,
-                wallSlideActive = 0,
-                previousOnRideable = 0,
-                pipeEnterGraceTimer = 0f
+                wallSlideActive = 0
             });
 
             AddComponent(entity, new PlayerFollowObjectSteeringConfig
