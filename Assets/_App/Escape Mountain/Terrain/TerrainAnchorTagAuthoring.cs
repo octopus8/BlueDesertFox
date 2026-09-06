@@ -6,7 +6,7 @@ using UnityEngine;
 /// Authoring component for terrain anchors.
 /// Attach this to any GameObject in a SubScene that should move with the terrain scroll.
 /// The GameObject's initial position will be stored as the base position.
-/// Colliders that must stay solid while scrolling (e.g. Rideable quarterpipes) also need a
+/// Colliders that must stay solid while scrolling (e.g. quarterpipes) also need a
 /// kinematic <see cref="Rigidbody"/> so Unity Physics tracks the moving transform. A MeshCollider
 /// alone bakes as a static body and stays behind the scrolled mesh — probes then miss and riders tunnel.
 /// Ground contact runs before <see cref="TerrainAnchorSystem"/> so casts use the pre-scroll pose.
@@ -38,7 +38,7 @@ public class TerrainAnchorTagAuthoring : MonoBehaviour
                 {
                     Debug.LogError(
                         $"[TerrainAnchor] '{authoring.name}' has a MeshCollider with no mesh. " +
-                        "Rideable casts will pass through.",
+                        "Ground casts will pass through.",
                         authoring);
                 }
                 else if (!mesh.isReadable)

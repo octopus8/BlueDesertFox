@@ -4,7 +4,7 @@ using UnityEngine;
 
 /// <summary>
 /// One-shot play-mode warning when a TerrainAnchor's PhysicsCollider blob failed to bake — the
-/// render mesh still scrolls but Rideable casts pass through.
+/// render mesh still scrolls but ground casts pass through.
 /// </summary>
 [UpdateInGroup(typeof(InitializationSystemGroup))]
 public partial struct TerrainAnchorRideableColliderDebugSystem : ISystem
@@ -41,13 +41,13 @@ public partial struct TerrainAnchorRideableColliderDebugSystem : ISystem
         {
             Debug.LogError(
                 $"[TerrainAnchor] {broken} TerrainAnchor PhysicsCollider(s) have no baked blob. " +
-                "Rideable casts will pass through. Enable Read/Write on the MeshCollider mesh, keep a " +
+                "Ground casts will pass through. Enable Read/Write on the MeshCollider mesh, keep a " +
                 "kinematic Rigidbody, then rebake the SubScene.");
         }
         else if (ready == 0)
         {
             Debug.LogWarning(
-                "[TerrainAnchor] No TerrainAnchor entities have a PhysicsCollider. Scrolling Rideable " +
+                "[TerrainAnchor] No TerrainAnchor entities have a PhysicsCollider. Scrolling " +
                 "meshes (e.g. Quaterpipe) need MeshCollider + kinematic Rigidbody baked into the SubScene.");
         }
     }

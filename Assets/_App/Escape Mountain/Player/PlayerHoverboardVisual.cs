@@ -64,9 +64,8 @@ public class PlayerHoverboardVisual : MonoBehaviour
 
         Quaternion followRotation = PlayerFollowObjectPoseBridge.Rotation;
 
-        // The board rides on the surface while the rider is carried above it by the suspension, so the
-        // visible gap between the two is the knee bend. In flight there is no contact point, so the
-        // board travels with the rider.
+        // The board sits on the Terrain contact under the sliding sphere. In flight there is no
+        // contact point, so the board travels with the rider.
         Vector3 boardPosition = PlayerFollowObjectPoseBridge.HasBoardContact
             ? PlayerFollowObjectPoseBridge.BoardContactPosition
             : PlayerFollowObjectPoseBridge.Position;

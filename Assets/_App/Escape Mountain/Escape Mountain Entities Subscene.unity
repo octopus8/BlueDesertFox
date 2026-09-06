@@ -133,7 +133,7 @@ GameObject:
   - component: {fileID: 40480786}
   - component: {fileID: 40480785}
   - component: {fileID: 40480784}
-  m_Layer: 15
+  m_Layer: 11
   m_Name: HalfpipePart
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -289,7 +289,7 @@ GameObject:
   - component: {fileID: 285207552}
   - component: {fileID: 285207551}
   - component: {fileID: 285207550}
-  m_Layer: 15
+  m_Layer: 11
   m_Name: HalfpipePart (2)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -588,7 +588,7 @@ GameObject:
   - component: {fileID: 640191356}
   - component: {fileID: 640191355}
   - component: {fileID: 640191354}
-  m_Layer: 15
+  m_Layer: 11
   m_Name: HalfpipePart (1)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -864,15 +864,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PlayerFollowObjectAuthoring
   rayHeightAbove: 50
   rayLengthBelow: 50
-  rideablePhysicsLayer: 15
-  rideFrequency: 1.2
-  rideDampingRatio: 0.5
-  rideHeight: 0.35
-  maxLegExtension: 0.5
-  maxLegCompression: 0.3
-  maxGroundLiftSpeed: 5
   maxPenetrationRecoverySpeed: 6
-  contactProbeRadius: 0.7
   groundFriction: 0.1
   yawRotationSmoothTime: 1
   minYawSpeed: 0.5
@@ -915,7 +907,7 @@ GameObject:
   - component: {fileID: 1018566338}
   - component: {fileID: 1018566337}
   - component: {fileID: 1018566336}
-  m_Layer: 15
+  m_Layer: 11
   m_Name: HalfpipePart (3)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -1134,7 +1126,7 @@ GameObject:
   - component: {fileID: 1195419019}
   - component: {fileID: 1195419018}
   - component: {fileID: 1195419017}
-  m_Layer: 15
+  m_Layer: 11
   m_Name: HalfpipePart
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -1290,7 +1282,7 @@ GameObject:
   - component: {fileID: 1214726314}
   - component: {fileID: 1214726313}
   - component: {fileID: 1214726312}
-  m_Layer: 15
+  m_Layer: 11
   m_Name: HalfpipePart
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -1446,7 +1438,7 @@ GameObject:
   - component: {fileID: 1415352611}
   - component: {fileID: 1415352610}
   - component: {fileID: 1415352609}
-  m_Layer: 15
+  m_Layer: 11
   m_Name: HalfpipePart
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -1602,7 +1594,7 @@ GameObject:
   - component: {fileID: 1515773943}
   - component: {fileID: 1515773942}
   - component: {fileID: 1515773941}
-  m_Layer: 15
+  m_Layer: 11
   m_Name: HalfpipePart
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -2086,7 +2078,7 @@ GameObject:
   - component: {fileID: 1619470910}
   - component: {fileID: 1619470909}
   - component: {fileID: 1619470908}
-  m_Layer: 15
+  m_Layer: 11
   m_Name: HalfpipePart
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -2369,7 +2361,7 @@ GameObject:
   - component: {fileID: 1786029316}
   - component: {fileID: 1786029315}
   - component: {fileID: 1786029314}
-  m_Layer: 15
+  m_Layer: 11
   m_Name: HalfpipePart
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -2634,7 +2626,7 @@ GameObject:
   - component: {fileID: 2101977536}
   - component: {fileID: 2101977540}
   - component: {fileID: 2101977541}
-  m_Layer: 15
+  m_Layer: 11
   m_Name: Quaterpipe
   m_TagString: Untagged
   m_Icon: {fileID: 0}
