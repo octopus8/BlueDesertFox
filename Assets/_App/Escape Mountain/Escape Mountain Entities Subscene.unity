@@ -865,7 +865,7 @@ MonoBehaviour:
   rayHeightAbove: 50
   rayLengthBelow: 50
   maxPenetrationRecoverySpeed: 6
-  groundFriction: 0.125
+  groundFriction: 0.11
   yawRotationSmoothTime: 1
   minYawSpeed: 0.5
   steeringSensitivity: 60
@@ -2694,7 +2694,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!1 &919132149297702073
 GameObject:
   m_ObjectHideFlags: 0
