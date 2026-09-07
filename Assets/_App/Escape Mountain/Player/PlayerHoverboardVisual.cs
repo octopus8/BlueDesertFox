@@ -35,6 +35,9 @@ public class PlayerHoverboardVisual : MonoBehaviour
     [Tooltip("Maximum board Y rotation from head roll (degrees).")]
     [SerializeField] private float maxHeadYaw = 90f;
 
+    [Tooltip("Meters to push Hips (and the board under it) forward at full yaw. 0 = disabled.")]
+    [SerializeField] private float hipsTurnForwardOffset = 0.25f;
+
     [Header("Head Roll Z")]
     [Tooltip("Hoverboard mesh that receives head-roll banking (e.g. SM_Veh_Hoverboard_01).")]
     [SerializeField] private Transform boardVisual;
@@ -47,6 +50,8 @@ public class PlayerHoverboardVisual : MonoBehaviour
 
     private Quaternion _smoothedLocalRotation = Quaternion.identity;
     private Quaternion _smoothedBoardLocalRotation = Quaternion.identity;
+    private Vector3 _baseHipsLocalPosition;
+    private Vector3 _smoothedHipsLocalPosition;
 
     private void Awake()
     {
@@ -55,6 +60,9 @@ public class PlayerHoverboardVisual : MonoBehaviour
 
         if (boardVisual == null && hipsMount != null && hipsMount.childCount == 1)
             boardVisual = hipsMount.GetChild(0);
+
+        _baseHipsLocalPosition = hipsMount.localPosition;
+        _smoothedHipsLocalPosition = _baseHipsLocalPosition;
     }
 
     private void LateUpdate()
@@ -105,6 +113,21 @@ public class PlayerHoverboardVisual : MonoBehaviour
         }
 
         hipsMount.localRotation = _smoothedLocalRotation;
+
+        float turnFactor = maxHeadYaw > 0f ? Mathf.Clamp01(Mathf.Abs(boardYaw) / maxHeadYaw) : 0f;
+        Vector3 targetHipsLocal = _baseHipsLocalPosition + Vector3.forward * (turnFactor * hipsTurnForwardOffset);
+
+        if (tiltSmoothTime <= 0f)
+        {
+            _smoothedHipsLocalPosition = targetHipsLocal;
+        }
+        else
+        {
+            float t = Mathf.Clamp01(Time.deltaTime / tiltSmoothTime);
+            _smoothedHipsLocalPosition = Vector3.Lerp(_smoothedHipsLocalPosition, targetHipsLocal, t);
+        }
+
+        hipsMount.localPosition = _smoothedHipsLocalPosition;
 
         if (boardVisual != null)
         {

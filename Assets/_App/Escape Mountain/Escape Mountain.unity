@@ -1658,6 +1658,7 @@ MonoBehaviour:
     m_Bits: 2048
   headYawMultiplier: 2
   maxHeadYaw: 90
+  hipsTurnForwardOffset: 2
   boardVisual: {fileID: 4639876070740390}
   headRollMultiplier: 1
   maxHeadRoll: 45
