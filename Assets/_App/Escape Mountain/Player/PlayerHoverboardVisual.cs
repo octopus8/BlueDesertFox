@@ -28,6 +28,10 @@ public class PlayerHoverboardVisual : MonoBehaviour
     [Tooltip("Physics layers treated as terrain for tilt raycasts.")]
     [SerializeField] private LayerMask terrainLayers = 1 << 11;
 
+    [Header("Terrain Normal Smoothing")]
+    [Tooltip("Seconds to smooth the terrain normal across mesh facets. 0 = instant (raw normal).")]
+    [SerializeField] private float normalSmoothTime = 0.12f;
+
     [Header("Head Roll Yaw")]
     [Tooltip("Board Y rotation = HMD roll × this multiplier.")]
     [SerializeField] private float headYawMultiplier = 2f;
@@ -53,6 +57,9 @@ public class PlayerHoverboardVisual : MonoBehaviour
     private Vector3 _baseHipsLocalPosition;
     private Vector3 _smoothedHipsLocalPosition;
 
+    private Vector3 _smoothedTerrainNormal = Vector3.up;
+    private bool _hasInitializedNormal;
+
     private void Awake()
     {
         if (hipsMount == null)
@@ -63,6 +70,11 @@ public class PlayerHoverboardVisual : MonoBehaviour
 
         _baseHipsLocalPosition = hipsMount.localPosition;
         _smoothedHipsLocalPosition = _baseHipsLocalPosition;
+    }
+
+    private void OnEnable()
+    {
+        _hasInitializedNormal = false;
     }
 
     private void LateUpdate()
@@ -80,23 +92,33 @@ public class PlayerHoverboardVisual : MonoBehaviour
 
         transform.SetPositionAndRotation(boardPosition, followRotation);
 
-        Vector3 terrainNormal = Vector3.up;
-        bool useTerrainNormal = false;
+        Vector3 targetTerrainNormal = Vector3.up;
 
         if (PlayerFollowObjectPoseBridge.HasTiltTerrainNormal)
         {
-            terrainNormal = PlayerFollowObjectPoseBridge.TerrainNormal;
-            useTerrainNormal = true;
+            targetTerrainNormal = PlayerFollowObjectPoseBridge.TerrainNormal;
         }
         else if (TryGetTerrainNormal(boardPosition, out Vector3 raycastNormal))
         {
-            terrainNormal = raycastNormal;
-            useTerrainNormal = true;
+            targetTerrainNormal = raycastNormal;
         }
 
-        Quaternion targetLocal = useTerrainNormal
-            ? ComputeTerrainAlignedLocalRotation(followRotation, terrainNormal)
-            : Quaternion.identity;
+        if (!_hasInitializedNormal)
+        {
+            _smoothedTerrainNormal = targetTerrainNormal;
+            _hasInitializedNormal = true;
+        }
+        else if (normalSmoothTime <= 0f)
+        {
+            _smoothedTerrainNormal = targetTerrainNormal;
+        }
+        else
+        {
+            float t = 1f - Mathf.Exp(-Time.deltaTime / Mathf.Max(0.0001f, normalSmoothTime));
+            _smoothedTerrainNormal = Vector3.Slerp(_smoothedTerrainNormal, targetTerrainNormal, t);
+        }
+
+        Quaternion targetLocal = ComputeTerrainAlignedLocalRotation(followRotation, _smoothedTerrainNormal);
 
         float headBank = GetHeadBankAngle();
         float boardYaw = Mathf.Clamp(-headBank * headYawMultiplier, -maxHeadYaw, maxHeadYaw);
