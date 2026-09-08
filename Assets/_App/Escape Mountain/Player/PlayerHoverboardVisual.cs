@@ -32,6 +32,10 @@ public class PlayerHoverboardVisual : MonoBehaviour
     [Tooltip("Seconds to smooth the terrain normal across mesh facets. 0 = instant (raw normal).")]
     [SerializeField] private float normalSmoothTime = 0.12f;
 
+    [Tooltip("Seconds to smooth the board's contact offset from the follow sphere. Filters leftover " +
+             "facet chatter without lagging travel. 0 = instant snap.")]
+    [SerializeField] private float positionSmoothTime = 0.08f;
+
     [Header("Head Roll Yaw")]
     [Tooltip("Board Y rotation = HMD roll × this multiplier.")]
     [SerializeField] private float headYawMultiplier = 2f;
@@ -60,6 +64,9 @@ public class PlayerHoverboardVisual : MonoBehaviour
     private Vector3 _smoothedTerrainNormal = Vector3.up;
     private bool _hasInitializedNormal;
 
+    private Vector3 _smoothedContactOffset;
+    private bool _hasInitializedOffset;
+
     private void Awake()
     {
         if (hipsMount == null)
@@ -75,6 +82,7 @@ public class PlayerHoverboardVisual : MonoBehaviour
     private void OnEnable()
     {
         _hasInitializedNormal = false;
+        _hasInitializedOffset = false;
     }
 
     private void LateUpdate()
@@ -83,14 +91,11 @@ public class PlayerHoverboardVisual : MonoBehaviour
             return;
 
         Quaternion followRotation = PlayerFollowObjectPoseBridge.Rotation;
+        Vector3 followPosition = PlayerFollowObjectPoseBridge.Position;
 
-        // The board sits on the Terrain contact under the sliding sphere. In flight there is no
-        // contact point, so the board travels with the rider.
-        Vector3 boardPosition = PlayerFollowObjectPoseBridge.HasBoardContact
+        Vector3 probePosition = PlayerFollowObjectPoseBridge.HasBoardContact
             ? PlayerFollowObjectPoseBridge.BoardContactPosition
-            : PlayerFollowObjectPoseBridge.Position;
-
-        transform.SetPositionAndRotation(boardPosition, followRotation);
+            : followPosition;
 
         Vector3 targetTerrainNormal = Vector3.up;
 
@@ -98,7 +103,7 @@ public class PlayerHoverboardVisual : MonoBehaviour
         {
             targetTerrainNormal = PlayerFollowObjectPoseBridge.TerrainNormal;
         }
-        else if (TryGetTerrainNormal(boardPosition, out Vector3 raycastNormal))
+        else if (TryGetTerrainNormal(probePosition, out Vector3 raycastNormal))
         {
             targetTerrainNormal = raycastNormal;
         }
@@ -117,6 +122,42 @@ public class PlayerHoverboardVisual : MonoBehaviour
             float t = 1f - Mathf.Exp(-Time.deltaTime / Mathf.Max(0.0001f, normalSmoothTime));
             _smoothedTerrainNormal = Vector3.Slerp(_smoothedTerrainNormal, targetTerrainNormal, t);
         }
+
+        Vector3 targetBoardPosition;
+        if (PlayerFollowObjectPoseBridge.HasBoardContact)
+        {
+            float radius = Mathf.Max(PlayerFollowObjectPoseBridge.SphereRadius, 0.001f);
+            targetBoardPosition = followPosition + PlayerFollowObjectPoseBridge.SphereCenter
+                - _smoothedTerrainNormal * radius;
+        }
+        else
+        {
+            // Airborne tuck: snap to the rider so there is no extra hang time.
+            targetBoardPosition = followPosition;
+        }
+
+        Vector3 targetOffset = targetBoardPosition - followPosition;
+        if (!PlayerFollowObjectPoseBridge.HasBoardContact)
+        {
+            _smoothedContactOffset = Vector3.zero;
+            _hasInitializedOffset = false;
+        }
+        else if (!_hasInitializedOffset)
+        {
+            _smoothedContactOffset = targetOffset;
+            _hasInitializedOffset = true;
+        }
+        else if (positionSmoothTime <= 0f)
+        {
+            _smoothedContactOffset = targetOffset;
+        }
+        else
+        {
+            float t = 1f - Mathf.Exp(-Time.deltaTime / Mathf.Max(0.0001f, positionSmoothTime));
+            _smoothedContactOffset = Vector3.Lerp(_smoothedContactOffset, targetOffset, t);
+        }
+
+        transform.SetPositionAndRotation(followPosition + _smoothedContactOffset, followRotation);
 
         Quaternion targetLocal = ComputeTerrainAlignedLocalRotation(followRotation, _smoothedTerrainNormal);
 

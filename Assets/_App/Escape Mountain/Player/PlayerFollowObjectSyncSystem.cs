@@ -10,6 +10,7 @@ using UnityEngine;
 /// <remarks>
 /// <see cref="Position"/> is the sliding sphere (what the XR rig follows).
 /// <see cref="BoardContactPosition"/> is the Terrain contact under the sphere.
+/// <see cref="SphereCenter"/> and <see cref="SphereRadius"/> reconstruct visual contact from a smoothed normal.
 /// </remarks>
 public static class PlayerFollowObjectPoseBridge
 {
@@ -30,6 +31,12 @@ public static class PlayerFollowObjectPoseBridge
     /// <summary>False while the sphere is in ballistic flight.</summary>
     public static bool IsInContact { get; private set; }
 
+    /// <summary>Local offset of the follow sphere/capsule center from <see cref="Position"/>.</summary>
+    public static Vector3 SphereCenter { get; private set; }
+
+    /// <summary>Radius used to reconstruct visual contact from a smoothed terrain normal.</summary>
+    public static float SphereRadius { get; private set; }
+
     public static bool IsValid { get; private set; }
 
     internal static void SetPose(
@@ -37,6 +44,8 @@ public static class PlayerFollowObjectPoseBridge
         quaternion rotation,
         float3 contactPoint,
         float3 groundNormal,
+        float3 sphereCenter,
+        float sphereRadius,
         bool inContact)
     {
         Position = (Vector3)position;
@@ -46,6 +55,8 @@ public static class PlayerFollowObjectPoseBridge
         TerrainNormal = (Vector3)math.normalizesafe(groundNormal, math.up());
         HasTiltTerrainNormal = inContact;
         IsInContact = inContact;
+        SphereCenter = (Vector3)sphereCenter;
+        SphereRadius = sphereRadius;
         IsValid = true;
     }
 
@@ -55,6 +66,8 @@ public static class PlayerFollowObjectPoseBridge
         HasBoardContact = false;
         HasTiltTerrainNormal = false;
         IsInContact = false;
+        SphereCenter = Vector3.zero;
+        SphereRadius = 0f;
     }
 }
 
@@ -87,8 +100,8 @@ public partial struct PlayerFollowObjectSyncSystem : ISystem
         bool found = false;
         int count = 0;
 
-        foreach (var (localTransform, motionState) in SystemAPI
-                     .Query<RefRO<LocalTransform>, RefRO<PlayerFollowObjectMotionState>>()
+        foreach (var (localTransform, motionState, config) in SystemAPI
+                     .Query<RefRO<LocalTransform>, RefRO<PlayerFollowObjectMotionState>, RefRO<PlayerFollowObjectGroundConfig>>()
                      .WithAll<PlayerFollowObjectTag>())
         {
             count++;
@@ -104,6 +117,8 @@ public partial struct PlayerFollowObjectSyncSystem : ISystem
                 localTransform.ValueRO.Rotation,
                 motionState.ValueRO.contactPoint,
                 motionState.ValueRO.previousGroundNormal,
+                config.ValueRO.sphereCenter,
+                config.ValueRO.sphereRadius,
                 inContact);
         }
 
