@@ -19,6 +19,7 @@ public struct PlayerFollowObjectGroundConfig : IComponentData
     public float3 sphereCenter;
     public float3 gravity;
     public float maxPenetrationRecoverySpeed;
+    public uint pipeLayerMask;
 }
 
 /// <summary>
@@ -33,6 +34,8 @@ public struct PlayerFollowObjectMotionState : IComponentData
     public byte hasPreviousContact;
     public float3 previousGroundNormal;
     public float3 contactPoint;
+    public byte onPipe;
+    public byte pipeAirborne;
 }
 
 /// <summary>
@@ -65,22 +68,31 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
     /// <summary>
     /// Closest SphereCast hit that the sphere is moving into. Ignores the follow-object entity
     /// and surfaces the motion is leaving or grazing, so the floor already being ridden does not
-    /// eat the step.
+    /// eat the step. Optionally ignores PipeFace hits so a lip/end leave cannot re-arm on the wall.
     /// </summary>
     private struct OpposingHitCollector : ICollector<ColliderCastHit>
     {
         public Entity IgnoreEntity;
         public float3 Direction;
+        public bool IgnorePipeHits;
+        public ComponentLookup<PipeFaceTag> PipeLookup;
         public bool EarlyOutOnFirstHit => false;
         public float MaxFraction { get; private set; }
         public int NumHits { get; private set; }
         public ColliderCastHit ClosestHit;
 
-        public OpposingHitCollector(float maxFraction, Entity ignoreEntity, float3 direction)
+        public OpposingHitCollector(
+            float maxFraction,
+            Entity ignoreEntity,
+            float3 direction,
+            bool ignorePipeHits,
+            ComponentLookup<PipeFaceTag> pipeLookup)
         {
             MaxFraction = maxFraction;
             IgnoreEntity = ignoreEntity;
             Direction = direction;
+            IgnorePipeHits = ignorePipeHits;
+            PipeLookup = pipeLookup;
             NumHits = 0;
             ClosestHit = default;
         }
@@ -90,9 +102,65 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
             if (hit.Entity == IgnoreEntity)
                 return false;
 
+            if (IgnorePipeHits && hit.Entity != Entity.Null && PipeLookup.HasComponent(hit.Entity))
+                return false;
+
             float3 normal = math.normalizesafe(hit.SurfaceNormal, math.up());
             if (math.dot(normal, Direction) >= OpposingDotThreshold)
                 return false;
+
+            MaxFraction = hit.Fraction;
+            ClosestHit = hit;
+            NumHits = 1;
+            return true;
+        }
+    }
+
+    /// <summary>
+    /// Closest supporting surface along the probe. When <see cref="IgnoreSeparatingPipe"/> is set,
+    /// PipeFace hits the sphere is not moving into are skipped so a downward cast cannot recapture
+    /// the wall after a lip launch.
+    /// </summary>
+    private struct SurfaceProbeCollector : ICollector<ColliderCastHit>
+    {
+        public Entity IgnoreEntity;
+        public bool IgnoreSeparatingPipe;
+        public float3 ApproachVelocity;
+        public ComponentLookup<PipeFaceTag> PipeLookup;
+        public bool EarlyOutOnFirstHit => false;
+        public float MaxFraction { get; private set; }
+        public int NumHits { get; private set; }
+        public ColliderCastHit ClosestHit;
+
+        public SurfaceProbeCollector(
+            float maxFraction,
+            Entity ignoreEntity,
+            bool ignoreSeparatingPipe,
+            float3 approachVelocity,
+            ComponentLookup<PipeFaceTag> pipeLookup)
+        {
+            MaxFraction = maxFraction;
+            IgnoreEntity = ignoreEntity;
+            IgnoreSeparatingPipe = ignoreSeparatingPipe;
+            ApproachVelocity = approachVelocity;
+            PipeLookup = pipeLookup;
+            NumHits = 0;
+            ClosestHit = default;
+        }
+
+        public bool AddHit(ColliderCastHit hit)
+        {
+            if (hit.Entity == IgnoreEntity)
+                return false;
+
+            if (IgnoreSeparatingPipe
+                && hit.Entity != Entity.Null
+                && PipeLookup.HasComponent(hit.Entity))
+            {
+                float3 normal = math.normalizesafe(hit.SurfaceNormal, math.up());
+                if (math.dot(ApproachVelocity, normal) >= 0f)
+                    return false;
+            }
 
             MaxFraction = hit.Fraction;
             ClosestHit = hit;
@@ -167,6 +235,8 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
             }
         }
 
+        ComponentLookup<PipeFaceTag> pipeLookup = SystemAPI.GetComponentLookup<PipeFaceTag>(true);
+
         foreach (var (config, motionState, localTransform, brakeState, entity) in SystemAPI
                      .Query<RefRO<PlayerFollowObjectGroundConfig>, RefRW<PlayerFollowObjectMotionState>,
                          RefRW<LocalTransform>, RefRW<PlayerFollowObjectBrakeState>>()
@@ -187,15 +257,27 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
                 previousGroundNormal = math.up();
 
             bool hadContact = motionState.ValueRO.hasPreviousContact != 0;
+            bool wasOnPipe = motionState.ValueRO.onPipe != 0;
+            bool pipeAirborne = motionState.ValueRO.pipeAirborne != 0;
             float3 searchNormal = hadContact ? previousGroundNormal : math.up();
 
             float3 contactNormal = previousGroundNormal;
             float3 contactPoint = position;
             float signedSeparation = float.MaxValue;
             bool probed = false;
+            Entity probeHitEntity = Entity.Null;
+            int probeRigidBodyIndex = -1;
+
+            float3 worldVelocity = TerrainScrollVelocityMath.WorldVelocityFromTerrainRelative(
+                terrainRelativeVelocity,
+                scrollVelocity);
 
             if (hasPhysicsWorld)
             {
+                float3 approachVelocity = worldVelocity;
+                if (!braking)
+                    approachVelocity += gravity * dt;
+
                 probed = TryProbeSurface(
                     collisionWorld,
                     allFilter,
@@ -203,19 +285,35 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
                     position,
                     searchNormal,
                     config.ValueRO,
+                    pipeAirborne,
+                    approachVelocity,
+                    pipeLookup,
                     out contactPoint,
                     out contactNormal,
-                    out signedSeparation);
+                    out signedSeparation,
+                    out probeHitEntity,
+                    out probeRigidBodyIndex);
             }
 
-            if (probed)
+            bool contactIsPipe = probed && IsPipeHit(
+                probeHitEntity,
+                probeRigidBodyIndex,
+                collisionWorld,
+                config.ValueRO.pipeLayerMask,
+                pipeLookup);
+
+            bool pipeLeave = false;
+            if (wasOnPipe && !probed)
+            {
+                ApplyPipeLeave(ref worldVelocity, previousGroundNormal);
+                pipeLeave = true;
+                pipeAirborne = true;
+            }
+
+            if (probed && !pipeLeave)
                 previousGroundNormal = contactNormal;
 
-            float3 worldVelocity = TerrainScrollVelocityMath.WorldVelocityFromTerrainRelative(
-                terrainRelativeVelocity,
-                scrollVelocity);
-
-            bool hasContact = EvaluateSphereContact(
+            bool hasContact = !pipeLeave && EvaluateSphereContact(
                 probed,
                 signedSeparation,
                 worldVelocity,
@@ -236,10 +334,13 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
                     gravity,
                     scrollVelocity,
                     dt);
+                pipeAirborne = false;
             }
             else if (!braking)
             {
                 worldVelocity += gravity * dt;
+                if (wasOnPipe)
+                    pipeAirborne = true;
             }
 
             if (braking)
@@ -281,10 +382,16 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
                         collisionWorld,
                         allFilter,
                         entity,
-                        out float3 sweepNormal))
+                        pipeLeave,
+                        pipeLookup,
+                        out float3 sweepNormal,
+                        out bool sweepIsPipe))
                 {
                     hasContact = true;
                     previousGroundNormal = sweepNormal;
+                    contactIsPipe = sweepIsPipe;
+                    pipeLeave = false;
+                    pipeAirborne = false;
                 }
             }
 
@@ -300,6 +407,13 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
                     dt);
             }
 
+            if (hasContact)
+                pipeAirborne = false;
+            else if (pipeLeave)
+                contactIsPipe = false;
+
+            bool onPipe = hasContact && contactIsPipe;
+
             float radius = math.max(config.ValueRO.sphereRadius, MinSphereRadius);
             float3 publishedContact = hasContact
                 ? position + config.ValueRO.sphereCenter - previousGroundNormal * radius
@@ -311,6 +425,8 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
             motionState.ValueRW.hasPreviousContact = hasContact ? (byte)1 : (byte)0;
             motionState.ValueRW.previousGroundNormal = previousGroundNormal;
             motionState.ValueRW.contactPoint = publishedContact;
+            motionState.ValueRW.onPipe = onPipe ? (byte)1 : (byte)0;
+            motionState.ValueRW.pipeAirborne = pipeAirborne ? (byte)1 : (byte)0;
 
             UpdateSmoothedYaw(
                 ref smoothedYaw,
@@ -475,7 +591,8 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
 
     /// <summary>
     /// SphereCasts along <paramref name="searchNormal"/> (last contact normal, or world-up)
-    /// onto any collider. Closest hit is the supporting surface.
+    /// onto any collider. Closest hit is the supporting surface. Separating PipeFace hits are
+    /// skipped while airborne after a pipe leave so the wall beside the rider cannot recapture.
     /// </summary>
     private static bool TryProbeSurface(
         CollisionWorld collisionWorld,
@@ -484,13 +601,20 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
         float3 position,
         float3 searchNormal,
         in PlayerFollowObjectGroundConfig config,
+        bool ignoreSeparatingPipe,
+        float3 approachVelocity,
+        ComponentLookup<PipeFaceTag> pipeLookup,
         out float3 contactPoint,
         out float3 contactNormal,
-        out float signedSeparation)
+        out float signedSeparation,
+        out Entity hitEntity,
+        out int rigidBodyIndex)
     {
         contactPoint = position;
         contactNormal = math.up();
         signedSeparation = float.MaxValue;
+        hitEntity = Entity.Null;
+        rigidBodyIndex = -1;
 
         float radius = math.max(config.sphereRadius, MinSphereRadius);
         float3 center = position + config.sphereCenter;
@@ -504,12 +628,26 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
         float3 origin = center + n * above;
         float3 direction = -n;
 
-        if (!collisionWorld.SphereCast(origin, radius, direction, maxDistance, out ColliderCastHit hit, filter))
+        var collector = new SurfaceProbeCollector(
+            1f,
+            ignoreEntity,
+            ignoreSeparatingPipe,
+            approachVelocity,
+            pipeLookup);
+        collisionWorld.SphereCastCustom(
+            origin,
+            radius,
+            direction,
+            maxDistance,
+            ref collector,
+            filter);
+
+        if (collector.NumHits == 0)
             return false;
 
-        if (hit.Entity == ignoreEntity)
-            return false;
-
+        ColliderCastHit hit = collector.ClosestHit;
+        hitEntity = hit.Entity;
+        rigidBodyIndex = hit.RigidBodyIndex;
         contactNormal = math.normalizesafe(hit.SurfaceNormal, math.up());
         contactPoint = hit.Position;
         signedSeparation = math.dot(center - contactPoint, contactNormal) - radius;
@@ -519,7 +657,7 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
     /// <summary>
     /// SphereCasts along the step and stops at the first surface the sphere is moving into.
     /// Remaining travel slides along that surface's true tangent. Returns true if a hit constrained
-    /// the step.
+    /// the step. PipeFace hits are ignored on a lip/end leave so the wall cannot re-arm contact.
     /// </summary>
     private static bool SweepAndSlide(
         ref float3 position,
@@ -530,9 +668,13 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
         CollisionWorld collisionWorld,
         CollisionFilter filter,
         Entity ignoreEntity,
-        out float3 hitNormal)
+        bool ignorePipeHits,
+        ComponentLookup<PipeFaceTag> pipeLookup,
+        out float3 hitNormal,
+        out bool hitIsPipe)
     {
         hitNormal = math.up();
+        hitIsPipe = false;
         float distance = math.length(displacement);
         if (distance < MinCastDistance)
             return false;
@@ -546,12 +688,20 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
                 distance,
                 filter,
                 ignoreEntity,
+                ignorePipeHits,
+                pipeLookup,
                 out ColliderCastHit castHit))
         {
             return false;
         }
 
         hitNormal = math.normalizesafe(castHit.SurfaceNormal, math.up());
+        hitIsPipe = IsPipeHit(
+            castHit.Entity,
+            castHit.RigidBodyIndex,
+            collisionWorld,
+            config.pipeLayerMask,
+            pipeLookup);
         float fraction = math.max(castHit.Fraction - ObstacleSkin, 0f);
         float3 contactPosition = startPosition + direction * (distance * fraction);
 
@@ -575,6 +725,8 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
                     remainder,
                     filter,
                     ignoreEntity,
+                    ignorePipeHits,
+                    pipeLookup,
                     out ColliderCastHit slideHit))
             {
                 float slideFraction = math.max(slideHit.Fraction - ObstacleSkin, 0f);
@@ -603,13 +755,20 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
         float maxDistance,
         CollisionFilter filter,
         Entity ignoreEntity,
+        bool ignorePipeHits,
+        ComponentLookup<PipeFaceTag> pipeLookup,
         out ColliderCastHit hit)
     {
         hit = default;
         if (maxDistance < MinCastDistance)
             return false;
 
-        var collector = new OpposingHitCollector(1f, ignoreEntity, direction);
+        var collector = new OpposingHitCollector(
+            1f,
+            ignoreEntity,
+            direction,
+            ignorePipeHits,
+            pipeLookup);
         collisionWorld.SphereCastCustom(
             center,
             radius,
@@ -623,6 +782,47 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
 
         hit = collector.ClosestHit;
         return true;
+    }
+
+    /// <summary>
+    /// True when the hit is a baked PipeFace (tag) or its Unity Physics filter belongs to the pipe layer.
+    /// </summary>
+    private static bool IsPipeHit(
+        Entity entity,
+        int rigidBodyIndex,
+        CollisionWorld collisionWorld,
+        uint pipeLayerMask,
+        ComponentLookup<PipeFaceTag> pipeLookup)
+    {
+        if (entity != Entity.Null && pipeLookup.HasComponent(entity))
+            return true;
+
+        if (pipeLayerMask == 0u || rigidBodyIndex < 0 || rigidBodyIndex >= collisionWorld.NumBodies)
+            return false;
+
+        BlobAssetReference<Collider> collider = collisionWorld.Bodies[rigidBodyIndex].Collider;
+        if (!collider.IsCreated)
+            return false;
+
+        return (collider.Value.GetCollisionFilter().BelongsTo & pipeLayerMask) != 0u;
+    }
+
+    /// <summary>
+    /// When the PipeFace mesh ends: if climb speed dominates along-pipe speed, rewrite that
+    /// climb onto world-up (lip launch). Otherwise keep velocity (ride out the open end).
+    /// </summary>
+    private static void ApplyPipeLeave(ref float3 worldVelocity, float3 pipeNormal)
+    {
+        float3 n = math.normalizesafe(pipeNormal, math.up());
+        float3 wallUp = math.normalizesafe(RemoveNormalComponent(math.up(), n), float3.zero);
+        if (math.lengthsq(wallUp) < 0.5f)
+            return;
+
+        float3 pipeAxis = math.normalizesafe(math.cross(n, wallUp), float3.zero);
+        float climb = math.dot(worldVelocity, wallUp);
+        float along = math.dot(worldVelocity, pipeAxis);
+        if (climb > 0f && math.abs(climb) >= math.abs(along))
+            worldVelocity = worldVelocity - wallUp * climb + math.up() * climb;
     }
 
     private static float3 RemoveNormalComponent(float3 velocity, float3 normal)

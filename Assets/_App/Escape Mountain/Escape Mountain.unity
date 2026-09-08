@@ -1655,7 +1655,7 @@ MonoBehaviour:
   maxTiltDistance: 0.5
   terrainLayers:
     serializedVersion: 2
-    m_Bits: 2048
+    m_Bits: 34816
   normalSmoothTime: 0.12
   positionSmoothTime: 0.08
   headYawMultiplier: 2

@@ -26,7 +26,7 @@ public class PlayerHoverboardVisual : MonoBehaviour
     [SerializeField] private float maxTiltDistance = 8f;
 
     [Tooltip("Physics layers treated as terrain for tilt raycasts.")]
-    [SerializeField] private LayerMask terrainLayers = 1 << 11;
+    [SerializeField] private LayerMask terrainLayers = (1 << 11) | (1 << 15);
 
     [Header("Terrain Normal Smoothing")]
     [Tooltip("Seconds to smooth the terrain normal across mesh facets. 0 = instant (raw normal).")]
@@ -159,7 +159,10 @@ public class PlayerHoverboardVisual : MonoBehaviour
 
         transform.SetPositionAndRotation(followPosition + _smoothedContactOffset, followRotation);
 
-        Quaternion targetLocal = ComputeTerrainAlignedLocalRotation(followRotation, _smoothedTerrainNormal);
+        Quaternion targetLocal = ComputeTerrainAlignedLocalRotation(
+            followRotation,
+            _smoothedTerrainNormal,
+            PlayerFollowObjectPoseBridge.IsOnPipe);
 
         float headBank = GetHeadBankAngle();
         float boardYaw = Mathf.Clamp(-headBank * headYawMultiplier, -maxHeadYaw, maxHeadYaw);
@@ -222,31 +225,39 @@ public class PlayerHoverboardVisual : MonoBehaviour
             return false;
 
         terrainNormal = hit.normal;
-        if (terrainNormal.y < MinWalkableNormalY)
+        bool hitIsPipe = hit.collider != null && hit.collider.gameObject.layer == 15;
+        if (!hitIsPipe && terrainNormal.y < MinWalkableNormalY)
             return false;
 
         float heightAboveSurface = Vector3.Dot(position - hit.point, terrainNormal);
         return heightAboveSurface <= maxTiltDistance;
     }
 
-    private static Quaternion ComputeTerrainAlignedLocalRotation(Quaternion parentRotation, Vector3 groundNormal)
+    private static Quaternion ComputeTerrainAlignedLocalRotation(
+        Quaternion parentRotation,
+        Vector3 groundNormal,
+        bool fullAlign)
     {
         Vector3 up = groundNormal.sqrMagnitude > 0.0001f ? groundNormal.normalized : Vector3.up;
 
-        // Pitch only: drop the sideways component of the terrain normal so side slopes do not
-        // roll the board around Z. Fore/aft slope still tilts the nose up/down.
-        Vector3 right = parentRotation * Vector3.right;
-        Vector3 pitchUp = Vector3.ProjectOnPlane(up, right);
-        if (pitchUp.sqrMagnitude < 0.0001f)
-            return Quaternion.identity;
-        pitchUp.Normalize();
+        // Snow: pitch only so side slopes do not roll the board. Pipe walls: use the full
+        // contact normal so the board lies on the vertical face.
+        Vector3 alignUp = up;
+        if (!fullAlign)
+        {
+            Vector3 right = parentRotation * Vector3.right;
+            alignUp = Vector3.ProjectOnPlane(up, right);
+            if (alignUp.sqrMagnitude < 0.0001f)
+                return Quaternion.identity;
+            alignUp.Normalize();
+        }
 
-        Vector3 forward = Vector3.ProjectOnPlane(parentRotation * Vector3.forward, pitchUp);
+        Vector3 forward = Vector3.ProjectOnPlane(parentRotation * Vector3.forward, alignUp);
         if (forward.sqrMagnitude < 0.0001f)
             return Quaternion.identity;
 
         forward.Normalize();
-        Quaternion targetWorld = Quaternion.LookRotation(forward, pitchUp);
+        Quaternion targetWorld = Quaternion.LookRotation(forward, alignUp);
         return Quaternion.Inverse(parentRotation) * targetWorld;
     }
 

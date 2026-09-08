@@ -31,6 +31,9 @@ public static class PlayerFollowObjectPoseBridge
     /// <summary>False while the sphere is in ballistic flight.</summary>
     public static bool IsInContact { get; private set; }
 
+    /// <summary>True while the sphere is in contact with a PipeFace.</summary>
+    public static bool IsOnPipe { get; private set; }
+
     /// <summary>Local offset of the follow sphere/capsule center from <see cref="Position"/>.</summary>
     public static Vector3 SphereCenter { get; private set; }
 
@@ -46,7 +49,8 @@ public static class PlayerFollowObjectPoseBridge
         float3 groundNormal,
         float3 sphereCenter,
         float sphereRadius,
-        bool inContact)
+        bool inContact,
+        bool onPipe)
     {
         Position = (Vector3)position;
         Rotation = (Quaternion)rotation;
@@ -55,6 +59,7 @@ public static class PlayerFollowObjectPoseBridge
         TerrainNormal = (Vector3)math.normalizesafe(groundNormal, math.up());
         HasTiltTerrainNormal = inContact;
         IsInContact = inContact;
+        IsOnPipe = inContact && onPipe;
         SphereCenter = (Vector3)sphereCenter;
         SphereRadius = sphereRadius;
         IsValid = true;
@@ -66,6 +71,7 @@ public static class PlayerFollowObjectPoseBridge
         HasBoardContact = false;
         HasTiltTerrainNormal = false;
         IsInContact = false;
+        IsOnPipe = false;
         SphereCenter = Vector3.zero;
         SphereRadius = 0f;
     }
@@ -119,7 +125,8 @@ public partial struct PlayerFollowObjectSyncSystem : ISystem
                 motionState.ValueRO.previousGroundNormal,
                 config.ValueRO.sphereCenter,
                 config.ValueRO.sphereRadius,
-                inContact);
+                inContact,
+                motionState.ValueRO.onPipe != 0);
         }
 
         if (!found)

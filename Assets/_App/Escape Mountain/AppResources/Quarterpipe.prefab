@@ -11,8 +11,6 @@ GameObject:
   - component: {fileID: 8663768149562319753}
   - component: {fileID: 8443229966685295861}
   - component: {fileID: 1022546751185090494}
-  - component: {fileID: 2927590163766118435}
-  - component: {fileID: 2849576935195580503}
   - component: {fileID: 8233052511596903614}
   m_Layer: 11
   m_Name: PipeBody
@@ -93,55 +91,6 @@ MeshRenderer:
   m_SortingOrder: 0
   m_MaskInteraction: 0
   m_AdditionalVertexStreams: {fileID: 0}
---- !u!64 &2927590163766118435
-MeshCollider:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 3178520942992908228}
-  m_Material: {fileID: 13400000, guid: 6ca36172f3540ad4b8bb526b8c406034, type: 2}
-  m_IncludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ExcludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_LayerOverridePriority: 0
-  m_IsTrigger: 0
-  m_ProvidesContacts: 0
-  m_Enabled: 1
-  serializedVersion: 5
-  m_Convex: 0
-  m_CookingOptions: 30
-  m_Mesh: {fileID: -8962432625361292257, guid: 59b7495bdd094c1468b0a6bec77b3b0b, type: 3}
---- !u!54 &2849576935195580503
-Rigidbody:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 3178520942992908228}
-  serializedVersion: 5
-  m_Mass: 1
-  m_LinearDamping: 0
-  m_AngularDamping: 0.05
-  m_CenterOfMass: {x: 0, y: 0, z: 0}
-  m_InertiaTensor: {x: 1, y: 1, z: 1}
-  m_InertiaRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_IncludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ExcludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ImplicitCom: 1
-  m_ImplicitTensor: 1
-  m_UseGravity: 0
-  m_IsKinematic: 1
-  m_Interpolate: 0
-  m_Constraints: 0
-  m_CollisionDetection: 0
 --- !u!114 &8233052511596903614
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -170,6 +119,7 @@ GameObject:
   - component: {fileID: 4410612319895445802}
   - component: {fileID: 193475951388084868}
   - component: {fileID: 8561058920762003902}
+  - component: {fileID: 7128945630128475619}
   m_Layer: 15
   m_Name: PipeFace
   m_TagString: Untagged
@@ -312,6 +262,18 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::TerrainAnchorTagAuthoring
   useCustomBasePosition: 0
   customBasePosition: {x: 0, y: 0, z: 0}
+--- !u!114 &7128945630128475619
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6478472273649686331}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7c4e91a2b8d34f6e9a1c5d0f3e8b2471, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PipeFaceTagAuthoring
 --- !u!1 &8604251845831481530
 GameObject:
   m_ObjectHideFlags: 0

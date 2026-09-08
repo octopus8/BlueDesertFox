@@ -39,6 +39,10 @@ public class PlayerFollowObjectAuthoring : MonoBehaviour
     [Range(0f, 1f)]
     [SerializeField] private float turnDrag = 0f;
 
+    [Header("Pipe")]
+    [Tooltip("Unity layer used as a BelongsTo fallback when identifying PipeFace colliders.")]
+    [SerializeField] private int pipePhysicsLayer = 15;
+
     public class Baker : Baker<PlayerFollowObjectAuthoring>
     {
         public override void Bake(PlayerFollowObjectAuthoring authoring)
@@ -75,7 +79,10 @@ public class PlayerFollowObjectAuthoring : MonoBehaviour
                 sphereRadius = math.max(0f, sphereRadius),
                 sphereCenter = sphereCenter,
                 gravity = (float3)Physics.gravity,
-                maxPenetrationRecoverySpeed = math.max(0f, authoring.maxPenetrationRecoverySpeed)
+                maxPenetrationRecoverySpeed = math.max(0f, authoring.maxPenetrationRecoverySpeed),
+                pipeLayerMask = authoring.pipePhysicsLayer >= 0 && authoring.pipePhysicsLayer < 32
+                    ? 1u << authoring.pipePhysicsLayer
+                    : 0u
             });
 
             AddComponent(entity, new PlayerFollowObjectMotionState
@@ -85,7 +92,9 @@ public class PlayerFollowObjectAuthoring : MonoBehaviour
                 inContact = 0,
                 hasPreviousContact = 0,
                 previousGroundNormal = math.up(),
-                contactPoint = float3.zero
+                contactPoint = float3.zero,
+                onPipe = 0,
+                pipeAirborne = 0
             });
 
             AddComponent(entity, new PlayerFollowObjectSteeringConfig
