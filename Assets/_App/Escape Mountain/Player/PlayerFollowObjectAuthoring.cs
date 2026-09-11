@@ -43,6 +43,25 @@ public class PlayerFollowObjectAuthoring : MonoBehaviour
     [Tooltip("Unity layer used as a BelongsTo fallback when identifying PipeFace colliders.")]
     [SerializeField] private int pipePhysicsLayer = 15;
 
+    [Tooltip("Fraction of speed kept when a pipe contact redirects velocity along the face. 1 = a " +
+             "transition turns travel into climb for free. Lower values make pipes drag.")]
+    [Range(0.1f, 1f)]
+    [SerializeField] private float pipeSpeedRetain = 1f;
+
+    [Tooltip("Contact distance on pipe faces, wider than the terrain skin so mesh facet seams and " +
+             "arc curvature cannot flicker contact off mid-climb.")]
+    [Min(0.01f)]
+    [SerializeField] private float pipeContactSkin = 0.25f;
+
+    [Tooltip("Seconds after a lip launch during which pipe faces are ignored, so the lip cannot " +
+             "immediately re-grab the rider. Landing back on the pipe resumes once it expires.")]
+    [Min(0f)]
+    [SerializeField] private float pipeLeaveLockoutSeconds = 0.15f;
+
+    [Tooltip("Logs a per-frame pipe trace (speeds, contact surface, separation, state flags) while " +
+             "on or just off a pipe. Editor diagnostics only; leave off for play.")]
+    [SerializeField] private bool pipeDebugLogging;
+
     public class Baker : Baker<PlayerFollowObjectAuthoring>
     {
         public override void Bake(PlayerFollowObjectAuthoring authoring)
@@ -82,7 +101,11 @@ public class PlayerFollowObjectAuthoring : MonoBehaviour
                 maxPenetrationRecoverySpeed = math.max(0f, authoring.maxPenetrationRecoverySpeed),
                 pipeLayerMask = authoring.pipePhysicsLayer >= 0 && authoring.pipePhysicsLayer < 32
                     ? 1u << authoring.pipePhysicsLayer
-                    : 0u
+                    : 0u,
+                pipeSpeedRetain = math.clamp(authoring.pipeSpeedRetain, 0.1f, 1f),
+                pipeContactSkin = math.max(0.01f, authoring.pipeContactSkin),
+                pipeLeaveLockoutSeconds = math.max(0f, authoring.pipeLeaveLockoutSeconds),
+                pipeDebugLogging = authoring.pipeDebugLogging ? (byte)1 : (byte)0
             });
 
             AddComponent(entity, new PlayerFollowObjectMotionState
@@ -94,7 +117,8 @@ public class PlayerFollowObjectAuthoring : MonoBehaviour
                 previousGroundNormal = math.up(),
                 contactPoint = float3.zero,
                 onPipe = 0,
-                pipeAirborne = 0
+                pipeAirborne = 0,
+                pipeLeaveLockout = 0f
             });
 
             AddComponent(entity, new PlayerFollowObjectSteeringConfig
