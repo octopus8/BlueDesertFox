@@ -36,9 +36,10 @@ public struct PlayerFollowObjectMotionState : IComponentData
 }
 
 /// <summary>
-/// Sphere sliding on any mesh: snap the center onto the hit, kill inbound normal velocity,
-/// and accelerate along the tangent. Misses and separating gaps become ballistic flight.
-/// A displacement SphereCast prevents tunneling; every hit uses the true surface normal.
+/// Unilateral sliding sphere: gravity then collide. Surfaces only push (inbound normal
+/// velocity is cancelled; separating motion is left ballistic). A displacement SphereCast
+/// iterates along opposing hits so concave meshes can redirect speed. Overlap queries
+/// recover embeds without snapping across a gap.
 /// Integrates in terrain-relative velocity space so scroll motion and sliding do not compete.
 /// Burst-compiled to avoid managed GC.
 /// </summary>
@@ -56,10 +57,11 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
     private const float BlockingDepenetrationSkin = 0.01f;
     private const float MinCastDistance = 1e-4f;
     private const float MinSphereRadius = 1e-3f;
-    private const float ContactSkin = 0.05f;
+    private const float ContactSkin = 0.01f;
     private const float MinSlideSpeed = 0.01f;
     private const float OpposingDotThreshold = -0.01f;
     private const float DefaultMaxPenetrationRecoverySpeed = 6f;
+    private const int MaxSweepIterations = 4;
     private static readonly float3 DefaultGravity = new float3(0f, -9.81f, 0f);
 
     /// <summary>
@@ -92,6 +94,37 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
 
             float3 normal = math.normalizesafe(hit.SurfaceNormal, math.up());
             if (math.dot(normal, Direction) >= OpposingDotThreshold)
+                return false;
+
+            MaxFraction = hit.Fraction;
+            ClosestHit = hit;
+            NumHits = 1;
+            return true;
+        }
+    }
+
+    /// <summary>
+    /// Closest distance hit that is not the follow-object entity.
+    /// </summary>
+    private struct IgnoreEntityDistanceCollector : ICollector<DistanceHit>
+    {
+        public Entity IgnoreEntity;
+        public bool EarlyOutOnFirstHit => false;
+        public float MaxFraction { get; private set; }
+        public int NumHits { get; private set; }
+        public DistanceHit ClosestHit;
+
+        public IgnoreEntityDistanceCollector(float maxFraction, Entity ignoreEntity)
+        {
+            MaxFraction = maxFraction;
+            IgnoreEntity = ignoreEntity;
+            NumHits = 0;
+            ClosestHit = default;
+        }
+
+        public bool AddHit(DistanceHit hit)
+        {
+            if (hit.Entity == IgnoreEntity)
                 return false;
 
             MaxFraction = hit.Fraction;
@@ -186,61 +219,12 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
             if (math.lengthsq(previousGroundNormal) < 0.01f)
                 previousGroundNormal = math.up();
 
-            bool hadContact = motionState.ValueRO.hasPreviousContact != 0;
-            float3 searchNormal = hadContact ? previousGroundNormal : math.up();
-
-            float3 contactNormal = previousGroundNormal;
-            float3 contactPoint = position;
-            float signedSeparation = float.MaxValue;
-            bool probed = false;
-
-            if (hasPhysicsWorld)
-            {
-                probed = TryProbeSurface(
-                    collisionWorld,
-                    allFilter,
-                    entity,
-                    position,
-                    searchNormal,
-                    config.ValueRO,
-                    out contactPoint,
-                    out contactNormal,
-                    out signedSeparation);
-            }
-
-            if (probed)
-                previousGroundNormal = contactNormal;
-
             float3 worldVelocity = TerrainScrollVelocityMath.WorldVelocityFromTerrainRelative(
                 terrainRelativeVelocity,
                 scrollVelocity);
 
-            bool hasContact = EvaluateSphereContact(
-                probed,
-                signedSeparation,
-                worldVelocity,
-                contactNormal,
-                gravity,
-                braking,
-                dt);
-
-            if (hasContact)
-            {
-                ApplySphereContactConstraint(
-                    ref position,
-                    ref worldVelocity,
-                    contactPoint,
-                    contactNormal,
-                    config.ValueRO,
-                    braking,
-                    gravity,
-                    scrollVelocity,
-                    dt);
-            }
-            else if (!braking)
-            {
+            if (!braking)
                 worldVelocity += gravity * dt;
-            }
 
             if (braking)
             {
@@ -267,10 +251,10 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
             float3 startPosition = position;
             float3 scrollDelta = scrollVelocity * dt;
             float3 relativeDisplacement = terrainRelativeVelocity * dt;
-            position = startPosition + relativeDisplacement;
 
-            if (hasPhysicsWorld
-                && math.lengthsq(relativeDisplacement) > MinCastDistance * MinCastDistance)
+            bool hasContact = false;
+
+            if (hasPhysicsWorld)
             {
                 if (SweepAndSlide(
                         ref position,
@@ -287,17 +271,57 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
                     previousGroundNormal = sweepNormal;
                 }
             }
+            else
+            {
+                position = startPosition + relativeDisplacement;
+            }
 
             position -= scrollDelta;
 
-            if (hasPhysicsWorld && anchoredBodies.IsCreated && anchoredBodies.Length > 0)
+            if (hasPhysicsWorld)
             {
-                TryDepenetrateAnchoredBodies(
-                    ref position,
-                    ref terrainRelativeVelocity,
-                    anchoredBodies,
-                    config.ValueRO,
+                if (TryDepenetrateWorld(
+                        ref position,
+                        ref terrainRelativeVelocity,
+                        collisionWorld,
+                        allFilter,
+                        entity,
+                        config.ValueRO,
+                        dt,
+                        out float3 worldNormal))
+                {
+                    hasContact = true;
+                    previousGroundNormal = worldNormal;
+                }
+
+                if (anchoredBodies.IsCreated && anchoredBodies.Length > 0
+                    && TryDepenetrateAnchoredBodies(
+                        ref position,
+                        ref terrainRelativeVelocity,
+                        anchoredBodies,
+                        config.ValueRO,
+                        dt,
+                        out float3 anchorNormal))
+                {
+                    hasContact = true;
+                    previousGroundNormal = anchorNormal;
+                }
+            }
+
+            if (hasContact && !braking)
+            {
+                worldVelocity = TerrainScrollVelocityMath.WorldVelocityFromTerrainRelative(
+                    terrainRelativeVelocity,
+                    scrollVelocity);
+                ApplyGroundFriction(
+                    ref worldVelocity,
+                    scrollVelocity,
+                    previousGroundNormal,
+                    config.ValueRO.groundFriction,
                     dt);
+                terrainRelativeVelocity = TerrainScrollVelocityMath.TerrainRelativeFromWorld(
+                    worldVelocity,
+                    scrollVelocity);
             }
 
             float radius = math.max(config.ValueRO.sphereRadius, MinSphereRadius);
@@ -327,98 +351,65 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
     }
 
     /// <summary>
-    /// In contact when the sphere is within <see cref="ContactSkin"/> of a hit, or this
-    /// step's motion would close the remaining gap. Otherwise the sphere is airborne.
+    /// If the sphere overlaps a collider in the physics world, push out along the true surface
+    /// normal and cancel inbound velocity. Does not snap across a gap.
     /// </summary>
-    private static bool EvaluateSphereContact(
-        bool probed,
-        float signedSeparation,
-        float3 worldVelocity,
-        float3 contactNormal,
-        float3 gravity,
-        bool braking,
-        float dt)
-    {
-        if (!probed)
-            return false;
-
-        if (signedSeparation <= ContactSkin)
-            return true;
-
-        float3 predictedVelocity = worldVelocity;
-        if (!braking)
-            predictedVelocity += gravity * dt;
-        float approach = -math.dot(predictedVelocity, contactNormal) * dt;
-        return approach >= signedSeparation - ContactSkin;
-    }
-
-    /// <summary>
-    /// Constrains the sphere to the hit surface: snap the center to contact + normal * radius,
-    /// kill inbound relative normal velocity, then slide under tangent gravity and friction.
-    /// </summary>
-    private static void ApplySphereContactConstraint(
+    private static bool TryDepenetrateWorld(
         ref float3 position,
-        ref float3 worldVelocity,
-        float3 contactPoint,
-        float3 contactNormal,
+        ref float3 terrainRelativeVelocity,
+        CollisionWorld collisionWorld,
+        CollisionFilter filter,
+        Entity ignoreEntity,
         in PlayerFollowObjectGroundConfig config,
-        bool braking,
-        float3 gravity,
-        float3 scrollVelocity,
-        float dt)
+        float dt,
+        out float3 contactNormal)
     {
+        contactNormal = math.up();
         float radius = math.max(config.sphereRadius, MinSphereRadius);
         float3 center = position + config.sphereCenter;
-        float3 desiredCenter = contactPoint + contactNormal * radius;
-        float3 correction = desiredCenter - center;
-        float correctionLen = math.length(correction);
-        if (correctionLen > 1e-6f)
+
+        var input = new PointDistanceInput
         {
-            float3 corrDir = correction / correctionLen;
-            float intoSurface = math.dot(correction, contactNormal);
-            float applied = correctionLen;
-            if (intoSurface > 0f)
-            {
-                float recoverySpeed = config.maxPenetrationRecoverySpeed;
-                if (recoverySpeed <= 0f)
-                    recoverySpeed = DefaultMaxPenetrationRecoverySpeed;
-                applied = math.min(applied, recoverySpeed * math.max(0f, dt));
-            }
+            Position = center,
+            MaxDistance = radius,
+            Filter = filter
+        };
 
-            position += corrDir * applied;
-        }
+        // Distance collectors use MaxFraction as a distance (not a 0-1 fraction).
+        var collector = new IgnoreEntityDistanceCollector(radius, ignoreEntity);
+        if (!collisionWorld.CalculateDistance(input, ref collector) || collector.NumHits == 0)
+            return false;
 
-        float3 surfaceWorldVelocity = -scrollVelocity;
-        float relativeVn = math.dot(worldVelocity - surfaceWorldVelocity, contactNormal);
-        if (relativeVn < 0f)
-            worldVelocity -= contactNormal * relativeVn;
+        DistanceHit hit = collector.ClosestHit;
+        float penetration = radius - hit.Distance;
+        if (penetration <= ObstacleSkin)
+            return false;
 
-        if (!braking)
-        {
-            worldVelocity += GetTangentComponent(gravity, contactNormal) * dt;
-            ApplyGroundFriction(
-                ref worldVelocity,
-                scrollVelocity,
-                contactNormal,
-                config.groundFriction,
-                dt);
-        }
+        float3 n = math.normalizesafe(hit.SurfaceNormal, float3.zero);
+        if (math.lengthsq(n) < 0.5f)
+            return false;
+
+        ApplyDepenetration(ref position, ref terrainRelativeVelocity, n, penetration, config, dt);
+        contactNormal = n;
+        return true;
     }
 
     /// <summary>
     /// If the sphere overlaps a scrolling TerrainAnchor mesh, push out along the true surface
     /// normal and cancel inbound velocity. Recovers cases SphereCast misses from inside a thin face.
     /// </summary>
-    private static void TryDepenetrateAnchoredBodies(
+    private static bool TryDepenetrateAnchoredBodies(
         ref float3 position,
         ref float3 terrainRelativeVelocity,
         NativeList<RigidBody> anchoredBodies,
         in PlayerFollowObjectGroundConfig config,
-        float dt)
+        float dt,
+        out float3 contactNormal)
     {
+        contactNormal = math.up();
         float3 center = position + config.sphereCenter;
         float radius = math.max(config.sphereRadius, MinSphereRadius);
-        float maxDistance = radius + BlockingDepenetrationSkin;
+        float maxDistance = radius;
 
         float deepestPenetration = 0f;
         float3 bestNormal = float3.zero;
@@ -459,67 +450,38 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
         }
 
         if (!found)
-            return;
+            return false;
 
+        ApplyDepenetration(ref position, ref terrainRelativeVelocity, bestNormal, deepestPenetration, config, dt);
+        contactNormal = bestNormal;
+        return true;
+    }
+
+    private static void ApplyDepenetration(
+        ref float3 position,
+        ref float3 terrainRelativeVelocity,
+        float3 normal,
+        float penetration,
+        in PlayerFollowObjectGroundConfig config,
+        float dt)
+    {
         float recoverySpeed = config.maxPenetrationRecoverySpeed;
         if (recoverySpeed <= 0f)
             recoverySpeed = DefaultMaxPenetrationRecoverySpeed;
         float maxPush = recoverySpeed * math.max(0f, dt);
-        float push = math.min(deepestPenetration + BlockingDepenetrationSkin, maxPush);
-        position += bestNormal * push;
+        float push = math.min(penetration + ContactSkin, maxPush);
+        position += normal * push;
 
-        float vNormal = math.dot(terrainRelativeVelocity, bestNormal);
+        float vNormal = math.dot(terrainRelativeVelocity, normal);
         if (vNormal < 0f)
-            terrainRelativeVelocity -= bestNormal * vNormal;
+            terrainRelativeVelocity -= normal * vNormal;
     }
 
     /// <summary>
-    /// SphereCasts along <paramref name="searchNormal"/> (last contact normal, or world-up)
-    /// onto any collider. Closest hit is the supporting surface.
-    /// </summary>
-    private static bool TryProbeSurface(
-        CollisionWorld collisionWorld,
-        CollisionFilter filter,
-        Entity ignoreEntity,
-        float3 position,
-        float3 searchNormal,
-        in PlayerFollowObjectGroundConfig config,
-        out float3 contactPoint,
-        out float3 contactNormal,
-        out float signedSeparation)
-    {
-        contactPoint = position;
-        contactNormal = math.up();
-        signedSeparation = float.MaxValue;
-
-        float radius = math.max(config.sphereRadius, MinSphereRadius);
-        float3 center = position + config.sphereCenter;
-        float3 n = math.normalizesafe(searchNormal, math.up());
-        float above = math.max(config.rayHeightAbove, radius + 0.1f);
-        float below = math.max(config.rayLengthBelow, radius);
-        float maxDistance = above + below;
-        if (maxDistance < MinCastDistance)
-            return false;
-
-        float3 origin = center + n * above;
-        float3 direction = -n;
-
-        if (!collisionWorld.SphereCast(origin, radius, direction, maxDistance, out ColliderCastHit hit, filter))
-            return false;
-
-        if (hit.Entity == ignoreEntity)
-            return false;
-
-        contactNormal = math.normalizesafe(hit.SurfaceNormal, math.up());
-        contactPoint = hit.Position;
-        signedSeparation = math.dot(center - contactPoint, contactNormal) - radius;
-        return true;
-    }
-
-    /// <summary>
-    /// SphereCasts along the step and stops at the first surface the sphere is moving into.
-    /// Remaining travel slides along that surface's true tangent. Returns true if a hit constrained
-    /// the step.
+    /// SphereCasts along the step and stops at each surface the sphere is moving into, sliding
+    /// remaining travel along that surface's true tangent. Up to <see cref="MaxSweepIterations"/>
+    /// opposing hits. Returns true if a hit constrained the step. Head-on walls (no remaining
+    /// tangent) stop the slide.
     /// </summary>
     private static bool SweepAndSlide(
         ref float3 position,
@@ -533,66 +495,65 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
         out float3 hitNormal)
     {
         hitNormal = math.up();
-        float distance = math.length(displacement);
-        if (distance < MinCastDistance)
-            return false;
-
-        float3 direction = displacement / distance;
-        if (!TryCastOpposingSphere(
-                collisionWorld,
-                startPosition + config.sphereCenter,
-                math.max(config.sphereRadius, MinSphereRadius),
-                direction,
-                distance,
-                filter,
-                ignoreEntity,
-                out ColliderCastHit castHit))
-        {
-            return false;
-        }
-
-        hitNormal = math.normalizesafe(castHit.SurfaceNormal, math.up());
-        float fraction = math.max(castHit.Fraction - ObstacleSkin, 0f);
-        float3 contactPosition = startPosition + direction * (distance * fraction);
-
-        if (castHit.Fraction <= ObstacleSkin)
-            contactPosition += hitNormal * BlockingDepenetrationSkin;
-
-        float remainder = distance * (1f - fraction);
-        float3 slideDirection = RemoveNormalComponent(direction, hitNormal);
-        slideDirection = math.normalizesafe(slideDirection, float3.zero);
-
-        float3 slideDisplacement = float3.zero;
+        float3 remaining = displacement;
+        float3 currentPosition = startPosition;
         float radius = math.max(config.sphereRadius, MinSphereRadius);
-        if (remainder > MinCastDistance && math.lengthsq(slideDirection) > 0.5f)
+        bool anyHit = false;
+
+        for (int iteration = 0; iteration < MaxSweepIterations; iteration++)
         {
-            float3 slideCenter = contactPosition + config.sphereCenter;
-            if (TryCastOpposingSphere(
+            float distance = math.length(remaining);
+            if (distance < MinCastDistance)
+                break;
+
+            float3 direction = remaining / distance;
+            if (!TryCastOpposingSphere(
                     collisionWorld,
-                    slideCenter,
+                    currentPosition + config.sphereCenter,
                     radius,
-                    slideDirection,
-                    remainder,
+                    direction,
+                    distance,
                     filter,
                     ignoreEntity,
-                    out ColliderCastHit slideHit))
+                    out ColliderCastHit castHit))
             {
-                float slideFraction = math.max(slideHit.Fraction - ObstacleSkin, 0f);
-                slideDisplacement = slideDirection * (remainder * slideFraction);
+                currentPosition += remaining;
+                remaining = float3.zero;
+                break;
             }
-            else
+
+            anyHit = true;
+            hitNormal = math.normalizesafe(castHit.SurfaceNormal, math.up());
+            float fraction = math.max(castHit.Fraction - ObstacleSkin, 0f);
+            currentPosition += direction * (distance * fraction);
+
+            if (castHit.Fraction <= ObstacleSkin)
+                currentPosition += hitNormal * BlockingDepenetrationSkin;
+
+            float approachRate = math.dot(terrainRelativeVelocity, hitNormal);
+            if (approachRate < 0f)
+                terrainRelativeVelocity -= hitNormal * approachRate;
+
+            float remainder = distance * (1f - fraction);
+            if (remainder < MinCastDistance)
             {
-                slideDisplacement = slideDirection * remainder;
+                remaining = float3.zero;
+                break;
             }
+
+            float3 slideDirection = RemoveNormalComponent(direction, hitNormal);
+            slideDirection = math.normalizesafe(slideDirection, float3.zero);
+            if (math.lengthsq(slideDirection) < 0.5f)
+            {
+                remaining = float3.zero;
+                break;
+            }
+
+            remaining = slideDirection * remainder;
         }
 
-        position = contactPosition + slideDisplacement;
-
-        float approachRate = math.dot(terrainRelativeVelocity, hitNormal);
-        if (approachRate < 0f)
-            terrainRelativeVelocity -= hitNormal * approachRate;
-
-        return true;
+        position = currentPosition;
+        return anyHit;
     }
 
     private static bool TryCastOpposingSphere(
@@ -628,11 +589,6 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
     private static float3 RemoveNormalComponent(float3 velocity, float3 normal)
     {
         return velocity - normal * math.dot(velocity, normal);
-    }
-
-    private static float3 GetTangentComponent(float3 vector, float3 normal)
-    {
-        return RemoveNormalComponent(vector, normal);
     }
 
     private static void ApplyGroundFriction(
