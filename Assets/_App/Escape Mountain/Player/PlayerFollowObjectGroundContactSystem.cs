@@ -59,15 +59,15 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
     private const float MinSphereRadius = 1e-3f;
     private const float ContactSkin = 0.01f;
     private const float MinSlideSpeed = 0.01f;
-    private const float OpposingDotThreshold = -0.01f;
+    private const float SeparatingDotThreshold = 0.01f;
     private const float DefaultMaxPenetrationRecoverySpeed = 6f;
     private const int MaxSweepIterations = 4;
     private static readonly float3 DefaultGravity = new float3(0f, -9.81f, 0f);
 
     /// <summary>
     /// Closest SphereCast hit that the sphere is moving into. Ignores the follow-object entity
-    /// and surfaces the motion is leaving or grazing, so the floor already being ridden does not
-    /// eat the step.
+    /// and surfaces the motion is leaving. Grazing and inbound hits are kept so a shallow
+    /// quarterpipe floor can redirect speed instead of being skipped until the wall.
     /// </summary>
     private struct OpposingHitCollector : ICollector<ColliderCastHit>
     {
@@ -93,7 +93,7 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
                 return false;
 
             float3 normal = math.normalizesafe(hit.SurfaceNormal, math.up());
-            if (math.dot(normal, Direction) >= OpposingDotThreshold)
+            if (math.dot(normal, Direction) > SeparatingDotThreshold)
                 return false;
 
             MaxFraction = hit.Fraction;
