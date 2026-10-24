@@ -33,13 +33,14 @@ public struct PlayerFollowObjectMotionState : IComponentData
     public byte hasPreviousContact;
     public float3 previousGroundNormal;
     public float3 contactPoint;
+    /// <summary>Latched once the rider touches a Pipe-layer collider; cleared on landing on a non-Pipe surface.</summary>
+    public byte pipeMode;
 }
 
 /// <summary>
-/// Unilateral sliding sphere: gravity then collide. Surfaces only push (inbound normal
-/// velocity is cancelled; separating motion is left ballistic). A displacement SphereCast
-/// iterates along opposing hits so concave meshes can redirect speed. Overlap queries
-/// recover embeds without snapping across a gap.
+/// Hybrid ground contact: sticky probe/snap on snow and other non-Pipe colliders, unilateral
+/// gravity-then-collide on the Pipe layer so quarterpipes can launch. Surfaces only push while
+/// on a pipe (inbound normal velocity is cancelled; separating motion is left ballistic).
 /// Integrates in terrain-relative velocity space so scroll motion and sliding do not compete.
 /// Burst-compiled to avoid managed GC.
 /// </summary>
@@ -58,10 +59,15 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
     private const float MinCastDistance = 1e-4f;
     private const float MinSphereRadius = 1e-3f;
     private const float ContactSkin = 0.01f;
+    private const float StickyContactSkin = 0.05f;
     private const float MinSlideSpeed = 0.01f;
     private const float SeparatingDotThreshold = 0.01f;
     private const float DefaultMaxPenetrationRecoverySpeed = 6f;
     private const int MaxSweepIterations = 4;
+    // Sticky snapping only grabs floor-like surfaces; anything steeper is left to the sweep.
+    private const float MinStickyGroundUp = 0.5f;
+    // TagManager: Pipe is user layer index 15.
+    private const uint PipeLayerMask = 1u << 15;
     private static readonly float3 DefaultGravity = new float3(0f, -9.81f, 0f);
 
     /// <summary>
@@ -94,6 +100,43 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
 
             float3 normal = math.normalizesafe(hit.SurfaceNormal, math.up());
             if (math.dot(normal, Direction) > SeparatingDotThreshold)
+                return false;
+
+            MaxFraction = hit.Fraction;
+            ClosestHit = hit;
+            NumHits = 1;
+            return true;
+        }
+    }
+
+    /// <summary>
+    /// Closest SphereCast hit that is not the follow-object entity and whose normal's world-up
+    /// component is at least <see cref="MinUp"/> (pass -1 to accept any orientation).
+    /// </summary>
+    private struct IgnoreEntityCastCollector : ICollector<ColliderCastHit>
+    {
+        public Entity IgnoreEntity;
+        public float MinUp;
+        public bool EarlyOutOnFirstHit => false;
+        public float MaxFraction { get; private set; }
+        public int NumHits { get; private set; }
+        public ColliderCastHit ClosestHit;
+
+        public IgnoreEntityCastCollector(float maxFraction, Entity ignoreEntity, float minUp = -1f)
+        {
+            MaxFraction = maxFraction;
+            IgnoreEntity = ignoreEntity;
+            MinUp = minUp;
+            NumHits = 0;
+            ClosestHit = default;
+        }
+
+        public bool AddHit(ColliderCastHit hit)
+        {
+            if (hit.Entity == IgnoreEntity)
+                return false;
+
+            if (math.normalizesafe(hit.SurfaceNormal, math.up()).y < MinUp)
                 return false;
 
             MaxFraction = hit.Fraction;
@@ -164,6 +207,8 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
         CollisionWorld collisionWorld = default;
         NativeList<RigidBody> anchoredBodies = default;
         CollisionFilter allFilter = CollisionFilter.Default;
+        CollisionFilter pipeFilter = CollisionFilter.Default;
+        CollisionFilter nonPipeFilter = CollisionFilter.Default;
 
         if (hasPhysicsWorld)
         {
@@ -173,6 +218,18 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
             {
                 BelongsTo = ~0u,
                 CollidesWith = ~0u,
+                GroupIndex = 0
+            };
+            pipeFilter = new CollisionFilter
+            {
+                BelongsTo = ~0u,
+                CollidesWith = PipeLayerMask,
+                GroupIndex = 0
+            };
+            nonPipeFilter = new CollisionFilter
+            {
+                BelongsTo = ~0u,
+                CollidesWith = ~PipeLayerMask,
                 GroupIndex = 0
             };
 
@@ -223,39 +280,65 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
                 terrainRelativeVelocity,
                 scrollVelocity);
 
-            if (!braking)
-                worldVelocity += gravity * dt;
-
-            if (braking)
-            {
-                ApplyBrakeDeceleration(
-                    ref worldVelocity,
-                    scrollVelocity,
-                    brakeState.ValueRO.deceleration,
-                    dt);
-
-                if (brakeState.ValueRO.holdAfterStop == 0
-                    && math.lengthsq(TerrainScrollVelocityMath.TerrainRelativeFromWorld(
-                        worldVelocity, scrollVelocity)) < MinSlideSpeed * MinSlideSpeed)
-                {
-                    brakeState.ValueRW.active = 0;
-                }
-            }
-
-            terrainRelativeVelocity = TerrainScrollVelocityMath.TerrainRelativeFromWorld(worldVelocity, scrollVelocity);
-
-            // Colliders (tiles + TerrainAnchors) still sit at last frame's scroll pose while we run.
-            // World displacement includes -scroll, but those colliders will also move by -scroll this
-            // frame — sweeping world motion against them double-counts scroll and tunnels thin faces.
-            // Sweep terrain-relative motion first, then apply scroll once.
             float3 startPosition = position;
             float3 scrollDelta = scrollVelocity * dt;
-            float3 relativeDisplacement = terrainRelativeVelocity * dt;
+
+            float3 detectWorldVelocity = worldVelocity;
+            if (!braking)
+                detectWorldVelocity += gravity * dt;
+            float3 detectRelative = TerrainScrollVelocityMath.TerrainRelativeFromWorld(
+                detectWorldVelocity,
+                scrollVelocity);
+            float3 relativeDisplacement = detectRelative * dt;
+
+            // Pipe mode latches through the whole ride and air time: the sticky probe must not run
+            // between pipe contacts or it searches along a near-vertical pipe normal and snaps onto
+            // unrelated geometry.
+            bool onPipe = hasPhysicsWorld
+                && (motionState.ValueRO.pipeMode != 0
+                    || IsTouchingPipe(
+                        collisionWorld,
+                        anchoredBodies,
+                        position,
+                        relativeDisplacement,
+                        config.ValueRO,
+                        pipeFilter,
+                        entity));
+            byte pipeMode = 0;
 
             bool hasContact = false;
 
-            if (hasPhysicsWorld)
+            if (onPipe)
             {
+                if (!braking)
+                    worldVelocity += gravity * dt;
+
+                if (braking)
+                {
+                    ApplyBrakeDeceleration(
+                        ref worldVelocity,
+                        scrollVelocity,
+                        brakeState.ValueRO.deceleration,
+                        dt);
+
+                    if (brakeState.ValueRO.holdAfterStop == 0
+                        && math.lengthsq(TerrainScrollVelocityMath.TerrainRelativeFromWorld(
+                            worldVelocity, scrollVelocity)) < MinSlideSpeed * MinSlideSpeed)
+                    {
+                        brakeState.ValueRW.active = 0;
+                    }
+                }
+
+                terrainRelativeVelocity = TerrainScrollVelocityMath.TerrainRelativeFromWorld(
+                    worldVelocity,
+                    scrollVelocity);
+
+                // Colliders (tiles + TerrainAnchors) still sit at last frame's scroll pose while we run.
+                // World displacement includes -scroll, but those colliders will also move by -scroll this
+                // frame — sweeping world motion against them double-counts scroll and tunnels thin faces.
+                // Sweep terrain-relative motion first, then apply scroll once.
+                relativeDisplacement = terrainRelativeVelocity * dt;
+
                 if (SweepAndSlide(
                         ref position,
                         ref terrainRelativeVelocity,
@@ -270,16 +353,9 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
                     hasContact = true;
                     previousGroundNormal = sweepNormal;
                 }
-            }
-            else
-            {
-                position = startPosition + relativeDisplacement;
-            }
 
-            position -= scrollDelta;
+                position -= scrollDelta;
 
-            if (hasPhysicsWorld)
-            {
                 if (TryDepenetrateWorld(
                         ref position,
                         ref terrainRelativeVelocity,
@@ -299,6 +375,7 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
                         ref position,
                         ref terrainRelativeVelocity,
                         anchoredBodies,
+                        allFilter,
                         config.ValueRO,
                         dt,
                         out float3 anchorNormal))
@@ -306,22 +383,170 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
                     hasContact = true;
                     previousGroundNormal = anchorNormal;
                 }
-            }
 
-            if (hasContact && !braking)
+                if (hasContact && !braking)
+                {
+                    worldVelocity = TerrainScrollVelocityMath.WorldVelocityFromTerrainRelative(
+                        terrainRelativeVelocity,
+                        scrollVelocity);
+                    ApplyGroundFriction(
+                        ref worldVelocity,
+                        scrollVelocity,
+                        previousGroundNormal,
+                        config.ValueRO.groundFriction,
+                        dt);
+                    terrainRelativeVelocity = TerrainScrollVelocityMath.TerrainRelativeFromWorld(
+                        worldVelocity,
+                        scrollVelocity);
+                }
+
+                // Stay latched while airborne or on a pipe; hand back to sticky once supported by
+                // something that is not a pipe.
+                // Colliders are still at last frame's scroll pose, so test the pre-scroll position.
+                bool pipeInReach = IsTouchingPipe(
+                    collisionWorld,
+                    anchoredBodies,
+                    position + scrollDelta,
+                    float3.zero,
+                    config.ValueRO,
+                    pipeFilter,
+                    entity,
+                    StickyContactSkin);
+                pipeMode = hasContact && !pipeInReach ? (byte)0 : (byte)1;
+            }
+            else
             {
-                worldVelocity = TerrainScrollVelocityMath.WorldVelocityFromTerrainRelative(
-                    terrainRelativeVelocity,
-                    scrollVelocity);
-                ApplyGroundFriction(
-                    ref worldVelocity,
-                    scrollVelocity,
-                    previousGroundNormal,
-                    config.ValueRO.groundFriction,
+                bool hadContact = motionState.ValueRO.hasPreviousContact != 0;
+                float3 searchNormal = hadContact && previousGroundNormal.y >= MinStickyGroundUp
+                    ? previousGroundNormal
+                    : math.up();
+
+                float3 contactNormal = previousGroundNormal;
+                float3 contactPoint = position;
+                float signedSeparation = float.MaxValue;
+                bool probed = false;
+
+                if (hasPhysicsWorld)
+                {
+                    probed = TryProbeSurface(
+                        collisionWorld,
+                        nonPipeFilter,
+                        entity,
+                        position,
+                        searchNormal,
+                        config.ValueRO,
+                        out contactPoint,
+                        out contactNormal,
+                        out signedSeparation);
+                }
+
+                if (probed)
+                    previousGroundNormal = contactNormal;
+
+                hasContact = EvaluateSphereContact(
+                    probed,
+                    signedSeparation,
+                    worldVelocity,
+                    contactNormal,
+                    gravity,
+                    braking,
                     dt);
+
+                if (hasContact)
+                {
+                    ApplySphereContactConstraint(
+                        ref position,
+                        ref worldVelocity,
+                        contactPoint,
+                        contactNormal,
+                        config.ValueRO,
+                        braking,
+                        gravity,
+                        scrollVelocity,
+                        dt);
+                }
+                else if (!braking)
+                {
+                    worldVelocity += gravity * dt;
+                }
+
+                if (braking)
+                {
+                    ApplyBrakeDeceleration(
+                        ref worldVelocity,
+                        scrollVelocity,
+                        brakeState.ValueRO.deceleration,
+                        dt);
+
+                    if (brakeState.ValueRO.holdAfterStop == 0
+                        && math.lengthsq(TerrainScrollVelocityMath.TerrainRelativeFromWorld(
+                            worldVelocity, scrollVelocity)) < MinSlideSpeed * MinSlideSpeed)
+                    {
+                        brakeState.ValueRW.active = 0;
+                    }
+                }
+
                 terrainRelativeVelocity = TerrainScrollVelocityMath.TerrainRelativeFromWorld(
                     worldVelocity,
                     scrollVelocity);
+
+                startPosition = position;
+                relativeDisplacement = terrainRelativeVelocity * dt;
+
+                if (hasPhysicsWorld)
+                {
+                    if (SweepAndSlide(
+                            ref position,
+                            ref terrainRelativeVelocity,
+                            startPosition,
+                            relativeDisplacement,
+                            config.ValueRO,
+                            collisionWorld,
+                            nonPipeFilter,
+                            entity,
+                            out float3 sweepNormal))
+                    {
+                        hasContact = true;
+                        previousGroundNormal = sweepNormal;
+                    }
+                }
+                else
+                {
+                    position = startPosition + relativeDisplacement;
+                }
+
+                position -= scrollDelta;
+
+                if (hasPhysicsWorld)
+                {
+                    if (TryDepenetrateWorld(
+                            ref position,
+                            ref terrainRelativeVelocity,
+                            collisionWorld,
+                            nonPipeFilter,
+                            entity,
+                            config.ValueRO,
+                            dt,
+                            out float3 worldNormal))
+                    {
+                        hasContact = true;
+                        previousGroundNormal = worldNormal;
+                    }
+
+                    if (anchoredBodies.IsCreated && anchoredBodies.Length > 0
+                        && TryDepenetrateAnchoredBodies(
+                            ref position,
+                            ref terrainRelativeVelocity,
+                            anchoredBodies,
+                            nonPipeFilter,
+                            config.ValueRO,
+                            dt,
+                            out float3 anchorNormal))
+                    {
+                        hasContact = true;
+                        previousGroundNormal = anchorNormal;
+                    }
+                }
             }
 
             float radius = math.max(config.ValueRO.sphereRadius, MinSphereRadius);
@@ -335,7 +560,7 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
             motionState.ValueRW.hasPreviousContact = hasContact ? (byte)1 : (byte)0;
             motionState.ValueRW.previousGroundNormal = previousGroundNormal;
             motionState.ValueRW.contactPoint = publishedContact;
-
+            motionState.ValueRW.pipeMode = pipeMode;
             UpdateSmoothedYaw(
                 ref smoothedYaw,
                 TerrainScrollVelocityMath.WorldVelocityFromTerrainRelative(terrainRelativeVelocity, scrollVelocity),
@@ -348,6 +573,208 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
 
         if (anchoredBodies.IsCreated)
             anchoredBodies.Dispose();
+    }
+
+    /// <summary>
+    /// True when the rider sphere overlaps or this step's sweep hits a Pipe-layer collider,
+    /// including scrolling TerrainAnchor meshes whose BelongsTo includes the Pipe layer.
+    /// </summary>
+    private static bool IsTouchingPipe(
+        CollisionWorld collisionWorld,
+        NativeList<RigidBody> anchoredBodies,
+        float3 position,
+        float3 relativeDisplacement,
+        in PlayerFollowObjectGroundConfig config,
+        CollisionFilter pipeFilter,
+        Entity ignoreEntity,
+        float extraReach = 0f)
+    {
+        float radius = math.max(config.sphereRadius, MinSphereRadius);
+        float reach = radius + math.max(0f, extraReach);
+        float3 center = position + config.sphereCenter;
+
+        var distanceInput = new PointDistanceInput
+        {
+            Position = center,
+            MaxDistance = reach,
+            Filter = pipeFilter
+        };
+        var distanceCollector = new IgnoreEntityDistanceCollector(reach, ignoreEntity);
+        if (collisionWorld.CalculateDistance(distanceInput, ref distanceCollector)
+            && distanceCollector.NumHits > 0)
+        {
+            return true;
+        }
+
+        float distance = math.length(relativeDisplacement);
+        if (distance >= MinCastDistance)
+        {
+            float3 direction = relativeDisplacement / distance;
+            var castCollector = new IgnoreEntityCastCollector(1f, ignoreEntity);
+            collisionWorld.SphereCastCustom(
+                center,
+                radius,
+                direction,
+                distance,
+                ref castCollector,
+                pipeFilter);
+            if (castCollector.NumHits > 0)
+                return true;
+        }
+
+        if (!anchoredBodies.IsCreated)
+            return false;
+
+        for (int bodyIndex = 0; bodyIndex < anchoredBodies.Length; bodyIndex++)
+        {
+            RigidBody body = anchoredBodies[bodyIndex];
+            if (!body.Collider.IsCreated)
+                continue;
+
+            CollisionFilter bodyFilter = body.Collider.Value.GetCollisionFilter();
+            if ((bodyFilter.BelongsTo & PipeLayerMask) == 0)
+                continue;
+
+            var input = new PointDistanceInput
+            {
+                Position = center,
+                MaxDistance = reach,
+                Filter = CollisionFilter.Default
+            };
+            if (body.CalculateDistance(input, out DistanceHit _))
+                return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// In contact when the sphere is within <see cref="StickyContactSkin"/> of a hit, or this
+    /// step's motion would close the remaining gap. Otherwise the sphere is airborne.
+    /// </summary>
+    private static bool EvaluateSphereContact(
+        bool probed,
+        float signedSeparation,
+        float3 worldVelocity,
+        float3 contactNormal,
+        float3 gravity,
+        bool braking,
+        float dt)
+    {
+        if (!probed)
+            return false;
+
+        if (signedSeparation <= StickyContactSkin)
+            return true;
+
+        float3 predictedVelocity = worldVelocity;
+        if (!braking)
+            predictedVelocity += gravity * dt;
+        float approach = -math.dot(predictedVelocity, contactNormal) * dt;
+        return approach >= signedSeparation - StickyContactSkin;
+    }
+
+    /// <summary>
+    /// Constrains the sphere to the hit surface: snap the center to contact + normal * radius,
+    /// kill inbound relative normal velocity, then slide under tangent gravity and friction.
+    /// </summary>
+    private static void ApplySphereContactConstraint(
+        ref float3 position,
+        ref float3 worldVelocity,
+        float3 contactPoint,
+        float3 contactNormal,
+        in PlayerFollowObjectGroundConfig config,
+        bool braking,
+        float3 gravity,
+        float3 scrollVelocity,
+        float dt)
+    {
+        float radius = math.max(config.sphereRadius, MinSphereRadius);
+        float3 center = position + config.sphereCenter;
+        float3 desiredCenter = contactPoint + contactNormal * radius;
+        float3 correction = desiredCenter - center;
+        float correctionLen = math.length(correction);
+        if (correctionLen > 1e-6f)
+        {
+            float3 corrDir = correction / correctionLen;
+            float intoSurface = math.dot(correction, contactNormal);
+            float applied = correctionLen;
+            if (intoSurface > 0f)
+            {
+                float recoverySpeed = config.maxPenetrationRecoverySpeed;
+                if (recoverySpeed <= 0f)
+                    recoverySpeed = DefaultMaxPenetrationRecoverySpeed;
+                applied = math.min(applied, recoverySpeed * math.max(0f, dt));
+            }
+
+            position += corrDir * applied;
+        }
+
+        float3 surfaceWorldVelocity = -scrollVelocity;
+        float relativeVn = math.dot(worldVelocity - surfaceWorldVelocity, contactNormal);
+        if (relativeVn < 0f)
+            worldVelocity -= contactNormal * relativeVn;
+
+        if (!braking)
+        {
+            worldVelocity += RemoveNormalComponent(gravity, contactNormal) * dt;
+            ApplyGroundFriction(
+                ref worldVelocity,
+                scrollVelocity,
+                contactNormal,
+                config.groundFriction,
+                dt);
+        }
+    }
+
+    /// <summary>
+    /// SphereCasts along <paramref name="searchNormal"/> (last contact normal, or world-up)
+    /// onto non-Pipe colliders. Closest hit is the supporting surface.
+    /// </summary>
+    private static bool TryProbeSurface(
+        CollisionWorld collisionWorld,
+        CollisionFilter filter,
+        Entity ignoreEntity,
+        float3 position,
+        float3 searchNormal,
+        in PlayerFollowObjectGroundConfig config,
+        out float3 contactPoint,
+        out float3 contactNormal,
+        out float signedSeparation)
+    {
+        contactPoint = position;
+        contactNormal = math.up();
+        signedSeparation = float.MaxValue;
+
+        float radius = math.max(config.sphereRadius, MinSphereRadius);
+        float3 center = position + config.sphereCenter;
+        float3 n = math.normalizesafe(searchNormal, math.up());
+        float above = math.max(config.rayHeightAbove, radius + 0.1f);
+        float below = math.max(config.rayLengthBelow, radius);
+        float maxDistance = above + below;
+        if (maxDistance < MinCastDistance)
+            return false;
+
+        float3 origin = center + n * above;
+        float3 direction = -n;
+
+        var collector = new IgnoreEntityCastCollector(1f, ignoreEntity, MinStickyGroundUp);
+        collisionWorld.SphereCastCustom(
+            origin,
+            radius,
+            direction,
+            maxDistance,
+            ref collector,
+            filter);
+
+        if (collector.NumHits == 0)
+            return false;
+
+        ColliderCastHit hit = collector.ClosestHit;
+        contactNormal = math.normalizesafe(hit.SurfaceNormal, math.up());
+        contactPoint = hit.Position;
+        signedSeparation = math.dot(center - contactPoint, contactNormal) - radius;
+        return true;
     }
 
     /// <summary>
@@ -397,11 +824,13 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
     /// <summary>
     /// If the sphere overlaps a scrolling TerrainAnchor mesh, push out along the true surface
     /// normal and cancel inbound velocity. Recovers cases SphereCast misses from inside a thin face.
+    /// Bodies that do not collide with <paramref name="filter"/> are skipped (sticky path excludes Pipe).
     /// </summary>
     private static bool TryDepenetrateAnchoredBodies(
         ref float3 position,
         ref float3 terrainRelativeVelocity,
         NativeList<RigidBody> anchoredBodies,
+        CollisionFilter filter,
         in PlayerFollowObjectGroundConfig config,
         float dt,
         out float3 contactNormal)
@@ -415,19 +844,21 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
         float3 bestNormal = float3.zero;
         bool found = false;
 
-        CollisionFilter filter = CollisionFilter.Default;
-
         for (int bodyIndex = 0; bodyIndex < anchoredBodies.Length; bodyIndex++)
         {
             RigidBody body = anchoredBodies[bodyIndex];
             if (!body.Collider.IsCreated)
                 continue;
 
+            CollisionFilter bodyFilter = body.Collider.Value.GetCollisionFilter();
+            if (!CollisionFilter.IsCollisionEnabled(filter, bodyFilter))
+                continue;
+
             var input = new PointDistanceInput
             {
                 Position = center,
                 MaxDistance = maxDistance,
-                Filter = filter
+                Filter = CollisionFilter.Default
             };
 
             if (!body.CalculateDistance(input, out DistanceHit hit))

@@ -14,7 +14,7 @@ GameObject:
   - component: {fileID: 2927590163766118435}
   - component: {fileID: 2849576935195580503}
   - component: {fileID: 8233052511596903614}
-  m_Layer: 11
+  m_Layer: 15
   m_Name: PipeBody
   m_TagString: Untagged
   m_Icon: {fileID: 0}
