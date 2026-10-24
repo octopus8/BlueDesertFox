@@ -3,7 +3,8 @@ using Unity.Entities;
 using Unity.Mathematics;
 
 /// <summary>
-/// Rotates the Player Follow Object's terrain-relative horizontal velocity around Y based on HMD head roll.
+/// Rotates the Player Follow Object's surface-tangent velocity around the contact normal based on HMD head roll,
+/// so steering keeps full strength on steep faces (e.g. quarterpipe walls) where most speed is vertical.
 /// Runs before ground-contact physics so steering affects the velocity used for integration.
 /// </summary>
 [BurstCompile]
@@ -54,25 +55,27 @@ public partial struct PlayerFollowObjectHeadSteeringSystem : ISystem
             float3 worldVelocity = TerrainScrollVelocityMath.WorldVelocityFromTerrainRelative(
                 terrainRelativeVelocity,
                 scrollVelocity);
-            float3 flat = new float3(worldVelocity.x, 0f, worldVelocity.z);
-            if (math.lengthsq(flat) < MinSteeringSpeed * MinSteeringSpeed)
+            float3 surfaceNormal = math.normalizesafe(motionState.ValueRO.previousGroundNormal, math.up());
+            float normalSpeed = math.dot(worldVelocity, surfaceNormal);
+            float3 tangent = worldVelocity - surfaceNormal * normalSpeed;
+            if (math.lengthsq(tangent) < MinSteeringSpeed * MinSteeringSpeed)
                 continue;
 
             float bankRadians = math.radians(cameraData.headBankAngle);
             float sinBank = math.sin(bankRadians);
             float rotationAmount = -sinBank * sensitivity * dt;
-            quaternion yawRotation = quaternion.RotateY(math.radians(rotationAmount));
-            float3 rotatedFlat = math.rotate(yawRotation, flat);
+            quaternion turnRotation = quaternion.AxisAngle(surfaceNormal, math.radians(rotationAmount));
+            float3 rotatedTangent = math.rotate(turnRotation, tangent);
 
             float turnDrag = steeringConfig.ValueRO.turnDrag;
             if (turnDrag > 0f)
             {
                 float tiltFactor = math.abs(sinBank);
                 float speedScale = math.max(0f, 1f - turnDrag * tiltFactor);
-                rotatedFlat *= speedScale;
+                rotatedTangent *= speedScale;
             }
 
-            worldVelocity = new float3(rotatedFlat.x, worldVelocity.y, rotatedFlat.z);
+            worldVelocity = rotatedTangent + surfaceNormal * normalSpeed;
             motionState.ValueRW.terrainRelativeVelocity = TerrainScrollVelocityMath.TerrainRelativeFromWorld(
                 worldVelocity,
                 scrollVelocity);
