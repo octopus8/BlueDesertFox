@@ -139,12 +139,9 @@ public class PlayerHoverboardVisual : MonoBehaviour
         Vector3 targetOffset = targetBoardPosition - followPosition;
         if (!PlayerFollowObjectPoseBridge.HasBoardContact)
         {
-            targetOffset = Vector3.zero;
-            if (!_hasInitializedOffset)
-            {
-                _smoothedContactOffset = Vector3.zero;
-                _hasInitializedOffset = true;
-            }
+            // Snap under the rider; do not leave the last pipe/surface contact offset frozen.
+            _smoothedContactOffset = Vector3.zero;
+            _hasInitializedOffset = true;
         }
         else if (!_hasInitializedOffset)
         {

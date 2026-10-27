@@ -67,7 +67,8 @@ public partial struct PlayerFollowObjectHeadSteeringSystem : ISystem
             quaternion turnRotation = quaternion.AxisAngle(surfaceNormal, math.radians(rotationAmount));
             float3 rotatedTangent = math.rotate(turnRotation, tangent);
 
-            float turnDrag = steeringConfig.ValueRO.turnDrag;
+            // Turn drag bleeds speed while banking; keep full speed on pipes / pipe air.
+            float turnDrag = motionState.ValueRO.pipeMode != 0 ? 0f : steeringConfig.ValueRO.turnDrag;
             if (turnDrag > 0f)
             {
                 float tiltFactor = math.abs(sinBank);

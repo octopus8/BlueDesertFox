@@ -430,6 +430,10 @@ PrefabInstance:
       propertyPath: m_Layer
       value: 15
       objectReference: {fileID: 0}
+    - target: {fileID: 4449297015711317885, guid: af23e66a299151841906b35751e639f3, type: 3}
+      propertyPath: m_IsActive
+      value: 1
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -540,8 +544,8 @@ Rigidbody:
     m_Bits: 0
   m_ImplicitCom: 1
   m_ImplicitTensor: 1
-  m_UseGravity: 1
-  m_IsKinematic: 0
+  m_UseGravity: 0
+  m_IsKinematic: 1
   m_Interpolate: 0
   m_Constraints: 0
   m_CollisionDetection: 0
@@ -603,8 +607,8 @@ Rigidbody:
     m_Bits: 0
   m_ImplicitCom: 1
   m_ImplicitTensor: 1
-  m_UseGravity: 1
-  m_IsKinematic: 0
+  m_UseGravity: 0
+  m_IsKinematic: 1
   m_Interpolate: 0
   m_Constraints: 0
   m_CollisionDetection: 0
@@ -1471,7 +1475,7 @@ Transform:
   m_GameObject: {fileID: 583900012}
   serializedVersion: 2
   m_LocalRotation: {x: 0.000000007450581, y: -0, z: -0.000000007450581, w: 1}
-  m_LocalPosition: {x: 0.00003748387, y: -0.000013623387, z: -4}
+  m_LocalPosition: {x: 0.00003748387, y: -0.000013623387, z: -6}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -1775,7 +1779,7 @@ MonoBehaviour:
   yawRotationSmoothTime: 1
   minYawSpeed: 0.5
   steeringSensitivity: 60
-  turnDrag: 0.01
+  turnDrag: 0.005
 --- !u!136 &935523118
 CapsuleCollider:
   m_ObjectHideFlags: 0
@@ -1887,7 +1891,7 @@ Transform:
   m_GameObject: {fileID: 961594795}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0.000000007450581, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 4}
+  m_LocalPosition: {x: 0, y: 0, z: 6}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
