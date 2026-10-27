@@ -55,10 +55,8 @@ public struct PlayerFollowObjectMotionState : IComponentData
 public partial struct PlayerFollowObjectGroundContactSystem : ISystem
 {
     private const float ObstacleSkin = 0.001f;
-    private const float BlockingDepenetrationSkin = 0.01f;
     private const float MinCastDistance = 1e-4f;
     private const float MinSphereRadius = 1e-3f;
-    private const float ContactSkin = 0.01f;
     private const float StickyContactSkin = 0.05f;
     private const float MinSlideSpeed = 0.01f;
     private const float SeparatingDotThreshold = 0.01f;
@@ -71,24 +69,42 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
     private static readonly float3 DefaultGravity = new float3(0f, -9.81f, 0f);
 
     /// <summary>
+    /// Collector that can reject TerrainAnchor hits. Set for CollisionWorld queries, whose anchor
+    /// poses may be stale; cleared when querying the anchored bodies directly.
+    /// </summary>
+    private interface IAnchorSkippingCollector
+    {
+        bool SkipAnchored { get; set; }
+    }
+
+    /// <summary>
     /// Closest SphereCast hit that the sphere is moving into. Ignores the follow-object entity
     /// and surfaces the motion is leaving. Grazing and inbound hits are kept so a shallow
     /// quarterpipe floor can redirect speed instead of being skipped until the wall.
     /// </summary>
-    private struct OpposingHitCollector : ICollector<ColliderCastHit>
+    private struct OpposingHitCollector : ICollector<ColliderCastHit>, IAnchorSkippingCollector
     {
         public Entity IgnoreEntity;
         public float3 Direction;
+        public ComponentLookup<TerrainAnchorTag> AnchorLookup;
+        public bool SkipAnchored { get; set; }
         public bool EarlyOutOnFirstHit => false;
         public float MaxFraction { get; private set; }
         public int NumHits { get; private set; }
         public ColliderCastHit ClosestHit;
 
-        public OpposingHitCollector(float maxFraction, Entity ignoreEntity, float3 direction)
+        public OpposingHitCollector(
+            float maxFraction,
+            Entity ignoreEntity,
+            float3 direction,
+            ComponentLookup<TerrainAnchorTag> anchorLookup,
+            bool skipAnchored)
         {
             MaxFraction = maxFraction;
             IgnoreEntity = ignoreEntity;
             Direction = direction;
+            AnchorLookup = anchorLookup;
+            SkipAnchored = skipAnchored;
             NumHits = 0;
             ClosestHit = default;
         }
@@ -96,6 +112,9 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
         public bool AddHit(ColliderCastHit hit)
         {
             if (hit.Entity == IgnoreEntity)
+                return false;
+
+            if (SkipAnchored && AnchorLookup.HasComponent(hit.Entity))
                 return false;
 
             float3 normal = math.normalizesafe(hit.SurfaceNormal, math.up());
@@ -113,20 +132,29 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
     /// Closest SphereCast hit that is not the follow-object entity and whose normal's world-up
     /// component is at least <see cref="MinUp"/> (pass -1 to accept any orientation).
     /// </summary>
-    private struct IgnoreEntityCastCollector : ICollector<ColliderCastHit>
+    private struct IgnoreEntityCastCollector : ICollector<ColliderCastHit>, IAnchorSkippingCollector
     {
         public Entity IgnoreEntity;
         public float MinUp;
+        public ComponentLookup<TerrainAnchorTag> AnchorLookup;
+        public bool SkipAnchored { get; set; }
         public bool EarlyOutOnFirstHit => false;
         public float MaxFraction { get; private set; }
         public int NumHits { get; private set; }
         public ColliderCastHit ClosestHit;
 
-        public IgnoreEntityCastCollector(float maxFraction, Entity ignoreEntity, float minUp = -1f)
+        public IgnoreEntityCastCollector(
+            float maxFraction,
+            Entity ignoreEntity,
+            ComponentLookup<TerrainAnchorTag> anchorLookup,
+            bool skipAnchored,
+            float minUp = -1f)
         {
             MaxFraction = maxFraction;
             IgnoreEntity = ignoreEntity;
             MinUp = minUp;
+            AnchorLookup = anchorLookup;
+            SkipAnchored = skipAnchored;
             NumHits = 0;
             ClosestHit = default;
         }
@@ -134,6 +162,9 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
         public bool AddHit(ColliderCastHit hit)
         {
             if (hit.Entity == IgnoreEntity)
+                return false;
+
+            if (SkipAnchored && AnchorLookup.HasComponent(hit.Entity))
                 return false;
 
             if (math.normalizesafe(hit.SurfaceNormal, math.up()).y < MinUp)
@@ -152,15 +183,24 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
     private struct IgnoreEntityDistanceCollector : ICollector<DistanceHit>
     {
         public Entity IgnoreEntity;
+        public ComponentLookup<TerrainAnchorTag> AnchorLookup;
+        /// <summary>Reject TerrainAnchor hits (set for CollisionWorld queries, whose anchor poses may be stale).</summary>
+        public bool SkipAnchored;
         public bool EarlyOutOnFirstHit => false;
         public float MaxFraction { get; private set; }
         public int NumHits { get; private set; }
         public DistanceHit ClosestHit;
 
-        public IgnoreEntityDistanceCollector(float maxFraction, Entity ignoreEntity)
+        public IgnoreEntityDistanceCollector(
+            float maxFraction,
+            Entity ignoreEntity,
+            ComponentLookup<TerrainAnchorTag> anchorLookup,
+            bool skipAnchored)
         {
             MaxFraction = maxFraction;
             IgnoreEntity = ignoreEntity;
+            AnchorLookup = anchorLookup;
+            SkipAnchored = skipAnchored;
             NumHits = 0;
             ClosestHit = default;
         }
@@ -170,6 +210,9 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
             if (hit.Entity == IgnoreEntity)
                 return false;
 
+            if (SkipAnchored && AnchorLookup.HasComponent(hit.Entity))
+                return false;
+
             MaxFraction = hit.Fraction;
             ClosestHit = hit;
             NumHits = 1;
@@ -177,9 +220,12 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
         }
     }
 
+    private ComponentLookup<TerrainAnchorTag> _anchorLookup;
+
     [BurstCompile]
     public void OnCreate(ref SystemState state)
     {
+        _anchorLookup = state.GetComponentLookup<TerrainAnchorTag>(isReadOnly: true);
         state.RequireForUpdate<PlayerFollowObjectTag>();
         state.RequireForUpdate<PlayerFollowObjectGroundConfig>();
         state.RequireForUpdate<PlayerFollowObjectMotionState>();
@@ -204,7 +250,13 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
             && terrainConfig.enablePhysicsColliders
             && SystemAPI.HasSingleton<PhysicsWorldSingleton>();
 
+        _anchorLookup.Update(ref state);
+        ComponentLookup<TerrainAnchorTag> anchorLookup = _anchorLookup;
+
         CollisionWorld collisionWorld = default;
+        // Built from LocalTransform before TerrainAnchorSystem runs, so it always holds last frame's
+        // scroll pose. CollisionWorld only refreshes on fixed steps and can be an extra frame behind,
+        // so every query skips TerrainAnchor hits there and tests these bodies directly instead.
         NativeList<RigidBody> anchoredBodies = default;
         CollisionFilter allFilter = CollisionFilter.Default;
         CollisionFilter pipeFilter = CollisionFilter.Default;
@@ -299,6 +351,7 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
                     || IsTouchingPipe(
                         collisionWorld,
                         anchoredBodies,
+                        anchorLookup,
                         position,
                         relativeDisplacement,
                         config.ValueRO,
@@ -346,6 +399,8 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
                         relativeDisplacement,
                         config.ValueRO,
                         collisionWorld,
+                        anchoredBodies,
+                        anchorLookup,
                         allFilter,
                         entity,
                         out float3 sweepNormal))
@@ -354,12 +409,14 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
                     previousGroundNormal = sweepNormal;
                 }
 
-                position -= scrollDelta;
-
+                // Depenetrate against last-frame colliders before applying this frame's scroll.
+                // Doing it after scrollDelta tests the rider at the new pose against the old pipe
+                // and shoves along the wall normal every frame.
                 if (TryDepenetrateWorld(
                         ref position,
                         ref terrainRelativeVelocity,
                         collisionWorld,
+                        anchorLookup,
                         allFilter,
                         entity,
                         config.ValueRO,
@@ -401,18 +458,22 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
                 }
 
                 // Stay latched while airborne or on a pipe; hand back to sticky once supported by
-                // something that is not a pipe.
-                // Colliders are still at last frame's scroll pose, so test the pre-scroll position.
+                // something that is not a pipe. Test the pre-scroll pose against last-frame colliders.
                 bool pipeInReach = IsTouchingPipe(
                     collisionWorld,
                     anchoredBodies,
-                    position + scrollDelta,
+                    anchorLookup,
+                    position,
                     float3.zero,
                     config.ValueRO,
                     pipeFilter,
                     entity,
                     StickyContactSkin);
+                if (pipeInReach)
+                    hasContact = true;
                 pipeMode = hasContact && !pipeInReach ? (byte)0 : (byte)1;
+
+                position -= scrollDelta;
             }
             else
             {
@@ -430,6 +491,8 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
                 {
                     probed = TryProbeSurface(
                         collisionWorld,
+                        anchoredBodies,
+                        anchorLookup,
                         nonPipeFilter,
                         entity,
                         position,
@@ -502,6 +565,8 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
                             relativeDisplacement,
                             config.ValueRO,
                             collisionWorld,
+                            anchoredBodies,
+                            anchorLookup,
                             nonPipeFilter,
                             entity,
                             out float3 sweepNormal))
@@ -509,20 +574,12 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
                         hasContact = true;
                         previousGroundNormal = sweepNormal;
                     }
-                }
-                else
-                {
-                    position = startPosition + relativeDisplacement;
-                }
 
-                position -= scrollDelta;
-
-                if (hasPhysicsWorld)
-                {
                     if (TryDepenetrateWorld(
                             ref position,
                             ref terrainRelativeVelocity,
                             collisionWorld,
+                            anchorLookup,
                             nonPipeFilter,
                             entity,
                             config.ValueRO,
@@ -547,6 +604,12 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
                         previousGroundNormal = anchorNormal;
                     }
                 }
+                else
+                {
+                    position = startPosition + relativeDisplacement;
+                }
+
+                position -= scrollDelta;
             }
 
             float radius = math.max(config.ValueRO.sphereRadius, MinSphereRadius);
@@ -582,6 +645,7 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
     private static bool IsTouchingPipe(
         CollisionWorld collisionWorld,
         NativeList<RigidBody> anchoredBodies,
+        ComponentLookup<TerrainAnchorTag> anchorLookup,
         float3 position,
         float3 relativeDisplacement,
         in PlayerFollowObjectGroundConfig config,
@@ -599,7 +663,7 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
             MaxDistance = reach,
             Filter = pipeFilter
         };
-        var distanceCollector = new IgnoreEntityDistanceCollector(reach, ignoreEntity);
+        var distanceCollector = new IgnoreEntityDistanceCollector(reach, ignoreEntity, anchorLookup, skipAnchored: true);
         if (collisionWorld.CalculateDistance(distanceInput, ref distanceCollector)
             && distanceCollector.NumHits > 0)
         {
@@ -610,14 +674,16 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
         if (distance >= MinCastDistance)
         {
             float3 direction = relativeDisplacement / distance;
-            var castCollector = new IgnoreEntityCastCollector(1f, ignoreEntity);
-            collisionWorld.SphereCastCustom(
+            var castCollector = new IgnoreEntityCastCollector(1f, ignoreEntity, anchorLookup, skipAnchored: true);
+            SphereCastWithAnchors(
+                collisionWorld,
+                anchoredBodies,
                 center,
                 radius,
                 direction,
                 distance,
-                ref castCollector,
-                pipeFilter);
+                pipeFilter,
+                ref castCollector);
             if (castCollector.NumHits > 0)
                 return true;
         }
@@ -733,6 +799,8 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
     /// </summary>
     private static bool TryProbeSurface(
         CollisionWorld collisionWorld,
+        NativeList<RigidBody> anchoredBodies,
+        ComponentLookup<TerrainAnchorTag> anchorLookup,
         CollisionFilter filter,
         Entity ignoreEntity,
         float3 position,
@@ -758,14 +826,16 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
         float3 origin = center + n * above;
         float3 direction = -n;
 
-        var collector = new IgnoreEntityCastCollector(1f, ignoreEntity, MinStickyGroundUp);
-        collisionWorld.SphereCastCustom(
+        var collector = new IgnoreEntityCastCollector(1f, ignoreEntity, anchorLookup, skipAnchored: true, minUp: MinStickyGroundUp);
+        SphereCastWithAnchors(
+            collisionWorld,
+            anchoredBodies,
             origin,
             radius,
             direction,
             maxDistance,
-            ref collector,
-            filter);
+            filter,
+            ref collector);
 
         if (collector.NumHits == 0)
             return false;
@@ -779,12 +849,14 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
 
     /// <summary>
     /// If the sphere overlaps a collider in the physics world, push out along the true surface
-    /// normal and cancel inbound velocity. Does not snap across a gap.
+    /// normal and cancel inbound velocity. Does not snap across a gap. TerrainAnchor bodies are
+    /// skipped here; <see cref="TryDepenetrateAnchoredBodies"/> handles them at their current pose.
     /// </summary>
     private static bool TryDepenetrateWorld(
         ref float3 position,
         ref float3 terrainRelativeVelocity,
         CollisionWorld collisionWorld,
+        ComponentLookup<TerrainAnchorTag> anchorLookup,
         CollisionFilter filter,
         Entity ignoreEntity,
         in PlayerFollowObjectGroundConfig config,
@@ -803,7 +875,7 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
         };
 
         // Distance collectors use MaxFraction as a distance (not a 0-1 fraction).
-        var collector = new IgnoreEntityDistanceCollector(radius, ignoreEntity);
+        var collector = new IgnoreEntityDistanceCollector(radius, ignoreEntity, anchorLookup, skipAnchored: true);
         if (!collisionWorld.CalculateDistance(input, ref collector) || collector.NumHits == 0)
             return false;
 
@@ -900,7 +972,7 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
         if (recoverySpeed <= 0f)
             recoverySpeed = DefaultMaxPenetrationRecoverySpeed;
         float maxPush = recoverySpeed * math.max(0f, dt);
-        float push = math.min(penetration + ContactSkin, maxPush);
+        float push = math.min(penetration + ObstacleSkin, maxPush);
         position += normal * push;
 
         float vNormal = math.dot(terrainRelativeVelocity, normal);
@@ -921,6 +993,8 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
         float3 displacement,
         in PlayerFollowObjectGroundConfig config,
         CollisionWorld collisionWorld,
+        NativeList<RigidBody> anchoredBodies,
+        ComponentLookup<TerrainAnchorTag> anchorLookup,
         CollisionFilter filter,
         Entity ignoreEntity,
         out float3 hitNormal)
@@ -940,6 +1014,8 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
             float3 direction = remaining / distance;
             if (!TryCastOpposingSphere(
                     collisionWorld,
+                    anchoredBodies,
+                    anchorLookup,
                     currentPosition + config.sphereCenter,
                     radius,
                     direction,
@@ -959,7 +1035,7 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
             currentPosition += direction * (distance * fraction);
 
             if (castHit.Fraction <= ObstacleSkin)
-                currentPosition += hitNormal * BlockingDepenetrationSkin;
+                currentPosition += hitNormal * ObstacleSkin;
 
             float approachRate = math.dot(terrainRelativeVelocity, hitNormal);
             if (approachRate < 0f)
@@ -987,8 +1063,45 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
         return anyHit;
     }
 
+    /// <summary>
+    /// SphereCasts against the CollisionWorld (TerrainAnchor hits rejected) and then each anchored
+    /// body at its current pose, sharing one collector so the closest hit across both wins.
+    /// </summary>
+    private static void SphereCastWithAnchors<C>(
+        CollisionWorld collisionWorld,
+        NativeList<RigidBody> anchoredBodies,
+        float3 origin,
+        float radius,
+        float3 direction,
+        float maxDistance,
+        CollisionFilter filter,
+        ref C collector)
+        where C : struct, ICollector<ColliderCastHit>, IAnchorSkippingCollector
+    {
+        collector.SkipAnchored = true;
+        collisionWorld.SphereCastCustom(origin, radius, direction, maxDistance, ref collector, filter);
+        collector.SkipAnchored = false;
+
+        if (!anchoredBodies.IsCreated)
+            return;
+
+        for (int bodyIndex = 0; bodyIndex < anchoredBodies.Length; bodyIndex++)
+        {
+            RigidBody body = anchoredBodies[bodyIndex];
+            if (!body.Collider.IsCreated)
+                continue;
+
+            if (!CollisionFilter.IsCollisionEnabled(filter, body.Collider.Value.GetCollisionFilter()))
+                continue;
+
+            body.SphereCastCustom(origin, radius, direction, maxDistance, ref collector, filter);
+        }
+    }
+
     private static bool TryCastOpposingSphere(
         CollisionWorld collisionWorld,
+        NativeList<RigidBody> anchoredBodies,
+        ComponentLookup<TerrainAnchorTag> anchorLookup,
         float3 center,
         float radius,
         float3 direction,
@@ -1001,14 +1114,16 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
         if (maxDistance < MinCastDistance)
             return false;
 
-        var collector = new OpposingHitCollector(1f, ignoreEntity, direction);
-        collisionWorld.SphereCastCustom(
+        var collector = new OpposingHitCollector(1f, ignoreEntity, direction, anchorLookup, skipAnchored: true);
+        SphereCastWithAnchors(
+            collisionWorld,
+            anchoredBodies,
             center,
             radius,
             direction,
             maxDistance,
-            ref collector,
-            filter);
+            filter,
+            ref collector);
 
         if (collector.NumHits == 0)
             return false;

@@ -26,7 +26,7 @@ public class PlayerHoverboardVisual : MonoBehaviour
     [SerializeField] private float maxTiltDistance = 8f;
 
     [Tooltip("Physics layers treated as terrain for tilt raycasts.")]
-    [SerializeField] private LayerMask terrainLayers = 1 << 11;
+    [SerializeField] private LayerMask terrainLayers = (1 << 11) | (1 << 15);
 
     [Header("Terrain Normal Smoothing")]
     [Tooltip("Seconds to smooth the terrain normal across mesh facets. 0 = instant (raw normal).")]
@@ -139,8 +139,12 @@ public class PlayerHoverboardVisual : MonoBehaviour
         Vector3 targetOffset = targetBoardPosition - followPosition;
         if (!PlayerFollowObjectPoseBridge.HasBoardContact)
         {
-            _smoothedContactOffset = Vector3.zero;
-            _hasInitializedOffset = false;
+            targetOffset = Vector3.zero;
+            if (!_hasInitializedOffset)
+            {
+                _smoothedContactOffset = Vector3.zero;
+                _hasInitializedOffset = true;
+            }
         }
         else if (!_hasInitializedOffset)
         {
@@ -218,7 +222,8 @@ public class PlayerHoverboardVisual : MonoBehaviour
         Vector3 rayStart = position + Vector3.up * rayHeightAbove;
         float maxDistance = rayHeightAbove + rayLengthBelow;
 
-        if (!Physics.Raycast(rayStart, Vector3.down, out RaycastHit hit, maxDistance, terrainLayers, QueryTriggerInteraction.Ignore))
+        int mask = terrainLayers | (1 << 15);
+        if (!Physics.Raycast(rayStart, Vector3.down, out RaycastHit hit, maxDistance, mask, QueryTriggerInteraction.Ignore))
             return false;
 
         terrainNormal = hit.normal;
