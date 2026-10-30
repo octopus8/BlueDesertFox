@@ -3313,7 +3313,7 @@ MonoBehaviour:
   trailWeaveFadeLength: 30
   trailSnapStartToPlayer: 1
   trailPathSettingsInitialized: 1
-  trail1Enabled: 0
+  trail1Enabled: 1
   trail1Width: 45
   trail1BlendWidth: 35
   trail1Spline: {fileID: 4035485277886579078, guid: 7624048fa48b1af439747c314ea091fa, type: 3}
@@ -3327,7 +3327,7 @@ MonoBehaviour:
   trail2Seed: 100
   trail2Frequency: 0.001
   trail2Amplitude: 0.00001
-  trail3Enabled: 1
+  trail3Enabled: 0
   trail3Width: 60
   trail3BlendWidth: 35
   trail3Spline: {fileID: 0}
