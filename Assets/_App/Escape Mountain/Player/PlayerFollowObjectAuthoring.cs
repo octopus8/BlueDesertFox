@@ -85,7 +85,8 @@ public class PlayerFollowObjectAuthoring : MonoBehaviour
                 inContact = 0,
                 hasPreviousContact = 0,
                 previousGroundNormal = math.up(),
-                contactPoint = float3.zero
+                contactPoint = float3.zero,
+                pendingJumpSpeed = 0f
             });
 
             AddComponent(entity, new PlayerFollowObjectSteeringConfig

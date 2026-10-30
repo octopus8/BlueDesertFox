@@ -35,6 +35,11 @@ public struct PlayerFollowObjectMotionState : IComponentData
     public float3 contactPoint;
     /// <summary>Latched once the rider touches a Pipe-layer collider; cleared on landing on a non-Pipe surface.</summary>
     public byte pipeMode;
+    /// <summary>
+    /// World-up speed (m/s) consumed by <see cref="PlayerFollowObjectGroundContactSystem"/>
+    /// on the next simulation tick. Written by <see cref="PlayerJumpInput"/> on button release.
+    /// </summary>
+    public float pendingJumpSpeed;
 }
 
 /// <summary>
@@ -332,6 +337,17 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
                 terrainRelativeVelocity,
                 scrollVelocity);
 
+            float jumpSpeed = motionState.ValueRO.pendingJumpSpeed;
+            bool jumpedThisFrame = jumpSpeed > 0f;
+            if (jumpedThisFrame)
+            {
+                worldVelocity += new float3(0f, jumpSpeed, 0f);
+                motionState.ValueRW.pendingJumpSpeed = 0f;
+                // Leave the sticky skin immediately so a short hop is not re-glued next frame.
+                float3 liftDir = math.normalizesafe(previousGroundNormal, math.up());
+                position += liftDir * (StickyContactSkin + ObstacleSkin);
+            }
+
             float3 startPosition = position;
             float3 scrollDelta = scrollVelocity * dt;
 
@@ -506,7 +522,7 @@ public partial struct PlayerFollowObjectGroundContactSystem : ISystem
                 if (probed)
                     previousGroundNormal = contactNormal;
 
-                hasContact = EvaluateSphereContact(
+                hasContact = !jumpedThisFrame && EvaluateSphereContact(
                     probed,
                     signedSeparation,
                     worldVelocity,

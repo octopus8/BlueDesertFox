@@ -157,7 +157,7 @@ Located in `Assets/_App/Escape Mountain/`:
 - **Cross-Subscene References**: `TransformFollowerAuthoring` uses `TransformFollowerTargetSearch` component with `FindByName`, `FindByTag`, or `DirectReference` modes to locate targets at runtime, initialized by `TransformFollowerInitSystem` since `MonoBehaviour.Start()` doesn't run in baked SubScenes
 - **Managed Components**: `TransformReference` is a managed `IComponentData` class (not struct) bridging GameObject/Transform references to ECS
 - Entry point (Ace of Ages scene): `AceOfAges.cs` test component triggers enemy spawns after 3-second delay using EntityQuery
-- Player / locomotion (Escape Mountain): hoverboard follow/grounding under `Player/` (`PlayerFollowObject*`, `PlayerHoverboardVisual`, `TransformFollowTarget`); flying-shooter ship authoring (`PlayerShipAuthoring`) remains for Ace of Ages–style ship gameplay
+- Player / locomotion (Escape Mountain): hoverboard follow/grounding under `Player/` (`PlayerFollowObject*`, `PlayerHoverboardVisual`, `TransformFollowTarget`, `PlayerJumpInput`); flying-shooter ship authoring (`PlayerShipAuthoring`) remains for Ace of Ages–style ship gameplay
 
 
 

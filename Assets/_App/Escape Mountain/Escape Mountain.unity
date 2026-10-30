@@ -130,6 +130,7 @@ GameObject:
   - component: {fileID: 132629395}
   - component: {fileID: 132629397}
   - component: {fileID: 132629399}
+  - component: {fileID: 132629400}
   m_Layer: 0
   m_Name: Escape Mountain
   m_TagString: Untagged
@@ -197,6 +198,20 @@ MonoBehaviour:
   followDirection: 0
   rotationSmoothTime: 0
   directionSmoothTime: 0.1
+--- !u!114 &132629400
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 132629393}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: cbe3cd897e54f72439565fdc73678b63, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerJumpInput
+  maxJumpSpeed: 8
+  maxChargeTime: 2
 --- !u!1 &182425145
 GameObject:
   m_ObjectHideFlags: 0
@@ -221,7 +236,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 182425145}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 8679f56c38bed5641852c2dfdb2d2df4, type: 3}
   m_Name: 

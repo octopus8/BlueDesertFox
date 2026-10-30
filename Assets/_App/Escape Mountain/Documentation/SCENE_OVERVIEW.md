@@ -13,7 +13,7 @@ Top-level architecture guide for the Escape Mountain scene (VR snowboarding / ho
 Escape Mountain is a Unity 6 VR snowboarding game using a hybrid ECS + MonoBehaviour architecture (evolved from the original Ace of Ages project):
 
 - **ECS (DOTS):** All performance-critical runtime systems live in `Escape Mountain Entities Subscene.unity` and run via Unity.Entities
-- **MonoBehaviour:** VR input (`PlayerShootingInput`), hoverboard / player follow (`TransformFollowTarget`, `PlayerHoverboardVisual`), scene entry
+- **MonoBehaviour:** VR input (`PlayerJumpInput`), hoverboard / player follow (`TransformFollowTarget`, `PlayerHoverboardVisual`), scene entry
 - **Bridge:** `TransformFollowerSystemOptimized` and `PlayerTrackingInitSystem` connect the MonoBehaviour player rig to ECS entities
 
 ```mermaid
@@ -21,7 +21,7 @@ flowchart TD
     subgraph MAIN["Main Scene — MonoBehaviour Layer"]
         TFT["TransformFollowTarget\nXR Origin ↔ Player Follow Object"]
         PHV["PlayerHoverboardVisual\nSnowboard / hoverboard presentation"]
-        PSI["PlayerShootingInput.cs\nInput System → ECS doShoot flag"]
+        PJI["PlayerJumpInput.cs\nJump charge/release → ECS pendingJumpSpeed"]
     end
 
     subgraph ECS["Entities Subscene — ECS World"]
