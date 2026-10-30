@@ -108,17 +108,18 @@ public struct TerrainHeightAlignState : IComponentData
 /// guaranteeing the path always advances in the +Z direction (cannot turn past 90°).
 /// When a <see cref="TrailPathBlob"/> is assigned (baked from a spline),
 /// that X(Z) table replaces noise weave (straight-run and seed/frequency/amplitude are ignored).
-/// Trail cross-section is level (ski-trail style): grade uses world +Z at the nearest centerline sample.
+/// Trail cross-section is level (ski-trail style): grade uses the world Z of the closest centerline point.
+/// Width and blend are measured perpendicular to the centerline, including through turns.
 /// </summary>
 public struct TrailInstanceConfig
 {
     /// <summary>Whether this trail is active.</summary>
     public bool enabled;
 
-    /// <summary>Width of the fully-flat portion of the trail in world units.</summary>
+    /// <summary>Width of the fully-flat portion, in meters perpendicular to the centerline.</summary>
     public float width;
 
-    /// <summary>Width of the smooth blend zone on each side of the flat portion, in world units.</summary>
+    /// <summary>Width of the smooth blend zone on each side of the flat portion, in meters perpendicular to the centerline.</summary>
     public float blendWidth;
 
     /// <summary>Noise offset / random seed. Different values produce different weave patterns.</summary>

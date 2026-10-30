@@ -639,7 +639,7 @@ internal static class TerrainMeshProfiler
 [BurstCompile]
 public struct BuildTileTrailCenterlineLutsJob : IJobParallelFor
 {
-    [ReadOnly] public NativeArray<TileMeshJobData> tileData;
+    public NativeArray<TileMeshJobData> tileData;
     [NativeDisableParallelForRestriction] public NativeArray<float> trailLuts;
 
     public void Execute(int tileIndex)
@@ -659,27 +659,34 @@ public struct BuildTileTrailCenterlineLutsJob : IJobParallelFor
 
         var trailConfig = data.trailConfig;
         var trailPath = data.trailPath;
+        bool wroteSlope = false;
 
         if ((data.tileTrailMask & TrailMask.Trail1) != 0)
         {
-            TrailInfluenceBurst.BuildTrailCenterlineLUT(
+            data.trail1Lut.maxAbsDeltaX = TrailInfluenceBurst.BuildTrailCenterlineLUT(
                 trailLuts, data.trail1Lut.offset, data.trail1Lut.zOrigin, data.trail1Lut.zStep,
                 data.trail1Lut.length, trailConfig.trail1, trailPath, data.trailPaths.trail1);
+            wroteSlope = true;
         }
 
         if ((data.tileTrailMask & TrailMask.Trail2) != 0)
         {
-            TrailInfluenceBurst.BuildTrailCenterlineLUT(
+            data.trail2Lut.maxAbsDeltaX = TrailInfluenceBurst.BuildTrailCenterlineLUT(
                 trailLuts, data.trail2Lut.offset, data.trail2Lut.zOrigin, data.trail2Lut.zStep,
                 data.trail2Lut.length, trailConfig.trail2, trailPath, data.trailPaths.trail2);
+            wroteSlope = true;
         }
 
         if ((data.tileTrailMask & TrailMask.Trail3) != 0)
         {
-            TrailInfluenceBurst.BuildTrailCenterlineLUT(
+            data.trail3Lut.maxAbsDeltaX = TrailInfluenceBurst.BuildTrailCenterlineLUT(
                 trailLuts, data.trail3Lut.offset, data.trail3Lut.zOrigin, data.trail3Lut.zStep,
                 data.trail3Lut.length, trailConfig.trail3, trailPath, data.trailPaths.trail3);
+            wroteSlope = true;
         }
+
+        if (wroteSlope)
+            tileData[tileIndex] = data;
 
 #if UNITY_EDITOR
         TerrainMeshProfiler.End(TerrainMeshProfiler.TrailLUTBuild);
@@ -925,6 +932,9 @@ public static class TerrainMeshNoise
         byte tileTrailMask = 0;
         float maxSearchRange = 0f;
         int lutLength = 0;
+        float trail1MaxAbsDeltaX = 0f;
+        float trail2MaxAbsDeltaX = 0f;
+        float trail3MaxAbsDeltaX = 0f;
         NativeArray<float> trailLuts = default;
 
         if (activeTrailMask != 0)
@@ -942,19 +952,19 @@ public static class TerrainMeshNoise
 
                 if ((tileTrailMask & TrailMask.Trail1) != 0)
                 {
-                    TrailInfluenceBurst.BuildTrailCenterlineLUT(
+                    trail1MaxAbsDeltaX = TrailInfluenceBurst.BuildTrailCenterlineLUT(
                         trailLuts, 0, lutZOrigin, trailLutStep, lutLength, trailInst1, normalizedPath, trailPaths.trail1);
                 }
 
                 if ((tileTrailMask & TrailMask.Trail2) != 0)
                 {
-                    TrailInfluenceBurst.BuildTrailCenterlineLUT(
+                    trail2MaxAbsDeltaX = TrailInfluenceBurst.BuildTrailCenterlineLUT(
                         trailLuts, lutLength, lutZOrigin, trailLutStep, lutLength, trailInst2, normalizedPath, trailPaths.trail2);
                 }
 
                 if ((tileTrailMask & TrailMask.Trail3) != 0)
                 {
-                    TrailInfluenceBurst.BuildTrailCenterlineLUT(
+                    trail3MaxAbsDeltaX = TrailInfluenceBurst.BuildTrailCenterlineLUT(
                         trailLuts, lutLength * 2, lutZOrigin, trailLutStep, lutLength, trailInst3, normalizedPath, trailPaths.trail3);
                 }
             }
@@ -994,21 +1004,24 @@ public static class TerrainMeshNoise
                 offset = 0,
                 length = lutLength,
                 zOrigin = lutZOriginForData,
-                zStep = trailLutStep
+                zStep = trailLutStep,
+                maxAbsDeltaX = trail1MaxAbsDeltaX
             },
             trail2Lut = new TrailCenterlineLUT
             {
                 offset = lutLength,
                 length = lutLength,
                 zOrigin = lutZOriginForData,
-                zStep = trailLutStep
+                zStep = trailLutStep,
+                maxAbsDeltaX = trail2MaxAbsDeltaX
             },
             trail3Lut = new TrailCenterlineLUT
             {
                 offset = lutLength * 2,
                 length = lutLength,
                 zOrigin = lutZOriginForData,
-                zStep = trailLutStep
+                zStep = trailLutStep,
+                maxAbsDeltaX = trail3MaxAbsDeltaX
             }
         };
 

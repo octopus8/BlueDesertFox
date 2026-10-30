@@ -150,11 +150,11 @@ public class TerrainConfigAuthoring : MonoBehaviour
     public bool trail1Enabled = false;
 
     [ShowIf("trail1Enabled")]
-    [Tooltip("Width of the fully-flat portion of Trail 1 in meters")]
+    [Tooltip("Width of the fully-flat portion of Trail 1, in meters perpendicular to the trail")]
     public float trail1Width = 15f;
 
     [ShowIf("trail1Enabled")]
-    [Tooltip("Width of the smooth blend zone on each side of Trail 1 in meters")]
+    [Tooltip("Width of the smooth blend on each side of Trail 1, in meters perpendicular to the trail")]
     public float trail1BlendWidth = 8f;
 
     [ShowIf("trail1Enabled")]
@@ -178,11 +178,11 @@ public class TerrainConfigAuthoring : MonoBehaviour
     public bool trail2Enabled = false;
 
     [ShowIf("trail2Enabled")]
-    [Tooltip("Width of the fully-flat portion of Trail 2 in meters")]
+    [Tooltip("Width of the fully-flat portion of Trail 2, in meters perpendicular to the trail")]
     public float trail2Width = 15f;
 
     [ShowIf("trail2Enabled")]
-    [Tooltip("Width of the smooth blend zone on each side of Trail 2 in meters")]
+    [Tooltip("Width of the smooth blend on each side of Trail 2, in meters perpendicular to the trail")]
     public float trail2BlendWidth = 8f;
 
     [ShowIf("trail2Enabled")]
@@ -206,11 +206,11 @@ public class TerrainConfigAuthoring : MonoBehaviour
     public bool trail3Enabled = false;
 
     [ShowIf("trail3Enabled")]
-    [Tooltip("Width of the fully-flat portion of Trail 3 in meters")]
+    [Tooltip("Width of the fully-flat portion of Trail 3, in meters perpendicular to the trail")]
     public float trail3Width = 15f;
 
     [ShowIf("trail3Enabled")]
-    [Tooltip("Width of the smooth blend zone on each side of Trail 3 in meters")]
+    [Tooltip("Width of the smooth blend on each side of Trail 3, in meters perpendicular to the trail")]
     public float trail3BlendWidth = 8f;
 
     [ShowIf("trail3Enabled")]

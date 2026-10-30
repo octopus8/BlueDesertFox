@@ -818,6 +818,9 @@ partial struct CalculateStaticObjectSpawnPositionsJob : IJobEntity
         float lutStep = 1f;
         float maxSearchRange = 0f;
         int lutLength = 0;
+        float trail1MaxAbsDeltaX = 0f;
+        float trail2MaxAbsDeltaX = 0f;
+        float trail3MaxAbsDeltaX = 0f;
         float tileWorldX = tile.gridCoordinate.x * tileSize;
         float tileWorldZ = tile.gridCoordinate.y * tileSize;
         NativeArray<float> trailCenterlineLuts = default;
@@ -844,21 +847,21 @@ partial struct CalculateStaticObjectSpawnPositionsJob : IJobEntity
 
                     if ((tileTrailMask & TrailMask.Trail1) != 0)
                     {
-                        TrailInfluenceBurst.BuildTrailCenterlineLUT(
+                        trail1MaxAbsDeltaX = TrailInfluenceBurst.BuildTrailCenterlineLUT(
                             trailCenterlineLuts, 0, lutZOrigin, lutStep, lutLength,
                             trailConfig.trail1, trailPath, trailPaths.trail1);
                     }
 
                     if ((tileTrailMask & TrailMask.Trail2) != 0)
                     {
-                        TrailInfluenceBurst.BuildTrailCenterlineLUT(
+                        trail2MaxAbsDeltaX = TrailInfluenceBurst.BuildTrailCenterlineLUT(
                             trailCenterlineLuts, lutLength, lutZOrigin, lutStep, lutLength,
                             trailConfig.trail2, trailPath, trailPaths.trail2);
                     }
 
                     if ((tileTrailMask & TrailMask.Trail3) != 0)
                     {
-                        TrailInfluenceBurst.BuildTrailCenterlineLUT(
+                        trail3MaxAbsDeltaX = TrailInfluenceBurst.BuildTrailCenterlineLUT(
                             trailCenterlineLuts, lutLength * 2, lutZOrigin, lutStep, lutLength,
                             trailConfig.trail3, trailPath, trailPaths.trail3);
                     }
@@ -871,21 +874,24 @@ partial struct CalculateStaticObjectSpawnPositionsJob : IJobEntity
             offset = 0,
             length = lutLength,
             zOrigin = TrailInfluenceBurst.ComputeLutZOrigin(tileWorldZ, maxSearchRange),
-            zStep = lutStep
+            zStep = lutStep,
+            maxAbsDeltaX = trail1MaxAbsDeltaX
         };
         var trail2Lut = new TrailCenterlineLUT
         {
             offset = lutLength,
             length = lutLength,
             zOrigin = trail1Lut.zOrigin,
-            zStep = lutStep
+            zStep = lutStep,
+            maxAbsDeltaX = trail2MaxAbsDeltaX
         };
         var trail3Lut = new TrailCenterlineLUT
         {
             offset = lutLength * 2,
             length = lutLength,
             zOrigin = trail1Lut.zOrigin,
-            zStep = lutStep
+            zStep = lutStep,
+            maxAbsDeltaX = trail3MaxAbsDeltaX
         };
 
         int attemptMultiplier = 3;

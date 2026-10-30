@@ -14,7 +14,7 @@ public static class TrailMask
 }
 
 /// <summary>
-/// Trail carve influence at a world XZ point plus the nearest centerline sample Z used for slope.
+/// Trail carve influence at a world XZ point, plus the world Z of the closest centerline point (used for slope).
 /// </summary>
 public struct TrailInfluenceResult
 {
@@ -31,6 +31,12 @@ public struct TrailCenterlineLUT
     public int length;
     public float zOrigin;
     public float zStep;
+
+    /// <summary>
+    /// Largest |ΔX| between consecutive valid centerline samples.
+    /// Negative means the polyline has an interior gap, so the lateral early-out must not run.
+    /// </summary>
+    public float maxAbsDeltaX;
 }
 
 /// <summary>
@@ -295,8 +301,10 @@ public static class TrailInfluenceBurst
 
         int i0 = (int)math.floor((zLo - worldZMin) / zStep);
         int i1 = (int)math.ceil((zHi - worldZMin) / zStep);
-        i0 = math.clamp(i0, 0, count - 1);
-        i1 = math.clamp(i1, 0, count - 1);
+        // Include the segments that enter and leave the Z window. A steep segment's
+        // X span is wider than a disk around either endpoint.
+        i0 = math.clamp(i0 - 1, 0, count - 1);
+        i1 = math.clamp(i1 + 1, 0, count - 1);
 
         for (int i = i0; i <= i1; i++)
         {
@@ -305,7 +313,22 @@ public static class TrailInfluenceBurst
                 continue;
 
             float cx = path.startX + ox;
-            if (tileXMax >= cx - searchRange && tileXMin <= cx + searchRange)
+            bool linked = false;
+            if (i + 1 < count)
+            {
+                float ox1 = blob.xOffset[i + 1];
+                if (!math.isnan(ox1))
+                {
+                    linked = true;
+                    float cx1 = path.startX + ox1;
+                    float segMin = math.min(cx, cx1) - searchRange;
+                    float segMax = math.max(cx, cx1) + searchRange;
+                    if (tileXMax >= segMin && tileXMin <= segMax)
+                        return true;
+                }
+            }
+
+            if (!linked && tileXMax >= cx - searchRange && tileXMin <= cx + searchRange)
                 return true;
         }
 
@@ -328,7 +351,11 @@ public static class TrailInfluenceBurst
         return tileXMax >= corridorMin && tileXMin <= corridorMax;
     }
 
-    public static void BuildTrailCenterlineLUT(
+    /// <summary>
+    /// Fills centerline X samples and returns the largest |ΔX| between consecutive valid samples.
+    /// Returns a negative value when a gap splits the polyline, which disables the lateral early-out.
+    /// </summary>
+    public static float BuildTrailCenterlineLUT(
         NativeArray<float> centerlineX,
         int offset,
         float zOrigin,
@@ -338,13 +365,45 @@ public static class TrailInfluenceBurst
         in TrailPathConfig path,
         BlobAssetReference<TrailPathBlob> pathBlob)
     {
+        float maxAbsDeltaX = 0f;
+        bool seenValid = false;
+        bool gapAfterValid = false;
+        bool interiorGap = false;
+        bool hasPrev = false;
+        float prevX = 0f;
+
         for (int i = 0; i < length; i++)
         {
             float sz = zOrigin + i * zStep;
-            centerlineX[offset + i] = SampleCenterlineX(sz, trail, path, pathBlob);
+            float x = SampleCenterlineX(sz, trail, path, pathBlob);
+            centerlineX[offset + i] = x;
+
+            if (math.isnan(x))
+            {
+                if (seenValid)
+                    gapAfterValid = true;
+                hasPrev = false;
+                continue;
+            }
+
+            if (gapAfterValid)
+                interiorGap = true;
+
+            seenValid = true;
+            if (hasPrev)
+                maxAbsDeltaX = math.max(maxAbsDeltaX, math.abs(x - prevX));
+
+            prevX = x;
+            hasPrev = true;
         }
+
+        return interiorGap ? -1f : maxAbsDeltaX;
     }
 
+    /// <summary>
+    /// Influence of one trail at a world XZ point. Width and blend are distances
+    /// perpendicular to the centerline, so a turn keeps a constant trail width.
+    /// </summary>
     public static TrailInfluenceResult ComputeTrailInfluenceFromLUT(
         float fX,
         float fZ,
@@ -356,58 +415,18 @@ public static class TrailInfluenceBurst
             return default;
 
         float halfWidth = trail.width * 0.5f;
-        float searchRange = halfWidth + trail.blendWidth;
-        float rejectDist = searchRange + lut.zStep;
+        float outer = halfWidth + trail.blendWidth;
+        CenterlineHit hit = MinDistanceToCenterlineFromLUT(fX, fZ, lut, centerlineX, outer);
 
-        int nearestIndex = (int)math.round((fZ - lut.zOrigin) / lut.zStep);
-        nearestIndex = math.clamp(nearestIndex, 0, lut.length - 1);
-        float nearestCenterX = centerlineX[lut.offset + nearestIndex];
-        if (!math.isnan(nearestCenterX))
-        {
-            float crossDist = math.abs(fX - nearestCenterX);
-            if (crossDist > rejectDist)
-                return default;
-        }
+        if (hit.distance < halfWidth)
+            return new TrailInfluenceResult { influence = 1f, centerlineZ = hit.centerlineZ };
 
-        int startIndex = (int)math.floor((fZ - searchRange - lut.zOrigin) / lut.zStep);
-        int endIndex = (int)math.ceil((fZ + searchRange - lut.zOrigin) / lut.zStep);
-        startIndex = math.clamp(startIndex, 0, lut.length - 1);
-        endIndex = math.clamp(endIndex, 0, lut.length - 1);
-
-        float minDist2D = float.MaxValue;
-        int bestIndex = nearestIndex;
-        for (int i = startIndex; i <= endIndex; i++)
-        {
-            float scx = centerlineX[lut.offset + i];
-            if (math.isnan(scx))
-                continue;
-
-            float sz = lut.zOrigin + i * lut.zStep;
-            float dx = fX - scx;
-            float dz = fZ - sz;
-            float d2 = dx * dx + dz * dz;
-            if (d2 < minDist2D)
-            {
-                minDist2D = d2;
-                bestIndex = i;
-            }
-        }
-
-        if (minDist2D == float.MaxValue)
-            return default;
-
-        float centerlineZ = lut.zOrigin + bestIndex * lut.zStep;
-        float minDist = math.sqrt(minDist2D);
-
-        if (minDist < halfWidth)
-            return new TrailInfluenceResult { influence = 1f, centerlineZ = centerlineZ };
-
-        if (minDist < halfWidth + trail.blendWidth)
+        if (hit.distance < outer)
         {
             return new TrailInfluenceResult
             {
-                influence = 1f - math.smoothstep(halfWidth, halfWidth + trail.blendWidth, minDist),
-                centerlineZ = centerlineZ
+                influence = 1f - math.smoothstep(halfWidth, outer, hit.distance),
+                centerlineZ = hit.centerlineZ
             };
         }
 
@@ -428,39 +447,7 @@ public static class TrailInfluenceBurst
             return float.MaxValue;
 
         float searchRange = GetTrailMaxSearchRange(trail);
-        float rejectDist = searchRange + lut.zStep;
-
-        int nearestIndex = (int)math.round((fZ - lut.zOrigin) / lut.zStep);
-        nearestIndex = math.clamp(nearestIndex, 0, lut.length - 1);
-        float nearestCenterX = centerlineX[lut.offset + nearestIndex];
-        if (!math.isnan(nearestCenterX))
-        {
-            float crossDist = math.abs(fX - nearestCenterX);
-            if (crossDist > rejectDist)
-                return float.MaxValue;
-        }
-
-        int startIndex = (int)math.floor((fZ - searchRange - lut.zOrigin) / lut.zStep);
-        int endIndex = (int)math.ceil((fZ + searchRange - lut.zOrigin) / lut.zStep);
-        startIndex = math.clamp(startIndex, 0, lut.length - 1);
-        endIndex = math.clamp(endIndex, 0, lut.length - 1);
-
-        float minDist2D = float.MaxValue;
-        for (int i = startIndex; i <= endIndex; i++)
-        {
-            float scx = centerlineX[lut.offset + i];
-            if (math.isnan(scx))
-                continue;
-
-            float sz = lut.zOrigin + i * lut.zStep;
-            float dx = fX - scx;
-            float dz = fZ - sz;
-            float d2 = dx * dx + dz * dz;
-            if (d2 < minDist2D)
-                minDist2D = d2;
-        }
-
-        return math.sqrt(minDist2D);
+        return MinDistanceToCenterlineFromLUT(fX, fZ, lut, centerlineX, searchRange).distance;
     }
 
     /// <summary>
@@ -496,27 +483,164 @@ public static class TrailInfluenceBurst
             return float.MaxValue;
 
         float searchRange = GetTrailMaxSearchRange(trail);
-        float zStart = fZ - searchRange;
-        float zEnd = fZ + searchRange;
-        int count = math.max(2, (int)math.ceil((zEnd - zStart) / lutStep) + 1);
-        float step = count > 1 ? (zEnd - zStart) / (count - 1) : 0f;
+        float step = math.max(lutStep, 0.25f);
+        float zStart = fZ - searchRange - step;
+        float zEnd = fZ + searchRange + step;
+        int count = math.max(2, (int)math.ceil((zEnd - zStart) / step) + 1);
+        float sampleStep = count > 1 ? (zEnd - zStart) / (count - 1) : 0f;
 
-        float minDist2D = float.MaxValue;
+        float minDistSq = float.MaxValue;
+        float closestZ = fZ;
+        bool hasPrev = false;
+        float prevX = 0f;
+        float prevZ = 0f;
+
         for (int i = 0; i < count; i++)
         {
-            float sz = zStart + i * step;
+            float sz = zStart + i * sampleStep;
             float scx = SampleCenterlineX(sz, trail, path, pathBlob);
             if (math.isnan(scx))
+            {
+                hasPrev = false;
                 continue;
+            }
 
-            float dx = fX - scx;
-            float dz = fZ - sz;
-            float d2 = dx * dx + dz * dz;
-            if (d2 < minDist2D)
-                minDist2D = d2;
+            ConsiderCenterlinePoint(fX, fZ, scx, sz, ref minDistSq, ref closestZ);
+            if (hasPrev)
+                ConsiderCenterlineSegment(fX, fZ, prevX, prevZ, scx, sz, ref minDistSq, ref closestZ);
+
+            prevX = scx;
+            prevZ = sz;
+            hasPrev = true;
         }
 
-        return math.sqrt(minDist2D);
+        if (minDistSq == float.MaxValue)
+            return float.MaxValue;
+
+        return math.sqrt(minDistSq);
+    }
+
+    struct CenterlineHit
+    {
+        public float distance;
+        public float centerlineZ;
+    }
+
+    /// <summary>
+    /// Minimum distance from a world XZ point to the centerline polyline inside the search radius.
+    /// Distance is measured perpendicular to each centerline segment, so a turn keeps a constant trail width.
+    /// </summary>
+    static CenterlineHit MinDistanceToCenterlineFromLUT(
+        float fX,
+        float fZ,
+        in TrailCenterlineLUT lut,
+        NativeArray<float> centerlineX,
+        float maxDistance)
+    {
+        var hit = new CenterlineHit { distance = float.MaxValue, centerlineZ = fZ };
+        if (lut.length <= 0)
+            return hit;
+
+        if (IsBeyondCenterlineReach(fX, fZ, lut, centerlineX, maxDistance))
+            return hit;
+
+        float zStep = lut.zStep > 1e-6f ? lut.zStep : 1f;
+        int last = lut.length - 1;
+        int start = (int)math.floor((fZ - maxDistance - lut.zOrigin) / zStep) - 1;
+        int end = (int)math.ceil((fZ + maxDistance - lut.zOrigin) / zStep) + 1;
+        start = math.clamp(start, 0, last);
+        end = math.clamp(end, 0, last);
+
+        float minDistSq = float.MaxValue;
+        float closestZ = fZ;
+
+        for (int i = start; i <= end; i++)
+        {
+            float x0 = centerlineX[lut.offset + i];
+            if (math.isnan(x0))
+                continue;
+
+            float z0 = lut.zOrigin + i * zStep;
+            ConsiderCenterlinePoint(fX, fZ, x0, z0, ref minDistSq, ref closestZ);
+
+            if (i < last)
+            {
+                float x1 = centerlineX[lut.offset + i + 1];
+                if (!math.isnan(x1))
+                    ConsiderCenterlineSegment(fX, fZ, x0, z0, x1, z0 + zStep, ref minDistSq, ref closestZ);
+            }
+        }
+
+        if (minDistSq == float.MaxValue)
+            return hit;
+
+        hit.distance = math.sqrt(minDistSq);
+        hit.centerlineZ = closestZ;
+        return hit;
+    }
+
+    /// <summary>
+    /// Rejects points that cannot lie within <paramref name="maxDistance"/> of the polyline.
+    /// Same-Z X distance is not enough: on a diagonal the closest point is offset along the trail,
+    /// so its X can differ from the centerline sample at this Z by more than the trail width.
+    /// </summary>
+    static bool IsBeyondCenterlineReach(
+        float fX,
+        float fZ,
+        in TrailCenterlineLUT lut,
+        NativeArray<float> centerlineX,
+        float maxDistance)
+    {
+        if (lut.maxAbsDeltaX < 0f || lut.length <= 0)
+            return false;
+
+        float zStep = lut.zStep > 1e-6f ? lut.zStep : 1f;
+        int nearestIndex = (int)math.round((fZ - lut.zOrigin) / zStep);
+        nearestIndex = math.clamp(nearestIndex, 0, lut.length - 1);
+        float nearestCenterX = centerlineX[lut.offset + nearestIndex];
+        if (math.isnan(nearestCenterX))
+            return false;
+
+        float maxSlope = lut.maxAbsDeltaX / zStep;
+        float rejectDist = maxDistance + maxSlope * (maxDistance + zStep) + 0.25f;
+        return math.abs(fX - nearestCenterX) > rejectDist;
+    }
+
+    static void ConsiderCenterlinePoint(
+        float fX,
+        float fZ,
+        float cx,
+        float cz,
+        ref float minDistSq,
+        ref float centerlineZ)
+    {
+        float dx = fX - cx;
+        float dz = fZ - cz;
+        float d2 = dx * dx + dz * dz;
+        if (d2 < minDistSq)
+        {
+            minDistSq = d2;
+            centerlineZ = cz;
+        }
+    }
+
+    static void ConsiderCenterlineSegment(
+        float fX,
+        float fZ,
+        float ax,
+        float az,
+        float bx,
+        float bz,
+        ref float minDistSq,
+        ref float centerlineZ)
+    {
+        float abx = bx - ax;
+        float abz = bz - az;
+        float abLenSq = abx * abx + abz * abz;
+        float t = abLenSq > 1e-12f
+            ? math.saturate(((fX - ax) * abx + (fZ - az) * abz) / abLenSq)
+            : 0f;
+        ConsiderCenterlinePoint(fX, fZ, ax + abx * t, az + abz * t, ref minDistSq, ref centerlineZ);
     }
 
     /// <summary>
