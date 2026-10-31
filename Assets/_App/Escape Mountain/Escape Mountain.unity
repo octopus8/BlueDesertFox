@@ -198,6 +198,11 @@ MonoBehaviour:
   followDirection: 0
   rotationSmoothTime: 0
   directionSmoothTime: 0.1
+  applyEditorEyeHeight: 1
+  editorEyeHeight: 1.6
+  hideHandsInEditor: 1
+  applyEditorCameraPitch: 1
+  editorCameraPitch: 20
 --- !u!114 &132629400
 MonoBehaviour:
   m_ObjectHideFlags: 0

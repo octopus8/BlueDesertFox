@@ -50,6 +50,11 @@ public partial class CameraDataUpdateSystem : SystemBase
             headBankAngle = rawHeadZ > 180f ? rawHeadZ - 360f : rawHeadZ;
         }
 
+#if UNITY_EDITOR
+        if (EditorHeadTiltInput.TryGetBankAngle(out float editorBank))
+            headBankAngle = editorBank;
+#endif
+
         if (SystemAPI.ManagedAPI.TryGetSingleton<PlayerTransformReference>(out var playerRef) &&
             playerRef != null &&
             playerRef.playerTransform != null)

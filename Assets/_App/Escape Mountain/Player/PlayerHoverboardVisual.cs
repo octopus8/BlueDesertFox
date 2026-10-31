@@ -254,6 +254,11 @@ public class PlayerHoverboardVisual : MonoBehaviour
 
     private static float GetHeadBankAngle()
     {
+#if UNITY_EDITOR
+        if (EditorHeadTiltInput.TryGetBankAngle(out float editorBank))
+            return editorBank;
+#endif
+
         if (Camera.main == null)
             return 0f;
 

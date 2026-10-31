@@ -2,6 +2,9 @@ using System.Collections.Generic;
 using LiquidForce;
 using Unity.Entities;
 using Unity.Scenes;
+#if UNITY_EDITOR
+using Unity.XR.CoreUtils;
+#endif
 using UnityEngine;
 using UnityEngine.Serialization;
 using UnityEngine.XR;
@@ -24,6 +27,10 @@ public class TransformFollowTarget : MonoBehaviour
     const float MinDirectionSpeedSq = 0.0001f;
     const float MinPlanarDirectionSq = 1e-6f;
     const float TeleportSnapDistanceSq = 0.25f; // 0.5m — snap head followers after large follower jumps
+#if UNITY_EDITOR
+    const float UntrackedHeadHeight = 0.05f;
+    const float DefaultEditorEyeHeight = 1.6f;
+#endif
 
     static readonly List<XRInputSubsystem> s_InputSubsystems = new List<XRInputSubsystem>();
 
@@ -67,6 +74,29 @@ public class TransformFollowTarget : MonoBehaviour
     [Tooltip("Rotation smoothing duration when Follow Direction is enabled. 0 = instant snap.")]
     [SerializeField] private float directionSmoothTime;
 
+#if UNITY_EDITOR
+    [Header("Editor Camera")]
+    [Tooltip("In Editor play mode, raise the camera to eye height when no headset is reporting a head height. Device builds and a tracked headset are left unchanged.")]
+    [SerializeField] private bool applyEditorEyeHeight;
+
+    [Tooltip("Meters above the board. 1.6 is a typical adult standing eye height.")]
+    [SerializeField] private float editorEyeHeight = DefaultEditorEyeHeight;
+
+    [Tooltip("In Editor play mode, hide the robot hands and hand-tracking meshes while no headset is tracked.")]
+    [SerializeField] private bool hideHandsInEditor;
+
+    [Tooltip("In Editor play mode, pitch the camera down around local X while no headset is tracked.")]
+    [SerializeField] private bool applyEditorCameraPitch;
+
+    [Tooltip("Degrees of downward local X pitch. Positive looks down.")]
+    [SerializeField] private float editorCameraPitch = 20f;
+
+    Renderer[] _editorHandRenderers;
+    bool[] _editorHandRendererWasEnabled;
+    bool _editorHandsCached;
+    bool _editorHandsHidden;
+#endif
+
     private bool _snapOnNextUpdate = true;
     private bool _pendingTrackedPoseRecenter;
     private bool _loggedWaitingForSubScene;
@@ -95,10 +125,16 @@ public class TransformFollowTarget : MonoBehaviour
         PlayerFollowObjectPoseBridge.Clear();
 
         TrySubscribeTrackingOriginUpdated();
+#if UNITY_EDITOR
+        Application.onBeforeRender += ApplyEditorPlayModeAdjustments;
+#endif
     }
 
     private void OnDisable()
     {
+#if UNITY_EDITOR
+        Application.onBeforeRender -= ApplyEditorPlayModeAdjustments;
+#endif
         UnsubscribeTrackingOriginUpdated();
         _acceptTrackingOriginRecenter = false;
         _subscribedTrackingOriginUpdated = false;
@@ -115,6 +151,8 @@ public class TransformFollowTarget : MonoBehaviour
             Debug.LogWarning("[TransformFollowTarget] Follower transform is not assigned.", this);
             return;
         }
+
+        ApplyEditorPlayModeAdjustments();
 
         if (!TryGetTargetPose(out Vector3 targetPosition, out Quaternion targetRotation))
             return;
@@ -163,6 +201,160 @@ public class TransformFollowTarget : MonoBehaviour
             DeviceTracking.Instance?.UpdateImmediate();
         }
     }
+
+    private void ApplyEditorPlayModeAdjustments()
+    {
+#if UNITY_EDITOR
+        ApplyEditorEyeHeight();
+        ApplyEditorCameraPitch();
+        ApplyEditorHandVisibility();
+#endif
+    }
+
+    /// <summary>
+    /// Floor tracking leaves the camera on the board in the Editor, because no headset reports eye height.
+    /// Raises the XR Origin camera-floor offset once a tracked head height is absent. A real headset already
+    /// includes that height, and player builds never run this.
+    /// </summary>
+    private void ApplyEditorEyeHeight()
+    {
+#if UNITY_EDITOR
+        if (!applyEditorEyeHeight || editorEyeHeight <= 0f || follower == null)
+            return;
+
+        XROrigin origin = follower.GetComponent<XROrigin>();
+        if (origin == null || origin.Camera == null || origin.CameraFloorOffsetObject == null)
+            return;
+
+        if (origin.CameraInOriginSpaceHeight > UntrackedHeadHeight)
+            return;
+
+        Transform offsetTransform = origin.CameraFloorOffsetObject.transform;
+        Vector3 localPosition = offsetTransform.localPosition;
+        if (Mathf.Abs(localPosition.y - editorEyeHeight) <= 0.001f)
+            return;
+
+        localPosition.y = editorEyeHeight;
+        offsetTransform.localPosition = localPosition;
+#endif
+    }
+
+    /// <summary>
+    /// Untracked editor play leaves the camera looking along the board. Pitches it down around local X
+    /// without writing yaw or roll, so the view drops and head-tilt steering stays on the arrow keys.
+    /// </summary>
+    private void ApplyEditorCameraPitch()
+    {
+#if UNITY_EDITOR
+        if (!applyEditorCameraPitch || follower == null || EditorHeadIsTracked())
+            return;
+
+        XROrigin origin = follower.GetComponent<XROrigin>();
+        if (origin == null || origin.Camera == null)
+            return;
+
+        Transform cameraTransform = origin.Camera.transform;
+        Vector3 localEuler = cameraTransform.localEulerAngles;
+        if (Mathf.Abs(Mathf.DeltaAngle(localEuler.x, editorCameraPitch)) <= 0.05f)
+            return;
+
+        localEuler.x = editorCameraPitch;
+        cameraTransform.localEulerAngles = localEuler;
+#endif
+    }
+
+#if UNITY_EDITOR
+    /// <summary>
+    /// Untracked editor play leaves the robot hands in front of the camera. Disables those renderers
+    /// until a headset reports a tracked head.
+    /// </summary>
+    private void ApplyEditorHandVisibility()
+    {
+        if (!hideHandsInEditor || follower == null)
+            return;
+
+        if (!_editorHandsCached)
+            CacheEditorHandRenderers();
+
+        bool hide = !EditorHeadIsTracked();
+        if (hide == _editorHandsHidden)
+        {
+            if (!hide)
+                return;
+
+            for (int i = 0; i < _editorHandRenderers.Length; i++)
+            {
+                Renderer renderer = _editorHandRenderers[i];
+                if (renderer != null && renderer.enabled)
+                    renderer.enabled = false;
+            }
+
+            return;
+        }
+
+        for (int i = 0; i < _editorHandRenderers.Length; i++)
+        {
+            Renderer renderer = _editorHandRenderers[i];
+            if (renderer == null)
+                continue;
+
+            if (hide)
+                renderer.enabled = false;
+            else
+                renderer.enabled = _editorHandRendererWasEnabled[i];
+        }
+
+        _editorHandsHidden = hide;
+    }
+
+    private void CacheEditorHandRenderers()
+    {
+        var renderers = new List<Renderer>();
+        Transform[] transforms = follower.GetComponentsInChildren<Transform>(true);
+        for (int i = 0; i < transforms.Length; i++)
+        {
+            Transform child = transforms[i];
+            if (!IsEditorHandRoot(child.name))
+                continue;
+
+            Renderer[] childRenderers = child.GetComponentsInChildren<Renderer>(true);
+            for (int r = 0; r < childRenderers.Length; r++)
+            {
+                if (!renderers.Contains(childRenderers[r]))
+                    renderers.Add(childRenderers[r]);
+            }
+        }
+
+        _editorHandRenderers = renderers.ToArray();
+        _editorHandRendererWasEnabled = new bool[_editorHandRenderers.Length];
+        for (int i = 0; i < _editorHandRenderers.Length; i++)
+            _editorHandRendererWasEnabled[i] = _editorHandRenderers[i] != null && _editorHandRenderers[i].enabled;
+
+        _editorHandsCached = true;
+        _editorHandsHidden = false;
+    }
+
+    private static bool IsEditorHandRoot(string objectName)
+    {
+        return objectName.StartsWith("RobotHand")
+            || objectName.Contains("Hand Tracking")
+            || objectName == "Left Hand"
+            || objectName == "Right Hand";
+    }
+
+    private static bool EditorHeadIsTracked()
+    {
+        InputDevice head = InputDevices.GetDeviceAtXRNode(XRNode.Head);
+        if (!head.isValid)
+            return false;
+
+        if (!head.TryGetFeatureValue(CommonUsages.isTracked, out bool isTracked) || !isTracked)
+            return false;
+
+        return !head.TryGetFeatureValue(CommonUsages.devicePosition, out Vector3 position)
+            || position.sqrMagnitude > 0.0001f;
+    }
+#endif
 
     public void SetAlignTrackedCameraXZToTarget(bool value)
     {
