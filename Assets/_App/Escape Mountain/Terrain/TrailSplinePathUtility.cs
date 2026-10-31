@@ -6,7 +6,8 @@ using UnityEngine.Splines;
 
 /// <summary>
 /// Editor/baker helper that converts a <see cref="SplineContainer"/> trail centerline into
-/// Z-progressing X-offset samples (knot 0 = origin) and a Burst-readable blob.
+/// Z-progressing X and Y offset samples (knot 0 = origin) and a Burst-readable blob.
+/// Y offsets replace slope-angle grade inside the spline's Z range.
 /// </summary>
 public static class TrailSplinePathUtility
 {
@@ -15,20 +16,21 @@ public static class TrailSplinePathUtility
     const int MaxDenseSamples = 8192;
 
     /// <summary>
-    /// Managed sample data produced by <see cref="TryExtract"/>. X offsets are relative to knot 0.
+    /// Managed sample data produced by <see cref="TryExtract"/>. X and Y offsets are relative to knot 0.
     /// </summary>
     public sealed class ExtractResult
     {
         public float zMin;
         public float zStep;
         public float[] xOffset;
+        public float[] yOffset;
         public float xMin;
         public float xMax;
     }
 
     /// <summary>
-    /// Samples <paramref name="container"/> spline 0 into X offsets relative to knot 0.
-    /// Spline Y is ignored. Fails when the path is closed, too short, or decreases in Z.
+    /// Samples <paramref name="container"/> spline 0 into X and Y offsets relative to knot 0.
+    /// Fails when the path is closed, too short, or decreases in Z.
     /// </summary>
     public static bool TryExtract(
         SplineContainer container,
@@ -75,6 +77,7 @@ public static class TrailSplinePathUtility
             MaxDenseSamples);
 
         var denseX = new float[denseCount];
+        var denseY = new float[denseCount];
         var denseZ = new float[denseCount];
 
         float3 knot0 = nativeSpline.EvaluatePosition(0f);
@@ -83,6 +86,7 @@ public static class TrailSplinePathUtility
             float t = i / (float)(denseCount - 1);
             float3 p = nativeSpline.EvaluatePosition(t);
             denseX[i] = p.x - knot0.x;
+            denseY[i] = p.y - knot0.y;
             denseZ[i] = p.z - knot0.z;
         }
 
@@ -110,14 +114,19 @@ public static class TrailSplinePathUtility
             sampleCount++;
 
         var xOffset = new float[sampleCount];
+        var yOffset = new float[sampleCount];
         float xMin = float.MaxValue;
         float xMax = float.MinValue;
 
         for (int i = 0; i < sampleCount; i++)
         {
             float z = zMin + i * zStep;
-            float ox = SampleXAtZ(denseX, denseZ, denseCount, z);
+            float ox = SampleAtZ(denseX, denseZ, denseCount, z);
+            float oy = SampleAtZ(denseY, denseZ, denseCount, z);
+            if (float.IsNaN(ox))
+                oy = float.NaN;
             xOffset[i] = ox;
+            yOffset[i] = oy;
             if (ox < xMin) xMin = ox;
             if (ox > xMax) xMax = ox;
         }
@@ -127,6 +136,7 @@ public static class TrailSplinePathUtility
             zMin = zMin,
             zStep = zStep,
             xOffset = xOffset,
+            yOffset = yOffset,
             xMin = xMin,
             xMax = xMax
         };
@@ -147,18 +157,26 @@ public static class TrailSplinePathUtility
         root.xMax = data.xMax;
 
         var array = builder.Allocate(ref root.xOffset, data.xOffset.Length);
+        var yArray = builder.Allocate(ref root.yOffset, data.xOffset.Length);
+        bool hasY = data.yOffset != null && data.yOffset.Length == data.xOffset.Length;
         for (int i = 0; i < data.xOffset.Length; i++)
+        {
             array[i] = data.xOffset[i];
+            float oy = hasY ? data.yOffset[i] : float.NaN;
+            if (float.IsNaN(data.xOffset[i]))
+                oy = float.NaN;
+            yArray[i] = oy;
+        }
 
         return builder.CreateBlobAssetReference<TrailPathBlob>(Allocator.Persistent);
     }
 
-    static float SampleXAtZ(float[] x, float[] z, int count, float queryZ)
+    static float SampleAtZ(float[] values, float[] z, int count, float queryZ)
     {
         if (queryZ <= z[0])
-            return x[0];
+            return values[0];
         if (queryZ >= z[count - 1])
-            return x[count - 1];
+            return values[count - 1];
 
         int lo = 0;
         int hi = count - 1;
@@ -173,9 +191,9 @@ public static class TrailSplinePathUtility
 
         float dz = z[hi] - z[lo];
         if (dz <= 1e-6f)
-            return x[hi];
+            return values[hi];
 
         float frac = (queryZ - z[lo]) / dz;
-        return math.lerp(x[lo], x[hi], frac);
+        return math.lerp(values[lo], values[hi], frac);
     }
 }

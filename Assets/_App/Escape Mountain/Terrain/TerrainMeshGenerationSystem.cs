@@ -396,6 +396,10 @@ public partial struct TerrainMeshScheduleSystem : ISystem
                         zStep = trailLutStep
                     }
                 };
+
+                var tileData = _inFlightTileData[i];
+                TerrainMeshNoise.BuildSplineGradeSpans(ref tileData);
+                _inFlightTileData[i] = tileData;
             }
 
             var buildLutsJob = new BuildTileTrailCenterlineLutsJob
@@ -582,6 +586,23 @@ public partial struct TerrainMeshCompleteSystem : ISystem
 }
 
 /// <summary>
+/// One Z interval where a trail spline replaces slope-angle grade.
+/// Spans stored on <see cref="TileMeshJobData"/> are non-overlapping and sorted by <see cref="zStart"/>.
+/// Where splines overlap, the lower trail index wins.
+/// </summary>
+public struct SplineGradeSpan
+{
+    public float zStart;
+    public float zEnd;
+    public float gradeAtStart;
+    public float yAtStart;
+    public float enterCarry;
+    public float exitCarry;
+    public float pathStartZ;
+    public BlobAssetReference<TrailPathBlob> blob;
+}
+
+/// <summary>
 /// Data passed to each job for mesh generation.
 /// </summary>
 public struct TileMeshJobData
@@ -616,6 +637,11 @@ public struct TileMeshJobData
     public TrailCenterlineLUT trail1Lut;
     public TrailCenterlineLUT trail2Lut;
     public TrailCenterlineLUT trail3Lut;
+
+    /// <summary>
+    /// Non-overlapping spline grade intervals, sorted by Z. Empty when no trail spline is baked.
+    /// </summary>
+    public FixedList512Bytes<SplineGradeSpan> splineGradeSpans;
 }
 
 #if UNITY_EDITOR
@@ -881,7 +907,7 @@ public static class TerrainMeshNoise
 
         if (maxInfluence > 0f)
         {
-            float slopedTrailHeight = data.trailConfig.height + SampleGradeHeight(trailSlopeZ, data);
+            float slopedTrailHeight = data.trailConfig.height + SampleSurfaceGrade(trailSlopeZ, data);
             return math.lerp(terrainHeight, slopedTrailHeight, maxInfluence) + data.heightOffset;
         }
 
@@ -1025,9 +1051,192 @@ public static class TerrainMeshNoise
             }
         };
 
+        BuildSplineGradeSpans(ref data);
+
         float height = SampleHeight(worldX, worldZ, data, trailLuts);
         trailLuts.Dispose();
         return height;
+    }
+
+    /// <summary>
+    /// Fills <see cref="TileMeshJobData.splineGradeSpans"/> from baked trail splines.
+    /// Anchors are computed once per tile so vertices only interpolate spline Y.
+    /// </summary>
+    public static void BuildSplineGradeSpans(ref TileMeshJobData data)
+    {
+        var resolved = new FixedList512Bytes<SplineGradeSpan>();
+        float startZ = data.trailPath.startZ;
+        AddSplineGradePieces(ref resolved, data.trailPaths.trail1, startZ);
+        AddSplineGradePieces(ref resolved, data.trailPaths.trail2, startZ);
+        AddSplineGradePieces(ref resolved, data.trailPaths.trail3, startZ);
+        SortSpansByZ(ref resolved);
+        ApplyGradeCarry(ref resolved, data);
+        data.splineGradeSpans = resolved;
+    }
+
+    const float MinSplineSpanLength = 0.001f;
+
+    static void AddSplineGradePieces(
+        ref FixedList512Bytes<SplineGradeSpan> resolved,
+        BlobAssetReference<TrailPathBlob> blob,
+        float pathStartZ)
+    {
+        if (!TryGetSplineZRange(blob, pathStartZ, out float zStart, out float zEnd))
+            return;
+
+        float cursor = zStart;
+        int guard = 0;
+        while (cursor < zEnd - MinSplineSpanLength && guard++ < 8)
+        {
+            float blockStart = float.MaxValue;
+            float blockEnd = cursor;
+            for (int i = 0; i < resolved.Length; i++)
+            {
+                SplineGradeSpan occupied = resolved[i];
+                if (occupied.zEnd <= cursor + MinSplineSpanLength)
+                    continue;
+                if (occupied.zStart >= zEnd - MinSplineSpanLength)
+                    continue;
+
+                float overlapStart = math.max(occupied.zStart, cursor);
+                if (overlapStart < blockStart)
+                {
+                    blockStart = overlapStart;
+                    blockEnd = occupied.zEnd;
+                }
+            }
+
+            if (blockStart == float.MaxValue)
+            {
+                TryAppendSpan(ref resolved, cursor, zEnd, pathStartZ, blob);
+                break;
+            }
+
+            if (blockStart > cursor + MinSplineSpanLength)
+                TryAppendSpan(ref resolved, cursor, math.min(blockStart, zEnd), pathStartZ, blob);
+
+            float next = math.max(cursor + MinSplineSpanLength, blockEnd);
+            if (next <= cursor)
+                break;
+            cursor = next;
+        }
+    }
+
+    static bool TryGetSplineZRange(
+        BlobAssetReference<TrailPathBlob> blob,
+        float pathStartZ,
+        out float zStart,
+        out float zEnd)
+    {
+        zStart = 0f;
+        zEnd = 0f;
+        if (!blob.IsCreated)
+            return false;
+
+        ref var root = ref blob.Value;
+        int count = root.xOffset.Length;
+        if (count < 2 || root.yOffset.Length != count)
+            return false;
+
+        float zStep = root.zStep > 0f ? root.zStep : 1f;
+        zStart = pathStartZ + root.zMin;
+        zEnd = zStart + (count - 1) * zStep;
+        return zEnd - zStart > MinSplineSpanLength;
+    }
+
+    static void TryAppendSpan(
+        ref FixedList512Bytes<SplineGradeSpan> spans,
+        float zStart,
+        float zEnd,
+        float pathStartZ,
+        BlobAssetReference<TrailPathBlob> blob)
+    {
+        if (zEnd - zStart <= MinSplineSpanLength)
+            return;
+        if (spans.Length >= spans.Capacity)
+            return;
+
+        spans.Add(new SplineGradeSpan
+        {
+            zStart = zStart,
+            zEnd = zEnd,
+            pathStartZ = pathStartZ,
+            blob = blob
+        });
+    }
+
+    static void SortSpansByZ(ref FixedList512Bytes<SplineGradeSpan> spans)
+    {
+        for (int i = 1; i < spans.Length; i++)
+        {
+            SplineGradeSpan key = spans[i];
+            int j = i - 1;
+            while (j >= 0 && spans[j].zStart > key.zStart)
+            {
+                spans[j + 1] = spans[j];
+                j--;
+            }
+
+            spans[j + 1] = key;
+        }
+    }
+
+    static void ApplyGradeCarry(ref FixedList512Bytes<SplineGradeSpan> spans, in TileMeshJobData data)
+    {
+        float carried = 0f;
+        for (int i = 0; i < spans.Length; i++)
+        {
+            SplineGradeSpan span = spans[i];
+            span.gradeAtStart = SampleGradeHeight(span.zStart, data);
+            float gradeAtEnd = SampleGradeHeight(span.zEnd, data);
+            span.yAtStart = SampleSplineYOrZero(span, span.zStart);
+            float yAtEnd = SampleSplineYOrZero(span, span.zEnd);
+            span.enterCarry = carried;
+            carried += (yAtEnd - span.yAtStart) - (gradeAtEnd - span.gradeAtStart);
+            span.exitCarry = carried;
+            spans[i] = span;
+        }
+    }
+
+    static float SampleSplineYOrZero(in SplineGradeSpan span, float worldZ)
+    {
+        if (TrailInfluenceBurst.TrySampleAuthoredCenterlineY(worldZ, span.pathStartZ, span.blob, out float y))
+            return y;
+        return 0f;
+    }
+
+    /// <summary>
+    /// Terrain grade at <paramref name="worldZ"/>. Inside a spline span this is the slope-angle
+    /// height at the span start plus the spline's Y offset. Outside, slope angle resumes,
+    /// shifted so the surface stays continuous at each span end.
+    /// </summary>
+    static float SampleSurfaceGrade(float worldZ, in TileMeshJobData data)
+    {
+        int count = data.splineGradeSpans.Length;
+        if (count == 0)
+            return SampleGradeHeight(worldZ, data);
+
+        float carried = 0f;
+        for (int i = 0; i < count; i++)
+        {
+            SplineGradeSpan span = data.splineGradeSpans[i];
+            if (worldZ < span.zStart)
+                break;
+
+            if (worldZ <= span.zEnd)
+            {
+                float y = span.yAtStart;
+                if (TrailInfluenceBurst.TrySampleAuthoredCenterlineY(
+                        worldZ, span.pathStartZ, span.blob, out float sampled))
+                    y = sampled;
+
+                return span.gradeAtStart + span.enterCarry + (y - span.yAtStart);
+            }
+
+            carried = span.exitCarry;
+        }
+
+        return SampleGradeHeight(worldZ, data) + carried;
     }
 
     /// <summary>
@@ -1131,7 +1340,7 @@ public static class TerrainMeshNoise
         }
 
         return total / maxValue * data.noiseAmplitude * continentalMask
-            + SampleGradeHeight((float)worldZ, data);
+            + SampleSurfaceGrade((float)worldZ, data);
     }
 }
 

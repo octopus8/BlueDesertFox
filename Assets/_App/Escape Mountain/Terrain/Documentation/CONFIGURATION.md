@@ -133,6 +133,8 @@ Constant terrain grade along world +Z. `0` is flat. Positive values rise as Z in
 
 Height is path-integrated from `tan(angle)` along Z so the surface stays continuous.
 
+When a trail spline is assigned, that spline's height replaces this grade for the Z range the spline covers. Slope variation is not added inside that range. Outside it, this angle and slope variation resume, shifted so the surface does not cliff at the spline ends.
+
 #### Slope Variation Seed
 
 **Type**: Int  
@@ -351,16 +353,16 @@ Up to three flat ski-style trails carved into the terrain. All share one Y heigh
 **Type**: `SplineContainer` (optional prefab or scene instance)  
 **Default**: none
 
-Assign a Unity Splines `SplineContainer` (for example `Trail Spline 00`) to define the trail centerline in XZ. Knot 0 is placed at the shared Start X/Z (or the player, when snap-to-player is on). Spline Y is ignored; trail height stays `trailHeight`.
+Assign a Unity Splines `SplineContainer` (for example `Trail Spline 00`) to define the trail centerline. Knot 0 is placed at the shared Start X/Z (or the player, when snap-to-player is on). Spline height, relative to knot 0, is the terrain grade over the spline's Z range. Off the trail, detail noise is still added on top of that grade. `trailHeight` remains a vertical offset of the carved ribbon.
 
 **Spline convention**:
 
-- Knot 0 = relative `(0, 0)` on the path
+- Knot 0 = relative `(0, 0, 0)` on the path. Later knots' Y offsets are the grade
 - Path must not double back in Z (Z of sampled points must be non-decreasing)
 - Closed splines are rejected
 - Sample spacing uses the shared **Trail LUT Step Meters**
 
-When a spline is assigned, that trail ignores seed, frequency, amplitude, and the shared straight-run / weave-fade. The trail exists only for the Z range covered by the spline.
+When a spline is assigned, that trail ignores seed, frequency, amplitude, and the shared straight-run / weave-fade. The trail exists only for the Z range covered by the spline. If several splines cover the same Z, the lower trail index wins (Trail 1, then 2, then 3). Outside every spline's Z range, **Slope Angle Degrees** defines the grade.
 
 Do not add `SplineComponentAuthoring` and do not instance the spline into the SubScene — the baker reads the prefab at bake time.
 

@@ -108,6 +108,7 @@ public struct TerrainHeightAlignState : IComponentData
 /// guaranteeing the path always advances in the +Z direction (cannot turn past 90°).
 /// When a <see cref="TrailPathBlob"/> is assigned (baked from a spline),
 /// that X(Z) table replaces noise weave (straight-run and seed/frequency/amplitude are ignored).
+/// Spline Y offsets replace slope-angle grade for the whole terrain inside the spline's Z range.
 /// Trail cross-section is level (ski-trail style): grade uses the world Z of the closest centerline point.
 /// Width and blend are measured perpendicular to the centerline, including through turns.
 /// </summary>
@@ -189,7 +190,8 @@ public struct TrailPathConfig : IComponentData
 }
 
 /// <summary>
-/// Baked X-offset-vs-Z samples for one spline-authored trail, relative to knot 0.
+/// Baked X and Y offsets vs Z for one spline-authored trail, relative to knot 0.
+/// Y offsets replace slope-angle grade inside this Z range.
 /// Invalid (gap) samples are <see cref="float.NaN"/>.
 /// </summary>
 public struct TrailPathBlob
@@ -203,6 +205,9 @@ public struct TrailPathBlob
     /// <summary>Centerline X relative to <see cref="TrailPathConfig.startX"/>; NaN = no trail at that Z.</summary>
     public BlobArray<float> xOffset;
 
+    /// <summary>Centerline Y relative to knot 0; NaN = no grade sample at that Z.</summary>
+    public BlobArray<float> yOffset;
+
     /// <summary>Minimum valid relative X (AABB).</summary>
     public float xMin;
 
@@ -211,7 +216,7 @@ public struct TrailPathBlob
 }
 
 /// <summary>
-/// Optional per-trail spline paths baked into X(Z) blobs.
+/// Optional per-trail spline paths baked into X/Y(Z) blobs.
 /// An uncreated blob means that trail uses noise weave.
 /// Separate from <see cref="TrailConfig"/> so existing baked trail instance layouts stay stable.
 /// </summary>

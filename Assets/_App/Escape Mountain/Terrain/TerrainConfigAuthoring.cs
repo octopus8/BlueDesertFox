@@ -45,7 +45,7 @@ public class TerrainConfigAuthoring : MonoBehaviour
     [Tooltip("Extra Y shift applied after aligning terrain to the player feet at init. Negative lowers the terrain (e.g. -5 = 5m below feet).")]
     public float initYOffset = 0f;
 
-    [Tooltip("Constant terrain grade along world +Z in degrees. 0 = flat. Positive = uphill as Z increases.")]
+    [Tooltip("Constant terrain grade along world +Z in degrees. 0 = flat. Positive = uphill as Z increases. A trail spline replaces this grade over the spline's Z range.")]
     [Range(-60f, 60f)]
     public float slopeAngleDegrees = 0f;
 
@@ -158,7 +158,7 @@ public class TerrainConfigAuthoring : MonoBehaviour
     public float trail1BlendWidth = 8f;
 
     [ShowIf("trail1Enabled")]
-    [Tooltip("Optional SplineContainer prefab. Knot 0 is placed at Start X/Z (or the player if snap is on). When set, noise weave is ignored.")]
+    [Tooltip("Optional SplineContainer prefab. Knot 0 is placed at Start X/Z (or the player if snap is on). When set, noise weave is ignored and the spline height defines the terrain grade over its Z range. Outside that range, Slope Angle Degrees is used.")]
     public SplineContainer trail1Spline;
 
     [ShowIf("@trail1Enabled && trail1Spline == null")]
@@ -186,7 +186,7 @@ public class TerrainConfigAuthoring : MonoBehaviour
     public float trail2BlendWidth = 8f;
 
     [ShowIf("trail2Enabled")]
-    [Tooltip("Optional SplineContainer prefab. Knot 0 is placed at Start X/Z (or the player if snap is on). When set, noise weave is ignored.")]
+    [Tooltip("Optional SplineContainer prefab. Knot 0 is placed at Start X/Z (or the player if snap is on). When set, noise weave is ignored and the spline height defines the terrain grade over its Z range. Outside that range, Slope Angle Degrees is used.")]
     public SplineContainer trail2Spline;
 
     [ShowIf("@trail2Enabled && trail2Spline == null")]
@@ -214,7 +214,7 @@ public class TerrainConfigAuthoring : MonoBehaviour
     public float trail3BlendWidth = 8f;
 
     [ShowIf("trail3Enabled")]
-    [Tooltip("Optional SplineContainer prefab. Knot 0 is placed at Start X/Z (or the player if snap is on). When set, noise weave is ignored.")]
+    [Tooltip("Optional SplineContainer prefab. Knot 0 is placed at Start X/Z (or the player if snap is on). When set, noise weave is ignored and the spline height defines the terrain grade over its Z range. Outside that range, Slope Angle Degrees is used.")]
     public SplineContainer trail3Spline;
 
     [ShowIf("@trail3Enabled && trail3Spline == null")]
@@ -599,7 +599,11 @@ public class TerrainConfigAuthoring : MonoBehaviour
                 continue;
             }
 
-            Vector3 p = new Vector3(trailStartX + ox, y, trailStartZ + cache.zMin + i * cache.zStep);
+            float oy = 0f;
+            if (cache.yOffset != null && i < cache.yOffset.Length && !float.IsNaN(cache.yOffset[i]))
+                oy = cache.yOffset[i];
+
+            Vector3 p = new Vector3(trailStartX + ox, y + oy, trailStartZ + cache.zMin + i * cache.zStep);
             if (hasPrev)
                 Gizmos.DrawLine(prev, p);
             prev = p;

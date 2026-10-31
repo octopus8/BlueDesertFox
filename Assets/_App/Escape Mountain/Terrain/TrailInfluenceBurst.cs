@@ -184,6 +184,42 @@ public static class TrailInfluenceBurst
         return true;
     }
 
+    /// <summary>
+    /// Interpolates spline height relative to knot 0 at <paramref name="worldZ"/>.
+    /// Both adjacent samples must be valid; gaps do not lerp.
+    /// </summary>
+    public static bool TrySampleAuthoredCenterlineY(
+        float worldZ,
+        float startZ,
+        BlobAssetReference<TrailPathBlob> pathBlob,
+        out float yOffset)
+    {
+        yOffset = 0f;
+        if (!pathBlob.IsCreated)
+            return false;
+
+        ref var blob = ref pathBlob.Value;
+        int count = blob.yOffset.Length;
+        if (count <= 0 || count != blob.xOffset.Length)
+            return false;
+
+        float zStep = blob.zStep > 0f ? blob.zStep : 1f;
+        float t = (worldZ - startZ - blob.zMin) / zStep;
+        if (t < 0f || t > count - 1)
+            return false;
+
+        int i0 = (int)math.floor(t);
+        int i1 = math.min(i0 + 1, count - 1);
+        float y0 = blob.yOffset[i0];
+        float y1 = blob.yOffset[i1];
+        if (math.isnan(y0) || math.isnan(y1))
+            return false;
+
+        float frac = t - i0;
+        yOffset = math.lerp(y0, y1, frac);
+        return true;
+    }
+
     public static byte GetActiveTrailMask(in TrailInstanceConfig trail1, in TrailInstanceConfig trail2, in TrailInstanceConfig trail3)
     {
         byte mask = 0;

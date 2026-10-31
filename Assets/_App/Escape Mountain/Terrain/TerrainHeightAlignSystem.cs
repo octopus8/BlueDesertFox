@@ -11,6 +11,7 @@ using UnityEngine;
 /// </summary>
 [UpdateInGroup(typeof(InitializationSystemGroup))]
 [UpdateAfter(typeof(PlayerTrackingInitSystem))]
+[UpdateAfter(typeof(TrailPathPlayerAlignSystem))]
 public partial struct TerrainHeightAlignSystem : ISystem
 {
     public void OnCreate(ref SystemState state)
@@ -24,6 +25,15 @@ public partial struct TerrainHeightAlignSystem : ISystem
         var alignState = SystemAPI.GetSingleton<TerrainHeightAlignState>();
         if (alignState.aligned != 0)
             return;
+
+        // Spline grade is relative to the path origin. Wait until that origin has snapped
+        // so the one-shot offset matches the surface mesh generation will build.
+        if (SystemAPI.HasSingleton<TrailPathConfig>())
+        {
+            TrailPathConfig path = SystemAPI.GetSingleton<TrailPathConfig>();
+            if (path.snapStartToPlayer != 0 && path.startAligned == 0)
+                return;
+        }
 
         float3 anchorPosition = float3.zero;
         float feetOffsetY = 0f;
